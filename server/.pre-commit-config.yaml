@@ -1,0 +1,40 @@
+# Pre-commit hooks configuration for FieldWorker
+
+repos:
+  # Python linting
+  - repo: https://github.com/pylint-dev/pylint
+    rev: v3.0.3
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: python
+        types: [python]
+        args: [--disable=all, --enable=E,F, --max-line-length=100]
+        additional_dependencies: [pylint]
+
+  # Code formatting
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        name: black
+        language: python
+        types: [python]
+        args: [--line-length=100]
+
+  # Import sorting
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort
+        language: python
+        types: [python]
+        args: [--profile=black]
+
+# Configuration for local use:
+# 1. Install pre-commit: pip install pre-commit
+# 2. Setup hooks: pre-commit install
+# 3. Run on all files: pre-commit run --all-files
+# 4. Run on changed files: pre-commit run (automatically on git commit)

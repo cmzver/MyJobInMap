@@ -1,0 +1,67 @@
+{
+    "nxConsole.nxWorkspacePath": "",
+    
+    // Copilot настройки для проекта
+    "github.copilot.chat.codeGeneration.instructions": [
+        { "file": ".github/copilot-instructions.md" }
+    ],
+    
+    // Файлы для индексации
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/venv": true,
+        "**/__pycache__": true,
+        "**/build": true,
+        "**/.gradle": true,
+        "**/.idea": true
+    },
+    
+    // Ассоциации файлов
+    "files.associations": {
+        "*.kt": "kotlin",
+        "*.kts": "kotlin"
+    },
+    
+    // Python для сервера
+    "python.defaultInterpreterPath": "${workspaceFolder}/server/venv/Scripts/python.exe",
+    
+    // Автосохранение
+    "files.autoSave": "afterDelay",
+    "chat.mcp.serverSampling": {
+        "MyJobInMap/.vscode/mcp.json: io.github.github/github-mcp-server": {
+            "allowedModels": [
+                "copilot/claude-sonnet-4.5",
+                "copilot/auto",
+                "copilot/claude-haiku-4.5",
+                "copilot/claude-opus-4.5",
+                "copilot/claude-sonnet-4",
+                "gemini/models/gemini-2.5-flash",
+                "gemini/models/gemini-2.5-pro",
+                "copilot/gemini-2.5-pro",
+                "copilot/gemini-3-pro-preview",
+                "copilot/gpt-4.1",
+                "copilot/gpt-4o",
+                "copilot/gpt-5",
+                "copilot/gpt-5-mini",
+                "copilot/gpt-5-codex",
+                "copilot/gpt-5.1",
+                "copilot/gpt-5.1-codex",
+                "copilot/gpt-5.1-codex-max",
+                "copilot/gpt-5.1-codex-mini",
+                "copilot/grok-code-fast-1",
+                "copilot/oswe-vscode-secondary"
+            ]
+        }
+    },
+    "git.ignoreLimitWarning": true,
+    "chat.tools.terminal.autoApprove": {
+        "/^python -m pytest tests/test_photos_api\\.py::TestGetPhotoFile::test_get_photo_file_not_found -v --tb=long 2>&1$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python -m pytest tests/test_task_service\\.py tests/test_rate_limiter\\.py tests/test_geocoding_service\\.py tests/test_image_optimizer\\.py -v --tb=short 2>&1 \\| Select-Object -Last 20$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network Security Configuration
+    ==============================
+    Настройки безопасности сети для FieldWorker.
+    
+    Development: разрешён HTTP для всех локальных адресов
+    Production: для HTTPS удалите cleartextTrafficPermitted="true" из base-config
+-->
+<network-security-config>
+    <!-- 
+        Разрешаем HTTP для разработки.
+        ВАЖНО: Для production с HTTPS измените на cleartextTrafficPermitted="false"
+    -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system"/>
+            <certificates src="user"/>
+        </trust-anchors>
+    </base-config>
+    
+    <!-- Debug builds: доверять пользовательским сертификатам -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system"/>
+            <certificates src="user"/>
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>

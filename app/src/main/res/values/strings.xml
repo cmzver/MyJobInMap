@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">FieldWorker</string>
+    <string name="search_placeholder">Поиск...</string>
+    <string name="stat_new">Новые</string>
+    <string name="stat_in_progress">В работе</string>
+    <string name="stat_done">Готово</string>
+    <string name="offline_mode">Оффлайн режим</string>
+    <string name="offline_unsynced">Несинхронизировано: %1$d</string>
+    <string name="map_my_location">Мое местоположение</string>
+    <string name="map_refresh">Обновить</string>
+    <string name="login_title">FieldWorker</string>
+    <string name="login_subtitle">Система заявок для сотрудников</string>
+    <string name="login_username_label">Логин</string>
+    <string name="login_password_label">Пароль</string>
+    <string name="login_show_password">Показать пароль</string>
+    <string name="login_hide_password">Скрыть пароль</string>
+    <string name="login_button">Войти</string>
+    <string name="login_demo_hint">Демо доступ: admin/admin, user/user</string>
+    <string name="login_server_settings">Настройки сервера</string>
+    <string name="login_server_url_label">Адрес сервера</string>
+    <string name="login_server_port_label">Порт</string>
+    <string name="login_testing_connection">Проверка...</string>
+    <string name="login_test_connection">Проверить соединение</string>
+    <string name="login_connection_ok">Соединение установлено</string>
+    <string name="login_connection_fail">Не удалось подключиться</string>
+    <string name="login_emulator_hint">Для Android эмулятора: 10.0.2.2</string>
+    <string name="login_save">Сохранить</string>
+    <string name="login_cancel">Отмена</string>
+</resources>

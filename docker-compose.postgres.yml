@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: fieldworker_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fieldworker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fieldworker_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-fieldworker_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fieldworker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build: 
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: fieldworker_server
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-fieldworker}:${POSTGRES_PASSWORD:-fieldworker_secret}@db:5432/${POSTGRES_DB:-fieldworker_db}
+      - SECRET_KEY=${SECRET_KEY:-change_me_in_production}
+      - PORT=8001
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./server/uploads:/app/uploads
+      - ./server/logs:/app/logs
+
+volumes:
+  postgres_data:
