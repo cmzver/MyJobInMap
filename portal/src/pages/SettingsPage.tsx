@@ -4,7 +4,6 @@ import {
   User, 
   Lock, 
   Bell, 
-  Server, 
   Save,
   Eye,
   EyeOff
@@ -242,30 +241,6 @@ export default function SettingsPage() {
           </div>
         </Card>
 
-        {/* System Info */}
-        <Card 
-          title="Информация о системе"
-          action={<Server className="h-5 w-5 text-gray-400" />}
-        >
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-500 dark:text-gray-400">Версия</span>
-              <span className="font-mono text-gray-900 dark:text-white">2.0.0</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500 dark:text-gray-400">API сервер</span>
-              <span className="font-mono text-gray-900 dark:text-white">localhost:8001</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500 dark:text-gray-400">Веб-панель</span>
-              <span className="font-mono text-gray-900 dark:text-white">React + TypeScript</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500 dark:text-gray-400">UI Framework</span>
-              <span className="font-mono text-gray-900 dark:text-white">TailwindCSS 3.4</span>
-            </div>
-          </div>
-        </Card>
       </div>
     </div>
   )

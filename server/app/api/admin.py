@@ -13,7 +13,7 @@ from sqlalchemy import text
 from app.models import (
     UserModel, DeviceModel, TaskModel, CommentModel,
     CustomFieldModel, RolePermissionModel, SystemSettingModel,
-    UserRole, get_db, get_setting, set_setting
+    UserRole, TaskPriority, get_db, get_setting, set_setting
 )
 from app.schemas import (
     UserCreate, UserUpdate, UserResponse,
@@ -841,7 +841,7 @@ async def seed_database(
                 lat=59.935,
                 lon=30.325,
                 status="NEW",
-                priority=4,
+                priority=TaskPriority.EMERGENCY.value,
                 assigned_user_id=worker1.id,
                 is_remote=False,
                 is_paid=True,
@@ -857,7 +857,7 @@ async def seed_database(
                 lat=55.754,
                 lon=37.620,
                 status="IN_PROGRESS",
-                priority=2,
+                priority=TaskPriority.CURRENT.value,
                 assigned_user_id=worker2.id,
                 is_remote=False,
                 is_paid=True,
@@ -873,7 +873,7 @@ async def seed_database(
                 lat=None,
                 lon=None,
                 status="DONE",
-                priority=2,
+                priority=TaskPriority.CURRENT.value,
                 assigned_user_id=worker1.id,
                 is_remote=True,
                 is_paid=False,
@@ -889,7 +889,7 @@ async def seed_database(
                 lat=55.796,
                 lon=49.108,
                 status="NEW",
-                priority=1,
+                priority=TaskPriority.PLANNED.value,
                 assigned_user_id=None,
                 is_remote=False,
                 is_paid=True,
@@ -905,7 +905,7 @@ async def seed_database(
                 lat=59.930,
                 lon=30.340,
                 status="DONE",
-                priority=2,
+                priority=TaskPriority.CURRENT.value,
                 assigned_user_id=worker2.id,
                 is_remote=False,
                 is_paid=True,

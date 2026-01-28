@@ -22,7 +22,7 @@ def test_task(db_session: Session, admin_user):
         description="Описание",
         raw_address="Тестовый адрес",
         status=TaskStatus.NEW.value,
-        priority=2  # CURRENT
+        priority="CURRENT"  # CURRENT
     )
     db_session.add(task)
     db_session.commit()

@@ -13,6 +13,7 @@ from sqlalchemy import func, and_
 
 from app.models import TaskModel, UserModel, get_db
 from app.services import get_current_user
+from app.utils import normalize_priority_value, priority_rank_expr
 
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
@@ -140,9 +141,9 @@ async def get_dashboard_activity(
     
     # Срочные заявки (EMERGENCY и URGENT)
     urgent_tasks_query = db.query(TaskModel).filter(
-        TaskModel.priority.in_(["EMERGENCY", "URGENT"]),
+        TaskModel.priority.in_(["EMERGENCY", "URGENT", "4", "3", 4, 3]),
         TaskModel.status.in_(["NEW", "IN_PROGRESS"])
-    ).order_by(TaskModel.priority, TaskModel.created_at).limit(5).all()
+    ).order_by(priority_rank_expr(TaskModel.priority).desc(), TaskModel.created_at).limit(5).all()
     
     urgent_tasks = []
     for task in urgent_tasks_query:
@@ -155,7 +156,7 @@ async def get_dashboard_activity(
         urgent_tasks.append(UrgentTask(
             id=task.id,
             title=task.title,
-            priority=task.priority,
+            priority=normalize_priority_value(task.priority, default="CURRENT"),
             status=task.status,
             planned_date=task.planned_date.isoformat() if task.planned_date else None,
             assignee_name=assignee_name

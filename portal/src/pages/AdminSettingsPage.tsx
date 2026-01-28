@@ -34,7 +34,8 @@ import Input from '@/components/Input'
 import Spinner from '@/components/Spinner'
 import EmptyState from '@/components/EmptyState'
 import apiClient from '@/api/client'
-import { useDevices, useSendTestNotification, useDeleteDevice } from '@/hooks/useApi'
+import { useDevices, useSendTestNotification, useDeleteDevice } from '@/hooks/useDevices'
+import { useSetting, useUpdateSetting } from '@/hooks/useSettings'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 
@@ -149,6 +150,8 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
       return response.data
     },
   })
+  const apiHost = typeof window !== 'undefined' ? window.location.origin : '—'
+  const uiFramework = 'React 18 + TypeScript, TailwindCSS'
 
   const seedMutation = useMutation({
     mutationFn: () => apiClient.post('/admin/db/seed'),
@@ -158,8 +161,8 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
       queryClient.invalidateQueries({ queryKey: ['server-info'] })
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
     },
-    onError: (error: any) => {
-      const message = error.response?.data?.detail || 'Ошибка при добавлении данных'
+    onError: (error: Error) => {
+      const message = (error as import('axios').AxiosError<{detail?: string}>)?.response?.data?.detail || 'Ошибка при добавлении данных'
       toast.error(message)
     },
   })
@@ -172,8 +175,8 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
       queryClient.invalidateQueries({ queryKey: ['server-info'] })
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
     },
-    onError: (error: any) => {
-      const message = error.response?.data?.detail || 'Ошибка при очистке'
+    onError: (error: Error) => {
+      const message = (error as import('axios').AxiosError<{detail?: string}>)?.response?.data?.detail || 'Ошибка при очистке'
       toast.error(message)
     },
   })
@@ -222,8 +225,8 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
       setShowCleanupConfirm(false)
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Ошибка очистки')
+    onError: (error: Error) => {
+      toast.error((error as import('axios').AxiosError<{detail?: string}>)?.response?.data?.detail || 'Ошибка очистки')
     },
   })
 
@@ -242,6 +245,12 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
     },
   })
 
+  const { data: resizableSetting, isLoading: resizableLoading } = useSetting('enable_resizable_columns')
+  const { data: compactSetting, isLoading: compactLoading } = useSetting('compact_table_view')
+  const updateSettingMutation = useUpdateSetting()
+  const isResizableEnabled = resizableSetting?.value ?? true
+  const isCompactEnabled = compactSetting?.value ?? false
+
   if (isLoading) {
     return <div className="flex justify-center py-12"><Spinner /></div>
   }
@@ -253,6 +262,8 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
         <div className="space-y-3 text-sm">
           <InfoRow label="Версия" value={serverInfo?.version || '2.0.0'} />
           <InfoRow label="Время работы" value={serverInfo?.uptime || 'N/A'} />
+          <InfoRow label="API" value={apiHost} />
+          <InfoRow label="Портал" value={uiFramework} />
           <InfoRow 
             label="Firebase" 
             value={
@@ -438,24 +449,39 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
       {/* Interface Settings */}
       <Card title="Интерфейс" action={<Settings className="h-5 w-5 text-gray-400" />}>
         <div className="space-y-4">
-          <label className="flex items-center justify-between cursor-pointer">
+          <label className="flex items-center justify-between gap-4 cursor-pointer">
             <div>
-              <p className="font-medium text-gray-900 dark:text-white">Автообновление</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Обновлять данные каждые 30 сек</p>
+              <p className="font-medium text-gray-900 dark:text-white">Изменяемая ширина колонок</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Перетаскивание границ колонок в таблицах</p>
             </div>
             <input
               type="checkbox"
-              defaultChecked
+              checked={isResizableEnabled}
+              disabled={resizableLoading || updateSettingMutation.isPending}
+              onChange={(event) =>
+                updateSettingMutation.mutate({
+                  key: 'enable_resizable_columns',
+                  value: event.target.checked,
+                })
+              }
               className="w-5 h-5 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
             />
           </label>
-          <label className="flex items-center justify-between cursor-pointer">
+          <label className="flex items-center justify-between gap-4 cursor-pointer">
             <div>
               <p className="font-medium text-gray-900 dark:text-white">Компактный вид</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">Уменьшенные отступы в таблицах</p>
             </div>
             <input
               type="checkbox"
+              checked={isCompactEnabled}
+              disabled={compactLoading || updateSettingMutation.isPending}
+              onChange={(event) =>
+                updateSettingMutation.mutate({
+                  key: 'compact_table_view',
+                  value: event.target.checked,
+                })
+              }
               className="w-5 h-5 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
             />
           </label>
@@ -1336,82 +1362,112 @@ function CardBuilderTab() {
 
 // ============= Permissions Tab =============
 function PermissionsTab() {
-  const sections = [
-    { id: 'dashboard', label: 'Дашборд', admin: true, dispatcher: true, worker: true },
-    { id: 'tasks', label: 'Заявки', admin: true, dispatcher: true, worker: true },
-    { id: 'tasks_create', label: '→ Создание заявок', admin: true, dispatcher: true, worker: false },
-    { id: 'tasks_delete', label: '→ Удаление заявок', admin: true, dispatcher: false, worker: false },
-    { id: 'users', label: 'Пользователи', admin: true, dispatcher: false, worker: false },
-    { id: 'finance', label: 'Финансы', admin: true, dispatcher: true, worker: false },
-    { id: 'devices', label: 'Устройства', admin: true, dispatcher: false, worker: false },
-    { id: 'settings', label: 'Настройки', admin: true, dispatcher: false, worker: false },
-    { id: 'reports', label: 'Отчёты', admin: true, dispatcher: true, worker: false },
+  const queryClient = useQueryClient()
+  const { data: permissions, isLoading } = useQuery({
+    queryKey: ['role-permissions'],
+    queryFn: async () => {
+      const response = await apiClient.get<Record<string, Record<string, boolean>>>('/admin/permissions')
+      return response.data
+    },
+  })
+  const updatePermissionsMutation = useMutation({
+    mutationFn: ({ role, permission, value }: { role: string; permission: string; value: boolean }) =>
+      apiClient.put(`/admin/permissions/${role}`, { permissions: { [permission]: value } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['role-permissions'] })
+      toast.success('Права обновлены')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Ошибка обновления прав')
+    },
+  })
+
+  const rows = [
+    { id: 'view_dashboard', label: 'Дашборд' },
+    { id: 'view_tasks', label: 'Заявки' },
+    { id: 'create_tasks', label: 'Создавать заявки' },
+    { id: 'edit_tasks', label: 'Редактировать заявки' },
+    { id: 'delete_tasks', label: 'Удалять заявки' },
+    { id: 'change_task_status', label: 'Менять статусы' },
+    { id: 'assign_tasks', label: 'Назначать исполнителей' },
+    { id: 'view_comments', label: 'Комментарии (просмотр)' },
+    { id: 'add_comments', label: 'Комментарии (добавление)' },
+    { id: 'view_photos', label: 'Фото (просмотр)' },
+    { id: 'add_photos', label: 'Фото (добавление)' },
+    { id: 'delete_photos', label: 'Фото (удаление)' },
+    { id: 'view_users', label: 'Пользователи (просмотр)' },
+    { id: 'edit_users', label: 'Пользователи (ред.)' },
+    { id: 'view_finance', label: 'Финансы' },
+    { id: 'view_devices', label: 'Устройства' },
+    { id: 'view_settings', label: 'Настройки (просмотр)' },
+    { id: 'edit_settings', label: 'Настройки (ред.)' },
+    { id: 'view_addresses', label: 'Адреса (просмотр)' },
+    { id: 'edit_addresses', label: 'Адреса (ред.)' },
   ]
+
+  const isDisabled = (role: string) => role === 'admin' || updatePermissionsMutation.isPending
 
   return (
     <Card title="Права доступа по ролям" action={<UserCog className="h-5 w-5 text-gray-400" />}>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Настройте какие разделы и функции доступны для каждой роли
+        Настройте права доступа и допустимые действия для каждой роли.
       </p>
 
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-gray-200 dark:border-gray-700">
-              <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                Раздел
-              </th>
-              <th className="text-center py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                Админ
-              </th>
-              <th className="text-center py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                Диспетчер
-              </th>
-              <th className="text-center py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                Работник
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {sections.map((section) => (
-              <tr key={section.id} className="border-b border-gray-100 dark:border-gray-800">
-                <td className="py-3 px-4 text-sm text-gray-700 dark:text-gray-300">
-                  {section.label}
-                </td>
-                <td className="text-center py-3 px-4">
-                  <input
-                    type="checkbox"
-                    defaultChecked={section.admin}
-                    disabled={section.id === 'settings'}
-                    className="w-4 h-4 text-primary-500 border-gray-300 dark:border-gray-600 rounded disabled:opacity-50"
-                  />
-                </td>
-                <td className="text-center py-3 px-4">
-                  <input
-                    type="checkbox"
-                    defaultChecked={section.dispatcher}
-                    className="w-4 h-4 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
-                  />
-                </td>
-                <td className="text-center py-3 px-4">
-                  <input
-                    type="checkbox"
-                    defaultChecked={section.worker}
-                    className="w-4 h-4 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
-                  />
-                </td>
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <Spinner />
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-200 dark:border-gray-700">
+                <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
+                  Разрешение
+                </th>
+                <th className="text-center py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
+                  Админ
+                </th>
+                <th className="text-center py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
+                  Диспетчер
+                </th>
+                <th className="text-center py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
+                  Исполнитель
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex justify-end mt-4">
-        <Button onClick={() => toast.success('Права сохранены')}>
-          <Save className="h-4 w-4 mr-2" />
-          Сохранить
-        </Button>
-      </div>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id} className="border-b border-gray-100 dark:border-gray-800">
+                  <td className="py-3 px-4 text-sm text-gray-700 dark:text-gray-300">
+                    {row.label}
+                  </td>
+                  {(['admin', 'dispatcher', 'worker'] as const).map((role) => {
+                    const checked = permissions?.[role]?.[row.id] ?? (role === 'admin')
+                    return (
+                      <td key={role} className="text-center py-3 px-4">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={isDisabled(role)}
+                          onChange={(event) =>
+                            updatePermissionsMutation.mutate({
+                              role,
+                              permission: row.id,
+                              value: event.target.checked,
+                            })
+                          }
+                          className="w-4 h-4 text-primary-500 border-gray-300 dark:border-gray-600 rounded disabled:opacity-50"
+                        />
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Card>
   )
 }
@@ -1503,7 +1559,7 @@ function DevicesTab() {
                   Устройство
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  FCM Токен
+                  FCM токен
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Последняя активность
@@ -1630,7 +1686,6 @@ function DevicesTab() {
   )
 }
 
-// ============= Clear Database Modal =============
 function ClearDatabaseModal({ setShowClearConfirm }: { setShowClearConfirm: (show: boolean) => void }) {
   const queryClient = useQueryClient()
   const clearMutation = useMutation({
@@ -1642,8 +1697,8 @@ function ClearDatabaseModal({ setShowClearConfirm }: { setShowClearConfirm: (sho
       queryClient.invalidateQueries({ queryKey: ['server-info'] })
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
     },
-    onError: (error: any) => {
-      const message = error.response?.data?.detail || 'Ошибка при очистке'
+    onError: (error: Error) => {
+      const message = (error as import('axios').AxiosError<{detail?: string}>)?.response?.data?.detail || 'Ошибка при очистке'
       toast.error(`✗ ${message}`)
     },
   })

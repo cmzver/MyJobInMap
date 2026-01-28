@@ -8,12 +8,14 @@ import logging
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 from app.models import (
     UserModel, TaskModel, CommentModel,
     TaskStatus, TaskPriority, UserRole, get_db
 )
+from app.models.address import AddressModel
+from app.api.address_extended import build_task_filters_for_address
 from app.schemas import (
     TaskCreate, TaskStatusUpdate, TaskAssignRequest, PlannedDateUpdate,
     TaskResponse, TaskListResponse,
@@ -29,7 +31,7 @@ from app.services import (
 )
 from app.services.task_parser import parse_dispatcher_message
 from app.api.deps import require_task_access, TaskAccess
-from app.utils import task_to_response, task_to_list_response
+from app.utils import task_to_response, task_to_list_response, normalize_priority_value, get_priority_rank, priority_rank_expr
 
 
 router = APIRouter(prefix="/api/tasks", tags=["Tasks"])
@@ -65,6 +67,7 @@ async def get_tasks(
     priority: Optional[str] = None,
     assignee_id: Optional[int] = None,
     search: Optional[str] = None,
+    address_id: Optional[int] = None,
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("view_tasks"))
 ):
@@ -83,27 +86,42 @@ async def get_tasks(
         query = query.filter(TaskModel.status == status.value)
 
     if priority:
-        priority_value = None
-        if priority.isdigit():
-            priority_value = int(priority)
-        else:
-            try:
-                priority_value = TaskPriority[priority].value
-            except KeyError:
-                priority_value = None
-        if priority_value:
-            query = query.filter(TaskModel.priority == priority_value)
+        try:
+            normalized_priority = normalize_priority_value(priority, default=None, strict=True)
+        except ValueError:
+            normalized_priority = None
+        if normalized_priority:
+            rank = get_priority_rank(normalized_priority)
+            query = query.filter(TaskModel.priority.in_([normalized_priority, str(rank), rank]))
 
     if search:
-        search_pattern = f"%{search}%"
-        query = query.filter(or_(
-            TaskModel.task_number.ilike(search_pattern),
-            TaskModel.title.ilike(search_pattern),
-            TaskModel.raw_address.ilike(search_pattern),
-            TaskModel.description.ilike(search_pattern),
-            TaskModel.customer_name.ilike(search_pattern),
-            TaskModel.customer_phone.ilike(search_pattern),
-        ))
+        base = search.strip()
+        patterns = {
+            base,
+            base.lower(),
+            base.upper(),
+            base.capitalize(),
+            base.title(),
+        }
+        like_clauses = []
+        for pat in patterns:
+            like_pat = f"%{pat}%"
+            like_clauses.extend([
+                TaskModel.task_number.ilike(like_pat),
+                TaskModel.title.ilike(like_pat),
+                TaskModel.raw_address.ilike(like_pat),
+                TaskModel.description.ilike(like_pat),
+                TaskModel.customer_name.ilike(like_pat),
+                TaskModel.customer_phone.ilike(like_pat),
+            ])
+        query = query.filter(or_(*like_clauses))
+    
+    if address_id:
+        address = db.query(AddressModel).filter(AddressModel.id == address_id).first()
+        if address:
+            filters = build_task_filters_for_address(address)
+            if filters:
+                query = query.filter(or_(*filters))
     
     # Workers see only their tasks
     # Dispatchers and Admins can see all (optionally filter by assignee_id)
@@ -118,7 +136,7 @@ async def get_tasks(
     
     # Применяем пагинацию
     tasks = query.order_by(
-        TaskModel.priority.desc(),
+        priority_rank_expr(TaskModel.priority).desc(),
         TaskModel.created_at.desc()
     ).offset((page - 1) * size).limit(size).all()
     
@@ -409,7 +427,7 @@ async def create_task_from_text(
         lat=lat,
         lon=lon,
         status=TaskStatus.NEW.value,
-        priority=parsed.get("priority", 2),
+        priority=parsed.get("priority", TaskPriority.CURRENT.value),
         assigned_user_id=assigned_id,
     )
     

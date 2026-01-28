@@ -1,6 +1,12 @@
 #!/usr/bin/env python
-"""Test backup API endpoints"""
+"""Integration script for backup API endpoints (requires running server on localhost:8001)."""
+import os
+import pytest
 import requests
+
+# Skip during automated test runs unless explicitly enabled
+if not os.environ.get("RUN_INTEGRATION"):
+    pytest.skip("Integration script – requires running API server", allow_module_level=True)
 
 BASE = 'http://localhost:8001'
 

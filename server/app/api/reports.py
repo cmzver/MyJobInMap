@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, extract
 
 from app.models import TaskModel, UserModel, UserRole, get_db
+from app.utils import normalize_priority_value
 from app.services import get_current_dispatcher_or_admin
 
 
@@ -101,13 +102,6 @@ PRIORITY_LABELS = {
 }
 
 # Маппинг int приоритетов в строки (TaskPriority enum values)
-PRIORITY_INT_TO_STR = {
-    1: "PLANNED",
-    2: "CURRENT",
-    3: "URGENT",
-    4: "EMERGENCY",
-}
-
 
 def get_date_range(period: str, custom_from: Optional[date], custom_to: Optional[date]):
     """Получить диапазон дат для периода"""
@@ -239,9 +233,7 @@ async def get_reports(
     # === By Priority ===
     priority_counts = defaultdict(int)
     for t in tasks:
-        # priority хранится как int (1-4), конвертируем в строку
-        priority_int = t.priority if t.priority else 2  # default CURRENT=2
-        priority_str = PRIORITY_INT_TO_STR.get(priority_int, "CURRENT")
+        priority_str = normalize_priority_value(t.priority, default="CURRENT")
         priority_counts[priority_str] += 1
     
     by_priority = [
@@ -390,7 +382,7 @@ async def export_report(
             (t.title or "").replace(";", ",").replace("\n", " "),
             (t.address or "").replace(";", ",").replace("\n", " "),
             STATUS_LABELS.get(t.status, t.status),
-            PRIORITY_LABELS.get(t.priority or "CURRENT", t.priority or ""),
+            PRIORITY_LABELS.get(normalize_priority_value(t.priority, default="CURRENT"), normalize_priority_value(t.priority, default="CURRENT") or ""),
             t.assigned_user.full_name if t.assigned_user else "",
             t.created_at.strftime("%d.%m.%Y %H:%M") if t.created_at else "",
             t.updated_at.strftime("%d.%m.%Y %H:%M") if t.updated_at else "",

@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getLoginUrl } from '@/config/appConfig'
 
 const API_BASE_URL = '/api'
 
@@ -34,7 +35,7 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('fieldworker-auth')
-      window.location.href = '/login'
+      window.location.href = getLoginUrl()
     }
     return Promise.reject(error)
   }

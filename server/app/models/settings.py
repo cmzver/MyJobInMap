@@ -409,8 +409,26 @@ def init_default_settings(db: Session):
             "sort_order": 2
         },
         {
+            "key": "enable_resizable_columns",
+            "value": "true",
+            "value_type": "bool",
+            "group": "interface",
+            "label": "Изменяемая ширина колонок",
+            "description": "Разрешить изменение ширины колонок в таблицах",
+            "sort_order": 3
+        },
+        {
+            "key": "compact_table_view",
+            "value": "false",
+            "value_type": "bool",
+            "group": "interface",
+            "label": "Компактный вид",
+            "description": "Уменьшенные отступы и высота строк в таблицах",
+            "sort_order": 4
+        },
+        {
             "key": "default_task_priority",
-            "value": "1",
+            "value": "PLANNED",
             "value_type": "select",
             "group": "interface",
             "label": "Приоритет по умолчанию",
@@ -421,7 +439,7 @@ def init_default_settings(db: Session):
                 {"value": "3", "label": "Срочная"},
                 {"value": "4", "label": "Аварийная"}
             ],
-            "sort_order": 3
+            "sort_order": 5
         },
         
         # === Сервер (только чтение) ===
@@ -454,7 +472,18 @@ def init_default_settings(db: Session):
             "group": "interface",
             "label": "Типы неисправностей",
             "description": "Список типов неисправностей для заявок",
-            "sort_order": 4
+            "sort_order": 6
+        },
+        {
+            "key": "permissions_migrated_2026_01",
+            "value": "false",
+            "value_type": "bool",
+            "group": "system",
+            "label": "Permissions migration 2026-01",
+            "description": "Internal flag for permissions defaults migration.",
+            "is_hidden": True,
+            "is_readonly": True,
+            "sort_order": 1000
         },
     ]
     
@@ -508,7 +537,7 @@ def init_default_settings(db: Session):
         ("worker", "view_dashboard", False),
         ("worker", "view_tasks", True),
         ("worker", "create_tasks", False),
-        ("worker", "edit_tasks", True),  # только свои
+        ("worker", "edit_tasks", False),  # disabled by default
         ("worker", "delete_tasks", False),
         ("worker", "change_task_status", True),  # только свои
         ("worker", "assign_tasks", False),
@@ -551,6 +580,25 @@ def init_default_settings(db: Session):
                 is_allowed=is_allowed
             )
             db.add(perm)
+
+    migration_setting = db.query(SystemSettingModel).filter(
+        SystemSettingModel.key == "permissions_migrated_2026_01"
+    ).first()
+    if migration_setting and migration_setting.value != "true":
+        for permission in ("edit_tasks", "delete_tasks"):
+            perm = db.query(RolePermissionModel).filter(
+                RolePermissionModel.role == "worker",
+                RolePermissionModel.permission == permission
+            ).first()
+            if perm:
+                perm.is_allowed = False
+            else:
+                db.add(RolePermissionModel(
+                    role="worker",
+                    permission=permission,
+                    is_allowed=False
+                ))
+        migration_setting.value = "true"
     
     db.commit()
     print("✅ Default settings and permissions initialized")

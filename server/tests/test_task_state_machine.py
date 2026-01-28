@@ -36,16 +36,16 @@ class TestTaskStatusMachine:
         """Test NEW -> DONE is invalid (must go through IN_PROGRESS)."""
         assert TaskStatusMachine.is_valid_transition("NEW", "DONE") is False
 
-    def test_done_to_any_invalid(self):
-        """Test DONE is terminal - cannot transition from it."""
-        assert TaskStatusMachine.is_valid_transition("DONE", "NEW") is False
-        assert TaskStatusMachine.is_valid_transition("DONE", "IN_PROGRESS") is False
+    def test_done_to_active_valid(self):
+        """Test DONE can transition back to active statuses."""
+        assert TaskStatusMachine.is_valid_transition("DONE", "NEW") is True
+        assert TaskStatusMachine.is_valid_transition("DONE", "IN_PROGRESS") is True
         assert TaskStatusMachine.is_valid_transition("DONE", "CANCELLED") is False
 
-    def test_cancelled_to_any_invalid(self):
-        """Test CANCELLED is terminal - cannot transition from it."""
-        assert TaskStatusMachine.is_valid_transition("CANCELLED", "NEW") is False
-        assert TaskStatusMachine.is_valid_transition("CANCELLED", "IN_PROGRESS") is False
+    def test_cancelled_to_active_valid(self):
+        """Test CANCELLED can transition back to active statuses."""
+        assert TaskStatusMachine.is_valid_transition("CANCELLED", "NEW") is True
+        assert TaskStatusMachine.is_valid_transition("CANCELLED", "IN_PROGRESS") is True
         assert TaskStatusMachine.is_valid_transition("CANCELLED", "DONE") is False
 
     def test_in_progress_to_new_invalid(self):
@@ -71,14 +71,20 @@ class TestTaskStatusMachine:
         assert len(valid) == 2
 
     def test_get_valid_transitions_done(self):
-        """Test valid transitions from DONE (none - terminal)."""
+        """Test valid transitions from DONE."""
         valid = TaskStatusMachine.get_valid_transitions("DONE")
-        assert len(valid) == 0
+        assert "NEW" in valid
+        assert "IN_PROGRESS" in valid
+        assert "CANCELLED" not in valid
+        assert len(valid) == 2
 
     def test_get_valid_transitions_cancelled(self):
-        """Test valid transitions from CANCELLED (none - terminal)."""
+        """Test valid transitions from CANCELLED."""
         valid = TaskStatusMachine.get_valid_transitions("CANCELLED")
-        assert len(valid) == 0
+        assert "NEW" in valid
+        assert "IN_PROGRESS" in valid
+        assert "DONE" not in valid
+        assert len(valid) == 2
 
     def test_get_valid_transitions_unknown(self):
         """Test unknown status returns empty set."""
@@ -102,9 +108,9 @@ class TestTaskStatusMachine:
         assert "DONE" in str(exc_info.value)
 
     def test_validate_from_terminal_raises(self):
-        """Test validate_transition raises when trying to change terminal status."""
+        """Test validate_transition raises when trying invalid transition from DONE."""
         with pytest.raises(ValueError) as exc_info:
-            TaskStatusMachine.validate_transition("DONE", "IN_PROGRESS")
+            TaskStatusMachine.validate_transition("DONE", "CANCELLED")
         
         assert "Cannot transition" in str(exc_info.value)
 

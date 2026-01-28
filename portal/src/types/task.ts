@@ -63,6 +63,7 @@ export interface TaskFilters {
   priority?: TaskPriority
   assignee_id?: number
   search?: string
+  address_id?: number
   date_from?: string
   date_to?: string
   page?: number

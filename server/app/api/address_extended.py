@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import func, Integer, cast
+from sqlalchemy import func, Integer, cast, or_, and_
 
 from app.models import (
     get_db, 
@@ -47,6 +47,7 @@ from app.schemas.address import (
 from app.services.auth import get_current_user
 from app.models.user import UserModel
 from app.config import settings
+from app.utils import normalize_priority_value
 
 router = APIRouter(prefix="/api/addresses", tags=["Address Extended"])
 
@@ -80,6 +81,27 @@ def add_history_event(
     db.add(history)
 
 
+def build_task_filters_for_address(address: AddressModel):
+    filters = []
+    if address.address:
+        filters.append(TaskModel.raw_address.ilike(f"%{address.address}%"))
+
+    city_clause = TaskModel.raw_address.ilike(f"%{address.city}%") if address.city else None
+    street_clause = TaskModel.raw_address.ilike(f"%{address.street}%") if address.street else None
+    building_clause = TaskModel.raw_address.ilike(f"%{address.building}%") if address.building else None
+    corpus_clause = TaskModel.raw_address.ilike(f"%{address.corpus}%") if address.corpus else None
+
+    street_building_filters = [cl for cl in [street_clause, building_clause, corpus_clause] if cl is not None]
+    if street_building_filters:
+        filters.append(and_(*street_building_filters))
+
+    component_filters = [cl for cl in [city_clause, street_clause, building_clause, corpus_clause] if cl is not None]
+    if component_filters:
+        filters.append(and_(*component_filters))
+
+    return filters
+
+
 # ============================================
 # Full Address Card
 # ============================================
@@ -94,15 +116,19 @@ async def get_address_full(
     address = get_address_or_404(address_id, db)
     
     # Получаем статистику заявок по этому адресу
+    task_filters = build_task_filters_for_address(address)
     task_stats_query = db.query(
         func.count(TaskModel.id).label('total'),
         func.sum(cast(TaskModel.status == TaskStatus.NEW.value, Integer)).label('new'),
         func.sum(cast(TaskModel.status == TaskStatus.IN_PROGRESS.value, Integer)).label('in_progress'),
         func.sum(cast(TaskModel.status == TaskStatus.DONE.value, Integer)).label('done'),
         func.sum(cast(TaskModel.status == TaskStatus.CANCELLED.value, Integer)).label('cancelled'),
-    ).filter(
-        TaskModel.raw_address.ilike(f"%{address.address}%")
-    ).first()
+    )
+
+    if task_filters:
+        task_stats_query = task_stats_query.filter(or_(*task_filters))
+
+    task_stats_query = task_stats_query.first()
     
     task_stats = TaskStats(
         total=task_stats_query.total or 0,
@@ -758,9 +784,11 @@ async def get_address_tasks(
     """Получить заявки по адресу"""
     address = get_address_or_404(address_id, db)
     
-    query = db.query(TaskModel).filter(
-        TaskModel.raw_address.ilike(f"%{address.address}%")
-    )
+    query = db.query(TaskModel)
+
+    filters = build_task_filters_for_address(address)
+    if filters:
+        query = query.filter(or_(*filters))
     
     if status:
         query = query.filter(TaskModel.status == status)
@@ -772,7 +800,7 @@ async def get_address_tasks(
         "task_number": t.task_number,
         "title": t.title,
         "status": t.status,
-        "priority": t.priority,
+        "priority": normalize_priority_value(t.priority, default="CURRENT"),
         "created_at": t.created_at.isoformat() if t.created_at else None,
         "assigned_user": t.assigned_user.full_name if t.assigned_user else None,
     } for t in tasks]

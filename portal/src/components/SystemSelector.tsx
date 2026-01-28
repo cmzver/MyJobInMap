@@ -41,7 +41,7 @@ export default function SystemSelector({
           }
         }
       } catch (err) {
-        console.error('Error loading systems:', err)
+        if (import.meta.env.DEV) console.error('Error loading systems:', err)
         setSystems([])
       } finally {
         setIsLoading(false)

@@ -71,7 +71,7 @@ export const contactTypeOptions = [
 // Форма системы
 // ============================================
 
-interface SystemFormData {
+export interface SystemFormData {
   system_type: string
   name: string
   status: string
@@ -210,7 +210,7 @@ export function SystemForm({ system, onSubmit, onCancel, isLoading }: SystemForm
 // Форма оборудования
 // ============================================
 
-interface EquipmentFormData {
+export interface EquipmentFormData {
   equipment_type: string
   name: string
   model: string
@@ -385,7 +385,7 @@ export function EquipmentForm({ equipment, systems, onSubmit, onCancel, isLoadin
 // Форма документа
 // ============================================
 
-interface DocumentFormData {
+export interface DocumentFormData {
   file: File | null
   name: string
   doc_type: string
@@ -519,7 +519,7 @@ export function DocumentForm({ onSubmit, onCancel, isLoading }: DocumentFormProp
 // Форма контакта
 // ============================================
 
-interface ContactFormData {
+export interface ContactFormData {
   contact_type: string
   name: string
   phone: string
@@ -642,7 +642,7 @@ export function ContactForm({ contact, onSubmit, onCancel, isLoading }: ContactF
 // Форма редактирования адреса
 // ============================================
 
-interface AddressFormData {
+export interface AddressFormData {
   address: string
   city: string
   street: string

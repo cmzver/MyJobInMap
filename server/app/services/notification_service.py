@@ -9,6 +9,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models import NotificationModel, UserModel, TaskModel
+from app.utils import get_priority_rank
 
 
 def create_notification(
@@ -137,7 +138,7 @@ def create_task_assignment_notification(
     
     # Определяем приоритет
     notification_type = "task"
-    if task.priority == 4:  # EMERGENCY
+    if get_priority_rank(task.priority) >= 4:  # EMERGENCY
         notification_type = "alert"
         title = "⚠️ СРОЧНАЯ заявка!"
     

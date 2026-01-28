@@ -1,11 +1,18 @@
-"""
-Тестовый скрипт для проверки API дашборда
-"""
+"""Integration script for dashboard API (requires running server on localhost:8001)."""
+import os
+import pytest
 import requests
 import json
 
+# Skip during automated test runs unless explicitly enabled
+if not os.environ.get("RUN_INTEGRATION"):
+    pytest.skip("Integration script – requires running API server", allow_module_level=True)
+
+token_path = ".admin_token.txt"
+if not os.path.exists(token_path):
+    raise FileNotFoundError(f"Admin token file not found: {token_path}")
 # Читаем токен админа
-with open('.admin_token.txt', 'r') as f:
+with open(token_path, 'r') as f:
     token = f.read().strip()
 
 # Делаем запрос к API

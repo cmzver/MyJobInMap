@@ -10,6 +10,7 @@ Task Parser Service
 
 import re
 from dataclasses import dataclass
+from app.models.enums import TaskPriority
 from typing import Optional
 
 
@@ -23,7 +24,7 @@ class ParsedTask:
     contact_phone: Optional[str] = None  # Телефон контакта
     contact_name: Optional[str] = None  # Имя контакта
     apartment: Optional[str] = None  # Номер квартиры
-    priority: int = 2  # 1=Плановая, 2=Текущая, 3=Срочная, 4=Аварийная
+    priority: str = TaskPriority.CURRENT.value  # 1=Плановая, 2=Текущая, 3=Срочная, 4=Аварийная
 
     def to_dict(self) -> dict:
         return {
@@ -62,13 +63,13 @@ def parse_dispatcher_format(text: str) -> Optional[ParsedTask]:
     external_id = external_id_match.group(1) if external_id_match else None
     
     # Определяем приоритет
-    priority = 2  # По умолчанию - Текущая
+    priority = TaskPriority.CURRENT.value  # По умолчанию - Текущая
     if re.search(r"Аварийная", text, re.IGNORECASE):
-        priority = 4
+        priority = TaskPriority.EMERGENCY.value
     elif re.search(r"Срочная", text, re.IGNORECASE):
-        priority = 3
+        priority = TaskPriority.URGENT.value
     elif re.search(r"Плановая", text, re.IGNORECASE):
-        priority = 1
+        priority = TaskPriority.PLANNED.value
     
     # Извлекаем телефон (формат +7XXXXXXXXXX или 7XXXXXXXXXX или 8XXXXXXXXXX)
     phone_match = re.search(r"(\+7\d{10}|[78]\d{10})", text)

@@ -93,7 +93,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
       setCities(result)
       setCitiesOpen(result.length > 0)
     } catch (err) {
-      console.error('Error fetching cities:', err)
+      if (import.meta.env.DEV) console.error('Error fetching cities:', err)
       setCities([])
     } finally {
       setCitiesLoading(false)
@@ -123,7 +123,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
         setStreets(result)
         setStreetsOpen(result.length > 0)
       } catch (err) {
-        console.error('Error fetching streets:', err)
+        if (import.meta.env.DEV) console.error('Error fetching streets:', err)
         setStreets([])
       } finally {
         setStreetsLoading(false)
@@ -155,7 +155,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
         setBuildings(result)
         setBuildingsOpen(result.length > 0)
       } catch (err) {
-        console.error('Error fetching buildings:', err)
+        if (import.meta.env.DEV) console.error('Error fetching buildings:', err)
         setBuildings([])
       } finally {
         setBuildingsLoading(false)
@@ -282,7 +282,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
         }
       })
       .catch((err) => {
-        console.error('loadEntrances error:', err)
+        if (import.meta.env.DEV) console.error('loadEntrances error:', err)
         setEntrances([])
       })
       .finally(() => {

@@ -106,7 +106,8 @@ async def send_notification(
         title=request.title,
         body=request.body,
         notification_type=request.notification_type,
-        task_id=request.task_id
+        task_id=request.task_id,
+        user_ids=request.user_ids
     )
     
     if not result["success"]:

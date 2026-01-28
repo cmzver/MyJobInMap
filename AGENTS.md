@@ -1,6 +1,6 @@
 # FieldWorker - AI Agent Guidelines
 
-> **Версия:** 2.4.0 | **Обновлено:** 14 января 2026
+> **Версия:** 2.4.3 | **Обновлено:** 18 января 2026
 
 ## Project Overview
 
@@ -324,6 +324,8 @@ npm run build            # Build to dist/
 
 - [x] ~~Pydantic v1 deprecation warnings~~ → Миграция на `ConfigDict` завершена
 - [x] ~~`datetime.utcnow()` deprecated~~ → Заменено на `datetime.now(timezone.utc)`
+- [x] ~~Portal: дублирование кода~~ → Удалено ~600 строк дубликатов
+- [x] ~~Portal: `any` типы~~ → Исправлено 12 типов
 - [ ] Тесты `test_task_state_machine` требуют обновления (бизнес-логика изменилась)
 
 ---
@@ -351,4 +353,4 @@ npm run build            # Build to dist/
 ---
 
 **Maintained by:** FieldWorker Team  
-**Last updated:** 14 января 2026
+**Last updated:** 18 января 2026

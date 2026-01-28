@@ -1,23 +1,21 @@
+import { memo } from 'react'
 import Badge from './Badge'
+import { STATUS_LABELS, STATUS_COLORS } from '@/config/taskConstants'
 import type { TaskStatus } from '@/types/task'
 
 interface StatusBadgeProps {
   status: TaskStatus
 }
 
-const statusConfig: Record<TaskStatus, { label: string; variant: 'danger' | 'warning' | 'success' | 'gray' }> = {
-  NEW: { label: 'Новая', variant: 'danger' },
-  IN_PROGRESS: { label: 'В работе', variant: 'warning' },
-  DONE: { label: 'Выполнена', variant: 'success' },
-  CANCELLED: { label: 'Отменена', variant: 'gray' },
-}
-
-export default function StatusBadge({ status }: StatusBadgeProps) {
-  const config = statusConfig[status] || { label: status, variant: 'gray' as const }
+function StatusBadge({ status }: StatusBadgeProps) {
+  const label = STATUS_LABELS[status] || status
+  const variant = STATUS_COLORS[status] || 'gray'
   
   return (
-    <Badge variant={config.variant}>
-      {config.label}
+    <Badge variant={variant}>
+      {label}
     </Badge>
   )
 }
+
+export default memo(StatusBadge)

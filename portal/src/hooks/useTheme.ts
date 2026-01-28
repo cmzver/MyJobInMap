@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-type Theme = 'light' | 'dark' | 'system'
+type Theme = 'light' | 'dark' | 'system' | 'modern' | 'mac' | 'aurora'
 
 export function useTheme() {
   const [theme, setTheme] = useState<Theme>(() => {
@@ -14,28 +14,51 @@ export function useTheme() {
 
   useEffect(() => {
     const root = window.document.documentElement
+    const THEME_CLASSES = ['light', 'dark', 'theme-modern', 'theme-mac', 'theme-aurora']
 
-    const applyTheme = (newTheme: 'light' | 'dark') => {
-      root.classList.remove('light', 'dark')
+    const applyTheme = (newTheme: Theme) => {
+      root.classList.remove(...THEME_CLASSES)
+
+      if (newTheme === 'modern') {
+        root.classList.add('light', 'theme-modern')
+        setResolvedTheme('light')
+        return
+      }
+
+      if (newTheme === 'mac') {
+        root.classList.add('light', 'theme-mac')
+        setResolvedTheme('light')
+        return
+      }
+
+      if (newTheme === 'aurora') {
+        root.classList.add('dark', 'theme-aurora')
+        setResolvedTheme('dark')
+        return
+      }
+
+      if (newTheme === 'system') {
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light'
+        root.classList.add(systemTheme)
+        setResolvedTheme(systemTheme)
+        return
+      }
+
       root.classList.add(newTheme)
       setResolvedTheme(newTheme)
     }
 
-    if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light'
-      applyTheme(systemTheme)
+    applyTheme(theme)
 
-      // Listen for system theme changes
+    if (theme === 'system') {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
       const handleChange = (e: MediaQueryListEvent) => {
         applyTheme(e.matches ? 'dark' : 'light')
       }
       mediaQuery.addEventListener('change', handleChange)
       return () => mediaQuery.removeEventListener('change', handleChange)
-    } else {
-      applyTheme(theme)
     }
   }, [theme])
 

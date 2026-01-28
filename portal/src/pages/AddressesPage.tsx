@@ -90,7 +90,7 @@ export default function AddressesPage() {
       }))
       lastParts.current = `${parsed.city || ''}|${parsed.street || ''}|${parsed.building || ''}|${parsed.corpus || ''}|${parsed.entrance || ''}`
     } catch (err) {
-      console.error('Parse error:', err)
+      if (import.meta.env.DEV) console.error('Parse error:', err)
     } finally {
       setIsParsing(false)
     }
@@ -114,7 +114,7 @@ export default function AddressesPage() {
         lastFullAddress.current = result.address
       }
     } catch (err) {
-      console.error('Compose error:', err)
+      if (import.meta.env.DEV) console.error('Compose error:', err)
     } finally {
       setIsComposing(false)
     }
@@ -158,6 +158,24 @@ export default function AddressesPage() {
     const timer = setTimeout(() => setDebouncedSearch(search), 300)
     return () => clearTimeout(timer)
   }, [search])
+
+  // Prefill from Task edit quick-add
+  useEffect(() => {
+    const raw = sessionStorage.getItem('address-prefill')
+    if (!raw) return
+    try {
+      const parsed = JSON.parse(raw) as Partial<CreateAddressData>
+      setFormData((prev) => ({
+        ...prev,
+        ...parsed,
+      }))
+      setShowModal(true)
+    } catch {
+      // ignore parse errors
+    } finally {
+      sessionStorage.removeItem('address-prefill')
+    }
+  }, [])
 
   // Reset page on search
   useEffect(() => {

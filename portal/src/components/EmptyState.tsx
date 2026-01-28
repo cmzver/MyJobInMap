@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { LucideIcon, Inbox } from 'lucide-react'
 import { cn } from '@/utils/cn'
 
@@ -9,7 +10,7 @@ interface EmptyStateProps {
   className?: string
 }
 
-export default function EmptyState({
+function EmptyState({
   icon: Icon = Inbox,
   title,
   description,
@@ -31,3 +32,5 @@ export default function EmptyState({
     </div>
   )
 }
+
+export default memo(EmptyState)

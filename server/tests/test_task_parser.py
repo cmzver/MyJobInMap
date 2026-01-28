@@ -18,7 +18,7 @@ class TestParseDispatcherFormat:
         
         assert result is not None
         assert result.external_id == "1173544"
-        assert result.priority == 2  # Текущая
+        assert result.priority == "CURRENT"  # Текущая
         assert "Центральная" in result.address
         assert "подъезд 1" in result.address
         assert "Брелки" in result.title
@@ -29,7 +29,7 @@ class TestParseDispatcherFormat:
         result = parse_dispatcher_format(text)
         
         assert result is not None
-        assert result.priority == 3  # Срочная
+        assert result.priority == "URGENT"  # Срочная
 
     def test_emergency_priority(self):
         """Test emergency priority parsing."""
@@ -37,7 +37,7 @@ class TestParseDispatcherFormat:
         result = parse_dispatcher_format(text)
         
         assert result is not None
-        assert result.priority == 4  # Аварийная
+        assert result.priority == "EMERGENCY"  # Аварийная
 
     def test_planned_priority(self):
         """Test planned priority parsing."""
@@ -45,7 +45,7 @@ class TestParseDispatcherFormat:
         result = parse_dispatcher_format(text)
         
         assert result is not None
-        assert result.priority == 1  # Плановая
+        assert result.priority == "PLANNED"  # Плановая
 
     def test_phone_extraction(self):
         """Test phone number extraction."""
@@ -92,7 +92,7 @@ class TestParseDispatcherFormat:
         
         assert result is not None
         assert result.external_id == "1173544"
-        assert result.priority == 2
+        assert result.priority == "CURRENT"
         assert result.contact_phone == "+79110267493"
         assert result.apartment == "45"
         assert "[1173544]" in result.title
@@ -218,7 +218,7 @@ class TestParsedTaskDataclass:
     def test_default_priority(self):
         """Test default priority is 2 (Текущая)."""
         task = ParsedTask(title="Test", address="Addr", description="Desc")
-        assert task.priority == 2
+        assert task.priority == "CURRENT"
 
     def test_to_dict(self):
         """Test to_dict conversion."""
@@ -229,7 +229,7 @@ class TestParsedTaskDataclass:
             external_id="12345",
             contact_phone="+79001234567",
             apartment="10",
-            priority=3
+            priority="URGENT"
         )
         d = task.to_dict()
         
@@ -239,7 +239,7 @@ class TestParsedTaskDataclass:
         assert d["external_id"] == "12345"
         assert d["contact_phone"] == "+79001234567"
         assert d["apartment"] == "10"
-        assert d["priority"] == 3
+        assert d["priority"] == "URGENT"
 
     def test_optional_fields_none(self):
         """Test optional fields default to None."""

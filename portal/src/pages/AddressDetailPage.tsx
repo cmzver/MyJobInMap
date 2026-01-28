@@ -58,6 +58,13 @@ import Spinner from '@/components/Spinner'
 import Modal from '@/components/Modal'
 import { SystemForm, EquipmentForm, DocumentForm, ContactForm, AddressForm } from '@/components/AddressCardForms'
 import type { 
+  SystemFormData, 
+  EquipmentFormData, 
+  DocumentFormData,
+  ContactFormData, 
+  AddressFormData 
+} from '@/components/AddressCardForms'
+import type { 
   AddressSystem,
   AddressEquipment,
   AddressContact,
@@ -228,13 +235,13 @@ export default function AddressDetailPage() {
   const taskStats = addressFull?.task_stats || { total: 0, new: 0, in_progress: 0, done: 0, cancelled: 0 }
   
   // Обработчик редактирования адреса
-  const handleAddressSubmit = async (data: any) => {
+  const handleAddressSubmit = async (data: AddressFormData) => {
     try {
       const payload = {
         ...data,
-        entrance_count: data.entrance_count ? parseInt(data.entrance_count) : null,
-        floor_count: data.floor_count ? parseInt(data.floor_count) : null,
-        apartment_count: data.apartment_count ? parseInt(data.apartment_count) : null,
+        entrance_count: data.entrance_count ? parseInt(data.entrance_count) : undefined,
+        floor_count: data.floor_count ? parseInt(data.floor_count) : undefined,
+        apartment_count: data.apartment_count ? parseInt(data.apartment_count) : undefined,
       }
       
       await updateAddress.mutateAsync({ id: addressId, data: payload })
@@ -246,7 +253,7 @@ export default function AddressDetailPage() {
   }
   
   // Обработчики систем
-  const handleSystemSubmit = async (data: any) => {
+  const handleSystemSubmit = async (data: SystemFormData) => {
     try {
       const payload = {
         ...data,
@@ -269,7 +276,7 @@ export default function AddressDetailPage() {
   }
   
   // Обработчики оборудования
-  const handleEquipmentSubmit = async (data: any) => {
+  const handleEquipmentSubmit = async (data: EquipmentFormData) => {
     try {
       const payload = {
         ...data,
@@ -293,7 +300,11 @@ export default function AddressDetailPage() {
   }
   
   // Обработчики документов
-  const handleDocumentSubmit = async (data: any) => {
+  const handleDocumentSubmit = async (data: DocumentFormData) => {
+    if (!data.file) {
+      toast.error('Выберите файл')
+      return
+    }
     try {
       await uploadDocument.mutateAsync({
         file: data.file,
@@ -311,7 +322,7 @@ export default function AddressDetailPage() {
   }
   
   // Обработчики контактов
-  const handleContactSubmit = async (data: any) => {
+  const handleContactSubmit = async (data: ContactFormData) => {
     try {
       if (contactModal.contact) {
         await updateContact.mutateAsync({ contactId: contactModal.contact.id, data })
@@ -384,7 +395,7 @@ export default function AddressDetailPage() {
   }
 
   // Расчёт общей стоимости обслуживания (если поле есть)
-  const totalMonthlyCost = systems.reduce((sum, s) => sum + ((s as any).monthly_cost || 0), 0)
+  const totalMonthlyCost = systems.reduce((sum, s) => sum + (s.monthly_cost || 0), 0)
   
   // Подсчёт оборудования по статусам
   const equipmentByStatus = {
@@ -992,7 +1003,7 @@ export default function AddressDetailPage() {
                 <p className="text-gray-600 dark:text-gray-300">
                   Для просмотра всех заявок по этому адресу перейдите в раздел заявок с фильтром
                 </p>
-                <Link to={`/tasks?search=${encodeURIComponent(address.address)}`}>
+                <Link to={`/tasks?address_id=${address.id}&address_title=${encodeURIComponent(address.address || '')}`}>
                   <Button variant="outline">
                     <ExternalLink className="h-4 w-4 mr-2" />
                     Показать заявки

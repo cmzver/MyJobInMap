@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { cn } from '@/utils/cn'
 
 interface SpinnerProps {
@@ -5,7 +6,7 @@ interface SpinnerProps {
   className?: string
 }
 
-export default function Spinner({ size = 'md', className }: SpinnerProps) {
+function Spinner({ size = 'md', className }: SpinnerProps) {
   const sizes = {
     sm: 'h-4 w-4',
     md: 'h-8 w-8',
@@ -35,3 +36,5 @@ export default function Spinner({ size = 'md', className }: SpinnerProps) {
     </svg>
   )
 }
+
+export default memo(Spinner)

@@ -22,7 +22,7 @@ from app.services.notification_service import (
     create_task_status_notification,
     create_task_assignment_notification
 )
-from app.utils import STATUS_DISPLAY_NAMES, PRIORITY_DISPLAY_NAMES, get_status_display_name
+from app.utils import get_status_display_name, get_priority_display_name, get_priority_rank, normalize_priority_value, priority_rank_expr
 
 
 class TaskServiceError(Exception):
@@ -108,7 +108,7 @@ class TaskService:
             query = query.filter(TaskModel.assigned_user_id == assignee_id)
         
         return query.order_by(
-            TaskModel.priority.desc(),
+            priority_rank_expr(TaskModel.priority).desc(),
             TaskModel.created_at.desc()
         ).all()
     
@@ -125,7 +125,7 @@ class TaskService:
         lat, lon = geocoding_service.geocode(data.address)
         
         # Приоритет: из запроса или из текста
-        priority = data.priority if data.priority is not None else \
+        priority = normalize_priority_value(data.priority) if data.priority is not None else \
                    geocoding_service.extract_priority(data.address)
         
         # Извлечение номера диспетчера
@@ -381,9 +381,8 @@ class TaskService:
     
     def _notify_assignment(self, task: TaskModel) -> None:
         """Отправить push о назначении"""
-        from app.utils import get_priority_display_name
         priority_name = get_priority_display_name(task.priority)
-        title = f"Новая заявка ({priority_name})" if task.priority >= 3 \
+        title = f"Новая заявка ({priority_name})" if get_priority_rank(task.priority) >= 3 \
                 else "Вам назначена заявка"
         
         send_push_notification(

@@ -109,7 +109,8 @@ export default function CalendarPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Calendar */}
-        <Card className="lg:col-span-2">
+        <div className="lg:col-span-2 lg:justify-self-start w-full max-w-2xl">
+          <Card>
           {/* Month Navigation */}
           <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <button
@@ -146,75 +147,78 @@ export default function CalendarPage() {
             </div>
           ) : (
             <div className="p-4">
-              {/* Weekday Headers */}
-              <div className="grid grid-cols-7 mb-2">
-                {weekDays.map((day) => (
-                  <div key={day} className="text-center text-sm font-medium text-gray-500 dark:text-gray-400 py-2">
-                    {day}
-                  </div>
-                ))}
-              </div>
+              <div className="mx-auto w-full max-w-lg">
+                {/* Weekday Headers */}
+                <div className="grid grid-cols-7 mb-2">
+                  {weekDays.map((day) => (
+                    <div key={day} className="text-center text-sm font-medium text-gray-500 dark:text-gray-400 py-2">
+                      {day}
+                    </div>
+                  ))}
+                </div>
 
-              {/* Days Grid */}
-              <div className="grid grid-cols-7 gap-1">
-                {/* Empty cells for offset */}
-                {Array.from({ length: firstDayOffset }).map((_, i) => (
-                  <div key={`empty-${i}`} className="aspect-square" />
-                ))}
-                
-                {/* Day cells */}
-                {days.map((day) => {
-                  const dayTasks = getTasksForDay(day)
-                  const isSelected = selectedDate && isSameDay(day, selectedDate)
-                  const isCurrentMonth = isSameMonth(day, currentDate)
-                  const isTodayDate = isToday(day)
+                {/* Days Grid */}
+                <div className="grid grid-cols-7 gap-1">
+                  {/* Empty cells for offset */}
+                  {Array.from({ length: firstDayOffset }).map((_, i) => (
+                    <div key={`empty-${i}`} className="aspect-square" />
+                  ))}
                   
-                  return (
-                    <button
-                      key={day.toISOString()}
-                      onClick={() => setSelectedDate(day)}
-                      className={`
-                        aspect-square p-1 rounded-lg transition relative
-                        ${isSelected 
-                          ? 'bg-primary-500 text-white' 
-                          : isTodayDate
-                            ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
-                            : isCurrentMonth
-                              ? 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
-                              : 'text-gray-400 dark:text-gray-600'
-                        }
-                      `}
-                    >
-                      <span className="text-sm font-medium">{format(day, 'd')}</span>
-                      
-                      {/* Task indicators */}
-                      {dayTasks.length > 0 && (
-                        <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex space-x-0.5">
-                          {dayTasks.slice(0, 3).map((task) => (
-                            <span
-                              key={task.id}
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                isSelected ? 'bg-white/70' :
-                                task.status === 'NEW' ? 'bg-red-500' :
-                                task.status === 'IN_PROGRESS' ? 'bg-yellow-500' :
-                                'bg-green-500'
-                              }`}
-                            />
-                          ))}
-                          {dayTasks.length > 3 && (
-                            <span className={`text-[8px] ${isSelected ? 'text-white/70' : 'text-gray-500'}`}>
-                              +{dayTasks.length - 3}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </button>
-                  )
-                })}
+                  {/* Day cells */}
+                  {days.map((day) => {
+                    const dayTasks = getTasksForDay(day)
+                    const isSelected = selectedDate && isSameDay(day, selectedDate)
+                    const isCurrentMonth = isSameMonth(day, currentDate)
+                    const isTodayDate = isToday(day)
+                    
+                    return (
+                      <button
+                        key={day.toISOString()}
+                        onClick={() => setSelectedDate(day)}
+                        className={`
+                          aspect-square p-1 rounded-lg transition relative
+                          ${isSelected 
+                            ? 'bg-primary-500 text-white' 
+                            : isTodayDate
+                              ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400'
+                              : isCurrentMonth
+                                ? 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
+                                : 'text-gray-400 dark:text-gray-600'
+                          }
+                        `}
+                      >
+                        <span className="text-sm font-medium">{format(day, 'd')}</span>
+                        
+                        {/* Task indicators */}
+                        {dayTasks.length > 0 && (
+                          <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex space-x-0.5">
+                            {dayTasks.slice(0, 3).map((task) => (
+                              <span
+                                key={task.id}
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  isSelected ? 'bg-white/70' :
+                                  task.status === 'NEW' ? 'bg-red-500' :
+                                  task.status === 'IN_PROGRESS' ? 'bg-yellow-500' :
+                                  'bg-green-500'
+                                }`}
+                              />
+                            ))}
+                            {dayTasks.length > 3 && (
+                              <span className={`text-[8px] ${isSelected ? 'text-white/70' : 'text-gray-500'}`}>
+                                +{dayTasks.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           )}
-        </Card>
+          </Card>
+        </div>
 
         {/* Selected Day Tasks */}
         <Card>

@@ -169,10 +169,12 @@ export default function MyTasksPage() {
                 )}
 
                 {/* Actions */}
-                <div className="flex items-center space-x-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <div
+                  className={`grid ${task.customer_phone ? 'grid-cols-[1fr_auto_1fr]' : 'grid-cols-2'} items-center gap-2 pt-3 border-t border-gray-200 dark:border-gray-700`}
+                >
                   <button
                     onClick={() => openNavigation(task.lat ?? undefined, task.lon ?? undefined, task.raw_address)}
-                    className="flex-1 flex items-center justify-center px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition font-medium text-sm"
+                    className="w-full flex items-center justify-center px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition font-medium text-sm"
                   >
                     <Navigation size={18} className="mr-2" />
                     Маршрут
@@ -181,7 +183,7 @@ export default function MyTasksPage() {
                   {task.customer_phone && (
                     <button
                       onClick={() => callPhone(task.customer_phone!)}
-                      className="flex items-center justify-center px-4 py-2.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition"
+                      className="w-full min-w-[44px] flex items-center justify-center px-3 py-2.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition"
                     >
                       <Phone size={18} />
                     </button>
@@ -189,7 +191,7 @@ export default function MyTasksPage() {
                   
                   <Link
                     to={`/tasks/${task.id}`}
-                    className="flex-1 flex items-center justify-center px-4 py-2.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition font-medium text-sm"
+                    className="w-full flex items-center justify-center px-4 py-2.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition font-medium text-sm"
                   >
                     Подробнее
                   </Link>

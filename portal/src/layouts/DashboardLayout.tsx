@@ -11,6 +11,9 @@ import {
   Sun,
   Moon,
   Monitor,
+  Sparkles,
+  Apple,
+  Palette,
   ChevronDown,
 } from 'lucide-react'
 
@@ -23,6 +26,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
   const { theme, setTheme, isDark } = useTheme()
+  const isModern = theme === 'modern' || theme === 'mac' || theme === 'aurora'
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
@@ -39,9 +43,20 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { value: 'light' as const, label: 'Светлая', icon: Sun },
     { value: 'dark' as const, label: 'Тёмная', icon: Moon },
     { value: 'system' as const, label: 'Системная', icon: Monitor },
+    { value: 'modern' as const, label: 'Modern / Glass', icon: Sparkles },
+    { value: 'mac' as const, label: 'macOS / iOS', icon: Apple },
+    { value: 'aurora' as const, label: 'Aurora Night', icon: Palette },
   ]
 
-  const CurrentThemeIcon = isDark ? Moon : Sun
+  const CurrentThemeIcon = theme === 'modern'
+    ? Sparkles
+    : theme === 'mac'
+      ? Apple
+      : theme === 'aurora'
+        ? Palette
+        : isDark
+          ? Moon
+          : Sun
 
   const getRoleLabel = (role: string) => {
     switch (role) {
@@ -93,7 +108,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+    <div className={`min-h-screen transition-colors ${isModern ? 'bg-transparent' : 'bg-gray-50 dark:bg-gray-900'}`}>
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 transition-colors">
         <div className="px-4 sm:px-6 lg:px-8">
@@ -255,7 +270,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         )}
 
         {/* Main content */}
-        <main className="flex-1 lg:pl-64">
+        <main className="flex-1 lg:pl-64 min-w-0">
           <div className="px-4 sm:px-6 lg:px-8 py-6">
             {children}
           </div>

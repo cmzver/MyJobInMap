@@ -1,4 +1,4 @@
-import { ReactNode } from 'react'
+import { memo, ReactNode } from 'react'
 import { cn } from '@/utils/cn'
 
 interface CardProps {
@@ -8,7 +8,7 @@ interface CardProps {
   action?: ReactNode
 }
 
-export default function Card({ children, className, title, action }: CardProps) {
+function Card({ children, className, title, action }: CardProps) {
   return (
     <div className={cn('bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 transition-colors', className)}>
       {(title || action) && (
@@ -23,3 +23,5 @@ export default function Card({ children, className, title, action }: CardProps) 
     </div>
   )
 }
+
+export default memo(Card)

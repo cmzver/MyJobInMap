@@ -16,28 +16,28 @@ class TestExtractPriority:
     def test_emergency_priority(self):
         """Аварийная заявка."""
         service = GeocodingService()
-        assert service.extract_priority("Аварийная заявка") == 4
-        assert service.extract_priority("АВАРИЙНАЯ") == 4
-        assert service.extract_priority("Аварийный вызов, течь") == 4
+        assert service.extract_priority("Аварийная заявка") == "EMERGENCY"
+        assert service.extract_priority("АВАРИЙНАЯ") == "EMERGENCY"
+        assert service.extract_priority("Аварийный вызов, течь") == "EMERGENCY"
     
     def test_urgent_priority(self):
         """Срочная заявка."""
         service = GeocodingService()
-        assert service.extract_priority("Срочная заявка") == 3
-        assert service.extract_priority("СРОЧНО!") == 3
+        assert service.extract_priority("Срочная заявка") == "URGENT"
+        assert service.extract_priority("СРОЧНО!") == "URGENT"
     
     def test_current_priority(self):
         """Текущая заявка."""
         service = GeocodingService()
-        assert service.extract_priority("Текущая заявка") == 2
-        assert service.extract_priority("ТЕКУЩЕЕ обслуживание") == 2
+        assert service.extract_priority("Текущая заявка") == "CURRENT"
+        assert service.extract_priority("ТЕКУЩЕЕ обслуживание") == "CURRENT"
     
     def test_default_priority(self):
         """Плановая по умолчанию."""
         service = GeocodingService()
-        assert service.extract_priority("Обычная заявка") == 1
-        assert service.extract_priority("") == 1
-        assert service.extract_priority("Плановый ремонт") == 1
+        assert service.extract_priority("Обычная заявка") == "PLANNED"
+        assert service.extract_priority("") == "PLANNED"
+        assert service.extract_priority("Плановый ремонт") == "PLANNED"
 
 
 class TestExtractTaskNumber:

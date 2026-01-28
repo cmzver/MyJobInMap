@@ -16,7 +16,7 @@ import {
   Download
 } from 'lucide-react'
 import { format } from 'date-fns'
-import { useFinanceStats, useWorkerStats } from '@/hooks/useApi'
+import { useFinanceStats, useWorkerStats } from '@/hooks/useFinance'
 import { useUsers } from '@/hooks/useUsers'
 import Button from '@/components/Button'
 import Select from '@/components/Select'

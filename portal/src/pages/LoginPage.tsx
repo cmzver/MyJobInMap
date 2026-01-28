@@ -31,7 +31,7 @@ export default function LoginPage() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Ошибка входа'
       setError(message)
-      console.error('Login error:', err)
+      if (import.meta.env.DEV) console.error('Login error:', err)
     } finally {
       setIsLoading(false)
     }

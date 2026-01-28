@@ -257,10 +257,12 @@ npm run build            # Сборка в dist/
 
 - [x] ~~Pydantic v1 deprecation~~ → Миграция на `ConfigDict` завершена
 - [x] ~~`datetime.utcnow()`~~ → Заменено на `datetime.now(timezone.utc)`
+- [x] ~~Portal: дублирование кода~~ → Удалено ~600 строк
+- [x] ~~Portal: `any` типы~~ → Исправлено 12 типов
 - [ ] Тесты `test_task_state_machine` требуют обновления
 
 ---
 
-**Версия:** 2.4.0 (Address Card + Autocomplete)  
+**Версия:** 2.4.3 (Portal Optimization)  
 **Статус:** ✅ Production Ready  
-**Последнее обновление:** 14 января 2026
+**Последнее обновление:** 18 января 2026

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/utils/cn'
 
@@ -8,7 +9,7 @@ interface PaginationProps {
   className?: string
 }
 
-export default function Pagination({
+function Pagination({
   currentPage,
   totalPages,
   onPageChange,
@@ -95,3 +96,5 @@ export default function Pagination({
     </nav>
   )
 }
+
+export default memo(Pagination)

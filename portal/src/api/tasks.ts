@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { Task, PaginatedResponse, TaskFilters } from '@/types/task'
+import type { Task, PaginatedResponse, TaskFilters, TaskPriority } from '@/types/task'
 
 export interface CreateTaskData {
   title: string
@@ -7,7 +7,7 @@ export interface CreateTaskData {
   address: string
   customer_name?: string | null
   customer_phone?: string | null
-  priority?: number | string
+  priority?: TaskPriority
   assigned_user_id?: number | null
   is_paid?: boolean
   payment_amount?: number | null
@@ -20,7 +20,7 @@ export interface UpdateTaskData {
   address?: string
   customer_name?: string | null
   customer_phone?: string | null
-  priority?: number | string
+  priority?: TaskPriority
   assigned_user_id?: number | null
   is_paid?: boolean
   payment_amount?: number | null
@@ -35,6 +35,7 @@ export const tasksApi = {
     if (filters?.status) params.append('status', filters.status)
     if (filters?.priority) params.append('priority', filters.priority)
     if (filters?.assignee_id) params.append('assignee_id', String(filters.assignee_id))
+    if (filters?.address_id) params.append('address_id', String(filters.address_id))
     if (filters?.search) params.append('search', filters.search)
     if (filters?.page) params.append('page', String(filters.page))
     if (filters?.size) params.append('size', String(filters.size))

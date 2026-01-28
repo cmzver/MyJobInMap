@@ -5,7 +5,7 @@ Notification Schemas
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, ConfigDict
 
 
@@ -15,6 +15,7 @@ class PushNotificationRequest(BaseModel):
     body: str
     task_id: Optional[int] = None
     notification_type: str = "general"
+    user_ids: Optional[List[int]] = None
 
 
 class NotificationBase(BaseModel):

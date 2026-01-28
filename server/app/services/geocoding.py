@@ -11,6 +11,7 @@ from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 
 from app.config import settings
+from app.models.enums import TaskPriority
 
 
 class GeocodingService:
@@ -42,20 +43,20 @@ class GeocodingService:
                 del self._cache[k]
         self._cache[key] = coords
     
-    def extract_priority(self, text: str) -> int:
+    def extract_priority(self, text: str) -> str:
         """
         Извлекает приоритет из текста заявки.
         Возвращает: 1=Плановая, 2=Текущая, 3=Срочная, 4=Аварийная
         """
         text_lower = text.lower()
         if 'аварийн' in text_lower:
-            return 4
+            return TaskPriority.EMERGENCY.value
         elif 'срочн' in text_lower:
-            return 3
+            return TaskPriority.URGENT.value
         elif 'текущ' in text_lower:
-            return 2
+            return TaskPriority.CURRENT.value
         else:
-            return 1
+            return TaskPriority.PLANNED.value
     
     def extract_task_number(self, text: str) -> str:
         """Извлекает номер заявки из текста

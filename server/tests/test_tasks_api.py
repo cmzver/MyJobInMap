@@ -28,7 +28,7 @@ class TestTaskCreation:
                 "title": "Fix leak",
                 "address": "Main St, 10",
                 "planned_date": planned,
-                "priority": 3,
+                "priority": "URGENT",
             },
             headers={"Authorization": f"Bearer {admin_token}"},
         )
@@ -138,7 +138,7 @@ class TestAdminUpdate:
             json={
                 "title": "New title",
                 "status": "IN_PROGRESS",
-                "priority": 4,
+                "priority": "EMERGENCY",
                 "is_paid": True,
                 "payment_amount": 5000.0,
                 "planned_date": "2025-12-20",

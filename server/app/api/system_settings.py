@@ -61,6 +61,12 @@ class SettingsGroupResponse(BaseModel):
     settings: List[SettingResponse]
 
 
+class InterfaceSettingsResponse(BaseModel):
+    """Публичные настройки интерфейса"""
+    enable_resizable_columns: bool
+    compact_table_view: bool
+
+
 class LocalSettingUpdate(BaseModel):
     """Обновление настройки (локальная схема)"""
     value: Any
@@ -158,6 +164,23 @@ async def get_system_settings(
     return list(groups_dict.values())
 
 
+@router.get("/settings/interface", response_model=InterfaceSettingsResponse)
+async def get_interface_settings(db: Session = Depends(get_db)):
+    """Получить публичные настройки интерфейса"""
+    init_default_settings(db)
+    enable_resizable_columns = get_setting(db, "enable_resizable_columns")
+    compact_table_view = get_setting(db, "compact_table_view")
+    if enable_resizable_columns is None:
+        enable_resizable_columns = True
+    if compact_table_view is None:
+        compact_table_view = False
+
+    return InterfaceSettingsResponse(
+        enable_resizable_columns=bool(enable_resizable_columns),
+        compact_table_view=bool(compact_table_view)
+    )
+
+
 @router.get("/settings/{key}")
 async def get_single_setting(
     key: str,
@@ -165,6 +188,7 @@ async def get_single_setting(
     admin: UserModel = Depends(get_current_admin)
 ):
     """Получить одну настройку"""
+    init_default_settings(db)
     setting = db.query(SystemSettingModel).filter(SystemSettingModel.key == key).first()
     if not setting:
         raise HTTPException(status_code=404, detail="Настройка не найдена")
@@ -190,6 +214,7 @@ async def update_setting(
     admin: UserModel = Depends(get_current_admin)
 ):
     """Обновить настройку"""
+    init_default_settings(db)
     setting = db.query(SystemSettingModel).filter(SystemSettingModel.key == key).first()
     if not setting:
         raise HTTPException(status_code=404, detail="Настройка не найдена")

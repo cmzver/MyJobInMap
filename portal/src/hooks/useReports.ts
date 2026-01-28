@@ -41,30 +41,20 @@ export function downloadReport(filters: ReportsFilters) {
     params.append('date_to', filters.date_to)
   }
   
-  const token = localStorage.getItem('token')
   const url = `/reports/export?${params}`
   
-  // Создаем временную ссылку для скачивания
-  const a = document.createElement('a')
-  a.href = `${import.meta.env.VITE_API_URL || 'http://localhost:8001'}${url}`
-  a.download = `report_${filters.period}_${new Date().toISOString().split('T')[0]}.csv`
-  
-  // Добавляем токен в заголовки через fetch
-  fetch(a.href, {
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  })
-    .then(response => response.blob())
-    .then(blob => {
-      const blobUrl = window.URL.createObjectURL(blob)
+  apiClient.get(url, { responseType: 'blob' })
+    .then((response) => {
+      const blobUrl = window.URL.createObjectURL(response.data)
+      const a = document.createElement('a')
       a.href = blobUrl
+      a.download = `report_${filters.period}_${new Date().toISOString().split('T')[0]}.csv`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       window.URL.revokeObjectURL(blobUrl)
     })
-    .catch(err => {
-      console.error('Download failed:', err)
+    .catch((err) => {
+      if (import.meta.env.DEV) console.error('Download failed:', err)
     })
 }

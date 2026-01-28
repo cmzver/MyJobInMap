@@ -5,13 +5,13 @@ Auth API
 """
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.models import UserModel, get_db
+from app.models import UserModel, RolePermissionModel, get_db, init_default_settings
 from app.schemas import (
     Token, UserResponse,
     ReportSettingsUpdate, ReportSettingsResponse
@@ -37,6 +37,12 @@ class PasswordChange(BaseModel):
     """Смена пароля"""
     current_password: str
     new_password: str
+
+
+class PermissionsResponse(BaseModel):
+    """Разрешения текущего пользователя"""
+    role: str
+    permissions: Dict[str, bool]
 
 
 @router.post("/login", response_model=Token)
@@ -185,6 +191,18 @@ async def get_report_settings(
         report_target=user.report_target or "group",
         report_contact_phone=user.report_contact_phone
     )
+
+
+@router.get("/permissions", response_model=PermissionsResponse)
+async def get_my_permissions(
+    user: UserModel = Depends(get_current_user_required),
+    db: Session = Depends(get_db)
+):
+    """Получить разрешения текущего пользователя"""
+    init_default_settings(db)
+    perms = db.query(RolePermissionModel).filter(RolePermissionModel.role == user.role).all()
+    permissions = {perm.permission: perm.is_allowed for perm in perms}
+    return PermissionsResponse(role=user.role, permissions=permissions)
 
 
 @router.put("/report-settings", response_model=ReportSettingsResponse)

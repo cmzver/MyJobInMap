@@ -8,7 +8,7 @@ from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Tex
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base, utcnow
-from app.models.enums import TaskStatus
+from app.models.enums import TaskStatus, TaskPriority
 
 
 class TaskModel(Base):
@@ -31,7 +31,7 @@ class TaskModel(Base):
     lat = Column(Float, default=0.0)
     lon = Column(Float, default=0.0)
     status = Column(String, default=TaskStatus.NEW.value)
-    priority = Column(Integer, default=1)
+    priority = Column(String, default=TaskPriority.PLANNED.value)
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     planned_date = Column(DateTime, nullable=True)  # Планируемая дата выполнения

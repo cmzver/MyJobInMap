@@ -31,7 +31,7 @@ class DeviceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-@router.get("", response_model=List[DeviceResponse])
+@router.get("/all", response_model=List[DeviceResponse])
 async def list_devices(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_admin)
@@ -54,7 +54,7 @@ async def list_devices(
     return result
 
 
-@router.delete("/{device_id}")
+@router.delete("/{device_id:int}")
 async def delete_device(
     device_id: int,
     db: Session = Depends(get_db),
@@ -69,9 +69,6 @@ async def delete_device(
     db.commit()
     
     return {"success": True}
-
-
-@router.post("/register")
 
 
 @router.post("/register")

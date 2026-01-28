@@ -31,7 +31,7 @@ class TestTaskServiceGetById:
             raw_address="Test Address",
             description="Test Description",
             status=TaskStatus.NEW.value,
-            priority=2,
+            priority="CURRENT",
         )
         db_session.add(task)
         db_session.commit()
@@ -72,7 +72,7 @@ class TestTaskServiceGetList:
                 raw_address=f"Address {i}",
                 description=f"Description {i}",
                 status=TaskStatus.NEW.value,
-                priority=2,
+                priority="CURRENT",
             )
             db_session.add(task)
         db_session.commit()
@@ -85,9 +85,9 @@ class TestTaskServiceGetList:
     def test_get_list_filter_by_status(self, db_session, admin_user):
         """Test filtering tasks by status."""
         # Create tasks with different statuses
-        task1 = TaskModel(title="T1", raw_address="A1", status=TaskStatus.NEW.value, priority=2)
-        task2 = TaskModel(title="T2", raw_address="A2", status=TaskStatus.IN_PROGRESS.value, priority=2)
-        task3 = TaskModel(title="T3", raw_address="A3", status=TaskStatus.NEW.value, priority=2)
+        task1 = TaskModel(title="T1", raw_address="A1", status=TaskStatus.NEW.value, priority="CURRENT")
+        task2 = TaskModel(title="T2", raw_address="A2", status=TaskStatus.IN_PROGRESS.value, priority="CURRENT")
+        task3 = TaskModel(title="T3", raw_address="A3", status=TaskStatus.NEW.value, priority="CURRENT")
         db_session.add_all([task1, task2, task3])
         db_session.commit()
         
@@ -109,7 +109,7 @@ class TestTaskServiceCreate:
             title="New Task",
             address="Test Address",
             description="Task description",
-            priority=3,
+            priority="URGENT",
         )
         task = service.create(task_data, admin_user)
         
@@ -117,7 +117,7 @@ class TestTaskServiceCreate:
         assert task.title == "New Task"
         assert task.raw_address == "Test Address"
         assert task.status == TaskStatus.NEW.value
-        assert task.priority == 3
+        assert task.priority == "URGENT"
 
     def test_create_with_planned_date(self, db_session, admin_user):
         """Test task creation with planned date."""
@@ -163,7 +163,7 @@ class TestTaskServiceUpdateStatus:
             title="Task",
             raw_address="Addr",
             status=TaskStatus.NEW.value,
-            priority=2,
+            priority="CURRENT",
         )
         db_session.add(task)
         db_session.commit()
@@ -180,7 +180,7 @@ class TestTaskServiceUpdateStatus:
             title="Task",
             raw_address="Addr",
             status=TaskStatus.NEW.value,
-            priority=2,
+            priority="CURRENT",
         )
         db_session.add(task)
         db_session.commit()
@@ -199,7 +199,7 @@ class TestTaskServiceUpdateStatus:
             title="Task",
             raw_address="Addr",
             status=TaskStatus.IN_PROGRESS.value,
-            priority=2,
+            priority="CURRENT",
         )
         db_session.add(task)
         db_session.commit()
@@ -231,7 +231,7 @@ class TestTaskServiceAssign:
             title="Task",
             raw_address="Addr",
             status=TaskStatus.NEW.value,
-            priority=2,
+            priority="CURRENT",
         )
         db_session.add(task)
         db_session.commit()
@@ -248,7 +248,7 @@ class TestTaskServiceAssign:
             title="Task",
             raw_address="Addr",
             status=TaskStatus.NEW.value,
-            priority=2,
+            priority="CURRENT",
             assigned_user_id=admin_user.id,
         )
         db_session.add(task)
@@ -270,7 +270,7 @@ class TestTaskServiceDelete:
             title="Task to Delete",
             raw_address="Addr",
             status=TaskStatus.NEW.value,
-            priority=2,
+            priority="CURRENT",
         )
         db_session.add(task)
         db_session.commit()
@@ -331,7 +331,8 @@ class TestTaskServiceStatusNames:
     def test_priority_names_mapping(self):
         """Test PRIORITY_DISPLAY_NAMES contains all priorities."""
         from app.utils import PRIORITY_DISPLAY_NAMES
-        assert PRIORITY_DISPLAY_NAMES[1] == "Плановая"
-        assert PRIORITY_DISPLAY_NAMES[2] == "Текущая"
-        assert PRIORITY_DISPLAY_NAMES[3] == "Срочная"
-        assert PRIORITY_DISPLAY_NAMES[4] == "Аварийная"
+        from app.models.enums import TaskPriority
+        assert PRIORITY_DISPLAY_NAMES[TaskPriority.PLANNED.value] == "????????"
+        assert PRIORITY_DISPLAY_NAMES[TaskPriority.CURRENT.value] == "???????"
+        assert PRIORITY_DISPLAY_NAMES[TaskPriority.URGENT.value] == "???????"
+        assert PRIORITY_DISPLAY_NAMES[TaskPriority.EMERGENCY.value] == "?????????"

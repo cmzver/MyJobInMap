@@ -16,13 +16,8 @@ import type { AddressSystem } from '@/types/address'
 import SystemSelector from '@/components/SystemSelector'
 import DefectTypeSelector from '@/components/DefectTypeSelector'
 import type { TaskPriority } from '@/types/task'
+import { PRIORITY_OPTIONS_FOR_FORM, normalizePriority } from '@/config/taskConstants'
 
-const priorityOptions = [
-  { value: 'PLANNED', label: 'Плановая' },
-  { value: 'CURRENT', label: 'Текущая' },
-  { value: 'URGENT', label: 'Срочная' },
-  { value: 'EMERGENCY', label: 'Аварийная' },
-]
 
 // Форматирование адреса для отображения
 const formatAddress = (address: AddressFormData): string => {
@@ -92,6 +87,15 @@ const parseAddress = (addressStr: string): AddressFormData => {
     if (!result.building && /^\d+/.test(part)) {
       result.building = part
     }
+  }
+
+  // Если перепутались город/улица (часто из Telegram: "СПб, Ленинский пр-т...")
+  const cityLooksLikeStreet = /(ул|пр|пр-т|просп|шоссе|ш|пер|бульвар|проезд)/i.test(result.city)
+  const streetLooksLikeCity = /^(спб|санкт|петербург|москва|екат|екатеринбург|казань|новосибирск|нижний|самара|краснодар)/i.test(result.street)
+  if (cityLooksLikeStreet && streetLooksLikeCity) {
+    const tmp = result.city
+    result.city = result.street
+    result.street = tmp
   }
   
   return result
@@ -180,15 +184,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
       const parsedAddress = parseAddress(task.raw_address || '')
       
       // Конвертируем priority из числа в строку
-      const priorityIntToStr: Record<number, TaskPriority> = {
-        1: 'PLANNED',
-        2: 'CURRENT',
-        3: 'URGENT',
-        4: 'EMERGENCY',
-      }
-      const taskPriority = typeof task.priority === 'number' 
-        ? priorityIntToStr[task.priority] || 'CURRENT'
-        : task.priority
+      const taskPriority = normalizePriority(task.priority as TaskPriority | number | null)
       
       // Загружаем сохранённые system_id, system_type, defect_type из task
       setFormData({
@@ -224,7 +220,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
             setFormData(prev => ({ ...prev, addressId: result.id }))
           }
         }).catch((err) => {
-          console.error('Error finding address by components:', err)
+          if (import.meta.env.DEV) console.error('Error finding address by components:', err)
         })
       }
     }
@@ -253,7 +249,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
     }
   }
 
-  const handleAddressFound = (foundAddress: any) => {
+  const handleAddressFound = (foundAddress: { id: number } | null) => {
     if (foundAddress) {
       setFormData(prev => ({ ...prev, addressId: foundAddress.id }))
     }
@@ -353,13 +349,6 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
 
     const fullAddress = formatAddress(formData.address)
 
-    const priorityMap: Record<string, number> = {
-      'PLANNED': 1,
-      'CURRENT': 2,
-      'URGENT': 3,
-      'EMERGENCY': 4,
-    }
-
     if (mode === 'create') {
       const createData = {
         title: `${formData.address.street}, дом ${formData.address.building}`,
@@ -367,7 +356,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         address: fullAddress,
         customer_name: formData.customer_name.trim() || null,
         customer_phone: formData.customer_phone.trim() || null,
-        priority: priorityMap[formData.priority] || 2,  // Отправляем число 1-4
+        priority: formData.priority,
         is_paid: false,
         payment_amount: null,
         planned_date: formData.planned_date || null,
@@ -394,7 +383,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         address: fullAddress,
         customer_name: formData.customer_name.trim() || null,
         customer_phone: formData.customer_phone.trim() || null,
-        priority: priorityMap[formData.priority] || 2,
+        priority: formData.priority,
         is_paid: false,
         payment_amount: 0,
         planned_date: formData.planned_date || null,
@@ -493,10 +482,31 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         
         {/* Подсказка для режима редактирования — если адрес не найден в базе */}
         {mode === 'edit' && !formData.addressId && formData.address.city && formData.address.building && (
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-2">
             <p className="text-sm text-blue-700 dark:text-blue-300">
               Адрес заявки не найден в базе адресов. Система и тип неисправности опциональны.
             </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const prefill = {
+                    address: fullAddress,
+                    city: formData.address.city,
+                    street: formData.address.street,
+                    building: formData.address.building,
+                    corpus: formData.address.corpus,
+                    entrance: formData.address.entrance,
+                  }
+                  sessionStorage.setItem('address-prefill', JSON.stringify(prefill))
+                  navigate('/addresses')
+                }}
+              >
+                Добавить адрес в базу
+              </Button>
+            </div>
           </div>
         )}
         
@@ -559,7 +569,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
             {/* Приоритет */}
             <Select
               label="Приоритет"
-              options={priorityOptions}
+              options={PRIORITY_OPTIONS_FOR_FORM}
               value={formData.priority}
               onChange={(value) => handleFormChange('priority', value as TaskPriority)}
             />

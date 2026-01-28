@@ -1,23 +1,22 @@
+import { memo } from 'react'
 import Badge from './Badge'
+import { PRIORITY_LABELS, PRIORITY_COLORS, normalizePriority } from '@/config/taskConstants'
 import type { TaskPriority } from '@/types/task'
 
 interface PriorityBadgeProps {
-  priority: TaskPriority
+  priority: TaskPriority | number
 }
 
-const priorityConfig: Record<TaskPriority, { label: string; variant: 'danger' | 'warning' | 'info' | 'success' }> = {
-  EMERGENCY: { label: 'Аварийная', variant: 'danger' },
-  URGENT: { label: 'Срочная', variant: 'warning' },
-  CURRENT: { label: 'Текущая', variant: 'info' },
-  PLANNED: { label: 'Плановая', variant: 'success' },
-}
-
-export default function PriorityBadge({ priority }: PriorityBadgeProps) {
-  const config = priorityConfig[priority] || { label: priority, variant: 'info' as const }
+function PriorityBadge({ priority }: PriorityBadgeProps) {
+  const normalized = normalizePriority(priority)
+  const label = PRIORITY_LABELS[normalized] || String(priority)
+  const variant = PRIORITY_COLORS[normalized] || 'info'
   
   return (
-    <Badge variant={config.variant}>
-      {config.label}
+    <Badge variant={variant}>
+      {label}
     </Badge>
   )
 }
+
+export default memo(PriorityBadge)

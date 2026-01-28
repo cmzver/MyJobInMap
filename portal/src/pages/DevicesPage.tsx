@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { useDevices, useSendTestNotification, useDeleteDevice } from '@/hooks/useApi'
+import { useDevices, useSendTestNotification, useDeleteDevice } from '@/hooks/useDevices'
 import Button from '@/components/Button'
 import Spinner from '@/components/Spinner'
 import EmptyState from '@/components/EmptyState'

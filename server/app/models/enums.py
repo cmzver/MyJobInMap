@@ -15,15 +15,15 @@ class TaskStatus(str, Enum):
     CANCELLED = "CANCELLED"
 
 
-class TaskPriority(int, Enum):
+class TaskPriority(str, Enum):
     """
     Приоритеты заявок.
     Соответствуют типам: Плановая, Текущая, Срочная, Аварийная.
     """
-    PLANNED = 1      # Плановая
-    CURRENT = 2      # Текущая
-    URGENT = 3       # Срочная
-    EMERGENCY = 4    # Аварийная
+    PLANNED = "PLANNED"      # Плановая
+    CURRENT = "CURRENT"      # Текущая
+    URGENT = "URGENT"       # Срочная
+    EMERGENCY = "EMERGENCY"    # Аварийная
     
     @classmethod
     def from_text(cls, text: str) -> 'TaskPriority':

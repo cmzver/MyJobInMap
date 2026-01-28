@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,6 +9,39 @@
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+:root.theme-modern {
+  --fw-page: linear-gradient(135deg, #eef2ff 0%, #fef9c3 100%);
+  --fw-surface: rgba(255, 255, 255, 0.88);
+  --fw-surface-strong: rgba(255, 255, 255, 0.92);
+  --fw-border: rgba(15, 23, 42, 0.08);
+  --fw-shadow: 0 16px 45px rgba(15, 23, 42, 0.18);
+  --fw-shadow-soft: 0 12px 32px rgba(15, 23, 42, 0.12);
+  --fw-accent: #2563eb;
+  font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+}
+
+:root.theme-mac {
+  --fw-page: linear-gradient(180deg, #f7f8fb 0%, #edf1f7 55%, #e7ecf3 100%);
+  --fw-surface: rgba(255, 255, 255, 0.94);
+  --fw-surface-strong: rgba(255, 255, 255, 0.98);
+  --fw-border: rgba(0, 0, 0, 0.06);
+  --fw-shadow: 0 20px 38px rgba(15, 23, 42, 0.12);
+  --fw-shadow-soft: 0 14px 28px rgba(15, 23, 42, 0.08);
+  --fw-accent: #0a84ff;
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+}
+
+:root.theme-aurora {
+  --fw-page: radial-gradient(circle at 20% 20%, rgba(94, 234, 212, 0.18), transparent 35%), radial-gradient(circle at 80% 10%, rgba(94, 92, 255, 0.3), transparent 30%), linear-gradient(160deg, #0b1224 0%, #111827 60%, #0f172a 100%);
+  --fw-surface: rgba(15, 23, 42, 0.72);
+  --fw-surface-strong: rgba(15, 23, 42, 0.86);
+  --fw-border: rgba(148, 163, 184, 0.18);
+  --fw-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  --fw-shadow-soft: 0 12px 34px rgba(15, 23, 42, 0.36);
+  --fw-accent: #22d3ee;
+  font-family: 'Manrope', system-ui, -apple-system, sans-serif;
 }
 
 body {
@@ -53,4 +87,242 @@ code {
       opacity: 0.4;
     }
   }
+}
+
+/* Modern theme overrides */
+.theme-modern body {
+  background: var(--fw-page);
+  color: #0f172a;
+}
+
+.theme-modern .bg-gray-50,
+.theme-modern .bg-gray-100,
+.theme-modern .dark\:bg-gray-900 {
+  background: transparent !important;
+}
+
+.theme-modern .bg-white,
+.theme-modern .dark\:bg-gray-800,
+.theme-modern header,
+.theme-modern aside {
+  background: var(--fw-surface) !important;
+  border-color: var(--fw-border) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--fw-shadow-soft);
+}
+
+.theme-modern .shadow,
+.theme-modern .shadow-lg,
+.theme-modern .shadow-xl,
+.theme-modern .shadow-2xl,
+.theme-modern .shadow-sm {
+  box-shadow: var(--fw-shadow) !important;
+}
+
+.theme-modern .border-gray-200,
+.theme-modern .dark\:border-gray-700 {
+  border-color: var(--fw-border) !important;
+}
+
+.theme-modern .text-gray-900,
+.theme-modern .dark\:text-white {
+  color: #0f172a !important;
+}
+
+.theme-modern .text-gray-700,
+.theme-modern .text-gray-600,
+.theme-modern .dark\:text-gray-300 {
+  color: #334155 !important;
+}
+
+.theme-modern .rounded-lg,
+.theme-modern .rounded-xl {
+  border-radius: 16px;
+}
+
+/* macOS / iOS theme overrides */
+.theme-mac body {
+  background: var(--fw-page);
+  color: #0f172a;
+}
+
+.theme-mac .bg-gray-50,
+.theme-mac .bg-gray-100,
+.theme-mac .dark\:bg-gray-900 {
+  background: transparent !important;
+}
+
+.theme-mac .bg-white,
+.theme-mac .dark\:bg-gray-800,
+.theme-mac header,
+.theme-mac aside {
+  background: var(--fw-surface) !important;
+  border-color: var(--fw-border) !important;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: var(--fw-shadow-soft);
+}
+
+.theme-mac .shadow,
+.theme-mac .shadow-lg,
+.theme-mac .shadow-xl,
+.theme-mac .shadow-2xl,
+.theme-mac .shadow-sm {
+  box-shadow: var(--fw-shadow) !important;
+}
+
+.theme-mac .border-gray-200,
+.theme-mac .dark\:border-gray-700 {
+  border-color: var(--fw-border) !important;
+}
+
+.theme-mac .text-gray-900,
+.theme-mac .dark\:text-white {
+  color: #0f172a !important;
+}
+
+.theme-mac .text-gray-700,
+.theme-mac .text-gray-600,
+.theme-mac .dark\:text-gray-300 {
+  color: #334155 !important;
+}
+
+.theme-mac .rounded-lg,
+.theme-mac .rounded-xl {
+  border-radius: 14px;
+}
+
+.theme-mac .bg-primary-500,
+.theme-mac .hover\:bg-primary-600:hover {
+  background: linear-gradient(180deg, #0a84ff, #0c7de8) !important;
+  box-shadow: 0 8px 18px rgba(10, 132, 255, 0.25) !important;
+}
+
+.theme-mac .shadow,
+.theme-mac .shadow-lg,
+.theme-mac .shadow-xl,
+.theme-mac .shadow-2xl,
+.theme-mac .shadow-sm {
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+/* Aurora night theme overrides */
+.theme-aurora body {
+  background: var(--fw-page);
+  color: #e5e7eb;
+}
+
+.theme-aurora .bg-gray-50,
+.theme-aurora .bg-gray-100,
+.theme-aurora .dark\:bg-gray-900 {
+  background: transparent !important;
+}
+
+.theme-aurora .bg-white,
+.theme-aurora .dark\:bg-gray-800,
+.theme-aurora header,
+.theme-aurora aside {
+  background: var(--fw-surface) !important;
+  border-color: var(--fw-border) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--fw-shadow-soft);
+}
+
+.theme-aurora .shadow,
+.theme-aurora .shadow-lg,
+.theme-aurora .shadow-xl,
+.theme-aurora .shadow-2xl,
+.theme-aurora .shadow-sm {
+  box-shadow: var(--fw-shadow) !important;
+}
+
+.theme-aurora .border-gray-200,
+.theme-aurora .dark\:border-gray-700 {
+  border-color: var(--fw-border) !important;
+}
+
+.theme-aurora .text-gray-900,
+.theme-aurora .dark\:text-white {
+  color: #e5e7eb !important;
+}
+
+.theme-aurora .text-gray-700,
+.theme-aurora .text-gray-600,
+.theme-aurora .dark\:text-gray-300 {
+  color: #cbd5e1 !important;
+}
+
+.theme-aurora .rounded-lg,
+.theme-aurora .rounded-xl {
+  border-radius: 16px;
+}
+
+.theme-aurora .bg-primary-500,
+.theme-aurora .hover\:bg-primary-600:hover {
+  background: linear-gradient(120deg, #22d3ee, #6366f1) !important;
+}
+
+/* Map popup overrides */
+.fw-popup .leaflet-popup-content-wrapper {
+  background: transparent;
+  box-shadow: none;
+  border: none;
+}
+
+.fw-popup .leaflet-popup-content {
+  margin: 0;
+}
+
+.fw-popup .leaflet-popup-tip {
+  display: none;
+}
+
+.fw-map-card {
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 18px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  padding: 14px;
+}
+
+/* Leaflet control positioning for map page */
+.fw-map .leaflet-top.leaflet-left {
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 900;
+}
+
+/* Soft badge palette for dark/aurora themes */
+.dark .badge[data-variant="danger"],
+.theme-aurora .badge[data-variant="danger"] {
+  background: rgba(248, 113, 113, 0.14);
+  color: #fecdd3;
+}
+
+.dark .badge[data-variant="warning"],
+.theme-aurora .badge[data-variant="warning"] {
+  background: rgba(251, 146, 60, 0.16);
+  color: #fdba74;
+}
+
+.dark .badge[data-variant="success"],
+.theme-aurora .badge[data-variant="success"] {
+  background: rgba(74, 222, 128, 0.14);
+  color: #bbf7d0;
+}
+
+.dark .badge[data-variant="info"],
+.theme-aurora .badge[data-variant="info"],
+.dark .badge[data-variant="primary"],
+.theme-aurora .badge[data-variant="primary"] {
+  background: rgba(96, 165, 250, 0.16);
+  color: #dbeafe;
+}
+
+.dark .badge[data-variant="gray"],
+.theme-aurora .badge[data-variant="gray"] {
+  background: rgba(148, 163, 184, 0.18);
+  color: #e2e8f0;
 }

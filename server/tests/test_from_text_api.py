@@ -114,8 +114,8 @@ class TestCreateTaskFromText:
         assert response.status_code == 200
         data = response.json()
         if data["success"]:
-            assert data["task"]["priority"] == 4  # Аварийная
-            assert data["parsed_data"]["priority"] == 4
+            assert data["task"]["priority"] == "EMERGENCY"  # Аварийная
+            assert data["parsed_data"]["priority"] == "EMERGENCY"
 
     def test_phone_extracted(self, client, auth_headers):
         """Test phone number is extracted from message."""

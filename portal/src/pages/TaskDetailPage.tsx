@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { logError } from '@/utils/logger'
 import { 
   ArrowLeft, 
   MapPin, 
@@ -26,6 +27,8 @@ import { useUsers } from '@/hooks/useUsers'
 import { useComments, useAddComment } from '@/hooks/useComments'
 import { usePhotos, useUploadPhoto, useDeletePhoto } from '@/hooks/usePhotos'
 import { photosApi } from '@/api/photos'
+import { usePermissions } from '@/hooks/usePermissions'
+import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/Button'
 import Spinner from '@/components/Spinner'
 import StatusBadge from '@/components/StatusBadge'
@@ -51,6 +54,15 @@ const photoTypeLabels: Record<string, string> = {
   before: 'До',
   after: 'После',
   completion: 'Завершение',
+}
+
+const systemTypeLabels: Record<string, string> = {
+  video_surveillance: 'Видеонаблюдение',
+  intercom: 'Домофон',
+  fire_protection: 'Пожаротушение',
+  access_control: 'СКУД',
+  fire_alarm: 'ОПС',
+  other: 'Другое',
 }
 
 interface CollapsibleCardProps {
@@ -98,6 +110,8 @@ export default function TaskDetailPage() {
   const { data: comments = [], isLoading: commentsLoading } = useComments(taskId)
   const { data: photos = [], isLoading: photosLoading } = usePhotos(taskId)
   const { data: users = [] } = useUsers()
+  const { user } = useAuthStore()
+  const { data: permissions } = usePermissions()
   
   // Filter only workers and dispatchers for assignment
   const assignableUsers = users.filter(u => u.is_active && (u.role === 'worker' || u.role === 'dispatcher'))
@@ -129,7 +143,7 @@ export default function TaskDetailPage() {
               createdUrls.push(url)
               return [photo.filename, url] as const
             } catch (err) {
-              console.error('Failed to load photo', err)
+              logError('Failed to load photo', err)
               return null
             }
           })
@@ -316,6 +330,8 @@ export default function TaskDetailPage() {
 
   const availableTransitions = statusTransitions[task.status] || []
   const sla = getSla(task.planned_date, task.status)
+  const canEdit = permissions?.permissions?.edit_tasks ?? user?.role === 'admin'
+  const canDelete = permissions?.permissions?.delete_tasks ?? user?.role === 'admin'
   const historyEvents = [
     {
       id: `created-${task.id}`,
@@ -359,7 +375,7 @@ export default function TaskDetailPage() {
   ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto w-full min-w-0 overflow-x-hidden">
       {/* Header */}
       <div className="mb-6">
         <Button variant="ghost" onClick={() => navigate('/tasks')} className="mb-4">
@@ -376,28 +392,49 @@ export default function TaskDetailPage() {
               <StatusBadge status={task.status} />
               <PriorityBadge priority={task.priority} />
             </div>
-            <h2 className="text-lg text-gray-700 dark:text-gray-300">{task.title}</h2>
+            <h2 className="text-lg text-gray-700 dark:text-gray-300 break-words">{task.title}</h2>
           </div>
 
           <div className="flex gap-2">
-            <Button variant="secondary" size="sm" onClick={() => navigate(`/tasks/${taskId}/edit`)}>
-              <Edit className="h-4 w-4 mr-2" />
-              Редактировать
-            </Button>
-            <Button variant="danger" size="sm" onClick={() => setShowDeleteConfirm(true)}>
-              <Trash2 className="h-4 w-4 mr-2" />
-              Удалить
-            </Button>
+            {canEdit && (
+              <Button variant="secondary" size="sm" onClick={() => navigate(`/tasks/${taskId}/edit`)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Редактировать
+              </Button>
+            )}
+            {canDelete && (
+              <Button variant="danger" size="sm" onClick={() => setShowDeleteConfirm(true)}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Удалить
+              </Button>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-w-0">
         {/* Main content */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 min-w-0">
+          {/* Defect */}
+          <Card title="Неисправность">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-gray-900 dark:text-white font-medium">
+                  {task.defect_type || 'Не указана'}
+                </p>
+                {task.system_type && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Система: {systemTypeLabels[task.system_type] || task.system_type}
+                  </p>
+                )}
+              </div>
+            </div>
+          </Card>
+
           {/* Description */}
           <Card title="Описание работ">
-            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
               {task.description || 'Описание не указано'}
             </p>
           </Card>
@@ -406,8 +443,8 @@ export default function TaskDetailPage() {
           <Card title="Адрес">
             <div className="flex items-start gap-3">
               <MapPin className="h-5 w-5 text-primary-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-gray-900 dark:text-white font-medium">{task.raw_address || 'Не указан'}</p>
+              <div className="min-w-0">
+                <p className="text-gray-900 dark:text-white font-medium break-words">{task.raw_address || 'Не указан'}</p>
                 {task.lat && task.lon && (
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                     Координаты: {task.lat.toFixed(6)}, {task.lon.toFixed(6)}

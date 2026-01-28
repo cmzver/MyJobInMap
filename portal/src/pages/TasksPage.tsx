@@ -1,14 +1,22 @@
 import { useState, useMemo, useEffect, useCallback, useRef, Fragment } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Search, Plus, RefreshCw, MapPin, Calendar, User, AlertTriangle, Clock, ChevronDown } from 'lucide-react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Search, Plus, RefreshCw, MapPin, Calendar, User, AlertTriangle, Clock, ChevronDown, X } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTasks } from '@/hooks/useTasks'
 import { useUsers } from '@/hooks/useUsers'
 import { tasksApi } from '@/api/tasks'
 import type { CreateTaskData } from '@/api/tasks'
-import { useAuthStore } from '@/store/authStore'
+import apiClient from '@/api/client'
 import type { TaskStatus, TaskPriority, TaskFilters, Task } from '@/types/task'
+import {
+  STATUS_OPTIONS,
+  PRIORITY_OPTIONS,
+  normalizePriority,
+  getPriorityLabel as getPriorityLabelFn,
+  getStatusLabel as getStatusLabelFn,
+  parsePriorityFromImport,
+} from '@/config/taskConstants'
 import Button from '@/components/Button'
 import Select from '@/components/Select'
 import Spinner from '@/components/Spinner'
@@ -21,54 +29,75 @@ import Badge from '@/components/Badge'
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 700
 const TABLE_COLUMN_COUNT = 9
+const COLUMN_STORAGE_KEY = 'tasks-table-column-widths'
 
-const statusOptions = [
-  { value: '', label: 'Все статусы' },
-  { value: 'NEW', label: 'Новые' },
-  { value: 'IN_PROGRESS', label: 'В работе' },
-  { value: 'DONE', label: 'Выполненные' },
-  { value: 'CANCELLED', label: 'Отменённые' },
-]
+type ColumnKey = 'select' | 'number' | 'title' | 'address' | 'status' | 'priority' | 'assignee' | 'date' | 'sla'
 
-const priorityOptions = [
-  { value: '', label: 'Все приоритеты' },
-  { value: 'EMERGENCY', label: 'Аварийные' },
-  { value: 'URGENT', label: 'Срочные' },
-  { value: 'CURRENT', label: 'Текущие' },
-  { value: 'PLANNED', label: 'Плановые' },
-]
-
-const statusLabels: Record<TaskStatus, string> = {
-  NEW: 'Новые',
-  IN_PROGRESS: 'В работе',
-  DONE: 'Выполненные',
-  CANCELLED: 'Отменённые',
+interface InterfaceSettings {
+  enable_resizable_columns: boolean
+  compact_table_view: boolean
 }
 
-const priorityLabels: Record<string, string> = {
-  EMERGENCY: 'Аварийная',
-  URGENT: 'Срочная',
-  CURRENT: 'Текущая',
-  PLANNED: 'Плановая',
-  '4': 'Аварийная',
-  '3': 'Срочная',
-  '2': 'Текущая',
-  '1': 'Плановая',
+const isStatusTransitionAllowed = (fromStatus: TaskStatus, toStatus: TaskStatus) => {
+  if (fromStatus === toStatus) return false
+  switch (fromStatus) {
+    case 'NEW':
+      return toStatus === 'IN_PROGRESS' || toStatus === 'CANCELLED'
+    case 'IN_PROGRESS':
+      return toStatus === 'DONE' || toStatus === 'CANCELLED'
+    default:
+      return false
+  }
 }
 
-const priorityKeyMap: Record<number, TaskPriority> = {
-  1: 'PLANNED',
-  2: 'CURRENT',
-  3: 'URGENT',
-  4: 'EMERGENCY',
+const defaultColumnWidths: Record<ColumnKey, number> = {
+  select: 44,
+  number: 90,
+  title: 240,
+  address: 260,
+  status: 130,
+  priority: 130,
+  assignee: 160,
+  date: 150,
+  sla: 140,
 }
 
-const priorityValueMap: Record<TaskPriority, number> = {
-  PLANNED: 1,
-  CURRENT: 2,
-  URGENT: 3,
-  EMERGENCY: 4,
+const columnMinWidths: Record<ColumnKey, number> = {
+  select: 36,
+  number: 70,
+  title: 160,
+  address: 180,
+  status: 110,
+  priority: 110,
+  assignee: 130,
+  date: 120,
+  sla: 110,
 }
+
+const loadColumnWidths = (): Record<ColumnKey, number> => {
+  if (typeof window === 'undefined') return defaultColumnWidths
+
+  try {
+    const stored = localStorage.getItem(COLUMN_STORAGE_KEY)
+    if (!stored) return defaultColumnWidths
+    const parsed = JSON.parse(stored) as Partial<Record<ColumnKey, number>>
+    const next = { ...defaultColumnWidths }
+    Object.keys(next).forEach((key) => {
+      const typedKey = key as ColumnKey
+      const value = parsed[typedKey]
+      if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+        next[typedKey] = value
+      }
+    })
+    return next
+  } catch {
+    return defaultColumnWidths
+  }
+}
+
+// Алиасы для Select компонентов
+const statusOptions = [...STATUS_OPTIONS]
+const priorityOptions = [...PRIORITY_OPTIONS]
 
 const groupOptions = [
   { value: '', label: 'Без группировки' },
@@ -146,24 +175,20 @@ const parseCsv = (text: string) => {
   return rows
 }
 
-const parsePriorityValue = (value: string) => {
-  const normalized = value.trim().toLowerCase()
-  if (!normalized) return undefined
-  if (['1', '2', '3', '4'].includes(normalized)) {
-    return Number(normalized)
-  }
-  if (['planned', 'плановая'].includes(normalized)) return 1
-  if (['current', 'текущая'].includes(normalized)) return 2
-  if (['urgent', 'срочная'].includes(normalized)) return 3
-  if (['emergency', 'аварийная', 'аварийное', 'авария'].includes(normalized)) return 4
-  return undefined
-}
+// Используем parsePriorityFromImport из taskConstants
+const parsePriorityValue = parsePriorityFromImport
 
 export default function TasksPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
-  const user = useAuthStore((state) => state.user)
+  // auth store is available via useAuthStore if needed
+  const [columnWidths, setColumnWidths] = useState<Record<ColumnKey, number>>(loadColumnWidths)
+  const resizeState = useRef<{
+    key: ColumnKey
+    startX: number
+    startWidth: number
+  } | null>(null)
   const initialPage = Number(searchParams.get('page') || 1)
   const [page, setPage] = useState(() => (Number.isFinite(initialPage) && initialPage > 0 ? initialPage : 1))
   const [searchInput, setSearchInput] = useState(() => searchParams.get('search') || '')
@@ -171,6 +196,8 @@ export default function TasksPage() {
   const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get('status') || '')
   const [priorityFilter, setPriorityFilter] = useState<string>(() => searchParams.get('priority') || '')
   const [assigneeFilter, setAssigneeFilter] = useState<string>(() => searchParams.get('assignee') || '')
+  const [addressIdFilter, setAddressIdFilter] = useState<string>(() => searchParams.get('address_id') || '')
+  const [addressTitleFilter, setAddressTitleFilter] = useState<string>(() => searchParams.get('address_title') || '')
   const [groupBy, setGroupBy] = useState('')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
@@ -185,13 +212,26 @@ export default function TasksPage() {
   const filters: TaskFilters = useMemo(() => ({
     page,
     size: PAGE_SIZE,
+    ...(addressIdFilter ? { address_id: Number(addressIdFilter) || undefined } : {}),
     ...(search && { search }),
     ...(statusFilter && { status: statusFilter as TaskStatus }),
     ...(priorityFilter && { priority: priorityFilter as TaskPriority }),
     ...(assigneeFilter && { assignee_id: Number(assigneeFilter) }),
-  }), [page, search, statusFilter, priorityFilter, assigneeFilter])
+  }), [page, search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter])
 
   const { data, isLoading, isError, error, refetch, isFetching } = useTasks(filters)
+  const { data: interfaceSettings } = useQuery({
+    queryKey: ['interface-settings'],
+    queryFn: async () => {
+      const response = await apiClient.get<InterfaceSettings>('/admin/settings/interface')
+      return response.data
+    },
+    staleTime: 300000,
+    retry: false,
+  })
+  const isResizableEnabled = interfaceSettings?.enable_resizable_columns ?? true
+  const isCompactView = interfaceSettings?.compact_table_view ?? false
+  const cellPadding = isCompactView ? 'px-4 py-2' : 'px-4 py-3'
   const { data: users = [] } = useUsers()
   const assignableUsers = users.filter(
     (user) => user.is_active && (user.role === 'worker' || user.role === 'dispatcher')
@@ -215,6 +255,60 @@ export default function TasksPage() {
   const handleAssigneeFilterChange = (value: string) => {
     setAssigneeFilter(value)
     setPage(1)
+  }
+
+  const handleResizeMove = useCallback((event: MouseEvent) => {
+    if (!resizeState.current) return
+    const { key, startX, startWidth } = resizeState.current
+    const delta = event.clientX - startX
+    const nextWidth = Math.max(columnMinWidths[key], startWidth + delta)
+
+    setColumnWidths((prev) => {
+      if (prev[key] === nextWidth) return prev
+      return {
+        ...prev,
+        [key]: nextWidth,
+      }
+    })
+  }, [])
+
+  const stopResize = useCallback(() => {
+    resizeState.current = null
+    document.removeEventListener('mousemove', handleResizeMove)
+    document.removeEventListener('mouseup', stopResize)
+  }, [handleResizeMove])
+
+  const startResize = useCallback(
+    (key: ColumnKey, event: React.MouseEvent) => {
+      if (!isResizableEnabled) return
+      event.preventDefault()
+      resizeState.current = {
+        key,
+        startX: event.clientX,
+        startWidth: columnWidths[key],
+      }
+      document.addEventListener('mousemove', handleResizeMove)
+      document.addEventListener('mouseup', stopResize)
+    },
+    [columnWidths, handleResizeMove, isResizableEnabled, stopResize]
+  )
+
+  useEffect(() => {
+    if (!isResizableEnabled) return
+    localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnWidths))
+  }, [columnWidths, isResizableEnabled])
+
+  useEffect(() => () => stopResize(), [stopResize])
+
+  const renderResizeHandle = (key: ColumnKey) => {
+    if (!isResizableEnabled) return null
+    return (
+      <div
+        role="separator"
+        onMouseDown={(event) => startResize(key, event)}
+        className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-primary-200/70"
+      />
+    )
   }
 
   const handleRowClick = (taskId: number) => {
@@ -435,29 +529,18 @@ export default function TasksPage() {
     })
   }
 
-  const getPriorityKey = useCallback((value: TaskPriority | number | string) => {
-    if (typeof value === 'number') {
-      return priorityKeyMap[value] || String(value)
-    }
-    if (typeof value === 'string') {
-      if (priorityLabels[value]) return value
-      const numeric = Number(value)
-      if (!Number.isNaN(numeric) && priorityKeyMap[numeric]) {
-        return priorityKeyMap[numeric]
-      }
-      return value
-    }
-    return ''
+  // Используем функции из taskConstants
+  const getPriorityKey = useCallback((value?: TaskPriority | number | string) => {
+    if (value === undefined || value === null || value === '') return ''
+    return normalizePriority(value)
   }, [])
 
-  const getPriorityLabel = useCallback((value: TaskPriority | number | string) => {
-    const key = getPriorityKey(value)
-    return priorityLabels[key] || String(value)
-  }, [getPriorityKey])
+  const getPriorityLabel = useCallback((value?: TaskPriority | number | string) => {
+    return getPriorityLabelFn(value)
+  }, [])
 
   const getStatusLabel = useCallback((value?: TaskStatus | string) => {
-    if (!value) return 'Не указан'
-    return statusLabels[value as TaskStatus] || String(value)
+    return getStatusLabelFn(value)
   }, [])
 
   const getSla = (plannedDate?: string | null, status?: TaskStatus) => {
@@ -571,7 +654,26 @@ export default function TasksPage() {
     })
   }
 
-  const hasActiveFilters = search || statusFilter || priorityFilter || assigneeFilter
+  const activeFilters = useMemo(() => {
+    const items: { key: 'search' | 'status' | 'priority' | 'assignee' | 'address'; label: string; value: string }[] = []
+    if (search) items.push({ key: 'search', label: 'Поиск', value: search })
+    if (statusFilter) items.push({ key: 'status', label: 'Статус', value: getStatusLabel(statusFilter as TaskStatus) })
+    if (priorityFilter) items.push({ key: 'priority', label: 'Приоритет', value: getPriorityLabel(priorityFilter as TaskPriority) })
+    if (assigneeFilter) {
+      const name = assignableUsers.find((u) => String(u.id) === assigneeFilter)?.full_name || assigneeFilter
+      items.push({ key: 'assignee', label: 'Исполнитель', value: name })
+    }
+    if (addressIdFilter) {
+      items.push({
+        key: 'address',
+        label: 'Адрес',
+        value: addressTitleFilter || `ID ${addressIdFilter}`,
+      })
+    }
+    return items
+  }, [search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter, addressTitleFilter, assignableUsers, getPriorityLabel, getStatusLabel])
+
+  const hasActiveFilters = activeFilters.length > 0
 
   const clearFilters = () => {
     setSearch('')
@@ -579,14 +681,48 @@ export default function TasksPage() {
     setStatusFilter('')
     setPriorityFilter('')
     setAssigneeFilter('')
+    setAddressIdFilter('')
+    setAddressTitleFilter('')
     setPage(1)
   }
 
-  const bulkStatusMutation = useMutation({
+  const clearSingleFilter = (key: 'search' | 'status' | 'priority' | 'assignee' | 'address') => {
+    switch (key) {
+      case 'search':
+        setSearch('')
+        setSearchInput('')
+        break
+      case 'status':
+        setStatusFilter('')
+        break
+      case 'priority':
+        setPriorityFilter('')
+        break
+      case 'assignee':
+        setAssigneeFilter('')
+        break
+      case 'address':
+        setAddressIdFilter('')
+        setAddressTitleFilter('')
+        break
+    }
+    setPage(1)
+  }
+
+  const bulkStatusMutation = useMutation<
+    { successCount: number; failedCount: number },
+    Error,
+    { ids: number[]; status: string }
+  >({
     mutationFn: async ({ ids, status }: { ids: number[]; status: string }) => {
-      await Promise.all(ids.map((id) => tasksApi.updateTaskStatus(id, status)))
+      const results = await Promise.allSettled(ids.map((id) => tasksApi.updateTaskStatus(id, status)))
+      const failedCount = results.filter((result) => result.status === 'rejected').length
+      return {
+        successCount: ids.length - failedCount,
+        failedCount,
+      }
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
     },
   })
@@ -601,7 +737,7 @@ export default function TasksPage() {
   })
 
   const bulkPriorityMutation = useMutation({
-    mutationFn: async ({ ids, priority }: { ids: number[]; priority: number }) => {
+    mutationFn: async ({ ids, priority }: { ids: number[]; priority: TaskPriority }) => {
       await Promise.all(ids.map((id) => tasksApi.updateTask(id, { priority })))
     },
     onSuccess: () => {
@@ -632,11 +768,29 @@ export default function TasksPage() {
       toast.error('Выберите заявки и статус')
       return
     }
-    const ids = Array.from(selectedIds)
+    const nextStatus = bulkStatus as TaskStatus
+    const selectedTasks = (data?.items ?? []).filter((task) => selectedIds.has(task.id))
+    const eligibleTasks = selectedTasks.filter((task) => isStatusTransitionAllowed(task.status, nextStatus))
+    if (eligibleTasks.length === 0) {
+      toast.error('Нет заявок с допустимым переходом статуса')
+      return
+    }
+    const ids = eligibleTasks.map((task) => task.id)
+    const skippedCount = selectedTasks.length - eligibleTasks.length
     try {
-      await bulkStatusMutation.mutateAsync({ ids, status: bulkStatus })
-      toast.success(`Статус обновлён для ${ids.length} заявок`)
-      clearSelection()
+      const result = await bulkStatusMutation.mutateAsync({ ids, status: bulkStatus })
+      if (result.successCount > 0) {
+        toast.success(`Статус обновлён для ${result.successCount} заявок`)
+      }
+      if (result.failedCount > 0) {
+        toast.error(`Не удалось обновить ${result.failedCount} заявок`)
+      }
+      if (skippedCount > 0) {
+        toast('Пропущены заявки с недопустимым переходом статуса')
+      }
+      if (result.successCount > 0) {
+        clearSelection()
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Ошибка массового обновления статуса')
     }
@@ -667,9 +821,9 @@ export default function TasksPage() {
       toast.error('Выберите заявки и приоритет')
       return
     }
-    const priority = priorityValueMap[bulkPriority as TaskPriority]
+    const priority = getPriorityKey(bulkPriority) as TaskPriority
     if (!priority) {
-      toast.error('Некорректный приоритет')
+      toast.error('Invalid priority')
       return
     }
     const ids = Array.from(selectedIds)
@@ -751,6 +905,8 @@ export default function TasksPage() {
     if (statusFilter) nextParams.set('status', statusFilter)
     if (priorityFilter) nextParams.set('priority', priorityFilter)
     if (assigneeFilter) nextParams.set('assignee', assigneeFilter)
+    if (addressIdFilter) nextParams.set('address_id', addressIdFilter)
+    if (addressTitleFilter) nextParams.set('address_title', addressTitleFilter)
     if (page > 1) nextParams.set('page', String(page))
 
     const next = nextParams.toString()
@@ -758,13 +914,15 @@ export default function TasksPage() {
     if (next !== current) {
       setSearchParams(nextParams, { replace: true })
     }
-  }, [search, statusFilter, priorityFilter, assigneeFilter, page, searchParams, setSearchParams])
+  }, [search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter, addressTitleFilter, page, searchParams, setSearchParams])
 
   useEffect(() => {
     const urlSearch = searchParams.get('search') || ''
     const urlStatus = searchParams.get('status') || ''
     const urlPriority = searchParams.get('priority') || ''
     const urlAssignee = searchParams.get('assignee') || ''
+    const urlAddressId = searchParams.get('address_id') || ''
+    const urlAddressTitle = searchParams.get('address_title') || ''
     const rawPage = Number(searchParams.get('page') || 1)
     const urlPage = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
 
@@ -773,25 +931,10 @@ export default function TasksPage() {
     setStatusFilter((prev) => (prev === urlStatus ? prev : urlStatus))
     setPriorityFilter((prev) => (prev === urlPriority ? prev : urlPriority))
     setAssigneeFilter((prev) => (prev === urlAssignee ? prev : urlAssignee))
+    setAddressIdFilter((prev) => (prev === urlAddressId ? prev : urlAddressId))
+    setAddressTitleFilter((prev) => (prev === urlAddressTitle ? prev : urlAddressTitle))
     setPage((prev) => (prev === urlPage ? prev : urlPage))
   }, [searchParams])
-
-  const quickFilters = [
-    { id: 'new', label: 'Новые', status: 'NEW', priority: '', assignee: '' },
-    { id: 'in-progress', label: 'В работе', status: 'IN_PROGRESS', priority: '', assignee: '' },
-    { id: 'urgent', label: 'Срочные', status: '', priority: 'URGENT', assignee: '' },
-    { id: 'emergency', label: 'Аварийные', status: '', priority: 'EMERGENCY', assignee: '' },
-    user?.id ? { id: 'mine', label: 'Мои', status: '', priority: '', assignee: String(user.id) } : null,
-  ].filter(Boolean) as Array<{ id: string; label: string; status: string; priority: string; assignee: string }>
-
-  const applyQuickFilter = (preset: { status: string; priority: string; assignee: string }) => {
-    setSearch('')
-    setSearchInput('')
-    setStatusFilter(preset.status)
-    setPriorityFilter(preset.priority)
-    setAssigneeFilter(preset.assignee)
-    setPage(1)
-  }
 
   return (
     <div>
@@ -803,7 +946,7 @@ export default function TasksPage() {
             {data ? `Всего: ${data.total}` : 'Загрузка...'}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 sm:justify-end">
           <Button
             variant="secondary"
             size="sm"
@@ -846,37 +989,13 @@ export default function TasksPage() {
 
       {/* Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6 transition-colors">
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-            Быстрые фильтры
-          </span>
-          {quickFilters.map((preset) => {
-            const isActive =
-              !search &&
-              statusFilter === preset.status &&
-              priorityFilter === preset.priority &&
-              assigneeFilter === preset.assignee
-            return (
-              <Button
-                key={preset.id}
-                size="sm"
-                variant={isActive ? 'primary' : 'secondary'}
-                onClick={() => applyQuickFilter(preset)}
-                className="rounded-full"
-              >
-                {preset.label}
-              </Button>
-            )
-          })}
-        </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
             <input
               type="text"
-              placeholder="Поиск по номеру, адресу, клиенту, телефону..."
+              placeholder="Поиск"
               value={searchInput}
               onChange={(e) => handleSearchChange(e.target.value)}
               onKeyDown={(event) => {
@@ -932,11 +1051,35 @@ export default function TasksPage() {
 
           {/* Clear filters */}
           {hasActiveFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters} className="self-center">
-              Сбросить фильтры
-            </Button>
+            <div className="flex items-center justify-end">
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="self-center">
+                Сбросить фильтры
+              </Button>
+            </div>
           )}
         </div>
+
+        {hasActiveFilters && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              Активные фильтры: {activeFilters.length}
+            </span>
+            {activeFilters.map((filter) => (
+              <button
+                key={filter.key}
+                onClick={() => clearSingleFilter(filter.key)}
+                className="flex items-center gap-1 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 px-3 py-1 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-600 transition"
+              >
+                <span className="text-gray-500 dark:text-gray-300">{filter.label}:</span>
+                <span className="text-gray-800 dark:text-gray-100">{filter.value}</span>
+                <X size={12} className="text-gray-400" />
+              </button>
+            ))}
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              Очистить все
+            </Button>
+          </div>
+        )}
 
         {data && (
           <div className="mt-4 flex flex-wrap gap-2">
@@ -1105,10 +1248,23 @@ export default function TasksPage() {
           {/* Tasks Table */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden transition-colors">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <table className={`min-w-full divide-y divide-gray-200 dark:divide-gray-700 ${isResizableEnabled ? 'table-fixed' : ''}`}>
+                {isResizableEnabled && (
+                  <colgroup>
+                    <col style={{ width: columnWidths.select }} />
+                    <col style={{ width: columnWidths.number }} />
+                    <col style={{ width: columnWidths.title }} />
+                    <col style={{ width: columnWidths.address }} />
+                    <col style={{ width: columnWidths.status }} />
+                    <col style={{ width: columnWidths.priority }} />
+                    <col style={{ width: columnWidths.assignee }} />
+                    <col style={{ width: columnWidths.date }} />
+                    <col style={{ width: columnWidths.sla }} />
+                  </colgroup>
+                )}
                 <thead className="bg-gray-50 dark:bg-gray-900/50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
                       <input
                         type="checkbox"
                         checked={allSelectedOnPage}
@@ -1116,30 +1272,39 @@ export default function TasksPage() {
                         className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                         aria-label="Выбрать все на странице"
                       />
+                      {renderResizeHandle('select')}
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
                       №
+                      {renderResizeHandle('number')}
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
                       Заявка
+                      {renderResizeHandle('title')}
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
                       Адрес
+                      {renderResizeHandle('address')}
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
                       Статус
+                      {renderResizeHandle('status')}
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
                       Приоритет
+                      {renderResizeHandle('priority')}
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
                       Исполнитель
+                      {renderResizeHandle('assignee')}
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
                       Дата
+                      {renderResizeHandle('date')}
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
                       Срок
+                      {renderResizeHandle('sla')}
                     </th>
                   </tr>
                 </thead>
@@ -1150,7 +1315,7 @@ export default function TasksPage() {
                       <Fragment key={group.key}>
                         {groupBy && (
                           <tr className="bg-gray-50 dark:bg-gray-900/40">
-                            <td colSpan={TABLE_COLUMN_COUNT} className="px-4 py-2">
+                            <td colSpan={TABLE_COLUMN_COUNT} className={cellPadding}>
                               <button
                                 type="button"
                                 className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
@@ -1177,7 +1342,7 @@ export default function TasksPage() {
                               className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
                             >
                               <td
-                                className="px-4 py-3 whitespace-nowrap"
+                                className={`${cellPadding} whitespace-nowrap`}
                                 onClick={(event) => event.stopPropagation()}
                               >
                                 <input
@@ -1188,22 +1353,22 @@ export default function TasksPage() {
                                   aria-label={`Выбрать заявку ${task.task_number || `#${task.id}`}`}
                                 />
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
+                              <td className={`${cellPadding} whitespace-nowrap`}>
                                 <span className="text-sm font-mono text-gray-900 dark:text-gray-100">
                                   {task.task_number || `#${task.id}`}
                                 </span>
                               </td>
-                              <td className="px-4 py-3">
+                              <td className={cellPadding}>
                                 <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-1">
-                                  {task.title}
+                                  {task.defect_type || task.title || 'Без описания'}
                                 </div>
-                                {task.description && (
+                                {(task.defect_type ? task.title : task.description) && (
                                   <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 mt-0.5">
-                                    {task.description}
+                                    {task.defect_type ? task.title : task.description}
                                   </div>
                                 )}
                               </td>
-                              <td className="px-4 py-3">
+                              <td className={cellPadding}>
                                 <div className="flex items-start gap-1.5">
                                   <MapPin className="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0 mt-0.5" />
                                   <span className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
@@ -1211,13 +1376,13 @@ export default function TasksPage() {
                                   </span>
                                 </div>
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
+                              <td className={`${cellPadding} whitespace-nowrap`}>
                                 <StatusBadge status={task.status} />
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
+                              <td className={`${cellPadding} whitespace-nowrap`}>
                                 <PriorityBadge priority={task.priority} />
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
+                              <td className={`${cellPadding} whitespace-nowrap`}>
                                 <div className="flex items-center gap-1.5">
                                   <User className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                                   <span className="text-sm text-gray-600 dark:text-gray-300">
@@ -1225,7 +1390,7 @@ export default function TasksPage() {
                                   </span>
                                 </div>
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
+                              <td className={`${cellPadding} whitespace-nowrap`}>
                                 <div className="flex items-center gap-1.5">
                                   <Calendar className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                                   <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -1233,7 +1398,7 @@ export default function TasksPage() {
                                   </span>
                                 </div>
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
+                              <td className={`${cellPadding} whitespace-nowrap`}>
                                 <div className="flex items-center gap-1.5">
                                   <Clock className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                                   <span className={`text-sm ${sla.tone}`}>

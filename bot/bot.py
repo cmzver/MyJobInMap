@@ -7,6 +7,7 @@ Telegram-бот диспетчер заявок для FieldWorker.
 
 import os
 import logging
+import threading
 
 import requests
 from dotenv import load_dotenv
@@ -26,6 +27,9 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8001")
 API_TOKEN = os.getenv("API_TOKEN", "")
+API_USERNAME = os.getenv("API_USERNAME", "")
+API_PASSWORD = os.getenv("API_PASSWORD", "")
+API_TOKEN_LOCK = threading.Lock()
 # Минимальная длина сообщения для обработки
 MIN_MESSAGE_LENGTH = int(os.getenv("MIN_MESSAGE_LENGTH", "20"))
 # ==========================================
@@ -36,6 +40,50 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+
+def _login_for_token() -> str:
+    if not API_USERNAME or not API_PASSWORD:
+        return ""
+
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/api/auth/login",
+            data={"username": API_USERNAME, "password": API_PASSWORD},
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+        token = data.get("access_token", "")
+        if not token:
+            logger.error("API login succeeded but access_token is missing in response")
+            return ""
+        return token
+    except requests.exceptions.RequestException as exc:
+        logger.error(f"API login failed: {exc}")
+        return ""
+
+
+def get_api_token(force_refresh: bool = False) -> str:
+    global API_TOKEN
+    if API_TOKEN and not force_refresh:
+        return API_TOKEN
+    if not API_USERNAME or not API_PASSWORD:
+        return ""
+    with API_TOKEN_LOCK:
+        if API_TOKEN and not force_refresh:
+            return API_TOKEN
+        token = _login_for_token()
+        if token:
+            API_TOKEN = token
+        return API_TOKEN
+
+
+def get_api_headers(force_refresh: bool = False) -> dict | None:
+    token = get_api_token(force_refresh=force_refresh)
+    if not token:
+        return None
+    return {"Authorization": f"Bearer {token}"}
 
 
 def is_potential_task(text: str) -> bool:
@@ -81,11 +129,17 @@ def send_to_server(text: str, sender: str) -> dict:
     }
     
     try:
-        if not API_TOKEN:
-            logger.error("API_TOKEN is not configured for bot")
+        headers = get_api_headers()
+        if not headers:
+            logger.error("API token is not configured for bot and API credentials are missing")
             return {"success": False, "error": "API token is not configured"}
-        headers = {"Authorization": f"Bearer {API_TOKEN}"}
         response = requests.post(url, json=payload, headers=headers, timeout=15)
+        if response.status_code == 401:
+            headers = get_api_headers(force_refresh=True)
+            if not headers:
+                logger.error("API token refresh failed")
+                return {"success": False, "error": "API token is not configured"}
+            response = requests.post(url, json=payload, headers=headers, timeout=15)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.ConnectionError:
@@ -214,11 +268,17 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /status - проверка связи с сервером."""
     try:
-        if not API_TOKEN:
+        headers = get_api_headers()
+        if not headers:
             await update.message.reply_text("❌ API token is not configured for bot")
             return
-        headers = {"Authorization": f"Bearer {API_TOKEN}"}
         response = requests.get(f"{API_BASE_URL}/api/tasks", headers=headers, timeout=5)
+        if response.status_code == 401:
+            headers = get_api_headers(force_refresh=True)
+            if not headers:
+                await update.message.reply_text("❌ API token is not configured for bot")
+                return
+            response = requests.get(f"{API_BASE_URL}/api/tasks", headers=headers, timeout=5)
         if response.ok:
             tasks = response.json()
             new_count = sum(1 for t in tasks if t.get("status") == "NEW")
