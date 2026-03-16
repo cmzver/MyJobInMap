@@ -5,6 +5,382 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/).
 
 
+## [Unreleased]
+
+
+## [2.14.2] - 2026-03-16
+
+### Изменено
+- **Android task filters** — список заявок в приложении теперь корректно применяет локальные фильтры, поиск и сортировку даже при включённом Paging.
+- **Android filters UI** — панель фильтров сделана компактнее: уменьшены отступы, снижена высота чипов и добавлен счётчик активных фильтров.
+- **Project version** — версия Android-приложения и API повышена до `2.14.2` (`versionCode = 21402`).
+
+### Проверено
+- **Android build** — `:app:assembleDebug` и `:app:compileDebugKotlin` проходят успешно после исправления фильтров.
+
+
+## [2.14.1] - 2026-03-16
+
+### Изменено
+- **Android update flow** — автопроверка обновлений выполняется при возврате приложения в foreground, а ручная проверка вынесена в настройки Android-приложения.
+- **Публикация APK** — сервер извлекает `versionName` и `versionCode` напрямую из `AndroidManifest.xml` внутри APK, а портал больше не требует ручного ввода этих значений.
+- **Android app version** — версия мобильного приложения синхронизирована с текущим релизом проекта: `2.14.1`.
+- **State machine статусов** — портал, сервер, workspace и Android теперь используют единые правила переходов без возврата из `DONE` и `CANCELLED` в активные статусы.
+- **Android статус-диалог** — приложение показывает только допустимые переходы статуса и не предлагает повторно открыть финальные заявки.
+
+### Исправлено
+- **Сессия после обновления APK** — улучшено восстановление auth-данных после обновления приложения поверх установленной версии.
+- **История обновлений в админке** — тесты updates API изолированы от реального каталога `server/uploads/apk` и больше не удаляют опубликованные версии после прогона `pytest`.
+- **Валидация релизов** — загрузка APK с `versionCode`, не превышающим текущую опубликованную версию, отклоняется в UI и на сервере.
+- **Смена статуса заявок** — для переходов в `DONE` и `CANCELLED` комментарий обязателен во всех клиентах, а тексты и ошибки синхронизированы между Android, portal, workspace и API.
+
+
+## [2.14.0] - 2026-02-17
+
+### Phase 10.1 — Организации: полная интеграция
+
+#### Добавлено
+- **TenantFilter в API** — multi-tenant изоляция данных во всех ключевых роутерах:
+  - `tasks` — фильтрация заявок + привязка org_id при создании
+  - `addresses` — фильтрация адресов (список, поиск, find-by-components)
+  - `dashboard` — статистика и активность по организации
+  - `reports` — аналитика по организации
+  - `finance` — финансовая статистика по организации
+  - `admin_users` — список пользователей и работников по организации
+- **organization_id в response-схемах** — `TaskResponse`, `TaskListResponse`, `UserResponse`
+- **Реактивация организаций** — `POST /api/admin/organizations/{id}/activate`
+- **Отвязка пользователя** — `POST /api/admin/organizations/{id}/unassign-user`
+- **Пользователи организации** — `GET /api/admin/organizations/{id}/users`
+- **OrganizationDetailPage** — детальная страница с вкладками:
+  - Информация (email, телефон, адрес, лимиты)
+  - Пользователи (таблица, добавление/удаление)
+- **Кликабельные названия** в OrganizationsPage → переход на детальную страницу
+- **Кнопка реактивации** для неактивных организаций в списке
+
+#### Изменено
+- `_base_task_dict` и `user_to_response` в `utils/__init__.py` — включают `organization_id`
+- `OrganizationsPage` — добавлена навигация, реактивация, `useActivateOrganization`
+- `useOrganizations.ts` — новые хуки: `useOrganizationUsers`, `useActivateOrganization`, `useUnassignUser`
+- `organizationsApi.ts` — новые методы: `activateOrganization`, `unassignUser`, `getOrganizationUsers`
+
+---
+
+## [2.13.0] - 2026-02-17
+
+### Phase 10 — Масштабирование (Virtualization, Multi-tenant, API Versioning)
+
+#### Добавлено
+- **Виртуализация списков** (#47) — `@tanstack/react-virtual` в TasksPage:
+  - Условная виртуализация при >40 строк (ROW_HEIGHT 56/44px, overscan 10)
+  - Sticky header, scrollable container с maxHeight 720px
+  - Селектор размера страницы (20/50/100 заявок)
+  - Поддержка группировки: виртуализация работает с flat `group|task` массивом
+- **API Versioning** (#80) — структура `/api/` и `/api/v2/`:
+  - `/api/*` — основные эндпоинты (v1, backward compatible)
+  - `/api/v2/version` — мета-информация о версиях API, deprecation status
+  - `/api/v2/tasks/summary` — агрегированная статистика (by_status, by_priority, overdue, unassigned)
+  - v2 envelope формат: `{data, meta: {api_version, timestamp, request_id}}`
+- **Multi-tenant** (#79) — поддержка нескольких организаций:
+  - `OrganizationModel` — модель организации (name, slug, limits, is_active)
+  - `organization_id` FK в моделях User, Task, Address (nullable, backward compatible)
+  - `TenantService` — CRUD для организаций (create, update, deactivate, assign_user)
+  - `TenantFilter` — изоляция данных (apply/check_access/enforce_access/set_org_id)
+  - `/api/admin/organizations` — REST API (list, create, get, update, deactivate, assign-user)
+  - Superadmin (admin без org_id) — полный доступ, org-admin — только своя организация
+  - Portal `OrganizationsPage` — таблица организаций, модалка создания/редактирования
+  - Alembic миграция `20260217_0001_add_organizations_multi_tenant`
+
+#### Тесты
+- **55 новых тестов**:
+  - TenantService: 16 тестов (slugify, CRUD, assign, limits, deactivation)
+  - TenantFilter: 6 тестов (superadmin bypass, org isolation, access checks)
+  - Organizations API: 18 тестов (CRUD, permissions, user assignment, inactive toggle)
+  - API Versioning: 15 тестов (default endpoints, v2 meta, v2 summary, envelope, auth, backward compat)
+- Server: **490 тестов** (435 + 55 новых)
+
+#### Зависимости (Portal)
+- `@tanstack/react-virtual@3` — виртуализация списков
+
+
+## [2.12.0] - 2026-02-16
+
+### Phase 8 (завершение) + Phase 9 (бизнес-функционал)
+
+#### Добавлено
+- **Prometheus мониторинг** (#70) — `prometheus-fastapi-instrumentator` для метрик FastAPI:
+  - HTTP request rate, latency (p50/p95/p99), error rate, active requests
+  - Эндпоинт `/metrics` для Prometheus scraping
+  - `docker-compose.monitoring.yml` — Prometheus v2.51.0 + Grafana 10.4.0
+  - Grafana dashboard (8 панелей: request rate, latency, errors, top endpoints)
+  - Метрики исключают `/metrics`, `/health`, `/health/detailed`
+- **SSL auto-renewal** (#72) — Caddy reverse proxy:
+  - `Caddyfile` с автоматическим Let's Encrypt SSL
+  - `docker-compose.ssl.yml` с Caddy 2-alpine
+  - Security headers: HSTS, X-Frame-Options, X-Content-Type-Options, CSP, Referrer-Policy
+  - WebSocket проксирование, gzip/zstd сжатие
+- **WebSocket уведомления** (#74) — реал-тайм обновления на портале:
+  - `ConnectionManager` — менеджер WebSocket-соединений (multi-tab, broadcast, per-user)
+  - `/ws?token=JWT` эндпоинт с JWT аутентификацией и ping/pong heartbeat
+  - Автоматический broadcast при создании/статусе/назначении/удалении заявок
+  - Portal `useWebSocket()` hook — автоподключение, reconnect с backoff, React Query invalidation
+  - WebSocket статус в `/health/detailed`
+- **SLA дашборд** (#76) — мониторинг SLA:
+  - `sla_service.py` — расчёт SLA метрик по приоритетам (PLANNED=168ч, CURRENT=48ч, URGENT=8ч, EMERGENCY=4ч)
+  - `/api/sla` эндпоинт — overview, timing, by_priority, by_worker, trends
+  - Portal `SlaPage` — 4 KPI карточки, таблицы по приоритетам/исполнителям, тренды с визуальными барами
+  - React Query хук `useSla()` + фильтры по периоду
+- **Экспорт в Excel** (#77) — xlsx экспорт заявок:
+  - `excel_export.py` — openpyxl с форматированием (цвета статусов/приоритетов, zebra, freeze)
+  - Два листа: «Заявки» (данные) + «Сводка» (статистика)
+  - `/api/reports/export/excel` эндпоинт с фильтрами (period, status, priority, worker)
+  - Portal `downloadExcel()` — скачивание xlsx файла
+
+#### Тесты
+- **44 новых теста** для всех фич:
+  - SLA: 17 тестов (API auth/access, structure, periods, unit service)
+  - Excel Export: 7 тестов (empty/data/filter, API auth, xlsx validation)
+  - WebSocket Manager: 10 тестов (connect/disconnect, broadcast, send_to_user, cleanup)
+  - WebSocket API: 3 теста (auth reject, valid connection, ping/pong)
+  - Prometheus: 3 теста (endpoint, format, http_requests data)
+  - Health: 1 тест (websocket status)
+  - Прочие: 3 теста (event format, timestamp)
+- Server: **425 тестов** (381 + 44 новых)
+
+#### Зависимости
+- `prometheus-fastapi-instrumentator==7.0.2` — Prometheus метрики
+- `openpyxl==3.1.5` — Excel экспорт
+- `websockets==14.2` — WebSocket поддержка (explicit)
+
+#### Инфраструктура
+- `monitoring/prometheus.yml` — конфигурация Prometheus
+- `monitoring/grafana/` — Grafana dashboards + provisioning
+- `docker-compose.monitoring.yml` — Prometheus + Grafana стек
+- `docker-compose.ssl.yml` — Caddy reverse proxy
+- `Caddyfile` — конфигурация Caddy
+
+
+## [2.11.0] - 2026-02-15
+
+### Инфраструктура — Phase 8 (DevOps)
+
+#### Добавлено
+- **Конфигурация через .env** (#73) — полный `.env.example` со всеми 30+ переменными окружения. Добавлены настройки: `RATE_LIMIT_MAX_ATTEMPTS`, `RATE_LIMIT_WINDOW_SECONDS`, `BACKUP_SCHEDULER_ENABLED`, `BACKUP_SCHEDULE_HOUR`, `BACKUP_SCHEDULE_MINUTE`, `BACKUP_RETENTION_DAYS` в `config.py`
+- **Автоматические бэкапы** (#69) — `backup_scheduler.py` на APScheduler:
+  - Ежедневный бэкап SQLite по расписанию (`BACKUP_SCHEDULE_HOUR:BACKUP_SCHEDULE_MINUTE`)
+  - Авторотация: удаление бэкапов старше `BACKUP_RETENTION_DAYS`
+  - Интеграция в lifespan (start/stop при запуске/остановке сервера)
+  - Статус планировщика в `/health/detailed`
+  - `get_scheduler_status()` API для диагностики
+- **PostgreSQL поддержка** (#68) — верификация и улучшение:
+  - `docker-compose.postgres.yml` обновлён: env_file, volumes, healthcheck, JSON логи
+  - `psycopg2-binary` в requirements.txt
+  - Alembic env.py поддерживает оба движка
+  - Engine конфигурация: pool_pre_ping, pool_size, max_overflow для PostgreSQL
+- **Staging environment** (#71) — `docker-compose.staging.yml`:
+  - Отдельная PostgreSQL БД на порту 5433
+  - API сервер на порту 8002 (не конфликтует с prod)
+  - JSON логи, DEBUG уровень
+  - Изолированные Docker volumes
+- **21 тест** — конфигурация (7), rate limiter config (1), backup scheduler (12), health endpoint (1)
+
+#### Изменено
+- `docker-compose.yml` — добавлен `env_file` для конфигурации через `.env`
+- `rate_limiter.py` — `login_rate_limiter` использует `RATE_LIMIT_*` из config вместо хардкода
+- `requirements.txt` — добавлен `APScheduler==3.10.4`
+
+#### Тесты
+- Server: 381 тестов (360 + 21 новых)
+
+
+## [2.10.0] - 2026-02-16
+
+### Android — Phase 7 (завершение)
+
+#### Добавлено
+- **Navigation Compose** (#58) — `Screen.kt` sealed class с типобезопасными маршрутами. `MainScreen.kt` рефакторинг на `NavHost` + `NavController` с `saveState`/`restoreState` для bottom navigation
+- **Paging 3** (#63) — полная интеграция:
+  - `room-paging` зависимость для Room PagingSource
+  - `TaskDao.getAllTasksPagingSource()` — постраничная выдача из Room
+  - `OfflineFirstTasksRepository.tasksPagingFlow` — `Pager` с `PagingConfig(pageSize=30)`
+  - `GetTasksUseCase.tasksPagingFlow` — проброс через UseCase
+  - `MapViewModel.tasksPagingFlow` — `cachedIn(viewModelScope)`
+  - `TaskListScreen` — поддержка `LazyPagingItems<Task>` с load state handling
+- **Token Refresh** (#66) — полный flow обновления токенов:
+  - Server: `/api/auth/refresh` endpoint с ротацией refresh token
+  - Server: access token 24h, refresh token 30 дней
+  - Android: `TokenAuthenticator` — OkHttp Authenticator для автоматического retry при 401
+  - Android: `AppPreferences` — хранение refresh token
+  - 8 серверных тестов для refresh endpoint
+
+#### Изменено
+- `AuthInterceptor` — logout только после неудачного refresh (не при первом 401)
+- `TokenAuthenticator` — thread-safe с `synchronized`, защита от бесконечных циклов через `X-Refresh-Retry` header
+- Access token expiry: 7 дней → 24 часа (компенсируется refresh token)
+
+#### Тесты
+- Server: 360 тестов (352 + 8 новых для token refresh)
+- Android: 85 тестов (без изменений)
+
+
+## [2.9.0] - 2026-02-15
+
+### Android — Phase 7
+
+#### Добавлено
+- **Version Catalogs** — `gradle/libs.versions.toml` для централизованного управления 40+ зависимостями. `build.gradle.kts` (root + app) мигрированы на `libs.*` ссылки
+- **Certificate Pinning** — `CertificatePinner` в `NetworkModule.kt` с конфигурируемой картой доменов для production
+- **ProGuard правила** — расширенные правила для Retrofit, Gson, OkHttp, Hilt/Dagger, Room, Firebase, Compose, Coil, WorkManager, sealed classes. `isMinifyEnabled=true` для release
+- **Unit тесты** — 85 Android тестов:
+  - `LoginViewModelTest` — 16 тестов (инициализация, валидация, login/logout, loading state)
+  - `MapViewModelTest` — 37 тестов (сессия, задачи, фильтры, сортировка, сеть, комментарии, статусы, фото)
+  - `OfflineFirstTasksRepositoryTest` — 32 теста (исправлены для PaginatedResponseDto)
+- **Kotlin `all-open` плагин** — `@Singleton` классы становятся `open` для MockK subclass-мокинга
+- **JVM args для тестов** — `--add-opens` и `-XX:+EnableDynamicAgentLoading` для MockK на JDK 21
+
+#### Техническое
+- `AppPreferences` в тестах: реальный экземпляр с фейковым `SharedPreferences` (HashMap-хранилище) вместо MockK mock — обход ограничения MockK agent на JDK 21 для final-классов
+- `mockk-agent` добавлен как явная зависимость
+
+#### Уже было реализовано (обнаружено при анализе)
+- #59 Error handling — `NetworkError` sealed class + Kotlin `Result<T>`
+- #61 Offline-first — `OfflineFirstTasksRepository` + `PendingAction` + `SyncWorker`
+- #62 Pull-to-refresh — `PullToRefreshBox` в `TaskListScreen`
+- #64 Dark theme — Light/Dark `ColorScheme` в `Theme.kt`
+
+
+## [2.8.0] - 2026-02-14
+
+### Тестовое покрытие (Phase 6)
+- Добавлено:
+  - **test_admin_backups_api.py** — 24 теста: CRUD бэкапов, path traversal защита (6 кейсов), backup settings, DB stats/integrity/cleanup
+  - **test_push_service.py** — 9 тестов: init_firebase, send_push_sync, send_push_notification, background (всё с mock Firebase)
+  - **test_admin_api.py** расширен — +7 тестов: workers endpoint, user stats extended, role change
+  - **test_addresses_api.py** расширен — +15 тестов: autocomplete (cities/streets/buildings/entrance), compose, find_by_components, deactivate, filters
+  - **test_rate_limiter.py** расширен — +8 тестов: thread safety (20 потоков), MAX_TRACKED_IPS overflow, edge cases
+  - **test_image_optimizer.py** расширен — +7 тестов: zero_byte, unknown_ext, aspect_ratio, P_mode, pillow_not_available fallback, webp
+  - **Portal: Vitest** — 44 unit-теста: `dateFormat.ts` (22), `cn.ts` (7), `apiError.ts` (11), `getSla` (9)
+- Исправлено:
+  - **Баг `set_setting()`** — функция не поддерживала upsert и не принимала `description`/`group` kwargs. Backup settings PATCH падал при отсутствии настройки в БД. Исправлено: upsert с поддержкой `label`, `description`, `group`
+  - **`test_set_setting_nonexistent`** — обновлён для нового upsert-поведения
+- Итого:
+  - Сервер: **282 → 352 тестов** (+70)
+  - Портал: **0 → 44 теста** (Vitest)
+
+
+## [2.7.0] - 2026-02-14
+
+### Портал UX и архитектура (Phase 5)
+- Добавлено:
+  - **Единый API error handler** (`utils/apiError.ts`) — `getApiErrorMessage`, `showApiError`, `showApiSuccess`, `mutationToast` с приоритетной цепочкой извлечения ошибок (detail → error → message → HTTP status → fallback). 9 страниц обновлено
+  - **Skeleton loading components** (`components/Skeleton.tsx`) — 7 компонентов вместо спиннеров: `Skeleton`, `SkeletonText`, `SkeletonCard`, `SkeletonTable`, `SkeletonTaskList`, `SkeletonStats`. Интегрировано в Dashboard, Tasks, Users
+  - **API response types** (`types/api.ts`) — `ApiMessage`, `ApiErrorResponse`, `HealthResponse`, `ApiOperationResult`
+  - **Task type completeness** — `is_remote: boolean`, `completed_at: string | null` добавлены в интерфейс `Task`
+  - **Image lazy loading** — `loading="lazy"` для фото задач в TaskDetailPage
+  - **Strict TypeScript** — `noUncheckedIndexedAccess: true` в tsconfig.json
+- Исправлено:
+  - ~60 TypeScript ошибок после включения `noUncheckedIndexedAccess` (Modal, TaskForm, AddressForm, MapPage, DashboardPage, TasksPage, Autocomplete)
+- Подтверждено:
+  - Optimistic updates уже реализованы в `useTasks.ts`
+  - React.lazy code splitting уже реализовано в App.tsx (18 страниц)
+  - react-hook-form уже интегрирован в формы
+
+
+## [2.6.0] - 2026-02-14
+
+### Серверная надёжность (Phase 4)
+- Добавлено:
+  - **Global exception handler** — JSON 500 вместо stack trace для непойманных исключений
+  - **Validation error handler** — унифицированный формат `{ error, details[], request_id }`
+  - **Request ID middleware** — уникальный `X-Request-ID` заголовок для трассировки запросов
+  - **Audit log** (`app/services/audit_log.py`) — логирование login, user CRUD, backup CRUD
+  - **File upload MIME validation** — проверка magic bytes (JPEG/PNG/WebP), не только расширения
+  - **DB indexes** — `ix_tasks_created_at`, `ix_tasks_completed_at` для ускорения dashboard/finance запросов
+- Исправлено:
+  - **N+1 query в dashboard** — `joinedload(assigned_user)` для срочных заявок вместо отдельных запросов
+  - **N+1 query в finance** — SQL агрегация `func.sum(case(...))` вместо загрузки всех задач каждого работника
+  - **Geocoding cache** — TTL 24ч с вытеснением по времени вместо FIFO без лимита
+- Проверено:
+  - **SQL injection аудит** — все raw SQL вызовы (VACUUM/ANALYZE/PRAGMA/SELECT 1) без пользовательского ввода
+  - **Structured logging** — JSON формат уже доступен через `LOG_FORMAT=json`
+
+### TypeScript строгость портала (Phase 3)
+- Исправлено:
+  - `SystemSelector.tsx` — удалено обращение к `system.model` (свойство принадлежит `AddressEquipment`)
+  - `AdminSettingsPage.tsx` — `Boolean()` type guard для `SettingValue` → `boolean`
+  - `TaskDetailPage.tsx` — `task.amount` → `task.payment_amount`
+
+
+## [2.5.0] - 2026-02-14
+
+### Безопасность и инфраструктура (Phase 1)
+- Добавлено:
+  - **GitHub Actions CI/CD** — линтинг, тесты, сборка портала (`.github/workflows/ci.yml`)
+  - **Docker**: healthcheck, `.dockerignore`, non-root user
+  - CORS `allow_origins` из конфигурации вместо wildcard
+  - Предупреждение о дефолтном `SECRET_KEY` при старте
+  - Health check (`/health`) с реальной проверкой БД
+  - Ролевая защита адресов (`admin`/`dispatcher` для изменений)
+- Исправлено:
+  - Race condition в `RateLimiter` — потокобезопасность + ограничение размера словаря
+  - `ErrorBoundary` редиректил на `/` вместо `/portal/`
+  - `cn()` не мерджил конфликтующие Tailwind-классы → `tailwind-merge`
+  - Двойная логика авторизации в `authStore` (fetch → apiClient)
+  - Alembic: разорванная цепочка миграций (down_revision)
+  - Зависимости зафиксированы (`requirements.txt`)
+
+### Архитектура сервера (Phase 2)
+- Рефакторинг:
+  - **admin.py** разделён на 3 модуля: `admin.py` (282 строки), `admin_users.py`, `admin_backups.py`
+  - VACUUM исправлен — использует raw sqlite3 (`isolation_level=None`) вместо SQLAlchemy-транзакции
+  - `delete_all_tasks` теперь удаляет фото-файлы с диска
+  - Удалены дубликаты эндпоинтов (`/db/restore/`, `/db/backup/`)
+  - Inline Pydantic-модели из `tasks.py` вынесены в `app/schemas/task.py`
+
+### Портал (Phase 2)
+- Рефакторинг:
+  - **Единый `dateFormat.ts`** — 7 функций форматирования + `getSla`, устранено ~120 строк дублирования из 9 страниц
+  - **Modal.tsx** — `role="dialog"`, `aria-modal`, `aria-labelledby`, focus trap, автовозврат фокуса
+  - **User type** — `AuthUser` в authStore, `UserRole` импортируется из `types/user.ts` (убраны дубликаты)
+  - **Card.tsx** — исправлен no-op тернарный оператор (`p-6 : p-6`)
+  - `menuConfig.ts` — `UserRole` переиспользуется из `types/user.ts`
+
+### Тесты
+- Добавлено:
+  - 24 теста для Dashboard API и Finance API (`test_dashboard_finance.py`)
+  - Всего тестов: **282** (было 258)
+
+## [2.4.6] - 2026-01-20
+
+### REST API Standardization
+- Изменено:
+  - **PUT → PATCH** для всех частичных обновлений (15+ эндпоинтов):
+    - `/api/tasks/{id}/status`, `/api/tasks/{id}/planned-date`, `/api/tasks/{id}/assign`
+    - `/api/admin/users/{id}`, `/api/admin/tasks/{id}`, `/api/admin/custom-fields/{id}`, `/api/admin/permissions/{role}`
+    - `/api/auth/profile`, `/api/auth/password`, `/api/auth/report-settings`
+    - `/api/notifications/{id}/read`, `/api/notifications/read-all`
+    - `/api/addresses/{id}`, `/api/addresses/{id}/systems/{sid}`, `/api/addresses/{id}/equipment/{eid}`, `/api/addresses/{id}/contacts/{cid}`
+    - `/api/users/{id}`
+    - `/api/admin/settings/{key}`, `/api/admin/settings` (bulk update)
+  - **RESTful URL-паттерны для бэкапов**:
+    - `GET /api/admin/backup/list` → `GET /api/admin/backups`
+    - `POST /api/admin/backup/run` → `POST /api/admin/backups`
+    - `GET/PUT /api/admin/backup/settings` → `GET/PATCH /api/admin/backups/settings`
+    - `GET /api/admin/backup/download/{f}` → `GET /api/admin/backups/{f}/download`
+    - `DELETE /api/admin/backup/{f}` → `DELETE /api/admin/backups/{f}`
+    - `POST /api/admin/backup/restore/{f}` → `POST /api/admin/backups/{f}/restore`
+  - **RESTful URL-паттерны для устройств**:
+    - `POST /api/devices/register` → `POST /api/devices`
+    - `GET /api/devices/all` → `GET /api/devices`
+    - `GET /api/devices` (info) → `GET /api/devices/info`
+  - **RESTful URL-паттерны для типов дефектов**:
+    - `GET /api/admin/settings/defect-types/list` → `GET /api/admin/settings/defect-types`
+    - `POST /api/admin/settings/defect-types/add` → `POST /api/admin/settings/defect-types`
+  - `POST /api/admin/settings/bulk` → `PATCH /api/admin/settings`
+- Обновлено:
+  - Portal API клиент (6 файлов) — все вызовы приведены к новым эндпоинтам
+  - Static JS (admin.js, workspace.js) — добавлен метод `patch()` в ApiClient
+  - Тесты (5 файлов) — все 258 тестов проходят
+
 ## [2.4.5] - 2026-01-20
 - Добавлено:
 - Три темы оформления: modern, macOS-стиль и aurora night.

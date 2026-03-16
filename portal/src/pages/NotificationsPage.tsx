@@ -11,8 +11,7 @@ import Card from '@/components/Card'
 import Spinner from '@/components/Spinner'
 import Button from '@/components/Button'
 import apiClient from '@/api/client'
-import { formatDistanceToNow, parseISO } from 'date-fns'
-import { ru } from 'date-fns/locale'
+import { formatDateRelative as formatDate } from '@/utils/dateFormat'
 
 interface Notification {
   id: number
@@ -39,7 +38,7 @@ export default function NotificationsPage() {
 
   const markAsReadMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiClient.put(`/notifications/${id}/read`)
+      await apiClient.patch(`/notifications/${id}/read`)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
@@ -48,7 +47,7 @@ export default function NotificationsPage() {
 
   const markAllAsReadMutation = useMutation({
     mutationFn: async () => {
-      await apiClient.put('/notifications/read-all')
+      await apiClient.patch('/notifications/read-all')
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
@@ -81,15 +80,6 @@ export default function NotificationsPage() {
         return <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
           <Bell className="w-5 h-5 text-gray-600 dark:text-gray-400" />
         </div>
-    }
-  }
-
-  const formatDate = (dateStr: string) => {
-    try {
-      const date = parseISO(dateStr)
-      return formatDistanceToNow(date, { addSuffix: true, locale: ru })
-    } catch {
-      return dateStr
     }
   }
 

@@ -1,0 +1,40 @@
+# FieldWorker Docker Compose — SSL with Caddy
+# ==============================================
+# Автоматический SSL через Let's Encrypt + Caddy reverse proxy.
+#
+# Использование:
+#   DOMAIN=example.com docker-compose -f docker-compose.yml -f docker-compose.ssl.yml up -d
+#
+# Caddy автоматически:
+# - Получает SSL сертификат от Let's Encrypt
+# - Обновляет сертификат до истечения
+# - Перенаправляет HTTP → HTTPS
+# - Проксирует запросы к FastAPI API
+
+services:
+  # ==========================================================================
+  # Caddy — Reverse proxy с автоматическим SSL
+  # ==========================================================================
+  caddy:
+    image: caddy:2-alpine
+    container_name: fieldworker-caddy
+    restart: unless-stopped
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data        # SSL сертификаты
+      - caddy_config:/config    # Конфигурация Caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - api
+
+  # Переопределяем API — убираем прямой порт, траффик через Caddy
+  api:
+    ports: []
+
+volumes:
+  caddy_data:
+  caddy_config:

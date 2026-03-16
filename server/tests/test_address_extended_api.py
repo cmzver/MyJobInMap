@@ -122,7 +122,7 @@ class TestAddressSystemsCRUD:
         db_session.commit()
         db_session.refresh(system)
         
-        response = client.put(
+        response = client.patch(
             f"/api/addresses/{address.id}/systems/{system.id}",
             json={"status": "maintenance", "notes": "На профилактике"},
             headers=auth_headers
@@ -255,7 +255,7 @@ class TestAddressContactsCRUD:
         db_session.commit()
         db_session.refresh(contact)
         
-        response = client.put(
+        response = client.patch(
             f"/api/addresses/{address.id}/contacts/{contact.id}",
             json={"name": "Новый консьерж", "phone": "+7 (999) 000-00-00"},
             headers=auth_headers

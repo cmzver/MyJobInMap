@@ -25,7 +25,7 @@ export const usersApi = {
 
   // Update user
   async updateUser(id: number, userData: UpdateUserData): Promise<User> {
-    const { data } = await apiClient.put<User>(`${USERS_BASE}/${id}`, userData)
+    const { data } = await apiClient.patch<User>(`${USERS_BASE}/${id}`, userData)
     return data
   },
 

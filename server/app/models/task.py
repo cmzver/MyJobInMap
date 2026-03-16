@@ -19,6 +19,8 @@ class TaskModel(Base):
         Index("ix_tasks_priority_created", "priority", "created_at"),
         Index("ix_tasks_assigned_status", "assigned_user_id", "status"),
         Index("ix_tasks_planned_date", "planned_date"),
+        Index("ix_tasks_created_at", "created_at"),
+        Index("ix_tasks_completed_at", "completed_at"),
     )
     
     id = Column(Integer, primary_key=True, index=True)
@@ -41,6 +43,9 @@ class TaskModel(Base):
     assigned_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     assigned_user = relationship("UserModel", back_populates="assigned_tasks")
     
+    # Multi-tenant
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
+    
     # Система и тип неисправности
     system_id = Column(Integer, ForeignKey("address_systems.id"), nullable=True)
     system_type = Column(String(50), nullable=True)  # Тип системы (video_surveillance, intercom, etc.)
@@ -55,6 +60,7 @@ class TaskModel(Base):
     comments = relationship("CommentModel", back_populates="task", cascade="all, delete-orphan")
     photos = relationship("TaskPhotoModel", back_populates="task", cascade="all, delete-orphan")
     notifications = relationship("NotificationModel", back_populates="task")
+    organization = relationship("OrganizationModel", back_populates="tasks")
 
 
 class CommentModel(Base):

@@ -3,6 +3,10 @@ package com.fieldworker.data.repository
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.map
 import com.fieldworker.data.api.TasksApi
 import com.fieldworker.data.dto.CreateCommentDto
 import com.fieldworker.data.dto.UpdatePlannedDateDto
@@ -57,13 +61,31 @@ class OfflineFirstTasksRepository @Inject constructor(
     companion object {
         private const val TAG = "OfflineTasksRepo"
         private const val PAGE_SIZE = 100
+        private const val PAGING_PAGE_SIZE = 30
     }
     
     /**
-     * Flow всех задач из локальной БД
+     * Flow всех задач из локальной БД (для карты — загружает все)
      */
     val tasksFlow: Flow<List<Task>> = taskDao.getAllTasksFlow()
         .map { entities -> entities.map { it.toDomain() } }
+    
+    /**
+     * Paging 3 Flow задач из Room.
+     * Используется в TaskListScreen для постраничной загрузки.
+     * Room автоматически инвалидирует PagingSource при изменениях.
+     * Данные обновляются через refreshTasks() → upsertTasks().
+     */
+    val tasksPagingFlow: Flow<PagingData<Task>> = Pager(
+        config = PagingConfig(
+            pageSize = PAGING_PAGE_SIZE,
+            enablePlaceholders = false,
+            prefetchDistance = PAGING_PAGE_SIZE / 2
+        ),
+        pagingSourceFactory = { taskDao.getAllTasksPagingSource() }
+    ).flow.map { pagingData ->
+        pagingData.map { entity -> entity.toDomain() }
+    }
     
     /**
      * Flow количества отложенных действий (для UI индикатора)

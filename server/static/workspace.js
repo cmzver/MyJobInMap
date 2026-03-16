@@ -29,6 +29,8 @@ let currentTheme = localStorage.getItem('workspace_theme') || 'light';
 let taskDetailModal = null;
 let importTaskModalWS = null;
 let parsedImportDataWS = null;
+let statusCommentModal = null;
+let pendingStatusCommentSubmit = null;
 
 // Expose Utils
 window.Utils = Utils;
@@ -52,6 +54,8 @@ document.addEventListener('DOMContentLoaded', () => {
         taskDetailModal = new bootstrap.Modal(taskModalEl);
         Utils.setupModalFocusHandler(taskModalEl);
     }
+
+    initStatusCommentModal();
     
     // Sticky Header
     initStickyHeader();
@@ -340,17 +344,32 @@ window.takeTask = async function(taskId) {
 };
 
 window.completeTask = async function(taskId) {
-    await changeTaskStatus(taskId, 'DONE');
+    openStatusCommentModal({
+        title: 'Комментарий к завершению заявки',
+        label: 'Что выполнено',
+        placeholder: 'Кратко опишите выполненные работы',
+        submitText: 'Завершить заявку',
+        onSubmit: async (comment) => {
+            await changeTaskStatus(taskId, 'DONE', comment);
+        }
+    });
 };
 
 window.cancelTask = async function(taskId) {
-    if (!confirm('Отменить заявку?')) return;
-    await changeTaskStatus(taskId, 'CANCELLED');
+    openStatusCommentModal({
+        title: 'Комментарий к отмене заявки',
+        label: 'Причина отмены',
+        placeholder: 'Кратко опишите причину отмены',
+        submitText: 'Отменить заявку',
+        onSubmit: async (comment) => {
+            await changeTaskStatus(taskId, 'CANCELLED', comment);
+        }
+    });
 };
 
-async function changeTaskStatus(taskId, newStatus) {
+async function changeTaskStatus(taskId, newStatus, comment = '') {
     try {
-        const response = await api.put(`/api/tasks/${taskId}/status`, { status: newStatus });
+        const response = await api.patch(`/api/tasks/${taskId}/status`, { status: newStatus, comment });
         if (response.ok) {
             Utils.showToast('Статус обновлён', 'success');
             loadTasks();
@@ -365,6 +384,114 @@ async function changeTaskStatus(taskId, newStatus) {
     } catch (err) {
         Utils.showToast('Ошибка смены статуса', 'danger');
     }
+}
+
+function initStatusCommentModal() {
+    if (document.getElementById('statusCommentModal')) {
+        const modalEl = document.getElementById('statusCommentModal');
+        statusCommentModal = new bootstrap.Modal(modalEl);
+        Utils.setupModalFocusHandler(modalEl);
+        bindStatusCommentModalEvents(modalEl);
+        return;
+    }
+
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `
+        <div class="modal fade" id="statusCommentModal" tabindex="-1" aria-labelledby="statusCommentModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="statusCommentModalLabel">Комментарий</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="statusCommentInput" class="form-label">Комментарий</label>
+                            <textarea id="statusCommentInput" class="form-control" rows="4" placeholder="Введите комментарий"></textarea>
+                            <div id="statusCommentError" class="text-danger small mt-2 d-none">Заполните комментарий</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                        <button type="button" class="btn btn-primary" id="statusCommentSubmit">Сохранить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(wrapper.firstElementChild);
+
+    const modalEl = document.getElementById('statusCommentModal');
+    statusCommentModal = new bootstrap.Modal(modalEl);
+    Utils.setupModalFocusHandler(modalEl);
+    bindStatusCommentModalEvents(modalEl);
+}
+
+function bindStatusCommentModalEvents(modalEl) {
+    const textarea = modalEl.querySelector('#statusCommentInput');
+    const submitButton = modalEl.querySelector('#statusCommentSubmit');
+    const errorEl = modalEl.querySelector('#statusCommentError');
+
+    submitButton.addEventListener('click', async () => {
+        const comment = textarea.value.trim();
+        if (!comment) {
+            errorEl.classList.remove('d-none');
+            textarea.focus();
+            return;
+        }
+
+        errorEl.classList.add('d-none');
+        submitButton.disabled = true;
+
+        try {
+            if (pendingStatusCommentSubmit) {
+                await pendingStatusCommentSubmit(comment);
+                statusCommentModal.hide();
+            }
+        } finally {
+            submitButton.disabled = false;
+        }
+    });
+
+    textarea.addEventListener('input', () => {
+        if (textarea.value.trim()) {
+            errorEl.classList.add('d-none');
+        }
+    });
+
+    modalEl.addEventListener('hidden.bs.modal', () => {
+        textarea.value = '';
+        errorEl.classList.add('d-none');
+        pendingStatusCommentSubmit = null;
+        const title = modalEl.querySelector('#statusCommentModalLabel');
+        const label = modalEl.querySelector('label[for="statusCommentInput"]');
+        const submitButtonEl = modalEl.querySelector('#statusCommentSubmit');
+        title.textContent = 'Комментарий';
+        label.textContent = 'Комментарий';
+        textarea.placeholder = 'Введите комментарий';
+        submitButtonEl.textContent = 'Сохранить';
+    });
+}
+
+function openStatusCommentModal({ title, label, placeholder, submitText, onSubmit }) {
+    if (!statusCommentModal) {
+        initStatusCommentModal();
+    }
+
+    const modalEl = document.getElementById('statusCommentModal');
+    const titleEl = modalEl.querySelector('#statusCommentModalLabel');
+    const labelEl = modalEl.querySelector('label[for="statusCommentInput"]');
+    const textarea = modalEl.querySelector('#statusCommentInput');
+    const submitButton = modalEl.querySelector('#statusCommentSubmit');
+
+    titleEl.textContent = title;
+    labelEl.textContent = label;
+    textarea.placeholder = placeholder;
+    submitButton.textContent = submitText;
+    pendingStatusCommentSubmit = onSubmit;
+
+    statusCommentModal.show();
+    setTimeout(() => textarea.focus(), 150);
 }
 
 window.openRoute = function(taskId) {

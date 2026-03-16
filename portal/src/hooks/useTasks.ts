@@ -62,8 +62,8 @@ export function useUpdateTaskStatus() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) =>
-      tasksApi.updateTaskStatus(id, status),
+    mutationFn: ({ id, status, comment }: { id: number; status: string; comment?: string }) =>
+      tasksApi.updateTaskStatus(id, status, comment),
     
     // Optimistic update
     onMutate: async ({ id, status }) => {

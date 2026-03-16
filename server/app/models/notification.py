@@ -4,12 +4,12 @@ Notification Model
 Модель уведомлений пользователей.
 """
 
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Enum as SQLEnum
-from sqlalchemy.orm import relationship
 import enum
 
-from app.models.base import Base
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
+
+from app.models.base import Base, utcnow
 
 
 class NotificationType(str, enum.Enum):
@@ -30,7 +30,7 @@ class NotificationModel(Base):
     type = Column(String(20), default="system")  # task, system, alert
     is_read = Column(Boolean, default=False)
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     # Relations
     user = relationship("UserModel", back_populates="notifications")

@@ -22,16 +22,27 @@ from app.schemas.address import (
 )
 from app.services.geocoding import geocoding_service
 from app.services.address_parser import parse_address, compose_address
-from app.services.auth import get_current_user
+from app.services.auth import get_current_user_required, get_current_dispatcher_or_admin
+from app.services.tenant_filter import TenantFilter
 from app.models.user import UserModel
 
 router = APIRouter(prefix="/api/addresses", tags=["Addresses"])
 
 
+def get_tenant_address_or_404(address_id: int, db: Session, user: UserModel) -> AddressModel:
+    """Получить адрес с tenant-проверкой."""
+    address = db.query(AddressModel).filter(AddressModel.id == address_id).first()
+    if not address:
+        raise HTTPException(status_code=404, detail="Адрес не найден")
+
+    TenantFilter(user).enforce_access(address, detail="Нет доступа к этому адресу")
+    return address
+
+
 @router.post("/parse", response_model=AddressParseResponse)
 async def parse_address_endpoint(
     data: AddressParseRequest,
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Парсит полный адрес на составные части (город, улица, дом, корпус, подъезд)"""
     parsed = parse_address(data.address)
@@ -47,7 +58,7 @@ async def parse_address_endpoint(
 @router.post("/compose", response_model=AddressComposeResponse)
 async def compose_address_endpoint(
     data: AddressComposeRequest,
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Собирает полный адрес из составных частей"""
     address = compose_address(
@@ -68,10 +79,14 @@ async def get_addresses(
     page: int = Query(1, ge=1, description="Номер страницы"),
     size: int = Query(50, ge=1, le=100, description="Размер страницы"),
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Получить список адресов с пагинацией и поиском"""
     query = db.query(AddressModel)
+    
+    # Multi-tenant: фильтрация по организации
+    tenant = TenantFilter(user)
+    query = tenant.apply(query, AddressModel)
     
     # Фильтры
     if search:
@@ -97,7 +112,7 @@ async def get_addresses(
     addresses = query.order_by(AddressModel.address).offset((page - 1) * size).limit(size).all()
     
     return AddressListResponse(
-        items=[AddressResponse.from_orm(a) for a in addresses],
+        items=[AddressResponse.model_validate(a) for a in addresses],
         total=total,
         page=page,
         size=size,
@@ -110,12 +125,13 @@ async def search_addresses(
     q: str = Query(..., min_length=2, description="Поисковый запрос"),
     limit: int = Query(10, ge=1, le=50, description="Лимит результатов"),
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Быстрый поиск адресов для автокомплита"""
     search_pattern = f"%{q}%"
     
-    addresses = db.query(AddressModel).filter(
+    tenant = TenantFilter(user)
+    addresses = tenant.apply(db.query(AddressModel), AddressModel).filter(
         AddressModel.is_active == True,
         or_(
             AddressModel.address.ilike(search_pattern),
@@ -134,10 +150,11 @@ async def find_by_components(
     building: str = Query(..., description="Дом"),
     corpus: Optional[str] = Query(None, description="Корпус"),
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Найти адрес по компонентам (город, улица, дом, корпус)"""
-    query = db.query(AddressModel).filter(
+    tenant = TenantFilter(user)
+    query = tenant.apply(db.query(AddressModel), AddressModel).filter(
         AddressModel.is_active == True,
         AddressModel.city == city,
         AddressModel.street == street,
@@ -164,12 +181,10 @@ async def find_by_components(
 async def get_address(
     address_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Получить адрес по ID"""
-    address = db.query(AddressModel).filter(AddressModel.id == address_id).first()
-    if not address:
-        raise HTTPException(status_code=404, detail="Адрес не найден")
+    address = get_tenant_address_or_404(address_id, db, user)
     return AddressResponse.model_validate(address)
 
 
@@ -177,11 +192,13 @@ async def get_address(
 async def create_address(
     data: AddressCreate,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_dispatcher_or_admin)
 ):
-    """Создать новый адрес"""
+    """Создать новый адрес (только admin/dispatcher)"""
+    tenant = TenantFilter(user)
+
     # Проверка на дубликат
-    existing = db.query(AddressModel).filter(
+    existing = tenant.apply(db.query(AddressModel), AddressModel).filter(
         AddressModel.address.ilike(data.address)
     ).first()
     if existing:
@@ -212,6 +229,7 @@ async def create_address(
         notes=data.notes or "",
         is_active=True,
     )
+    tenant.set_org_id(address)
     
     db.add(address)
     db.commit()
@@ -220,24 +238,23 @@ async def create_address(
     return AddressResponse.model_validate(address)
 
 
-@router.put("/{address_id}", response_model=AddressResponse)
+@router.patch("/{address_id}", response_model=AddressResponse)
 async def update_address(
     address_id: int,
     data: AddressUpdate,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_dispatcher_or_admin)
 ):
-    """Обновить адрес"""
-    address = db.query(AddressModel).filter(AddressModel.id == address_id).first()
-    if not address:
-        raise HTTPException(status_code=404, detail="Адрес не найден")
+    """Обновить адрес (только admin/dispatcher)"""
+    tenant = TenantFilter(user)
+    address = get_tenant_address_or_404(address_id, db, user)
     
     # Обновляем только переданные поля
     update_data = data.model_dump(exclude_unset=True)
     
     # Если меняется адрес, проверяем на дубликат
     if "address" in update_data and update_data["address"] != address.address:
-        existing = db.query(AddressModel).filter(
+        existing = tenant.apply(db.query(AddressModel), AddressModel).filter(
             AddressModel.address.ilike(update_data["address"]),
             AddressModel.id != address_id
         ).first()
@@ -263,12 +280,10 @@ async def update_address(
 async def delete_address(
     address_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_dispatcher_or_admin)
 ):
-    """Удалить адрес"""
-    address = db.query(AddressModel).filter(AddressModel.id == address_id).first()
-    if not address:
-        raise HTTPException(status_code=404, detail="Адрес не найден")
+    """Удалить адрес (только admin/dispatcher)"""
+    address = get_tenant_address_or_404(address_id, db, user)
     
     db.delete(address)
     db.commit()
@@ -280,12 +295,10 @@ async def delete_address(
 async def deactivate_address(
     address_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Деактивировать адрес (мягкое удаление)"""
-    address = db.query(AddressModel).filter(AddressModel.id == address_id).first()
-    if not address:
-        raise HTTPException(status_code=404, detail="Адрес не найден")
+    address = get_tenant_address_or_404(address_id, db, user)
     
     address.is_active = False
     address.updated_at = datetime.now(timezone.utc)
@@ -304,10 +317,11 @@ async def autocomplete_cities(
     q: str = Query("", description="Поисковый запрос"),
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Получить список уникальных городов для автоподставления"""
-    all_cities = db.query(distinct(AddressModel.city)).filter(
+    tenant = TenantFilter(user)
+    all_cities = tenant.apply(db.query(distinct(AddressModel.city)), AddressModel).filter(
         AddressModel.city.isnot(None),
         AddressModel.city != ""
     ).order_by(AddressModel.city).limit(limit * 5).all()  # Get more to filter in Python
@@ -328,18 +342,20 @@ async def autocomplete_streets(
     city: Optional[str] = Query(None, description="Фильтр по городу"),
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Получить список уникальных улиц для автоподставления"""
+    tenant = TenantFilter(user)
+
     # Сначала фильтруем по городу на уровне БД (точное совпадение)
     if city:
-        all_streets = db.query(distinct(AddressModel.street)).filter(
+        all_streets = tenant.apply(db.query(distinct(AddressModel.street)), AddressModel).filter(
             AddressModel.street.isnot(None),
             AddressModel.street != "",
             AddressModel.city == city  # Точное совпадение города
         ).order_by(AddressModel.street).limit(limit * 5).all()
     else:
-        all_streets = db.query(distinct(AddressModel.street)).filter(
+        all_streets = tenant.apply(db.query(distinct(AddressModel.street)), AddressModel).filter(
             AddressModel.street.isnot(None),
             AddressModel.street != ""
         ).order_by(AddressModel.street).limit(limit * 5).all()
@@ -361,11 +377,13 @@ async def autocomplete_buildings(
     street: Optional[str] = Query(None, description="Фильтр по улице"),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Получить список уникальных домов для автоподставления"""
+    tenant = TenantFilter(user)
+
     # Строим базовый query
-    query = db.query(distinct(AddressModel.building)).filter(
+    query = tenant.apply(db.query(distinct(AddressModel.building)), AddressModel).filter(
         AddressModel.building.isnot(None),
         AddressModel.building != ""
     )
@@ -392,10 +410,11 @@ async def autocomplete_full_address(
     q: str = Query("", description="Поисковый запрос по полному адресу"),
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Поиск адресов по полному адресу для автоподставления в заявках"""
-    query = db.query(AddressModel).filter(AddressModel.is_active == True)
+    tenant = TenantFilter(user)
+    query = tenant.apply(db.query(AddressModel), AddressModel).filter(AddressModel.is_active == True)
     
     if q:
         search_pattern = f"%{q}%"
@@ -418,10 +437,11 @@ async def autocomplete_corpus(
     building: str = Query(..., description="Дом"),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Получить список уникальных корпусов для адреса"""
-    results = db.query(distinct(AddressModel.corpus)).filter(
+    tenant = TenantFilter(user)
+    results = tenant.apply(db.query(distinct(AddressModel.corpus)), AddressModel).filter(
         AddressModel.corpus.isnot(None),
         AddressModel.corpus != "",
         AddressModel.city == city,  # Точное совпадение
@@ -440,10 +460,11 @@ async def autocomplete_entrance(
     corpus: Optional[str] = Query(None, description="Корпус"),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Получить список подъездов на основе entrance_count адреса"""
-    query = db.query(AddressModel).filter(
+    tenant = TenantFilter(user)
+    query = tenant.apply(db.query(AddressModel), AddressModel).filter(
         AddressModel.city == city,
         AddressModel.street == street,
         AddressModel.building == building,

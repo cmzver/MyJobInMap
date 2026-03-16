@@ -18,11 +18,12 @@ from app.schemas import TaskCreate, TaskStatusUpdate
 from app.services.geocoding import geocoding_service
 from app.services.task_state_machine import TaskStatusMachine
 from app.services.push import send_push_notification
+from app.services.tenant_filter import TenantFilter
 from app.services.notification_service import (
     create_task_status_notification,
     create_task_assignment_notification
 )
-from app.utils import get_status_display_name, get_priority_display_name, get_priority_rank, normalize_priority_value, priority_rank_expr
+from app.utils import get_status_display_name, get_status_comment_required_message, get_priority_display_name, get_priority_rank, normalize_priority_value, priority_rank_expr
 
 
 class TaskServiceError(Exception):
@@ -51,6 +52,15 @@ class InvalidTransitionError(TaskServiceError):
         valid = TaskStatusMachine.get_valid_transitions(from_status)
         super().__init__(
             f"Невозможен переход {from_status} → {to_status}. Допустимые: {valid}",
+            422
+        )
+
+
+class CommentRequiredError(TaskServiceError):
+    """Для перехода статуса требуется комментарий"""
+    def __init__(self, to_status: str):
+        super().__init__(
+            get_status_comment_required_message(to_status),
             422
         )
 
@@ -96,7 +106,8 @@ class TaskService:
         - Workers: только свои заявки
         - Dispatchers/Admins: все заявки (опционально по assignee_id)
         """
-        query = self.db.query(TaskModel)
+        tenant = TenantFilter(user)
+        query = tenant.apply(self.db.query(TaskModel), TaskModel)
         
         if status:
             query = query.filter(TaskModel.status == status)
@@ -141,12 +152,15 @@ class TaskService:
         
         # Проверка исполнителя
         assigned_id = data.assigned_user_id
+        tenant = TenantFilter(user) if user else None
         if assigned_id:
             assigned_user = self.db.query(UserModel).filter(
                 UserModel.id == assigned_id
             ).first()
             if not assigned_user:
                 assigned_id = None
+            elif tenant is not None:
+                tenant.enforce_access(assigned_user, detail="Нельзя назначить пользователя из другой организации")
         
         # Создание
         task = TaskModel(
@@ -169,6 +183,9 @@ class TaskService:
             system_type=data.system_type,
             defect_type=data.defect_type,
         )
+
+        if tenant is not None:
+            tenant.set_org_id(task)
         
         self.db.add(task)
         self.db.commit()
@@ -203,10 +220,14 @@ class TaskService:
         """
         task = self.get_by_id(task_id)
         old_status = task.status
+        normalized_comment = comment_text.strip()
         
         # Валидация перехода
         if not TaskStatusMachine.is_valid_transition(old_status, new_status):
             raise InvalidTransitionError(old_status, new_status)
+
+        if old_status != new_status and new_status in {TaskStatus.DONE.value, TaskStatus.CANCELLED.value} and not normalized_comment:
+            raise CommentRequiredError(new_status)
         
         # Обновление
         task.status = new_status
@@ -222,7 +243,7 @@ class TaskService:
         author = user.full_name if user else "Сотрудник"
         old_display = get_status_display_name(old_status)
         new_display = get_status_display_name(new_status)
-        final_comment = comment_text or f"Статус изменён: {old_display} → {new_display}"
+        final_comment = normalized_comment or f"Статус изменён: {old_display} → {new_display}"
         
         comment = CommentModel(
             task_id=task_id,
@@ -264,6 +285,8 @@ class TaskService:
         - Отправляет push при назначении
         """
         task = self.get_by_id(task_id)
+        tenant = TenantFilter(user)
+        tenant.enforce_access(task, detail="Нет доступа к этой заявке")
         old_assignee_id = task.assigned_user_id
         
         if assignee_id:
@@ -272,6 +295,7 @@ class TaskService:
             ).first()
             if not assignee:
                 raise TaskServiceError("Пользователь не найден", 404)
+            tenant.enforce_access(assignee, detail="Нельзя назначить пользователя из другой организации")
             task.assigned_user_id = assignee.id
         else:
             task.assigned_user_id = None
@@ -359,6 +383,10 @@ class TaskService:
         
         Workers имеют доступ только к своим заявкам.
         """
+        tenant = TenantFilter(user)
+        if not tenant.check_access(task):
+            return False
+
         if user.role == UserRole.WORKER.value:
             return task.assigned_user_id == user.id
         return True

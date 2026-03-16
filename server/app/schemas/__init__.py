@@ -5,7 +5,7 @@ Schemas Package
 """
 
 from app.schemas.auth import (
-    Token, TokenData,
+    Token, TokenData, RefreshRequest,
     UserCreate, UserUpdate, UserResponse,
     PasswordChange, UserStatsResponse,
     ReportSettingsUpdate, ReportSettingsResponse
@@ -13,7 +13,9 @@ from app.schemas.auth import (
 from app.schemas.task import (
     TaskCreate, TaskUpdate, TaskStatusUpdate,
     TaskAssignRequest, PlannedDateUpdate,
-    TaskResponse, TaskListResponse, PaginatedResponse
+    TaskResponse, TaskListResponse, PaginatedResponse,
+    ParseTaskRequest, ParsedTaskResponse,
+    CreateTaskFromTextRequest, CreateTaskFromTextResponse,
 )
 from app.schemas.comment import CommentCreate, CommentResponse
 from app.schemas.photo import PhotoResponse
@@ -32,7 +34,7 @@ from app.schemas.settings import (
 
 __all__ = [
     # Auth
-    "Token", "TokenData",
+    "Token", "TokenData", "RefreshRequest",
     "UserCreate", "UserUpdate", "UserResponse",
     "PasswordChange", "UserStatsResponse",
     "ReportSettingsUpdate", "ReportSettingsResponse",
@@ -40,6 +42,8 @@ __all__ = [
     "TaskCreate", "TaskUpdate", "TaskStatusUpdate",
     "TaskAssignRequest", "PlannedDateUpdate",
     "TaskResponse", "TaskListResponse", "PaginatedResponse",
+    "ParseTaskRequest", "ParsedTaskResponse",
+    "CreateTaskFromTextRequest", "CreateTaskFromTextResponse",
     # Comment
     "CommentCreate", "CommentResponse",
     # Photo

@@ -64,7 +64,11 @@ portal/
 │   │   ├── ReportsPage.tsx       # Отчёты
 │   │   ├── ProfilePage.tsx       # Профиль
 │   │   ├── NotificationsPage.tsx # Уведомления
-│   │   └── SettingsPage.tsx      # Настройки
+│   │   ├── SettingsPage.tsx      # Настройки
+│   │   ├── AdminSettingsPage.tsx # Системные настройки
+│   │   ├── OrganizationsPage.tsx # Организации
+│   │   ├── OrganizationDetailPage.tsx # Карточка организации
+│   │   └── UpdatesPage.tsx       # Android обновления
 │   ├── store/
 │   │   └── authStore.ts      # Авторизация + роли
 │   ├── types/                # TypeScript типы
@@ -103,6 +107,12 @@ npm run preview
 /api/* → http://localhost:8001/api/*
 ```
 
+## 📦 Android Updates
+
+- Публикация APK доступна из админского раздела `/admin/settings?tab=mobile#mobile-updates`
+- Портал не вводит `versionName` и `versionCode` вручную: сервер извлекает их из `AndroidManifest.xml` внутри APK
+- Для скачивания клиентам доступен только последний опубликованный APK через `/api/updates/download`
+
 ## 🎨 Темы
 
 Поддерживается светлая/тёмная тема:
@@ -119,8 +129,8 @@ npm run preview
 
 ## Версия
 
-**v3.0.0** — Единый портал с системой бэкапов
+**v2.14.2** — портал с компактной карточкой заявки и Android-клиентом, где фильтры списка снова применяются корректно
 
 ---
 
-**Последнее обновление:** 13 января 2026
+**Последнее обновление:** 12 марта 2026

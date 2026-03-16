@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Доступ к cache/updates для установки APK обновлений -->
+    <cache-path
+        name="updates"
+        path="updates/" />
+</paths>

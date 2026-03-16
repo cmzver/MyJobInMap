@@ -74,21 +74,20 @@ class FCMService : FirebaseMessagingService() {
             val title = data["title"] ?: remoteMessage.notification?.title ?: "FieldWorker"
             val body = data["body"] ?: remoteMessage.notification?.body ?: ""
             val taskId = data["task_id"]
-            val taskNumber = data["task_number"]
             
             when (type) {
                 "new_task" -> {
                     if (preferences.getNotifyNewTasks()) {
-                        showNewTaskNotification(title, body, taskId, taskNumber)
+                        showNewTaskNotification(title, body, taskId)
                     }
                 }
                 "status_change" -> {
                     if (preferences.getNotifyStatusChange()) {
-                        showStatusChangeNotification(title, body, taskId, taskNumber)
+                        showStatusChangeNotification(title, body, taskId)
                     }
                 }
                 else -> {
-                    showGeneralNotification(title, body, taskId)
+                    showGeneralNotification(title, body)
                 }
             }
         }
@@ -131,17 +130,18 @@ class FCMService : FirebaseMessagingService() {
     private fun showNewTaskNotification(
         title: String,
         body: String,
-        taskId: String?,
-        taskNumber: String?
+        taskId: String?
     ) {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            taskId?.let { putExtra("task_id", it) }
+            taskId?.let { putExtra(MainActivity.EXTRA_TASK_ID, it) }
         }
+
+        val requestCode = taskId?.hashCode() ?: NOTIFICATION_ID_NEW_TASK
         
         val pendingIntent = PendingIntent.getActivity(
             this, 
-            0, 
+            requestCode, 
             intent, 
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -170,17 +170,18 @@ class FCMService : FirebaseMessagingService() {
     private fun showStatusChangeNotification(
         title: String,
         body: String,
-        taskId: String?,
-        taskNumber: String?
+        taskId: String?
     ) {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            taskId?.let { putExtra("task_id", it) }
+            taskId?.let { putExtra(MainActivity.EXTRA_TASK_ID, it) }
         }
+
+        val requestCode = taskId?.hashCode() ?: NOTIFICATION_ID_STATUS_CHANGE
         
         val pendingIntent = PendingIntent.getActivity(
             this, 
-            0, 
+            requestCode, 
             intent, 
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -206,8 +207,7 @@ class FCMService : FirebaseMessagingService() {
      */
     private fun showGeneralNotification(
         title: String,
-        body: String,
-        taskId: String?
+        body: String
     ) {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK

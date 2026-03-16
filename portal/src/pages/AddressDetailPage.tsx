@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { toast } from 'react-hot-toast'
+import { formatDateOnly as formatDate } from '@/utils/dateFormat'
+import toast from 'react-hot-toast'
+import { showApiError, showApiSuccess } from '@/utils/apiError'
 import { 
   ArrowLeft, 
   MapPin, 
@@ -180,12 +182,6 @@ function formatFileSize(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + ' МБ'
 }
 
-// Форматирование даты
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('ru-RU')
-}
-
 export default function AddressDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -245,10 +241,10 @@ export default function AddressDetailPage() {
       }
       
       await updateAddress.mutateAsync({ id: addressId, data: payload })
-      toast.success('Адрес обновлён')
+      showApiSuccess('Адрес обновлён')
       setAddressModal(false)
     } catch (err) {
-      toast.error('Ошибка сохранения адреса')
+      showApiError(err, 'Ошибка сохранения адреса')
     }
   }
   
@@ -264,14 +260,14 @@ export default function AddressDetailPage() {
       
       if (systemModal.system) {
         await updateSystem.mutateAsync({ systemId: systemModal.system.id, data: payload })
-        toast.success('Система обновлена')
+        showApiSuccess('Система обновлена')
       } else {
         await createSystem.mutateAsync(payload)
-        toast.success('Система добавлена')
+        showApiSuccess('Система добавлена')
       }
       setSystemModal({ open: false, system: null })
     } catch (err) {
-      toast.error('Ошибка сохранения системы')
+      showApiError(err, 'Ошибка сохранения системы')
     }
   }
   
@@ -288,14 +284,14 @@ export default function AddressDetailPage() {
       
       if (equipmentModal.equipment) {
         await updateEquipment.mutateAsync({ equipmentId: equipmentModal.equipment.id, data: payload })
-        toast.success('Оборудование обновлено')
+        showApiSuccess('Оборудование обновлено')
       } else {
         await createEquipment.mutateAsync(payload)
-        toast.success('Оборудование добавлено')
+        showApiSuccess('Оборудование добавлено')
       }
       setEquipmentModal({ open: false, equipment: null })
     } catch (err) {
-      toast.error('Ошибка сохранения оборудования')
+      showApiError(err, 'Ошибка сохранения оборудования')
     }
   }
   
@@ -314,10 +310,10 @@ export default function AddressDetailPage() {
         validUntil: data.valid_until || undefined,
         notes: data.notes || undefined,
       })
-      toast.success('Документ загружен')
+      showApiSuccess('Документ загружен')
       setDocumentModal(false)
     } catch (err) {
-      toast.error('Ошибка загрузки документа')
+      showApiError(err, 'Ошибка загрузки документа')
     }
   }
   
@@ -326,14 +322,14 @@ export default function AddressDetailPage() {
     try {
       if (contactModal.contact) {
         await updateContact.mutateAsync({ contactId: contactModal.contact.id, data })
-        toast.success('Контакт обновлён')
+        showApiSuccess('Контакт обновлён')
       } else {
         await createContact.mutateAsync(data)
-        toast.success('Контакт добавлен')
+        showApiSuccess('Контакт добавлен')
       }
       setContactModal({ open: false, contact: null })
     } catch (err) {
-      toast.error('Ошибка сохранения контакта')
+      showApiError(err, 'Ошибка сохранения контакта')
     }
   }
   
@@ -345,24 +341,24 @@ export default function AddressDetailPage() {
       switch (deleteConfirm.type) {
         case 'system':
           await deleteSystem.mutateAsync(deleteConfirm.id)
-          toast.success('Система удалена')
+          showApiSuccess('Система удалена')
           break
         case 'equipment':
           await deleteEquipment.mutateAsync(deleteConfirm.id)
-          toast.success('Оборудование удалено')
+          showApiSuccess('Оборудование удалено')
           break
         case 'document':
           await deleteDocument.mutateAsync(deleteConfirm.id)
-          toast.success('Документ удалён')
+          showApiSuccess('Документ удалён')
           break
         case 'contact':
           await deleteContact.mutateAsync(deleteConfirm.id)
-          toast.success('Контакт удалён')
+          showApiSuccess('Контакт удалён')
           break
       }
       setDeleteConfirm(null)
     } catch (err) {
-      toast.error('Ошибка удаления')
+      showApiError(err, 'Ошибка удаления')
     }
   }
 

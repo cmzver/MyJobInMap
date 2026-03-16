@@ -1,7 +1,7 @@
 """Add address extended tables (systems, equipment, documents, contacts, history)
 
 Revision ID: 20260113_0001
-Revises: 
+Revises: 002_add_task_indexes
 Create Date: 2026-01-13
 """
 from alembic import op
@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '20260113_0001'
-down_revision = None
+down_revision = '002_add_task_indexes'
 branch_labels = None
 depends_on = None
 

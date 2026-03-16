@@ -130,6 +130,9 @@ class AddressModel(Base):
     # Метаданные
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    
+    # Multi-tenant
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
 
     # Relationships
     systems = relationship("AddressSystemModel", back_populates="address", cascade="all, delete-orphan")
@@ -137,6 +140,7 @@ class AddressModel(Base):
     documents = relationship("AddressDocumentModel", back_populates="address", cascade="all, delete-orphan")
     contacts = relationship("AddressContactModel", back_populates="address", cascade="all, delete-orphan")
     history = relationship("AddressHistoryModel", back_populates="address", cascade="all, delete-orphan")
+    organization = relationship("OrganizationModel", back_populates="addresses")
 
     def __repr__(self):
         return f"<Address(id={self.id}, address='{self.address}')>"

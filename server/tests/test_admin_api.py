@@ -3,7 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.models import UserModel, UserRole
+from app.models import UserModel, UserRole, TaskModel
 
 
 class TestAdminUsers:
@@ -84,7 +84,7 @@ class TestAdminUsers:
         db_session.commit()
         db_session.refresh(user)
         
-        response = client.put(
+        response = client.patch(
             f"/api/admin/users/{user.id}",
             json={"full_name": "Updated Name"},
             headers=auth_headers
@@ -180,3 +180,147 @@ class TestAdminDevices:
         assert response.status_code == 200
         devices = response.json()
         assert isinstance(devices, list)
+
+
+class TestAdminWorkersEndpoint:
+    """Tests for GET /api/admin/workers."""
+
+    def test_get_workers_list(self, client: TestClient, auth_headers: dict, worker_user, dispatcher_user):
+        """Workers endpoint returns workers and dispatchers."""
+        response = client.get("/api/admin/workers", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        usernames = [u["username"] for u in data]
+        assert "worker" in usernames
+        assert "dispatcher" in usernames
+        # Admin should NOT be in the workers list
+        assert "admin" not in usernames
+
+    def test_get_workers_dispatcher_access(self, client_with_dispatcher: TestClient):
+        """Dispatcher can access workers endpoint."""
+        response = client_with_dispatcher.get("/api/admin/workers")
+        assert response.status_code == 200
+
+    def test_get_workers_worker_denied(self, client_with_worker: TestClient):
+        """Worker cannot access workers endpoint."""
+        response = client_with_worker.get("/api/admin/workers")
+        assert response.status_code in [401, 403]
+
+
+class TestAdminTaskUpdate:
+    def test_update_task_unassigns_when_assigned_user_is_null(
+        self, client: TestClient, auth_headers: dict, db_session: Session, worker_user
+    ):
+        task = TaskModel(
+            title="Legacy Admin Task",
+            raw_address="Addr",
+            status="NEW",
+            priority="CURRENT",
+            assigned_user_id=worker_user.id,
+        )
+        db_session.add(task)
+        db_session.commit()
+        db_session.refresh(task)
+
+        response = client.patch(
+            f"/api/admin/tasks/{task.id}",
+            json={"assigned_user_id": None},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        db_session.refresh(task)
+        assert task.assigned_user_id is None
+
+    def test_update_task_with_unknown_assignee_returns_404(
+        self, client: TestClient, auth_headers: dict, db_session: Session
+    ):
+        task = TaskModel(
+            title="Legacy Admin Task",
+            raw_address="Addr",
+            status="NEW",
+            priority="CURRENT",
+        )
+        db_session.add(task)
+        db_session.commit()
+        db_session.refresh(task)
+
+        response = client.patch(
+            f"/api/admin/tasks/{task.id}",
+            json={"assigned_user_id": 999999},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 404
+
+
+class TestAdminUserStatsExtended:
+    """Extended tests for user statistics."""
+
+    def test_user_stats_not_found(self, client: TestClient, auth_headers: dict):
+        """Stats for non-existent user returns 404."""
+        response = client.get("/api/admin/users/99999/stats", headers=auth_headers)
+        assert response.status_code == 404
+
+    def test_user_stats_with_tasks(
+        self, client: TestClient, auth_headers: dict, db_session: Session, worker_user
+    ):
+        """Stats correctly count tasks."""
+        from app.models.task import TaskModel
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
+        tasks = [
+            TaskModel(title="T1", raw_address="A", status="DONE", priority="PLANNED",
+                      assigned_user_id=worker_user.id, created_at=now, updated_at=now),
+            TaskModel(title="T2", raw_address="A", status="IN_PROGRESS", priority="CURRENT",
+                      assigned_user_id=worker_user.id, created_at=now, updated_at=now),
+            TaskModel(title="T3", raw_address="A", status="NEW", priority="URGENT",
+                      assigned_user_id=worker_user.id, created_at=now, updated_at=now),
+        ]
+        for t in tasks:
+            db_session.add(t)
+        db_session.commit()
+
+        response = client.get(
+            f"/api/admin/users/{worker_user.id}/stats",
+            headers=auth_headers
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_tasks"] == 3
+        assert data["completed_tasks"] == 1
+        assert data["in_progress_tasks"] == 1
+
+    def test_update_user_not_found(self, client: TestClient, auth_headers: dict):
+        """Update non-existent user returns 404."""
+        response = client.patch(
+            "/api/admin/users/99999",
+            json={"full_name": "Ghost"},
+            headers=auth_headers
+        )
+        assert response.status_code == 404
+
+    def test_update_user_role_change(
+        self, client: TestClient, auth_headers: dict, db_session: Session
+    ):
+        """Change user role from worker to dispatcher."""
+        from app.services.auth import get_password_hash
+        user = UserModel(
+            username="rolechange",
+            password_hash=get_password_hash("pass"),
+            full_name="Role Change",
+            role=UserRole.WORKER.value,
+        )
+        db_session.add(user)
+        db_session.commit()
+        db_session.refresh(user)
+
+        response = client.patch(
+            f"/api/admin/users/{user.id}",
+            json={"role": "dispatcher"},
+            headers=auth_headers
+        )
+        assert response.status_code == 200
+        assert response.json()["role"] == "dispatcher"

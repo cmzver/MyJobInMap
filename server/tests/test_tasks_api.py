@@ -98,9 +98,32 @@ class TestTaskRetrieval:
         assert len(tasks) >= 1
         assert any(t["title"] == "Test task" for t in tasks)
 
+    def test_get_tasks_sorted_by_created_at_asc(self, client, admin_token):
+        """Test getting tasks sorted by creation date ascending."""
+        client.post(
+            "/api/tasks",
+            json={"title": "First task", "address": "First St", "priority": "CURRENT"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        client.post(
+            "/api/tasks",
+            json={"title": "Second task", "address": "Second St", "priority": "CURRENT"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        response = client.get(
+            "/api/tasks?sort=created_at_asc",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        assert response.status_code == 200
+        items = response.json()["items"]
+        titles = [item["title"] for item in items[:2]]
+        assert titles == ["First task", "Second task"]
+
 
 class TestAdminUpdate:
-    """Test PUT /api/admin/tasks/{id} endpoint."""
+    """Test PATCH /api/admin/tasks/{id} endpoint."""
 
     def test_update_task_planned_date(self, client, admin_token):
         """Test updating task with planned_date."""
@@ -113,7 +136,7 @@ class TestAdminUpdate:
         task_id = create_resp.json()["id"]
 
         # Update with planned_date
-        response = client.put(
+        response = client.patch(
             f"/api/admin/tasks/{task_id}",
             json={"planned_date": "2025-12-25"},
             headers={"Authorization": f"Bearer {admin_token}"},
@@ -133,7 +156,7 @@ class TestAdminUpdate:
         task_id = create_resp.json()["id"]
 
         # Full update
-        response = client.put(
+        response = client.patch(
             f"/api/admin/tasks/{task_id}",
             json={
                 "title": "New title",
@@ -151,3 +174,48 @@ class TestAdminUpdate:
         assert data["status"] == "IN_PROGRESS"
         assert data["is_paid"] is True
         assert data["payment_amount"] == 5000.0
+
+
+class TestTaskStatusUpdate:
+    """Test PATCH /api/tasks/{id}/status endpoint."""
+
+    def test_done_requires_comment(self, client, admin_token):
+        create_resp = client.post(
+            "/api/tasks",
+            json={"title": "Task", "address": "St, 1"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        task_id = create_resp.json()["id"]
+
+        in_progress_resp = client.patch(
+            f"/api/tasks/{task_id}/status",
+            json={"status": "IN_PROGRESS"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert in_progress_resp.status_code == 200
+
+        response = client.patch(
+            f"/api/tasks/{task_id}/status",
+            json={"status": "DONE", "comment": "   "},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        assert response.status_code == 422
+        assert "Комментарий обязателен" in response.json()["detail"]
+
+    def test_cancelled_requires_comment(self, client, admin_token):
+        create_resp = client.post(
+            "/api/tasks",
+            json={"title": "Task", "address": "St, 1"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        task_id = create_resp.json()["id"]
+
+        response = client.patch(
+            f"/api/tasks/{task_id}/status",
+            json={"status": "CANCELLED", "comment": ""},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        assert response.status_code == 422
+        assert "Комментарий обязателен" in response.json()["detail"]

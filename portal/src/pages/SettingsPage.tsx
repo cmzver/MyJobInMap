@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
+import { showApiError, showApiSuccess } from '@/utils/apiError'
 import { 
   User, 
   Lock, 
@@ -40,9 +41,9 @@ export default function SettingsPage() {
     
     try {
       await apiClient.put('/auth/profile', profileData)
-      toast.success('Профиль обновлён')
+      showApiSuccess('Профиль обновлён')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Ошибка обновления профиля')
+      showApiError(error, 'Ошибка обновления профиля')
     } finally {
       setProfileLoading(false)
     }
@@ -68,14 +69,14 @@ export default function SettingsPage() {
         current_password: passwordData.current_password,
         new_password: passwordData.new_password
       })
-      toast.success('Пароль изменён')
+      showApiSuccess('Пароль изменён')
       setPasswordData({
         current_password: '',
         new_password: '',
         confirm_password: '',
       })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Ошибка смены пароля')
+      showApiError(error, 'Ошибка смены пароля')
     } finally {
       setPasswordLoading(false)
     }

@@ -66,9 +66,25 @@ __pycache__/
 *$py.class
 *.so
 .Python
+.venv/
+env/
+ENV/
 venv/
 .env
 *.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite3-journal
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+htmlcov/
 
 # Freeline
 freeline.py
@@ -93,3 +109,4 @@ lint/tmp/
 
 # Other
 *.hprof
+chat_results.txt

@@ -97,7 +97,7 @@ export function Autocomplete({
       case 'Enter':
         e.preventDefault();
         if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
-          selectSuggestion(suggestions[highlightedIndex]);
+          selectSuggestion(suggestions[highlightedIndex]!);
         }
         break;
       case 'Escape':

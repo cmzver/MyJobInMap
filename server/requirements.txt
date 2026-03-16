@@ -1,19 +1,42 @@
-fastapi>=0.100.0
-uvicorn[standard]>=0.23.0
-sqlalchemy>=2.0.0
-geopy>=2.4.0
-pydantic>=2.0.0
-pydantic-settings>=2.0.0
-firebase-admin>=6.0.0
-python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
-jinja2>=3.1.0
-python-multipart>=0.0.6
-# PostgreSQL support
-psycopg2-binary>=2.9.9
+# Core
+fastapi==0.122.0
+uvicorn[standard]==0.38.0
+sqlalchemy==2.0.44
+pydantic==2.12.5
+pydantic-settings==2.12.0
+starlette==0.50.0
 
-# Image optimization
-Pillow>=10.0.0
+# Auth
+python-jose[cryptography]==3.5.0
+bcrypt==5.0.0
+PyJWT==2.10.1
+
+# Templates & uploads
+jinja2==3.1.6
+python-multipart==0.0.20
+Pillow==12.0.0
+pyaxmlparser==0.3.31
+
+# Geocoding
+geopy==2.4.1
+
+# Firebase
+firebase-admin==7.1.0
+
+# PostgreSQL support
+psycopg2-binary==2.9.11
 
 # System monitoring
-psutil>=5.9.0
+psutil==7.2.2
+
+# Scheduled tasks (backup scheduler)
+APScheduler==3.10.4
+
+# Monitoring (Prometheus metrics)
+prometheus-fastapi-instrumentator==7.0.2
+
+# Excel export
+openpyxl==3.1.5
+
+# WebSocket support (already in starlette, explicit for clarity)
+websockets==14.2

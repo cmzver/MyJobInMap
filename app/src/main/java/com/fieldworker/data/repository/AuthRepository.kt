@@ -41,8 +41,9 @@ class AuthRepository @Inject constructor(
             if (response.isSuccessful && response.body() != null) {
                 val token = response.body()!!
                 
-                // Сохраняем данные авторизации
+                // Сохраняем данные авторизации (access + refresh tokens)
                 prefs.setAuthToken(token.accessToken)
+                prefs.setRefreshToken(token.refreshToken)
                 prefs.setUserId(token.userId)
                 prefs.setUsername(token.username)
                 prefs.setUserFullName(token.fullName)

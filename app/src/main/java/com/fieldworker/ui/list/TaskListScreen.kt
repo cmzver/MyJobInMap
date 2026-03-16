@@ -54,7 +54,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.paging.LoadState
+import androidx.paging.compose.LazyPagingItems
 import com.fieldworker.R
+import com.fieldworker.domain.model.AddressDetails
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
@@ -111,6 +114,16 @@ fun extractAdditionalInfo(task: Task): String? {
     return additionalInfo.ifBlank { null }
 }
 
+private fun normalizePhoneForDial(phone: String): String {
+    val compactPhone = phone.replace(Regex("""[^+\d]"""), "")
+    return when {
+        compactPhone.startsWith("8") && compactPhone.length == 11 -> "+7${compactPhone.drop(1)}"
+        compactPhone.startsWith("+") -> compactPhone
+        compactPhone.isNotBlank() -> "+$compactPhone"
+        else -> compactPhone
+    }
+}
+
 /**
  * Экран со списком задач и фильтрами
  */
@@ -121,6 +134,9 @@ fun TaskListScreen(
     isLoading: Boolean,
     isLoadingComments: Boolean,
     selectedTask: Task?,
+    addressDetails: AddressDetails? = null,
+    isLoadingAddress: Boolean = false,
+    hasAttemptedAddressLookup: Boolean = false,
     showStatusDialog: Boolean,
     onRefresh: () -> Unit,
     onTaskClick: (Task) -> Unit,
@@ -130,29 +146,32 @@ fun TaskListScreen(
     onStatusSelected: (Long, TaskStatus, String) -> Unit,
     onAddComment: (Long, String) -> Unit,
     statusFilter: Set<TaskStatus>,
-    priorityFilter: Set<Priority>,
     searchQuery: String,
     onStatusFilterChange: (Set<TaskStatus>) -> Unit,
-    onPriorityFilterChange: (Set<Priority>) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     // Новые параметры
     sortOrder: com.fieldworker.ui.utils.TaskSortOrder = com.fieldworker.ui.utils.TaskSortOrder.BY_DATE_DESC,
     onSortOrderChange: (com.fieldworker.ui.utils.TaskSortOrder) -> Unit = {},
     userLat: Double? = null,
     userLon: Double? = null,
+    // Paging 3 — постраничный список задач из Room
+    pagingItems: LazyPagingItems<Task>? = null,
     // Параметры для фотографий
     photos: List<TaskPhoto> = emptyList(),
     isLoadingPhotos: Boolean = false,
     isUploadingPhoto: Boolean = false,
     baseUrl: String = "",
     authToken: String? = null,
+    onOpenObjectCard: () -> Unit = {},
     onAddPhotoClick: () -> Unit = {},
     onDeletePhoto: (Long) -> Unit = {},
     // Параметры для планируемой даты
     onPlannedDateChange: ((Long, String?) -> Unit)? = null
 ) {
     var showFilters by remember { mutableStateOf(false) }
-    var showSortMenu by remember { mutableStateOf(false) }
+    val hasActiveFilters = statusFilter.isNotEmpty()
+    val hasSearchQuery = searchQuery.isNotBlank()
+    val hasLocalTransforms = hasActiveFilters || hasSearchQuery || sortOrder != com.fieldworker.ui.utils.TaskSortOrder.BY_DATE_DESC
     
     Column(modifier = Modifier.fillMaxSize()) {
         // Поиск
@@ -160,7 +179,7 @@ fun TaskListScreen(
             query = searchQuery,
             onQueryChange = onSearchQueryChange,
             onToggleFilters = { showFilters = !showFilters },
-            hasActiveFilters = statusFilter.isNotEmpty() || priorityFilter.isNotEmpty()
+            hasActiveFilters = hasActiveFilters
         )
         
         // Панель фильтров
@@ -171,12 +190,11 @@ fun TaskListScreen(
         ) {
             FiltersPanel(
                 statusFilter = statusFilter,
-                priorityFilter = priorityFilter,
                 onStatusFilterChange = onStatusFilterChange,
-                onPriorityFilterChange = onPriorityFilterChange,
+                sortOrder = sortOrder,
+                onSortOrderChange = onSortOrderChange,
                 onClearFilters = {
                     onStatusFilterChange(emptySet())
-                    onPriorityFilterChange(emptySet())
                 }
             )
         }
@@ -186,86 +204,44 @@ fun TaskListScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val displayCount = tasks.size
             Text(
-                text = "Найдено: ${tasks.size}",
+                text = "Найдено: $displayCount",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
             )
             
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (isLoading && tasks.isNotEmpty()) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                
-                // Кнопка сортировки в стиле референса
-                Box {
-                    Surface(
-                        onClick = { showSortMenu = true },
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color.Transparent
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.List,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = sortOrder.displayName,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                    
-                    DropdownMenu(
-                        expanded = showSortMenu,
-                        onDismissRequest = { showSortMenu = false }
-                    ) {
-                        com.fieldworker.ui.utils.TaskSortOrder.entries.forEach { order ->
-                            DropdownMenuItem(
-                                text = { Text(order.displayName) },
-                                onClick = {
-                                    onSortOrderChange(order)
-                                    showSortMenu = false
-                                },
-                                leadingIcon = {
-                                    if (order == sortOrder) {
-                                        Icon(
-                                            Icons.Default.Check,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
+            if (isLoading && tasks.isNotEmpty()) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
             }
         }
         
         // Список задач с FAB и Pull-to-Refresh
         Box(modifier = Modifier.weight(1f)) {
-            val hasFilters = searchQuery.isNotEmpty() || statusFilter.isNotEmpty() || priorityFilter.isNotEmpty()
+            val hasFilters = hasSearchQuery || hasActiveFilters
+            val activePagingItems = pagingItems?.takeIf { !hasLocalTransforms }
+            
+            // Определяем: используем Paging 3 или обычный список
+            val usePaging = activePagingItems != null
+            val isPagingInitialLoad = activePagingItems?.loadState?.refresh is LoadState.Loading
+            val displayEmpty = if (activePagingItems != null) {
+                activePagingItems.itemCount == 0 && activePagingItems.loadState.refresh is LoadState.NotLoading
+            } else {
+                tasks.isEmpty() && !isLoading
+            }
+            val displaySkeleton = if (usePaging) isPagingInitialLoad else (tasks.isEmpty() && isLoading)
             
             when {
-                // Показываем skeleton при первой загрузке (список пуст и идёт загрузка)
-                tasks.isEmpty() && isLoading -> {
+                // Показываем skeleton при первой загрузке
+                displaySkeleton -> {
                     TaskListSkeleton()
                 }
                 // Пустое состояние
-                tasks.isEmpty() && !isLoading -> {
+                displayEmpty -> {
                     EmptyState(
                         message = if (hasFilters) "Задачи не найдены" else "Нет задач",
                         isFiltered = hasFilters
@@ -277,7 +253,10 @@ fun TaskListScreen(
                     
                     PullToRefreshBox(
                         isRefreshing = isLoading,
-                        onRefresh = onRefresh,
+                        onRefresh = {
+                            activePagingItems?.refresh()
+                            onRefresh()
+                        },
                         state = pullToRefreshState,
                         modifier = Modifier.fillMaxSize()
                     ) {
@@ -291,14 +270,52 @@ fun TaskListScreen(
                             ),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            items(tasks, key = { it.id }) { task ->
-                                TaskCard(
-                                    task = task,
-                                    isSelected = selectedTask?.id == task.id,
-                                    onClick = { onTaskClick(task) },
-                                    userLat = userLat,
-                                    userLon = userLon
-                                )
+                            val pagedItems = activePagingItems
+                            if (pagedItems != null) {
+                                // Paging 3: постраничная загрузка из Room
+                                items(
+                                    count = pagedItems.itemCount,
+                                    key = { index -> pagedItems[index]?.id ?: index }
+                                ) { index ->
+                                    val task = pagedItems[index]
+                                    if (task != null) {
+                                        TaskCard(
+                                            task = task,
+                                            isSelected = selectedTask?.id == task.id,
+                                            onClick = { onTaskClick(task) },
+                                            userLat = userLat,
+                                            userLon = userLon
+                                        )
+                                    }
+                                }
+                                
+                                // Индикатор подгрузки следующей страницы
+                                if (pagedItems.loadState.append is LoadState.Loading) {
+                                    item {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(24.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Fallback: обычный список
+                                items(tasks, key = { it.id }) { task ->
+                                    TaskCard(
+                                        task = task,
+                                        isSelected = selectedTask?.id == task.id,
+                                        onClick = { onTaskClick(task) },
+                                        userLat = userLat,
+                                        userLon = userLon
+                                    )
+                                }
                             }
                         }
                     }
@@ -322,6 +339,9 @@ fun TaskListScreen(
     if (selectedTask != null) {
         TaskDetailBottomSheet(
             task = selectedTask,
+            addressDetails = addressDetails,
+            isLoadingAddress = isLoadingAddress,
+            hasAttemptedAddressLookup = hasAttemptedAddressLookup,
             comments = comments,
             isLoadingComments = isLoadingComments,
             photos = photos,
@@ -331,6 +351,7 @@ fun TaskListScreen(
             authToken = authToken,
             onDismiss = onTaskDismiss,
             onStatusChange = onStatusChange,
+            onOpenObjectCard = onOpenObjectCard,
             onAddComment = { text -> onAddComment(selectedTask.id, text) },
             onAddPhotoClick = onAddPhotoClick,
             onDeletePhoto = onDeletePhoto,
@@ -357,8 +378,7 @@ fun SearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
     onToggleFilters: () -> Unit,
-    hasActiveFilters: Boolean,
-    notificationCount: Int = 0
+    hasActiveFilters: Boolean
 ) {
     // Локальное состояние для мгновенного отображения ввода
     var localQuery by remember { mutableStateOf(query) }
@@ -477,86 +497,85 @@ fun SearchBar(
                 }
             }
         }
-        
-        Spacer(modifier = Modifier.width(8.dp))
-        
-        // Колокольчик с бейджем
-        BadgedBox(
-            badge = {
-                if (notificationCount > 0) {
-                    Badge(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    ) {
-                        Text(
-                            text = if (notificationCount > 99) "99+" else notificationCount.toString(),
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-                }
-            }
-        ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp
-            ) {
-                IconButton(onClick = { /* Уведомления */ }) {
-                    Icon(
-                        Icons.Default.Notifications,
-                        contentDescription = "Уведомления",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
     }
 }
 
 @Composable
 fun FiltersPanel(
     statusFilter: Set<TaskStatus>,
-    priorityFilter: Set<Priority>,
     onStatusFilterChange: (Set<TaskStatus>) -> Unit,
-    onPriorityFilterChange: (Set<Priority>) -> Unit,
+    sortOrder: com.fieldworker.ui.utils.TaskSortOrder,
+    onSortOrderChange: (com.fieldworker.ui.utils.TaskSortOrder) -> Unit,
     onClearFilters: () -> Unit
 ) {
+    var statusExpanded by remember { mutableStateOf(false) }
+    var sortExpanded by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+        ),
+        shape = RoundedCornerShape(14.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             // Заголовок с кнопкой сброса
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Фильтры",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                TextButton(onClick = onClearFilters) {
-                    Text("Сбросить")
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Фильтры",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    val selectedCount = statusFilter.size
+                    if (selectedCount > 0) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = selectedCount.toString(),
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+                TextButton(
+                    onClick = onClearFilters,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                ) {
+                    Text("Сбросить", style = MaterialTheme.typography.labelMedium)
                 }
             }
-            
-            // Фильтр по статусу
-            Text(
-                text = "Статус",
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-            )
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            FilterDropdownRow(
+                title = "Статус",
+                summary = formatFilterSummary(
+                    selectedCount = statusFilter.size,
+                    allCount = TaskStatus.entries.count { it != TaskStatus.UNKNOWN },
+                    selectedLabels = TaskStatus.entries
+                        .filter { it != TaskStatus.UNKNOWN && it in statusFilter }
+                        .map { it.displayName }
+                ),
+                expanded = statusExpanded,
+                onExpandedChange = { statusExpanded = it }
             ) {
-                items(TaskStatus.entries.filter { it != TaskStatus.UNKNOWN }) { status ->
-                    FilterChip(
-                        selected = status in statusFilter,
+                TaskStatus.entries.filter { it != TaskStatus.UNKNOWN }.forEach { status ->
+                    DropdownMenuItem(
+                        text = { Text(status.displayName) },
                         onClick = {
                             val newFilter = if (status in statusFilter) {
                                 statusFilter - status
@@ -565,42 +584,34 @@ fun FiltersPanel(
                             }
                             onStatusFilterChange(newFilter)
                         },
-                        label = { Text(status.displayName) },
-                        leadingIcon = {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(status.toColor())
-                            )
+                        trailingIcon = {
+                            if (status in statusFilter) {
+                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
                         }
                     )
                 }
             }
-            
-            // Фильтр по приоритету
-            Text(
-                text = "Приоритет",
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
-            )
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            FilterDropdownRow(
+                title = "Сортировка",
+                summary = sortOrder.displayName,
+                expanded = sortExpanded,
+                onExpandedChange = { sortExpanded = it }
             ) {
-                items(Priority.entries.toList()) { priority ->
-                    FilterChip(
-                        selected = priority in priorityFilter,
+                com.fieldworker.ui.utils.TaskSortOrder.entries.forEach { order ->
+                    DropdownMenuItem(
+                        text = { Text(order.displayName) },
                         onClick = {
-                            val newFilter = if (priority in priorityFilter) {
-                                priorityFilter - priority
-                            } else {
-                                priorityFilter + priority
-                            }
-                            onPriorityFilterChange(newFilter)
+                            onSortOrderChange(order)
+                            sortExpanded = false
                         },
-                        label = { Text(priority.displayName) },
-                        leadingIcon = {
-                            PriorityBadge(priority = priority)
+                        trailingIcon = {
+                            if (order == sortOrder) {
+                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
                         }
                     )
                 }
@@ -609,10 +620,84 @@ fun FiltersPanel(
     }
 }
 
+@Composable
+private fun FilterDropdownRow(
+    title: String,
+    summary: String,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(10.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 0.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onExpandedChange(!expanded) }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = summary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) },
+            modifier = Modifier.fillMaxWidth(0.92f)
+        ) {
+            content()
+        }
+    }
+}
+
+private fun formatFilterSummary(
+    selectedCount: Int,
+    allCount: Int,
+    selectedLabels: List<String>
+): String {
+    return when {
+        selectedCount == 0 || selectedCount == allCount -> "Все"
+        selectedCount <= 2 -> selectedLabels.joinToString(", ")
+        else -> "Выбрано: $selectedCount"
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TaskDetailBottomSheet(
     task: Task,
+    addressDetails: AddressDetails? = null,
+    isLoadingAddress: Boolean = false,
+    hasAttemptedAddressLookup: Boolean = false,
     comments: List<Comment>,
     isLoadingComments: Boolean,
     photos: List<TaskPhoto> = emptyList(),
@@ -622,6 +707,7 @@ fun TaskDetailBottomSheet(
     authToken: String? = null,
     onDismiss: () -> Unit,
     onStatusChange: () -> Unit,
+    onOpenObjectCard: () -> Unit = {},
     onAddComment: (String) -> Unit,
     onAddPhotoClick: () -> Unit = {},
     onDeletePhoto: (Long) -> Unit = {},
@@ -632,7 +718,6 @@ fun TaskDetailBottomSheet(
     val context = LocalContext.current
     
     // Состояния для спойлеров
-    var isDescriptionExpanded by remember { mutableStateOf(true) }
     var isPhotosExpanded by remember { mutableStateOf(false) }
     var isHistoryExpanded by remember { mutableStateOf(false) }
     
@@ -641,8 +726,12 @@ fun TaskDetailBottomSheet(
     
     // Извлекаем данные из задачи
     val phoneNumber = remember(task) {
-        extractPhoneNumber(task.title) ?: extractPhoneNumber(task.description)
+        task.customerPhone?.takeIf { it.isNotBlank() }
+            ?: extractPhoneNumber(task.title)
+            ?: extractPhoneNumber(task.description)
     }
+    val customerName = remember(task) { task.customerName?.takeIf { it.isNotBlank() } }
+    val assignedUserName = remember(task) { task.assignedUserName?.takeIf { it.isNotBlank() } }
     val apartment = remember(task) {
         extractApartment(task.title) ?: extractApartment(task.description)
     }
@@ -735,581 +824,858 @@ fun TaskDetailBottomSheet(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // ========== ЗАГОЛОВОК (Детали заказа) ==========
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Детали заказа",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                TaskDetailHeader(
+                    task = task,
+                    commentsCount = sortedComments.size,
+                    photosCount = photos.size
+                )
+            }
+
+            item {
+                TaskSummaryCard(
+                    task = task,
+                    formattedDate = formattedDate,
+                    formattedPlannedDate = formattedPlannedDate,
+                    apartment = apartment,
+                    customerName = customerName,
+                    phoneNumber = phoneNumber,
+                    assignedUserName = assignedUserName,
+                    priorityColor = priorityColor,
+                    priorityBgColor = priorityBgColor,
+                    orangeAccent = orangeAccent,
+                    onStatusChange = onStatusChange,
+                    onPlannedDateClick = if (onPlannedDateChange != null) {
+                        { showDatePicker = true }
+                    } else {
+                        null
+                    },
+                    onOpenNavigation = {
+                        if (task.hasValidCoordinates()) {
+                            com.fieldworker.ui.utils.TaskUtils.openNavigation(context, task)
+                        } else {
+                            Toast.makeText(context, "Координаты не указаны", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onDialPhone = phoneNumber?.let { phone ->
+                        {
+                            val intent = Intent(Intent.ACTION_DIAL).apply {
+                                data = Uri.parse("tel:${normalizePhoneForDial(phone)}")
+                            }
+                            context.startActivity(intent)
+                        }
+                    }
+                )
+            }
+
+            if (additionalInfo != null || task.description.isNotBlank()) {
+                item {
+                    TaskDescriptionSection(
+                        description = additionalInfo ?: task.description
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
             }
-            
-            // ========== 1. ГЛАВНАЯ КАРТОЧКА ==========
+
+            if (isLoadingAddress || addressDetails != null || hasAttemptedAddressLookup) {
+                item {
+                    TaskObjectPreviewSection(
+                        addressDetails = addressDetails,
+                        isLoading = isLoadingAddress,
+                        hasAttemptedLookup = hasAttemptedAddressLookup,
+                        onOpenObjectCard = onOpenObjectCard
+                    )
+                }
+            }
+
             item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    shape = MaterialTheme.shapes.large,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        // Приоритет + номер + статус
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            // Метка приоритета с иконкой
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = priorityBgColor
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    if (task.priority == Priority.EMERGENCY || task.priority == Priority.URGENT) {
-                                        Icon(
-                                            painter = painterResource(id = R.drawable.ic_warning_triangle),
-                                            contentDescription = null,
-                                            tint = priorityColor,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                    Text(
-                                        text = task.priority.displayName,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = priorityColor,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "#${task.getDisplayNumber()}",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.weight(1f))
-                            // Статус (кликабельный)
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = task.status.toColor().copy(alpha = 0.15f),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .clickable(onClick = onStatusChange)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                ) {
-                                    Text(
-                                        text = task.status.displayName,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = task.status.toColor(),
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.ic_edit),
-                                        contentDescription = null,
-                                        tint = task.status.toColor(),
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                }
-                            }
+                TaskPhotosSection(
+                    photos = photos,
+                    isExpanded = isPhotosExpanded,
+                    isLoadingPhotos = isLoadingPhotos,
+                    isUploadingPhoto = isUploadingPhoto,
+                    orangeAccent = orangeAccent,
+                    baseUrl = baseUrl,
+                    authToken = authToken,
+                    onToggleExpanded = { isPhotosExpanded = !isPhotosExpanded },
+                    onAddPhotoClick = onAddPhotoClick,
+                    onDeletePhoto = onDeletePhoto
+                )
+            }
+
+            item {
+                TaskCommentComposer(
+                    commentText = commentText,
+                    orangeAccent = orangeAccent,
+                    onCommentTextChange = { commentText = it },
+                    onSubmit = {
+                        if (commentText.isNotBlank()) {
+                            onAddComment(commentText)
+                            commentText = ""
                         }
-                        
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        // Название заявки
-                        Text(
-                            text = task.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        // ===== АДРЕС ДОСТАВКИ =====
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)), // Светло-жёлтый фон
-                            shape = MaterialTheme.shapes.medium,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        if (task.hasValidCoordinates()) {
-                                            com.fieldworker.ui.utils.TaskUtils.openNavigation(context, task)
-                                        } else {
-                                            Toast.makeText(context, "Координаты не указаны", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_location_pin),
-                                    contentDescription = null,
-                                    tint = Color.Unspecified, // Используем цвета из XML
-                                    modifier = Modifier.size(28.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "АДРЕС ДОСТАВКИ",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        letterSpacing = 1.sp
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = task.address + (apartment?.let { ", кв. $it" } ?: ""),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_chevron_right),
-                                    contentDescription = null,
-                                    tint = Color.Unspecified,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        // ===== ДАТЫ =====
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            // Дата создания
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_calendar_create),
-                                    contentDescription = null,
-                                    tint = Color.Unspecified,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = "Дата создания",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = formattedDate,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                            
-                            // Срок выполнения (кликабельный и интуитивный)
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (onPlannedDateChange != null) Color(0xFFFFF3E0) else Color.Transparent,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable(enabled = onPlannedDateChange != null) { 
-                                        showDatePicker = true 
-                                    }
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
-                                ) {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.ic_calendar_deadline),
-                                        contentDescription = null,
-                                        tint = Color.Unspecified,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            text = "Срок выполнения",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = orangeAccent
-                                        )
-                                        Text(
-                                            text = formattedPlannedDate ?: "Установить",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = orangeAccent
-                                        )
-                                    }
-                                    if (onPlannedDateChange != null) {
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Icon(
-                                            painter = painterResource(id = R.drawable.ic_edit),
-                                            contentDescription = "Изменить",
-                                            tint = orangeAccent,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // ===== ТЕЛЕФОН =====
-                        if (phoneNumber != null) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
-                                shape = MaterialTheme.shapes.medium,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            val normalizedPhone = if (phoneNumber.startsWith("8")) {
-                                                "+7${phoneNumber.substring(1)}"
-                                            } else if (!phoneNumber.startsWith("+")) {
-                                                "+$phoneNumber"
-                                            } else {
-                                                phoneNumber
-                                            }
-                                            val intent = Intent(Intent.ACTION_DIAL).apply {
-                                                data = Uri.parse("tel:$normalizedPhone")
-                                            }
-                                            context.startActivity(intent)
-                                        }
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.ic_phone_call),
-                                        contentDescription = null,
-                                        tint = Color.Unspecified,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        text = if (phoneNumber.startsWith("+")) phoneNumber else "+$phoneNumber",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
-                        }
+                    }
+                )
+            }
+
+            item {
+                TaskHistorySection(
+                    visibleComments = visibleComments,
+                    hiddenComments = hiddenComments,
+                    isLoadingComments = isLoadingComments,
+                    isExpanded = isHistoryExpanded,
+                    orangeAccent = orangeAccent,
+                    onToggleExpanded = { isHistoryExpanded = !isHistoryExpanded }
+                )
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskObjectPreviewSection(
+    addressDetails: AddressDetails?,
+    isLoading: Boolean,
+    hasAttemptedLookup: Boolean,
+    onOpenObjectCard: () -> Unit
+) {
+    TaskSectionCard(
+        title = "Объект",
+        action = {
+            when {
+                isLoading -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
+
+                addressDetails != null -> {
+                    TextButton(onClick = onOpenObjectCard) {
+                        Text("Открыть")
                     }
                 }
             }
-            
-            // ========== 2. ОПИСАНИЕ РАБОТ ==========
-            if (additionalInfo != null || task.description.isNotBlank()) {
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                        shape = MaterialTheme.shapes.medium,
-                        modifier = Modifier.fillMaxWidth()
+        }
+    ) {
+        when {
+            isLoading -> {
+                Text(
+                    text = "Собираем карточку объекта по адресу заявки...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            addressDetails != null -> {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    DetailInfoRow(
+                        icon = Icons.Default.Home,
+                        label = "Адрес",
+                        value = addressDetails.address
+                    )
+
+                    val summary = buildList {
+                        if (addressDetails.systems.isNotEmpty()) add("систем: ${addressDetails.systems.size}")
+                        if (addressDetails.equipment.isNotEmpty()) add("оборудования: ${addressDetails.equipment.sumOf { it.quantity }}")
+                        if (addressDetails.documents.isNotEmpty()) add("документов: ${addressDetails.documents.size}")
+                        addressDetails.managementCompany?.takeIf { it.isNotBlank() }?.let { add(it) }
+                    }.joinToString(" • ")
+
+                    if (summary.isNotBlank()) {
+                        Text(
+                            text = summary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    FilledTonalButton(onClick = onOpenObjectCard) {
+                        Text("Открыть карточку объекта")
+                    }
+                }
+            }
+
+            hasAttemptedLookup -> {
+                Text(
+                    text = "Объект для этого адреса не найден в адресной базе.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskDetailHeader(
+    task: Task,
+    commentsCount: Int,
+    photosCount: Int
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "Детали заявки",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SheetHeaderChip(text = "#${task.getDisplayNumber()}")
+            SheetHeaderChip(text = "$commentsCount записей")
+            if (photosCount > 0) {
+                SheetHeaderChip(text = "$photosCount фото")
+            }
+        }
+    }
+}
+
+@Composable
+private fun SheetHeaderChip(text: String) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+        )
+    }
+}
+
+@Composable
+private fun TaskSectionCard(
+    title: String,
+    modifier: Modifier = Modifier,
+    action: (@Composable () -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = MaterialTheme.shapes.large,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                action?.invoke()
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+            content()
+        }
+    }
+}
+
+@Composable
+private fun TaskSummaryCard(
+    task: Task,
+    formattedDate: String,
+    formattedPlannedDate: String?,
+    apartment: String?,
+    customerName: String?,
+    phoneNumber: String?,
+    assignedUserName: String?,
+    priorityColor: Color,
+    priorityBgColor: Color,
+    orangeAccent: Color,
+    onStatusChange: () -> Unit,
+    onPlannedDateClick: (() -> Unit)?,
+    onOpenNavigation: () -> Unit,
+    onDialPhone: (() -> Unit)?
+) {
+    TaskSectionCard(title = "Сводка") {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = priorityBgColor
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (task.priority == Priority.EMERGENCY || task.priority == Priority.URGENT) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_warning_triangle),
+                            contentDescription = null,
+                            tint = priorityColor,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                    Text(
+                        text = task.priority.displayName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = priorityColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "#${task.getDisplayNumber()}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = task.status.toColor().copy(alpha = 0.15f),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .clickable(onClick = onStatusChange)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = task.status.displayName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = task.status.toColor(),
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_edit),
+                        contentDescription = null,
+                        tint = task.status.toColor(),
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Text(
+            text = task.title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.large)
+                .clickable(onClick = onOpenNavigation)
+        ) {
+            Row(
+                modifier = Modifier.padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(
+                    modifier = Modifier.size(42.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_location_pin),
+                            contentDescription = null,
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Адрес",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        letterSpacing = 0.4.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = task.address + (apartment?.let { ", кв. $it" } ?: ""),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_chevron_right),
+                    contentDescription = null,
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SummaryMetaCard(
+                modifier = Modifier.weight(1f),
+                iconRes = R.drawable.ic_calendar_create,
+                label = "Создана",
+                value = formattedDate
+            )
+            SummaryMetaCard(
+                modifier = Modifier.weight(1f),
+                iconRes = R.drawable.ic_calendar_deadline,
+                label = "Срок",
+                value = formattedPlannedDate ?: "Установить",
+                accentColor = orangeAccent,
+                clickable = onPlannedDateClick != null,
+                onClick = onPlannedDateClick
+            )
+        }
+
+        if (customerName != null || phoneNumber != null || assignedUserName != null || task.isRemote || task.isPaid || task.systemType != null || task.defectType != null) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.background
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Контакт и выполнение",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    customerName?.let {
+                        DetailInfoRow(
+                            icon = Icons.Default.Person,
+                            label = "Клиент",
+                            value = it
+                        )
+                    }
+                    phoneNumber?.let {
+                        DetailInfoRow(
+                            icon = Icons.Default.Phone,
+                            label = "Телефон",
+                            value = normalizePhoneForDial(it),
+                            onClick = onDialPhone
+                        )
+                    }
+                    assignedUserName?.let {
+                        DetailInfoRow(
+                            icon = Icons.Default.Person,
+                            label = "Исполнитель",
+                            value = it
+                        )
+                    }
+                    if (task.isRemote) {
+                        DetailInfoRow(
+                            icon = Icons.Default.CheckCircle,
+                            label = "Формат",
+                            value = "Можно выполнить удалённо"
+                        )
+                    }
+                    if (task.isPaid) {
+                        DetailInfoRow(
+                            icon = Icons.Default.Info,
+                            label = "Оплата",
+                            value = if (task.paymentAmount > 0.0) {
+                                "Платная заявка • ${"%.0f".format(task.paymentAmount)} ₽"
+                            } else {
+                                "Платная заявка"
+                            }
+                        )
+                    }
+                    task.systemType?.takeIf { it.isNotBlank() }?.let {
+                        DetailInfoRow(
+                            icon = Icons.Default.Build,
+                            label = "Система",
+                            value = it
+                        )
+                    }
+                    task.defectType?.takeIf { it.isNotBlank() }?.let {
+                        DetailInfoRow(
+                            icon = Icons.Default.Warning,
+                            label = "Неисправность",
+                            value = it
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryMetaCard(
+    modifier: Modifier = Modifier,
+    iconRes: Int,
+    label: String,
+    value: String,
+    accentColor: Color = MaterialTheme.colorScheme.onSurface,
+    clickable: Boolean = false,
+    onClick: (() -> Unit)? = null
+) {
+    Surface(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(enabled = clickable) { onClick?.invoke() },
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.background,
+        tonalElevation = 0.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(
+                painter = painterResource(id = iconRes),
+                contentDescription = null,
+                tint = Color.Unspecified,
+                modifier = Modifier.size(18.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = accentColor
+                )
+            }
+            if (clickable) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_edit),
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskDescriptionSection(description: String) {
+    TaskSectionCard(title = "Описание работ") {
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun TaskPhotosSection(
+    photos: List<TaskPhoto>,
+    isExpanded: Boolean,
+    isLoadingPhotos: Boolean,
+    isUploadingPhoto: Boolean,
+    orangeAccent: Color,
+    baseUrl: String,
+    authToken: String?,
+    onToggleExpanded: () -> Unit,
+    onAddPhotoClick: () -> Unit,
+    onDeletePhoto: (Long) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = MaterialTheme.shapes.large,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggleExpanded)
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_camera),
+                        contentDescription = null,
+                        tint = orangeAccent,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "Фотографии",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (photos.isNotEmpty()) {
+                        SheetHeaderChip(text = photos.size.toString())
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isLoadingPhotos) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = orangeAccent
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            AnimatedVisibility(visible = isExpanded) {
+                Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+                    PhotoGallery(
+                        photos = photos,
+                        isLoading = isLoadingPhotos,
+                        isUploading = isUploadingPhoto,
+                        baseUrl = baseUrl,
+                        authToken = authToken,
+                        onAddPhotoClick = onAddPhotoClick,
+                        onDeletePhoto = onDeletePhoto
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskCommentComposer(
+    commentText: String,
+    orangeAccent: Color,
+    onCommentTextChange: (String) -> Unit,
+    onSubmit: () -> Unit
+) {
+    TaskSectionCard(title = "Комментарий") {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            androidx.compose.foundation.text.BasicTextField(
+                value = commentText,
+                onValueChange = onCommentTextChange,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(44.dp)
+                    .background(Color.Transparent, RoundedCornerShape(22.dp))
+                    .border(
+                        width = 1.dp,
+                        color = if (commentText.isNotEmpty()) orangeAccent else MaterialTheme.colorScheme.outline,
+                        shape = RoundedCornerShape(22.dp)
+                    ),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(orangeAccent),
+                decorationBox = { innerTextField ->
+                    Box(
+                        contentAlignment = Alignment.CenterStart,
+                        modifier = Modifier.padding(horizontal = 16.dp)
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                        ) {
+                        if (commentText.isEmpty()) {
                             Text(
-                                text = "Описание работ",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = additionalInfo ?: task.description,
+                                text = "Добавить заметку по работе",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        innerTextField()
                     }
                 }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            FilledIconButton(
+                onClick = onSubmit,
+                enabled = commentText.isNotBlank(),
+                modifier = Modifier.size(44.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = orangeAccent,
+                    contentColor = MaterialTheme.colorScheme.surface,
+                    disabledContainerColor = Color.Gray.copy(alpha = 0.3f)
+                )
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_send),
+                    contentDescription = "Отправить",
+                    modifier = Modifier.size(18.dp)
+                )
             }
-            
-            // ========== 3. КНОПКИ ДЕЙСТВИЙ (УДАЛЕНО) ==========
-            // Кнопки перенесены: Маршрут -> клик по адресу, Статус -> клик по статусу
-            
-            // ========== 4. ФОТОГРАФИИ ==========
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.fillMaxWidth()
+        }
+    }
+}
+
+@Composable
+private fun TaskHistorySection(
+    visibleComments: List<Comment>,
+    hiddenComments: List<Comment>,
+    isLoadingComments: Boolean,
+    isExpanded: Boolean,
+    orangeAccent: Color,
+    onToggleExpanded: () -> Unit
+) {
+    TaskSectionCard(
+        title = "История изменений",
+        action = {
+            if (isLoadingComments) {
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+            }
+        }
+    ) {
+        if (visibleComments.isEmpty() && hiddenComments.isEmpty() && !isLoadingComments) {
+            Text(
+                text = "Пока нет записей",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            visibleComments.forEachIndexed { index, comment ->
+                HistoryTimelineItem(
+                    comment = comment,
+                    isLast = index == visibleComments.lastIndex && hiddenComments.isEmpty() && !isExpanded
+                )
+            }
+
+            if (hiddenComments.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onToggleExpanded)
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .animateContentSize()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { isPhotosExpanded = !isPhotosExpanded }
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_camera),
-                                    contentDescription = null,
-                                    tint = orangeAccent,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    text = "Фотографии",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                if (photos.isNotEmpty()) {
-                                    Surface(
-                                        shape = MaterialTheme.shapes.medium,
-                                        color = orangeAccent.copy(alpha = 0.15f)
-                                    ) {
-                                        Text(
-                                            text = photos.size.toString(),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = orangeAccent,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                        )
-                                    }
-                                }
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (isLoadingPhotos) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp), 
-                                        strokeWidth = 2.dp,
-                                        color = orangeAccent
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                }
-                                Icon(
-                                    imageVector = if (isPhotosExpanded) 
-                                        Icons.Default.KeyboardArrowUp 
-                                    else 
-                                        Icons.Default.KeyboardArrowDown,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        
-                        AnimatedVisibility(visible = isPhotosExpanded) {
-                            Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
-                                PhotoGallery(
-                                    photos = photos,
-                                    isLoading = isLoadingPhotos,
-                                    isUploading = isUploadingPhoto,
-                                    baseUrl = baseUrl,
-                                    authToken = authToken,
-                                    onAddPhotoClick = onAddPhotoClick,
-                                    onDeletePhoto = onDeletePhoto
-                                )
-                            }
-                        }
-                    }
+                    Text(
+                        text = if (isExpanded) "Скрыть" else "Показать ещё ${hiddenComments.size}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = orangeAccent,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = orangeAccent,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
-            }
-            
-            // ========== 5. ДОБАВИТЬ КОММЕНТАРИЙ ==========
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        androidx.compose.foundation.text.BasicTextField(
-                            value = commentText,
-                            onValueChange = { commentText = it },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(40.dp)
-                                .background(Color.Transparent, RoundedCornerShape(20.dp))
-                                .border(
-                                    width = 1.dp, 
-                                    color = if (commentText.isNotEmpty()) orangeAccent else MaterialTheme.colorScheme.outline, 
-                                    shape = RoundedCornerShape(20.dp)
-                                ),
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                color = MaterialTheme.colorScheme.onSurface
-                            ),
-                            cursorBrush = androidx.compose.ui.graphics.SolidColor(orangeAccent),
-                            decorationBox = { innerTextField ->
-                                Box(
-                                    contentAlignment = Alignment.CenterStart,
-                                    modifier = Modifier.padding(horizontal = 16.dp)
-                                ) {
-                                    if (commentText.isEmpty()) {
-                                        Text(
-                                            "Комментарий...",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    innerTextField()
-                                }
-                            }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        FilledIconButton(
-                            onClick = {
-                                if (commentText.isNotBlank()) {
-                                    onAddComment(commentText)
-                                    commentText = ""
-                                }
-                            },
-                            enabled = commentText.isNotBlank(),
-                            modifier = Modifier.size(40.dp),
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = orangeAccent,
-                                contentColor = MaterialTheme.colorScheme.surface,
-                                disabledContainerColor = Color.Gray.copy(alpha = 0.3f)
-                            )
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_send),
-                                contentDescription = "Отправить",
-                                modifier = Modifier.size(18.dp)
+
+                AnimatedVisibility(visible = isExpanded) {
+                    Column {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        hiddenComments.forEachIndexed { index, comment ->
+                            HistoryTimelineItem(
+                                comment = comment,
+                                isLast = index == hiddenComments.lastIndex
                             )
                         }
                     }
                 }
             }
-            
-            // ========== 6. ИСТОРИЯ ИЗМЕНЕНИЙ ==========
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .animateContentSize()
-                            .padding(16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "История изменений",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            if (isLoadingComments) {
-                                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        if (sortedComments.isEmpty() && !isLoadingComments) {
-                            Text(
-                                text = "Пока нет записей",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            // Видимые комментарии (последние 3)
-                            visibleComments.forEachIndexed { index, comment ->
-                                HistoryTimelineItem(
-                                    comment = comment,
-                                    isLast = index == visibleComments.lastIndex && hiddenComments.isEmpty() && !isHistoryExpanded
-                                )
-                            }
-                            
-                            // Спойлер для остальных
-                            if (hiddenComments.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable { isHistoryExpanded = !isHistoryExpanded }
-                                        .background(MaterialTheme.colorScheme.background)
-                                        .padding(12.dp),
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = if (isHistoryExpanded) "Скрыть" else "Показать ещё ${hiddenComments.size}",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = orangeAccent,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Icon(
-                                        imageVector = if (isHistoryExpanded) 
-                                            Icons.Default.KeyboardArrowUp 
-                                        else 
-                                            Icons.Default.KeyboardArrowDown,
-                                        contentDescription = null,
-                                        tint = orangeAccent,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                
-                                AnimatedVisibility(visible = isHistoryExpanded) {
-                                    Column {
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        hiddenComments.forEachIndexed { index, comment ->
-                                            HistoryTimelineItem(
-                                                comment = comment,
-                                                isLast = index == hiddenComments.lastIndex
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+        }
+    }
+}
+
+@Composable
+private fun DetailInfoRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    onClick: (() -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(enabled = onClick != null) { onClick?.invoke() }
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Surface(
+            modifier = Modifier.size(36.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
             }
-            
-            // Отступ снизу
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-            }
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        if (onClick != null) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }

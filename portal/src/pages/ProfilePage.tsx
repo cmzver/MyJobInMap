@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import { showApiError, showApiSuccess } from '@/utils/apiError'
 import { 
   Lock, 
   Save,
@@ -83,13 +84,13 @@ export default function ProfilePage() {
       return response.data
     },
     onSuccess: (data) => {
-      toast.success('Профиль обновлён')
+      showApiSuccess('Профиль обновлён')
       if (user && token) {
         setUser({ ...user, fullName: data.full_name, email: data.email, phone: data.phone }, token)
       }
     },
-    onError: () => {
-      toast.error('Ошибка обновления профиля')
+    onError: (err) => {
+      showApiError(err, 'Ошибка обновления профиля')
     },
   })
 
@@ -101,11 +102,11 @@ export default function ProfilePage() {
       })
     },
     onSuccess: () => {
-      toast.success('Пароль изменён')
+      showApiSuccess('Пароль изменён')
       passwordForm.reset()
     },
-    onError: () => {
-      toast.error('Ошибка изменения пароля')
+    onError: (err) => {
+      showApiError(err, 'Ошибка изменения пароля')
     },
   })
 

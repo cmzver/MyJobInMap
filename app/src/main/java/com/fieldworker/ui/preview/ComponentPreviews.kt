@@ -142,10 +142,8 @@ private fun TaskListScreenPreview() {
             onStatusSelected = { _, _, _ -> },
             onAddComment = { _, _ -> },
             statusFilter = emptySet(),
-            priorityFilter = emptySet(),
             searchQuery = "",
             onStatusFilterChange = {},
-            onPriorityFilterChange = {},
             onSearchQueryChange = {}
         )
     }
@@ -170,10 +168,8 @@ private fun TaskListScreenLoadingPreview() {
             onStatusSelected = { _, _, _ -> },
             onAddComment = { _, _ -> },
             statusFilter = emptySet(),
-            priorityFilter = emptySet(),
             searchQuery = "",
             onStatusFilterChange = {},
-            onPriorityFilterChange = {},
             onSearchQueryChange = {}
         )
     }
@@ -198,10 +194,8 @@ private fun TaskListScreenEmptyPreview() {
             onStatusSelected = { _, _, _ -> },
             onAddComment = { _, _ -> },
             statusFilter = emptySet(),
-            priorityFilter = emptySet(),
             searchQuery = "",
             onStatusFilterChange = {},
-            onPriorityFilterChange = {},
             onSearchQueryChange = {}
         )
     }
@@ -216,9 +210,9 @@ private fun FiltersPanelPreview() {
         Surface {
             FiltersPanel(
                 statusFilter = setOf(TaskStatus.NEW, TaskStatus.IN_PROGRESS),
-                priorityFilter = setOf(Priority.EMERGENCY),
                 onStatusFilterChange = {},
-                onPriorityFilterChange = {},
+                sortOrder = com.fieldworker.ui.utils.TaskSortOrder.BY_DATE_DESC,
+                onSortOrderChange = {},
                 onClearFilters = {}
             )
         }
@@ -383,10 +377,8 @@ private fun PhonePreview() {
             onStatusSelected = { _, _, _ -> },
             onAddComment = { _, _ -> },
             statusFilter = emptySet(),
-            priorityFilter = emptySet(),
             searchQuery = "",
             onStatusFilterChange = {},
-            onPriorityFilterChange = {},
             onSearchQueryChange = {}
         )
     }
@@ -415,10 +407,8 @@ private fun TabletPreview() {
             onStatusSelected = { _, _, _ -> },
             onAddComment = { _, _ -> },
             statusFilter = emptySet(),
-            priorityFilter = emptySet(),
             searchQuery = "",
             onStatusFilterChange = {},
-            onPriorityFilterChange = {},
             onSearchQueryChange = {}
         )
     }

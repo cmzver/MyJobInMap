@@ -48,31 +48,36 @@ def _send_push_sync(
     body: str,
     notification_type: str = "general",
     task_id: Optional[int] = None,
-    user_ids: Optional[List[int]] = None
+    user_ids: Optional[List[int]] = None,
+    organization_id: Optional[int] = None,
 ) -> dict:
     """Синхронная отправка push-уведомлений"""
     if firebase_app is None:
-        print("⚠️ Push: Firebase not configured")
+        logger.warning("Push: Firebase not configured")
         return {"success": False, "message": "Firebase not configured"}
     
     from firebase_admin import messaging
-    from app.models import get_db, DeviceModel
+    from app.models import get_db, DeviceModel, UserModel
     
     db = next(get_db())
     try:
         query = db.query(DeviceModel)
+        if organization_id is not None:
+            query = query.join(UserModel, DeviceModel.user_id == UserModel.id).filter(
+                UserModel.organization_id == organization_id
+            )
         if user_ids:
             query = query.filter(DeviceModel.user_id.in_(user_ids))
         
         devices = query.all()
         
         if not devices:
-            print("⚠️ Push: No devices found")
+            logger.warning("Push: No devices found")
             return {"success": False, "message": "No devices"}
         
-        print(f"📱 Push: Sending to {len(devices)} device(s):")
+        logger.info(f"Push: Sending to {len(devices)} device(s):")
         for d in devices:
-            print(f"   - ID:{d.id} User:{d.user_id} Device:{d.device_name} Token:{d.fcm_token[:20]}...")
+            logger.info(f"   - ID:{d.id} User:{d.user_id} Device:{d.device_name} Token:{d.fcm_token[:20]}...")
         
         tokens = [d.fcm_token for d in devices]
         
@@ -124,12 +129,13 @@ def send_push_background(
     body: str,
     notification_type: str = "general",
     task_id: Optional[int] = None,
-    user_ids: Optional[List[int]] = None
+    user_ids: Optional[List[int]] = None,
+    organization_id: Optional[int] = None,
 ):
     """Отправка push в фоновом потоке (не блокирует)"""
     thread = threading.Thread(
         target=_send_push_sync,
-        args=(title, body, notification_type, task_id, user_ids),
+        args=(title, body, notification_type, task_id, user_ids, organization_id),
         daemon=True
     )
     thread.start()
@@ -141,8 +147,9 @@ def send_push_notification(
     body: str,
     notification_type: str = "general",
     task_id: Optional[int] = None,
-    user_ids: Optional[List[int]] = None
+    user_ids: Optional[List[int]] = None,
+    organization_id: Optional[int] = None,
 ) -> dict:
     """Отправка push-уведомлений (асинхронно)"""
-    send_push_background(title, body, notification_type, task_id, user_ids)
+    send_push_background(title, body, notification_type, task_id, user_ids, organization_id)
     return {"success": True, "message": "Push queued"}

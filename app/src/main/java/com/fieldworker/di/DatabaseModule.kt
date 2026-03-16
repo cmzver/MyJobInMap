@@ -42,7 +42,8 @@ object DatabaseModule {
             // Миграции
             .addMigrations(
                 FieldWorkerDatabase.MIGRATION_1_2,
-                FieldWorkerDatabase.MIGRATION_2_3
+                FieldWorkerDatabase.MIGRATION_2_3,
+                FieldWorkerDatabase.MIGRATION_3_4
             )
             // Для разработки: при изменении схемы БД будет пересоздана (если нет миграции)
             .fallbackToDestructiveMigration()

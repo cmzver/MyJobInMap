@@ -5,6 +5,7 @@ Devices API
 """
 
 from datetime import datetime, timezone
+import logging
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
@@ -12,11 +13,14 @@ from sqlalchemy.orm import Session
 
 from app.models import UserModel, DeviceModel, get_db
 from app.schemas import DeviceRegister
-from app.services import get_current_user, get_current_admin
+from app.services import get_current_admin, get_current_user_required
 from app.services.push import firebase_app
+from app.services.tenant_filter import TenantFilter
 
 
 router = APIRouter(prefix="/api/devices", tags=["Devices"])
+
+logger = logging.getLogger(__name__)
 
 
 class DeviceResponse(BaseModel):
@@ -31,13 +35,17 @@ class DeviceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-@router.get("/all", response_model=List[DeviceResponse])
+@router.get("", response_model=List[DeviceResponse])
 async def list_devices(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_admin)
 ):
     """Получить список всех устройств (только админ)"""
-    devices = db.query(DeviceModel).order_by(DeviceModel.last_active.desc()).all()
+    tenant = TenantFilter(admin)
+    query = db.query(DeviceModel).join(UserModel, DeviceModel.user_id == UserModel.id)
+    if not tenant.is_superadmin:
+        query = query.filter(UserModel.organization_id == admin.organization_id)
+    devices = query.order_by(DeviceModel.last_active.desc()).all()
     
     result = []
     for device in devices:
@@ -61,9 +69,12 @@ async def delete_device(
     admin: UserModel = Depends(get_current_admin)
 ):
     """Удалить устройство по ID (только админ)"""
+    tenant = TenantFilter(admin)
     device = db.query(DeviceModel).filter(DeviceModel.id == device_id).first()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
+    if device.user:
+        tenant.enforce_access(device.user, detail="Device not found")
     
     db.delete(device)
     db.commit()
@@ -71,31 +82,25 @@ async def delete_device(
     return {"success": True}
 
 
-@router.post("/register")
+@router.post("")
 async def register_device(
     device: DeviceRegister,
     db: Session = Depends(get_db),
-    user: Optional[UserModel] = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Регистрация устройства"""
-    print(f"📱 Device registration: token={device.token[:30]}... name={device.device_name}")
+    logger.info("Device registration: token=%s... name=%s", device.token[:30], device.device_name)
     
     existing = db.query(DeviceModel).filter(DeviceModel.fcm_token == device.token).first()
     
     if existing:
         existing.last_active = datetime.now(timezone.utc)
-        if user:
-            existing.user_id = user.id
+        existing.user_id = user.id
         if device.device_name:
             existing.device_name = device.device_name
         db.commit()
-        print(f"   ✅ Device updated: ID={existing.id}")
+        logger.info("Device updated: ID=%d", existing.id)
         return {"message": "Device updated", "device_id": existing.id}
-    
-    if not user:
-        user = db.query(UserModel).filter(UserModel.username == "user").first()
-        if not user:
-            raise HTTPException(status_code=400, detail="Authentication required")
     
     new_device = DeviceModel(
         user_id=user.id,
@@ -106,25 +111,32 @@ async def register_device(
     db.commit()
     db.refresh(new_device)
     
-    print(f"   ✅ New device registered: ID={new_device.id}")
+    logger.info("New device registered: ID=%d", new_device.id)
     return {"message": "Device registered", "device_id": new_device.id}
 
 
 @router.delete("/unregister")
 async def unregister_device(
     device: DeviceRegister,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user_required)
 ):
     """Удаление устройства"""
-    existing = db.query(DeviceModel).filter(DeviceModel.fcm_token == device.token).first()
+    existing = db.query(DeviceModel).filter(
+        DeviceModel.fcm_token == device.token,
+        DeviceModel.user_id == current_user.id,
+    ).first()
     if existing:
         db.delete(existing)
         db.commit()
     return {"message": "Device unregistered"}
 
 
-@router.get("")
-async def list_devices_info(db: Session = Depends(get_db)):
+@router.get("/info")
+async def list_devices_info(
+    db: Session = Depends(get_db),
+    admin: UserModel = Depends(get_current_admin),
+):
     """Информация об устройствах"""
     count = db.query(DeviceModel).count()
     return {

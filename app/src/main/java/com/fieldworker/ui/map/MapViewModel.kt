@@ -2,10 +2,14 @@ package com.fieldworker.ui.map
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
 import com.fieldworker.data.network.NetworkMonitor
 import com.fieldworker.data.preferences.AppPreferences
+import com.fieldworker.data.repository.AddressRepository
 import com.fieldworker.data.sync.SyncManager
 import android.net.Uri
+import com.fieldworker.domain.model.AddressDetails
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
@@ -38,6 +42,9 @@ data class MapUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val selectedTask: Task? = null,
+    val addressDetails: AddressDetails? = null,
+    val isLoadingAddress: Boolean = false,
+    val hasAttemptedAddressLookup: Boolean = false,
     val comments: List<Comment> = emptyList(),
     val isLoadingComments: Boolean = false,
     val showStatusDialog: Boolean = false,
@@ -56,8 +63,6 @@ data class MapUiState(
     val showMyLocation: Boolean = true,
     val myLocationLat: Double? = null,
     val myLocationLon: Double? = null,
-    // Количество новых заявок (для бейджа)
-    val newTasksCount: Int = 0,
     // Offline режим
     val isOffline: Boolean = false,
     val pendingActionsCount: Int = 0,
@@ -73,11 +78,6 @@ data class MapUiState(
             // Фильтр по статусу
             if (statusFilter.isNotEmpty()) {
                 result = result.filter { it.status in statusFilter }
-            }
-            
-            // Фильтр по приоритету
-            if (priorityFilter.isNotEmpty()) {
-                result = result.filter { it.priority in priorityFilter }
             }
             
             // Поиск по тексту (включая номер заявки)
@@ -96,6 +96,9 @@ data class MapUiState(
             
             return result
         }
+
+    val newTasksCount: Int
+        get() = tasks.count { it.status == TaskStatus.NEW }
 }
 
 /**
@@ -115,6 +118,7 @@ class MapViewModel @Inject constructor(
     private val updateTaskStatusUseCase: UpdateTaskStatusUseCase,
     private val taskPhotosUseCase: TaskPhotosUseCase,
     private val taskCommentsUseCase: TaskCommentsUseCase,
+    private val addressRepository: AddressRepository,
     private val networkMonitor: NetworkMonitor,
     private val syncManager: SyncManager,
     val preferences: AppPreferences,
@@ -123,6 +127,13 @@ class MapViewModel @Inject constructor(
     
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState: StateFlow<MapUiState> = _uiState.asStateFlow()
+    
+    /**
+     * Paging 3 Flow задач для TaskListScreen.
+     * cachedIn(viewModelScope) сохраняет данные при смене конфигурации.
+     */
+    val tasksPagingFlow: kotlinx.coroutines.flow.Flow<PagingData<Task>> =
+        getTasksUseCase.tasksPagingFlow.cachedIn(viewModelScope)
     
     private val _connectionStatus = MutableStateFlow<ConnectionStatus>(ConnectionStatus.IDLE)
     val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
@@ -162,11 +173,6 @@ class MapViewModel @Inject constructor(
         viewModelScope.launch {
             preferences.statusFilter.collect { statusFilter ->
                 _uiState.update { it.copy(statusFilter = statusFilter) }
-            }
-        }
-        viewModelScope.launch {
-            preferences.priorityFilter.collect { priorityFilter ->
-                _uiState.update { it.copy(priorityFilter = priorityFilter) }
             }
         }
         viewModelScope.launch {
@@ -225,10 +231,11 @@ class MapViewModel @Inject constructor(
         _uiState.update { 
             it.copy(
                 statusFilter = preferences.getStatusFilter(),
-                priorityFilter = preferences.getPriorityFilter(),
+                priorityFilter = emptySet(),
                 showMyLocation = preferences.getShowMyLocation()
             )
         }
+        preferences.setPriorityFilter(emptySet())
     }
     
     /**
@@ -318,11 +325,73 @@ class MapViewModel @Inject constructor(
      * Выбрать задачу и загрузить её детали
      */
     fun selectTask(task: Task?) {
-        _uiState.update { it.copy(selectedTask = task, comments = emptyList(), photos = emptyList()) }
+        _uiState.update {
+            it.copy(
+                selectedTask = task,
+                comments = emptyList(),
+                photos = emptyList(),
+                addressDetails = null,
+                isLoadingAddress = task != null,
+                hasAttemptedAddressLookup = false
+            )
+        }
         
         task?.let { 
             loadTaskDetails(it.id)
             loadTaskPhotos(it.id)
+            loadAddressDetails(it)
+        }
+    }
+
+    fun openTaskFromNotification(taskId: Long) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    selectedTask = null,
+                    comments = emptyList(),
+                    photos = emptyList(),
+                    addressDetails = null,
+                    isLoadingComments = true,
+                    isLoadingPhotos = true,
+                    isLoadingAddress = true,
+                    hasAttemptedAddressLookup = false
+                )
+            }
+
+            getTasksUseCase.getTaskDetail(taskId)
+                .onSuccess { (task, comments) ->
+                    _uiState.update { state ->
+                        val updatedTasks = if (state.tasks.any { it.id == task.id }) {
+                            state.tasks.map { existingTask ->
+                                if (existingTask.id == task.id) task else existingTask
+                            }
+                        } else {
+                            state.tasks + task
+                        }
+
+                        state.copy(
+                            tasks = updatedTasks,
+                            selectedTask = task,
+                            comments = comments,
+                            isLoading = false,
+                            isLoadingComments = false
+                        )
+                    }
+                    loadTaskPhotos(taskId)
+                    loadAddressDetails(task)
+                }
+                .onFailure { exception ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isLoadingComments = false,
+                            isLoadingPhotos = false,
+                            isLoadingAddress = false,
+                            error = exception.message ?: "Не удалось открыть заявку из уведомления"
+                        )
+                    }
+                }
         }
     }
     
@@ -342,9 +411,36 @@ class MapViewModel @Inject constructor(
                             isLoadingComments = false
                         )
                     }
+                    loadAddressDetails(task)
                 }
                 .onFailure {
                     _uiState.update { it.copy(isLoadingComments = false) }
+                }
+        }
+    }
+
+    private fun loadAddressDetails(task: Task) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingAddress = true, hasAttemptedAddressLookup = true) }
+
+            addressRepository.findAddressForTask(task)
+                .onSuccess { addressDetails ->
+                    _uiState.update {
+                        it.copy(
+                            addressDetails = addressDetails,
+                            isLoadingAddress = false,
+                            hasAttemptedAddressLookup = true
+                        )
+                    }
+                }
+                .onFailure {
+                    _uiState.update {
+                        it.copy(
+                            addressDetails = null,
+                            isLoadingAddress = false,
+                            hasAttemptedAddressLookup = true
+                        )
+                    }
                 }
         }
     }
@@ -477,7 +573,7 @@ class MapViewModel @Inject constructor(
                     // Перезагрузить комментарии
                     loadTaskDetails(taskId)
                 }
-                .onFailure { exception ->
+                .onFailure { _ ->
                     _uiState.update {
                         it.copy(error = "Ошибка добавления комментария")
                     }

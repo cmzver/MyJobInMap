@@ -95,7 +95,7 @@ class TaskPollingWorker @AssistedInject constructor(
     private fun showNotification(title: String, body: String, taskId: Int) {
         val intent = Intent(applicationContext, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra("task_id", taskId.toString())
+            putExtra(MainActivity.EXTRA_TASK_ID, taskId.toString())
         }
         
         val pendingIntent = PendingIntent.getActivity(

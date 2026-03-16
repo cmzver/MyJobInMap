@@ -9,6 +9,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from sqlalchemy.pool import StaticPool
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 from app.config import settings
 
 
@@ -57,8 +61,8 @@ class Base(DeclarativeBase):
     pass
 
 
-print(f"DB: {'PostgreSQL' if settings.is_postgres else 'SQLite' if settings.is_sqlite else 'Unknown'}")
-print(f"URL: {SQLALCHEMY_DATABASE_URL[:50]}..." if len(SQLALCHEMY_DATABASE_URL) > 50 else f"URL: {SQLALCHEMY_DATABASE_URL}")
+logger.info("DB: %s", 'PostgreSQL' if settings.is_postgres else 'SQLite' if settings.is_sqlite else 'Unknown')
+logger.info("URL: %s", SQLALCHEMY_DATABASE_URL[:50] + '...' if len(SQLALCHEMY_DATABASE_URL) > 50 else SQLALCHEMY_DATABASE_URL)
 
 
 def get_db():

@@ -1,6 +1,8 @@
 package com.fieldworker.data.repository
 
 import com.fieldworker.data.api.TasksApi
+import android.content.Context
+import com.fieldworker.data.dto.PaginatedResponseDto
 import com.fieldworker.data.dto.TaskDto
 import com.fieldworker.data.dto.TaskDetailDto
 import com.fieldworker.data.dto.CommentDto
@@ -57,6 +59,9 @@ class OfflineFirstTasksRepositoryTest {
     @MockK
     private lateinit var networkMonitor: NetworkMonitor
 
+    @MockK
+    private lateinit var context: Context
+
     private lateinit var repository: OfflineFirstTasksRepository
 
     private val testTaskDto = TaskDto(
@@ -68,7 +73,7 @@ class OfflineFirstTasksRepositoryTest {
         lat = 55.75,
         lon = 37.62,
         status = "NEW",
-        priority = 2,
+        priority = "CURRENT",
         createdAt = "2024-01-01T10:00:00",
         updatedAt = "2024-01-01T10:00:00",
         commentsCount = 0
@@ -102,7 +107,8 @@ class OfflineFirstTasksRepositoryTest {
             taskDao = taskDao,
             commentDao = commentDao,
             pendingActionDao = pendingActionDao,
-            networkMonitor = networkMonitor
+            networkMonitor = networkMonitor,
+            context = context
         )
     }
 
@@ -114,7 +120,9 @@ class OfflineFirstTasksRepositoryTest {
     fun `refreshTasks returns data from server when online`() = runTest {
         // Given
         every { networkMonitor.isCurrentlyOnline() } returns true
-        coEvery { tasksApi.getTasks(any()) } returns Response.success(listOf(testTaskDto))
+        coEvery { tasksApi.getTasks(any(), any(), any(), any()) } returns Response.success(
+            PaginatedResponseDto(items = listOf(testTaskDto), total = 1, page = 1, size = 100, pages = 1)
+        )
         coEvery { taskDao.upsertTasks(any()) } just Runs
         coEvery { taskDao.deleteTasksNotIn(any()) } just Runs
         coEvery { pendingActionDao.getAllPendingActions() } returns emptyList()
@@ -141,14 +149,14 @@ class OfflineFirstTasksRepositoryTest {
         // Then
         assertTrue(result.isSuccess)
         assertEquals(1, result.getOrNull()?.size)
-        coVerify(exactly = 0) { tasksApi.getTasks(any()) }
+        coVerify(exactly = 0) { tasksApi.getTasks(any(), any(), any(), any()) }
     }
 
     @Test
     fun `refreshTasks returns cached data on network error`() = runTest {
         // Given
         every { networkMonitor.isCurrentlyOnline() } returns true
-        coEvery { tasksApi.getTasks(any()) } throws Exception("Network error")
+        coEvery { tasksApi.getTasks(any(), any(), any(), any()) } throws Exception("Network error")
         coEvery { taskDao.getAllTasks() } returns listOf(testTaskEntity)
         coEvery { pendingActionDao.getAllPendingActions() } returns emptyList()
 
@@ -192,7 +200,7 @@ class OfflineFirstTasksRepositoryTest {
             lat = 55.75,
             lon = 37.62,
             status = "IN_PROGRESS",
-            priority = 2,
+            priority = "CURRENT",
             createdAt = "2024-01-01T10:00:00",
             updatedAt = "2024-01-01T11:00:00",
             comments = emptyList()

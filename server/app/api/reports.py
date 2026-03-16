@@ -11,11 +11,12 @@ from collections import defaultdict
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, extract
+from sqlalchemy import func, and_
 
 from app.models import TaskModel, UserModel, UserRole, get_db
 from app.utils import normalize_priority_value
 from app.services import get_current_dispatcher_or_admin
+from app.services.tenant_filter import TenantFilter
 
 
 router = APIRouter(prefix="/api/reports", tags=["Reports"])
@@ -175,7 +176,18 @@ async def get_reports(
     start_date, end_date, period_days = get_date_range(period, date_from, date_to)
     
     # Базовый запрос
-    query = db.query(TaskModel)
+    tenant = TenantFilter(user)
+    if worker_id is not None:
+        worker = tenant.apply(db.query(UserModel), UserModel).filter(
+            UserModel.id == worker_id,
+            UserModel.role.in_([UserRole.WORKER.value, UserRole.DISPATCHER.value]),
+            UserModel.is_active == True,
+        ).first()
+        if not worker:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Исполнитель не найден")
+
+    query = tenant.apply(db.query(TaskModel), TaskModel)
     
     if start_date:
         query = query.filter(TaskModel.created_at >= start_date)
@@ -278,7 +290,7 @@ async def get_reports(
     ]
     
     # === By Worker ===
-    workers = db.query(UserModel).filter(
+    workers = tenant.apply(db.query(UserModel), UserModel).filter(
         UserModel.role.in_([UserRole.WORKER.value, UserRole.DISPATCHER.value]),
         UserModel.is_active == True
     ).all()
@@ -355,7 +367,8 @@ async def export_report(
     
     start_date, end_date, _ = get_date_range(period, date_from, date_to)
     
-    query = db.query(TaskModel)
+    tenant = TenantFilter(user)
+    query = tenant.apply(db.query(TaskModel), TaskModel)
     if start_date:
         query = query.filter(TaskModel.created_at >= start_date)
     if end_date:
@@ -380,7 +393,7 @@ async def export_report(
             str(t.id),
             t.task_number or "",
             (t.title or "").replace(";", ",").replace("\n", " "),
-            (t.address or "").replace(";", ",").replace("\n", " "),
+            (t.raw_address or "").replace(";", ",").replace("\n", " "),
             STATUS_LABELS.get(t.status, t.status),
             PRIORITY_LABELS.get(normalize_priority_value(t.priority, default="CURRENT"), normalize_priority_value(t.priority, default="CURRENT") or ""),
             t.assigned_user.full_name if t.assigned_user else "",
@@ -398,5 +411,53 @@ async def export_report(
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+@router.get("/export/excel")
+async def export_report_excel(
+    status: Optional[str] = None,
+    priority: Optional[str] = None,
+    assignee_id: Optional[int] = None,
+    period: str = Query(default="month"),
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_dispatcher_or_admin),
+):
+    """
+    Экспорт заявок в Excel (XLSX) — с форматированием, цветами статусов/приоритетов и сводкой.
+    """
+    from fastapi.responses import StreamingResponse
+    from fastapi import HTTPException
+    from app.services.excel_export import export_tasks_to_excel
+    
+    start_date, end_date, _ = get_date_range(period, date_from, date_to)
+    tenant = TenantFilter(user)
+
+    if assignee_id is not None:
+        assignee = tenant.apply(db.query(UserModel), UserModel).filter(
+            UserModel.id == assignee_id,
+            UserModel.is_active == True,
+        ).first()
+        if not assignee:
+            raise HTTPException(status_code=404, detail="Исполнитель не найден")
+    
+    output = export_tasks_to_excel(
+        db=db,
+        status=status,
+        priority=priority,
+        assignee_id=assignee_id,
+        date_from=start_date.isoformat() if start_date else date_from,
+        date_to=end_date.isoformat() if end_date else date_to,
+        tenant_user=user,
+    )
+    
+    filename = f"tasks_{period}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )

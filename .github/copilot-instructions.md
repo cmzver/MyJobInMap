@@ -53,12 +53,12 @@ MyJobInMap/
 │   ├── main.py                   # Entry point, SPA fallback routes
 │   ├── app/
 │   │   ├── config.py             # Централизованная конфигурация (API_VERSION)
-│   │   ├── api/                  # API роутеры (13 файлов)
+│   │   ├── api/                  # API роутеры (15 файлов)
 │   │   ├── models/               # SQLAlchemy модели (9 файлов)
 │   │   ├── schemas/              # Pydantic схемы (9 файлов)
 │   │   └── services/             # Бизнес-логика (11 файлов)
 │   ├── backups/                  # Резервные копии БД (*.sqlite.gz)
-│   ├── tests/                    # pytest тесты (205+)
+│   ├── tests/                    # pytest тесты (490+)
 │   ├── templates/                # Jinja2 (admin.html, workspace.html)
 │   └── static/                   # JS старой админки
 │
@@ -83,7 +83,9 @@ MyJobInMap/
 | GET | `/api/tasks/{id}` | Одна заявка по ID |
 | POST | `/api/tasks` | Создать заявку |
 | PUT | `/api/tasks/{id}` | Обновить заявку |
-| PUT | `/api/tasks/{id}/status` | Изменить статус (валидация переходов) |
+| PATCH | `/api/tasks/{id}/status` | Изменить статус (валидация переходов) |
+| PATCH | `/api/tasks/{id}/planned-date` | Обновить плановую дату |
+| PATCH | `/api/tasks/{id}/assign` | Назначить заявку |
 | DELETE | `/api/tasks/{id}` | Удалить заявку |
 
 ### Комментарии и Фото
@@ -97,12 +99,12 @@ MyJobInMap/
 ### Админ-функции (Backups)
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
-| GET | `/api/admin/backup/list` | Список бэкапов |
-| POST | `/api/admin/backup/run` | Создать бэкап |
-| GET | `/api/admin/backup/download/{filename}` | Скачать бэкап |
-| POST | `/api/admin/backup/restore/{filename}` | **Восстановить из бэкапа** |
-| DELETE | `/api/admin/backup/{filename}` | Удалить бэкап |
-| GET/PUT | `/api/admin/backup/settings` | Настройки бэкапов |
+| GET | `/api/admin/backups` | Список бэкапов |
+| POST | `/api/admin/backups` | Создать бэкап |
+| GET | `/api/admin/backups/{filename}/download` | Скачать бэкап |
+| POST | `/api/admin/backups/{filename}/restore` | **Восстановить из бэкапа** |
+| DELETE | `/api/admin/backups/{filename}` | Удалить бэкап |
+| GET/PATCH | `/api/admin/backups/settings` | Настройки бэкапов |
 
 ### Отчёты и Аналитика
 | Метод | Endpoint | Описание |
@@ -115,7 +117,11 @@ MyJobInMap/
 |-------|----------|----------|
 | GET | `/api/dashboard/stats` | Статистика для Dashboard |
 | GET | `/api/finance/summary` | Финансовая сводка |
-| POST | `/api/devices/register` | Регистрация FCM токена |
+| GET | `/api/devices` | Список устройств |
+| POST | `/api/devices` | Регистрация FCM токена |
+| GET | `/api/devices/info` | Информация об устройстве |
+| GET | `/api/updates/check` | Проверить наличие новой APK версии |
+| GET | `/api/updates/download` | Скачать последнюю APK версию |
 | GET | `/health` | Статус сервера + версия |
 
 ### Адреса (Addresses)
@@ -124,7 +130,7 @@ MyJobInMap/
 | GET | `/api/addresses` | Список адресов с пагинацией |
 | GET | `/api/addresses/{id}` | Карточка адреса |
 | POST | `/api/addresses` | Создать адрес |
-| PUT | `/api/addresses/{id}` | Обновить адрес |
+| PATCH | `/api/addresses/{id}` | Обновить адрес |
 | GET | `/api/addresses/autocomplete/cities` | Автоподставление городов |
 | GET | `/api/addresses/autocomplete/streets` | Автоподставление улиц |
 | GET | `/api/addresses/autocomplete/buildings` | Автоподставление домов |
@@ -170,16 +176,19 @@ MyJobInMap/
 
 ### Сервер
 - ⚠️ **Порт 8001** (не 8000)
-- ⚠️ **Версия** в `app/config.py` → `API_VERSION = "2.3.0"`
+- ⚠️ **Версия** в `app/config.py` → `API_VERSION = "2.14.2"`
+- ⚠️ **REST стандарт**: PATCH для частичных обновлений, PUT для полных замен
 - ⚠️ **Rate Limiting** на `/api/auth/login` (5 попыток / 60 сек на IP)
 - ⚠️ **Пагинация**: `/api/tasks` возвращает `{ items: [], total, page, size }`
 - ⚠️ **Бэкапы** хранятся в `server/backups/` как `*.sqlite.gz`
+- ⚠️ **Android updates**: публикация APK идёт через `/api/updates/*`, а `versionName`/`versionCode` извлекаются сервером из самого APK
 
 ### Переходы статусов (State Machine)
 ```
 NEW → IN_PROGRESS, CANCELLED
 IN_PROGRESS → DONE, CANCELLED
-DONE, CANCELLED → (терминальные состояния)
+DONE → терминальный статус
+CANCELLED → терминальный статус
 ```
 
 ### Portal
@@ -191,6 +200,7 @@ DONE, CANCELLED → (терминальные состояния)
 ### Android
 - ⚠️ **Эмулятор** подключается через `10.0.2.2:8001`
 - ⚠️ **URL фото** через `getFullServerUrl()` (с портом)
+- ⚠️ **Версия Android-приложения** в `app/build.gradle.kts` → `versionCode = 21402`, `versionName = "2.14.2"`
 
 ---
 
@@ -200,7 +210,7 @@ DONE, CANCELLED → (терминальные состояния)
 ```bash
 cd server
 make run-server          # http://localhost:8001
-make test                # Все тесты (205+)
+make test                # Все тесты (490+)
 make seed                # Тестовые данные (admin/admin)
 make format              # Black + isort
 ```
@@ -218,9 +228,9 @@ npm run build            # Сборка в dist/
 ## 📝 Обновление версии
 
 1. `server/app/config.py` → `API_VERSION = "X.Y.Z"`
-2. `server/app/__init__.py` → `__version__ = "X.Y.Z"`
+2. `app/build.gradle.kts` → `versionCode`, `versionName`
 3. `CHANGELOG.md` → добавить запись
-4. `README.md` → обновить badge версии
+4. `README.md` → обновить упоминание версии
 
 ---
 
@@ -257,12 +267,26 @@ npm run build            # Сборка в dist/
 
 - [x] ~~Pydantic v1 deprecation~~ → Миграция на `ConfigDict` завершена
 - [x] ~~`datetime.utcnow()`~~ → Заменено на `datetime.now(timezone.utc)`
-- [x] ~~Portal: дублирование кода~~ → Удалено ~600 строк
+- [x] ~~Portal: дублирование кода~~ → Удалено ~600 строк + ~120 строк (dateFormat.ts)
 - [x] ~~Portal: `any` типы~~ → Исправлено 12 типов
-- [ ] Тесты `test_task_state_machine` требуют обновления
+- [x] ~~Тесты `test_task_state_machine`~~ → state machine обновлён
+- [x] ~~admin.py монолит~~ → Разделён на admin.py + admin_users.py + admin_backups.py
+- [x] ~~Portal: дублирование User/UserRole~~ → AuthUser + единый UserRole
+- [x] ~~Modal без ARIA~~ → role, aria-modal, focus trap
+- [Строка удалена] ~~Portal: предсуществующие TS ошибки~~ → Исправлено: SystemSelector.model, AdminSettings.SettingValue, TaskDetail.amount
+- [x] ~~Portal: `any` обработка ошибок API~~ → `apiError.ts` — единый error handler
+- [x] ~~Portal: Spinner вместо Skeleton~~ → `Skeleton.tsx` компоненты
+- [x] ~~Portal: noUncheckedIndexedAccess~~ → Включено, ~60 ошибок исправлено
+- [x] ~~Тестовое покрытие сервера~~ → 490+ тестов
+- [x] ~~Portal unit тесты~~ → 44 теста (Vitest: dateFormat, cn, apiError, getSla)
+- [x] ~~`set_setting()` не поддерживал upsert~~ → Исправлено: upsert + description/group/label
+- [x] ~~Android unit тесты~~ → 85 тестов (LoginViewModel, MapViewModel, OfflineFirstTasksRepository)
+- [x] ~~Navigation Compose~~ → `Screen.kt` + `NavHost` в `MainScreen.kt`
+- [x] ~~Paging 3~~ → `room-paging` + `PagingSource` + `LazyPagingItems` в TaskListScreen
+- [x] ~~Token refresh~~ → `/api/auth/refresh` + `TokenAuthenticator` + 8 тестов
 
 ---
 
-**Версия:** 2.4.3 (Portal Optimization)  
+**Версия:** 2.14.2 (Phase 10.2 — Статусы, Android filters и компактный список)
 **Статус:** ✅ Production Ready  
-**Последнее обновление:** 18 января 2026
+**Последнее обновление:** 12 марта 2026

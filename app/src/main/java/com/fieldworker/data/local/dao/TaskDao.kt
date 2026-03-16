@@ -1,5 +1,6 @@
 package com.fieldworker.data.local.dao
 
+import androidx.paging.PagingSource
 import androidx.room.*
 import com.fieldworker.data.local.entity.TaskEntity
 import kotlinx.coroutines.flow.Flow
@@ -11,10 +12,17 @@ import kotlinx.coroutines.flow.Flow
 interface TaskDao {
     
     /**
-     * Получить все задачи как Flow для реактивного обновления UI
+     * Получить все задачи как Flow для реактивного обновления UI (карта)
      */
     @Query("SELECT * FROM tasks ORDER BY priority DESC, createdAt DESC")
     fun getAllTasksFlow(): Flow<List<TaskEntity>>
+    
+    /**
+     * PagingSource для Paging 3 — используется в списке задач.
+     * Room автоматически инвалидирует PagingSource при изменениях в таблице.
+     */
+    @Query("SELECT * FROM tasks ORDER BY priority DESC, createdAt DESC")
+    fun getAllTasksPagingSource(): PagingSource<Int, TaskEntity>
     
     /**
      * Получить все задачи (suspend)

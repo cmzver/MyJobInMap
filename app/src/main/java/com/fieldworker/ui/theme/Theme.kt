@@ -16,42 +16,36 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-// Основные цвета приложения (на основе референса)
+// Базовая палитра: нейтральные поверхности + спокойный акцент.
 object AppColors {
-    // iOS-inspired primary
-    val Primary = Color(0xFF007AFF)
-    val PrimaryLight = Color(0xFF4DA3FF)
-    val PrimaryDark = Color(0xFF005BBB)
+    val Primary = Color(0xFF16657A)
+    val PrimaryLight = Color(0xFF4E8FA3)
+    val PrimaryDark = Color(0xFF103F4B)
 
-    // Priority colors
-    val Emergency = Color(0xFFFF3B30)
-    val EmergencyBg = Color(0xFFFFEBEE)
-    val Urgent = Color(0xFFFF9500)
-    val UrgentBg = Color(0xFFFFF3E0)
-    val Current = Color(0xFF0A84FF)
-    val CurrentBg = Color(0xFFE3F2FD)
-    val Planned = Color(0xFF34C759)
-    val PlannedBg = Color(0xFFE8F5E9)
+    val Emergency = Color(0xFFC94F4F)
+    val EmergencyBg = Color(0xFFFCECEC)
+    val Urgent = Color(0xFFCC7A1A)
+    val UrgentBg = Color(0xFFFFF2E2)
+    val Current = Color(0xFF2A6F97)
+    val CurrentBg = Color(0xFFEAF3F8)
+    val Planned = Color(0xFF2F7D4B)
+    val PlannedBg = Color(0xFFEAF6EC)
 
-    // Status colors
-    val StatusNew = Color(0xFFFF3B30)
-    val StatusInProgress = Color(0xFFFF9500)
-    val StatusDone = Color(0xFF34C759)
-    val StatusCancelled = Color(0xFF8E8E93)
+    val StatusNew = Color(0xFFC94F4F)
+    val StatusInProgress = Color(0xFFCC7A1A)
+    val StatusDone = Color(0xFF2F7D4B)
+    val StatusCancelled = Color(0xFF7B8790)
 
-    // Base surfaces
-    val Background = Color(0xFFF2F2F7)
+    val Background = Color(0xFFF6F7F3)
     val Surface = Color(0xFFFFFFFF)
-    val SurfaceVariant = Color(0xFFE5E5EA)
+    val SurfaceVariant = Color(0xFFE2E7E8)
 
-    // Text
-    val OnSurface = Color(0xFF1C1C1E)
-    val OnSurfaceVariant = Color(0xFF636366)
+    val OnSurface = Color(0xFF172026)
+    val OnSurfaceVariant = Color(0xFF5A6670)
 
-    // Feedback
-    val Success = Color(0xFF34C759)
-    val Error = Color(0xFFFF3B30)
-    val Warning = Color(0xFFFF9500)
+    val Success = Color(0xFF2F7D4B)
+    val Error = Color(0xFFC94F4F)
+    val Warning = Color(0xFFCC7A1A)
 }
 
 private val DarkColorScheme = darkColorScheme(
@@ -60,11 +54,11 @@ private val DarkColorScheme = darkColorScheme(
     primaryContainer = AppColors.PrimaryDark,
     secondary = AppColors.Current,
     tertiary = AppColors.Planned,
-    background = Color(0xFF000000),
-    surface = Color(0xFF1C1C1E),
-    surfaceVariant = Color(0xFF2C2C2E),
-    onSurface = Color(0xFFF2F2F7),
-    onSurfaceVariant = Color(0xFFB0B0B5),
+    background = Color(0xFF0F1416),
+    surface = Color(0xFF151D20),
+    surfaceVariant = Color(0xFF243136),
+    onSurface = Color(0xFFF1F4F5),
+    onSurfaceVariant = Color(0xFFB6C0C4),
     error = AppColors.Error
 )
 
@@ -101,13 +95,11 @@ fun FieldWorkerTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            // Светлый статус бар для светлой темы
-            window.statusBarColor = if (darkTheme) {
-                colorScheme.surface.toArgb()
-            } else {
-                colorScheme.background.toArgb()
-            }
+            val systemBarColor = if (darkTheme) colorScheme.surface.toArgb() else colorScheme.background.toArgb()
+            window.statusBarColor = systemBarColor
+            window.navigationBarColor = colorScheme.surface.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
         }
     }
 

@@ -44,7 +44,8 @@ from app.schemas.address import (
     AddressFullResponse,
     TaskStats,
 )
-from app.services.auth import get_current_user
+from app.services.auth import get_current_user_required
+from app.services.tenant_filter import TenantFilter
 from app.models.user import UserModel
 from app.config import settings
 from app.utils import normalize_priority_value
@@ -56,11 +57,13 @@ DOCUMENTS_DIR = os.path.join(settings.BASE_DIR, "uploads", "address_documents")
 os.makedirs(DOCUMENTS_DIR, exist_ok=True)
 
 
-def get_address_or_404(address_id: int, db: Session) -> AddressModel:
+def get_address_or_404(address_id: int, db: Session, user: Optional[UserModel] = None) -> AddressModel:
     """Получить адрес или 404"""
     address = db.query(AddressModel).filter(AddressModel.id == address_id).first()
     if not address:
         raise HTTPException(status_code=404, detail="Адрес не найден")
+    if user is not None:
+        TenantFilter(user).enforce_access(address, detail="Нет доступа к этому адресу")
     return address
 
 
@@ -110,20 +113,21 @@ def build_task_filters_for_address(address: AddressModel):
 async def get_address_full(
     address_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Получить полную карточку объекта со всеми связанными данными"""
-    address = get_address_or_404(address_id, db)
+    address = get_address_or_404(address_id, db, user)
+    tenant = TenantFilter(user)
     
     # Получаем статистику заявок по этому адресу
     task_filters = build_task_filters_for_address(address)
-    task_stats_query = db.query(
+    task_stats_query = tenant.apply(db.query(
         func.count(TaskModel.id).label('total'),
         func.sum(cast(TaskModel.status == TaskStatus.NEW.value, Integer)).label('new'),
         func.sum(cast(TaskModel.status == TaskStatus.IN_PROGRESS.value, Integer)).label('in_progress'),
         func.sum(cast(TaskModel.status == TaskStatus.DONE.value, Integer)).label('done'),
         func.sum(cast(TaskModel.status == TaskStatus.CANCELLED.value, Integer)).label('cancelled'),
-    )
+    ), TaskModel)
 
     if task_filters:
         task_stats_query = task_stats_query.filter(or_(*task_filters))
@@ -197,10 +201,10 @@ async def get_address_full(
 async def get_address_systems(
     address_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Получить системы объекта"""
-    get_address_or_404(address_id, db)
+    get_address_or_404(address_id, db, user)
     systems = db.query(AddressSystemModel).filter(
         AddressSystemModel.address_id == address_id
     ).order_by(AddressSystemModel.name).all()
@@ -212,10 +216,10 @@ async def create_address_system(
     address_id: int,
     data: AddressSystemCreate,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Добавить систему на объект"""
-    get_address_or_404(address_id, db)
+    get_address_or_404(address_id, db, user)
     
     system = AddressSystemModel(
         address_id=address_id,
@@ -235,15 +239,16 @@ async def create_address_system(
     return AddressSystemResponse.model_validate(system)
 
 
-@router.put("/{address_id}/systems/{system_id}", response_model=AddressSystemResponse)
+@router.patch("/{address_id}/systems/{system_id}", response_model=AddressSystemResponse)
 async def update_address_system(
     address_id: int,
     system_id: int,
     data: AddressSystemUpdate,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Обновить систему"""
+    get_address_or_404(address_id, db, user)
     system = db.query(AddressSystemModel).filter(
         AddressSystemModel.id == system_id,
         AddressSystemModel.address_id == address_id
@@ -273,9 +278,10 @@ async def delete_address_system(
     address_id: int,
     system_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Удалить систему"""
+    get_address_or_404(address_id, db, user)
     system = db.query(AddressSystemModel).filter(
         AddressSystemModel.id == system_id,
         AddressSystemModel.address_id == address_id
@@ -306,10 +312,10 @@ async def get_address_equipment(
     address_id: int,
     system_id: Optional[int] = Query(None, description="Фильтр по системе"),
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Получить оборудование объекта"""
-    get_address_or_404(address_id, db)
+    get_address_or_404(address_id, db, user)
     
     query = db.query(AddressEquipmentModel).filter(
         AddressEquipmentModel.address_id == address_id
@@ -327,10 +333,10 @@ async def create_address_equipment(
     address_id: int,
     data: AddressEquipmentCreate,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Добавить оборудование на объект"""
-    get_address_or_404(address_id, db)
+    get_address_or_404(address_id, db, user)
     
     # Проверяем существование системы если указана
     if data.system_id:
@@ -359,15 +365,16 @@ async def create_address_equipment(
     return AddressEquipmentResponse.model_validate(equipment)
 
 
-@router.put("/{address_id}/equipment/{equipment_id}", response_model=AddressEquipmentResponse)
+@router.patch("/{address_id}/equipment/{equipment_id}", response_model=AddressEquipmentResponse)
 async def update_address_equipment(
     address_id: int,
     equipment_id: int,
     data: AddressEquipmentUpdate,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Обновить оборудование"""
+    get_address_or_404(address_id, db, user)
     equipment = db.query(AddressEquipmentModel).filter(
         AddressEquipmentModel.id == equipment_id,
         AddressEquipmentModel.address_id == address_id
@@ -397,9 +404,10 @@ async def delete_address_equipment(
     address_id: int,
     equipment_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Удалить оборудование"""
+    get_address_or_404(address_id, db, user)
     equipment = db.query(AddressEquipmentModel).filter(
         AddressEquipmentModel.id == equipment_id,
         AddressEquipmentModel.address_id == address_id
@@ -430,10 +438,10 @@ async def get_address_documents(
     address_id: int,
     doc_type: Optional[str] = Query(None, description="Фильтр по типу"),
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Получить документы объекта"""
-    get_address_or_404(address_id, db)
+    get_address_or_404(address_id, db, user)
     
     query = db.query(AddressDocumentModel).filter(
         AddressDocumentModel.address_id == address_id
@@ -475,10 +483,10 @@ async def upload_address_document(
     valid_until: Optional[str] = Form(default=None),
     notes: Optional[str] = Form(default=None),
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Загрузить документ на объект"""
-    get_address_or_404(address_id, db)
+    get_address_or_404(address_id, db, user)
     
     # Создаём директорию для адреса
     address_dir = os.path.join(DOCUMENTS_DIR, str(address_id))
@@ -555,9 +563,10 @@ async def download_address_document(
     address_id: int,
     document_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Скачать документ"""
+    get_address_or_404(address_id, db, user)
     document = db.query(AddressDocumentModel).filter(
         AddressDocumentModel.id == document_id,
         AddressDocumentModel.address_id == address_id
@@ -566,14 +575,17 @@ async def download_address_document(
     if not document:
         raise HTTPException(status_code=404, detail="Документ не найден")
     
-    # Формируем путь к файлу
+    # Формируем путь к файлу с защитой от path traversal
     file_path = os.path.join(settings.BASE_DIR, document.file_path.lstrip("/"))
+    resolved = os.path.realpath(file_path)
+    if not resolved.startswith(os.path.realpath(DOCUMENTS_DIR)):
+        raise HTTPException(status_code=400, detail="Недопустимый путь к файлу")
     
-    if not os.path.exists(file_path):
+    if not os.path.exists(resolved):
         raise HTTPException(status_code=404, detail="Файл не найден")
     
     return FileResponse(
-        file_path,
+        resolved,
         filename=document.name,
         media_type=document.mime_type
     )
@@ -584,9 +596,10 @@ async def delete_address_document(
     address_id: int,
     document_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Удалить документ"""
+    get_address_or_404(address_id, db, user)
     document = db.query(AddressDocumentModel).filter(
         AddressDocumentModel.id == document_id,
         AddressDocumentModel.address_id == address_id
@@ -595,10 +608,11 @@ async def delete_address_document(
     if not document:
         raise HTTPException(status_code=404, detail="Документ не найден")
     
-    # Удаляем файл
+    # Удаляем файл с защитой от path traversal
     file_path = os.path.join(settings.BASE_DIR, document.file_path.lstrip("/"))
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    resolved = os.path.realpath(file_path)
+    if resolved.startswith(os.path.realpath(DOCUMENTS_DIR)) and os.path.exists(resolved):
+        os.remove(resolved)
     
     document_name = document.name
     db.delete(document)
@@ -621,10 +635,10 @@ async def delete_address_document(
 async def get_address_contacts(
     address_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Получить контакты объекта"""
-    get_address_or_404(address_id, db)
+    get_address_or_404(address_id, db, user)
     contacts = db.query(AddressContactModel).filter(
         AddressContactModel.address_id == address_id
     ).order_by(AddressContactModel.is_primary.desc(), AddressContactModel.name).all()
@@ -636,10 +650,10 @@ async def create_address_contact(
     address_id: int,
     data: AddressContactCreate,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Добавить контакт на объект"""
-    get_address_or_404(address_id, db)
+    get_address_or_404(address_id, db, user)
     
     # Если новый контакт основной, сбрасываем флаг у других
     if data.is_primary:
@@ -666,15 +680,16 @@ async def create_address_contact(
     return AddressContactResponse.model_validate(contact)
 
 
-@router.put("/{address_id}/contacts/{contact_id}", response_model=AddressContactResponse)
+@router.patch("/{address_id}/contacts/{contact_id}", response_model=AddressContactResponse)
 async def update_address_contact(
     address_id: int,
     contact_id: int,
     data: AddressContactUpdate,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Обновить контакт"""
+    get_address_or_404(address_id, db, user)
     contact = db.query(AddressContactModel).filter(
         AddressContactModel.id == contact_id,
         AddressContactModel.address_id == address_id
@@ -712,9 +727,10 @@ async def delete_address_contact(
     address_id: int,
     contact_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Удалить контакт"""
+    get_address_or_404(address_id, db, user)
     contact = db.query(AddressContactModel).filter(
         AddressContactModel.id == contact_id,
         AddressContactModel.address_id == address_id
@@ -745,10 +761,10 @@ async def get_address_history(
     address_id: int,
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Получить историю объекта"""
-    get_address_or_404(address_id, db)
+    get_address_or_404(address_id, db, user)
     
     history = db.query(AddressHistoryModel).filter(
         AddressHistoryModel.address_id == address_id
@@ -779,12 +795,13 @@ async def get_address_tasks(
     status: Optional[str] = Query(None, description="Фильтр по статусу"),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user)
+    user: UserModel = Depends(get_current_user_required)
 ):
     """Получить заявки по адресу"""
-    address = get_address_or_404(address_id, db)
+    address = get_address_or_404(address_id, db, user)
+    tenant = TenantFilter(user)
     
-    query = db.query(TaskModel)
+    query = tenant.apply(db.query(TaskModel), TaskModel)
 
     filters = build_task_filters_for_address(address)
     if filters:

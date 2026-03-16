@@ -44,13 +44,13 @@ STATUS_DISPLAY_NAMES: Dict[str, str] = {
 
 PRIORITY_DISPLAY_NAMES: Dict[str, str] = {
 
-    TaskPriority.PLANNED.value: "????????",
+    TaskPriority.PLANNED.value: "Плановая",
 
-    TaskPriority.CURRENT.value: "???????",
+    TaskPriority.CURRENT.value: "Текущая",
 
-    TaskPriority.URGENT.value: "???????",
+    TaskPriority.URGENT.value: "Срочная",
 
-    TaskPriority.EMERGENCY.value: "?????????",
+    TaskPriority.EMERGENCY.value: "Аварийная",
 
 }
 
@@ -91,6 +91,13 @@ def get_status_display_name(status: str) -> str:
     """Получить русское название статуса"""
 
     return STATUS_DISPLAY_NAMES.get(status, status)
+
+
+def get_status_comment_required_message(status: str) -> str:
+
+    """Сообщение о том, что для статуса требуется комментарий"""
+
+    return f"Комментарий обязателен при переводе заявки в статус {get_status_display_name(status)}"
 
 
 
@@ -262,6 +269,8 @@ def _base_task_dict(task: TaskModel) -> Dict[str, Any]:
 
         "defect_type": task.defect_type,
 
+        "organization_id": task.organization_id,
+
     }
 
 
@@ -356,7 +365,9 @@ def user_to_response(user: UserModel) -> UserResponse:
 
         last_login=user.last_login,
 
-        assigned_tasks_count=len(user.assigned_tasks) if user.assigned_tasks else 0
+        assigned_tasks_count=len(user.assigned_tasks) if user.assigned_tasks else 0,
+
+        organization_id=user.organization_id,
 
     )
 

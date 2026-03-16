@@ -5,14 +5,15 @@ import type { TaskStatus } from '@/types/task'
 
 interface StatusBadgeProps {
   status: TaskStatus
+  className?: string
 }
 
-function StatusBadge({ status }: StatusBadgeProps) {
+function StatusBadge({ status, className }: StatusBadgeProps) {
   const label = STATUS_LABELS[status] || status
   const variant = STATUS_COLORS[status] || 'gray'
   
   return (
-    <Badge variant={variant}>
+    <Badge variant={variant} className={className}>
       {label}
     </Badge>
   )

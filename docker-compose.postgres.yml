@@ -1,6 +1,14 @@
-version: '3.8'
+# FieldWorker Docker Compose — PostgreSQL
+# =========================================
+# Запуск: docker-compose -f docker-compose.postgres.yml up -d
+# Логи:   docker-compose -f docker-compose.postgres.yml logs -f
+#
+# Конфигурация через .env файл или переменные окружения.
 
 services:
+  # ==========================================================================
+  # PostgreSQL Database
+  # ==========================================================================
   db:
     image: postgres:15-alpine
     container_name: fieldworker_postgres
@@ -14,11 +22,14 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fieldworker"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fieldworker}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # ==========================================================================
+  # FieldWorker API Server (FastAPI + PostgreSQL)
+  # ==========================================================================
   server:
     build: 
       context: ./server
@@ -28,15 +39,31 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    env_file:
+      - ./server/.env
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-fieldworker}:${POSTGRES_PASSWORD:-fieldworker_secret}@db:5432/${POSTGRES_DB:-fieldworker_db}
       - SECRET_KEY=${SECRET_KEY:-change_me_in_production}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
       - PORT=8001
+      - LOG_FORMAT=json
+      - BACKUP_SCHEDULER_ENABLED=false
     ports:
-      - "8001:8001"
+      - "${PORT:-8001}:8001"
     volumes:
-      - ./server/uploads:/app/uploads
-      - ./server/logs:/app/logs
+      - server_uploads:/app/uploads
+      - server_logs:/app/logs
+      - server_backups:/app/backups
+      - ./portal/dist:/portal/dist:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
 volumes:
   postgres_data:
+  server_uploads:
+  server_logs:
+  server_backups:

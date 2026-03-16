@@ -5,6 +5,7 @@ Tests for System Settings
 """
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models.settings import (
@@ -202,9 +203,11 @@ class TestSettingFunctions:
         assert result.updated_by == "test"
     
     def test_set_setting_nonexistent(self, db_session: Session):
-        """Попытка обновить несуществующую настройку."""
+        """Upsert: создаёт настройку если не существует."""
         result = set_setting(db_session, "does_not_exist", "value")
-        assert result is None
+        assert result is not None
+        assert result.key == "does_not_exist"
+        assert result.value == "value"
     
     def test_get_settings_by_group(self, db_session: Session):
         """Получение настроек по группе."""
@@ -400,3 +403,60 @@ class TestSettingInvalidTypes:
         db_session.commit()
         
         assert setting.get_typed_value() == {}
+
+
+class TestSystemSettingsApi:
+    """Тесты API системных настроек."""
+
+    def test_get_defect_types_initializes_defaults(self, client: TestClient):
+        """Публичный endpoint типов неисправностей должен возвращать дефолтный список на пустой БД."""
+        response = client.get("/api/admin/settings/defect-types")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) > 0
+        assert any(item["name"] == "Не работает домофон" for item in data)
+
+    def test_get_login_branding_public_defaults(self, client: TestClient):
+        """Публичный endpoint брендинга логина должен возвращать дефолтные значения."""
+        response = client.get("/api/public/login-branding")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["appName"] == "FieldWorker"
+        assert data["productLabel"] == "Field Service Platform"
+        assert data["supportHours"] == "Пн-Пт, 09:00-18:00"
+        assert data["supportEmail"] is None
+
+    def test_get_login_branding_public_uses_saved_settings(self, client: TestClient, auth_headers: dict[str, str]):
+        """Публичный endpoint должен отдавать значения, сохранённые через системные настройки."""
+        update_response = client.patch(
+            "/api/admin/settings",
+            headers=auth_headers,
+            json={
+                "login_app_name": "FieldWorker Pro",
+                "login_product_label": "Operations Cloud",
+                "login_headline": "Вход для партнёрской сети",
+                "login_description": "Настроенный экран входа из системных параметров.",
+                "login_organization_name": "Acme Service",
+                "support_email": "support@example.com",
+                "support_phone": "+7 900 000-00-00",
+                "support_hours": "Круглосуточно",
+            },
+        )
+
+        assert update_response.status_code == 200
+
+        response = client.get("/api/public/login-branding")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["appName"] == "FieldWorker Pro"
+        assert data["productLabel"] == "Operations Cloud"
+        assert data["headline"] == "Вход для партнёрской сети"
+        assert data["description"] == "Настроенный экран входа из системных параметров."
+        assert data["organizationName"] == "Acme Service"
+        assert data["supportEmail"] == "support@example.com"
+        assert data["supportPhone"] == "+7 900 000-00-00"
+        assert data["supportHours"] == "Круглосуточно"

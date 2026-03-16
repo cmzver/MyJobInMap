@@ -12,6 +12,9 @@ export interface CreateTaskData {
   is_paid?: boolean
   payment_amount?: number | null
   planned_date?: string | null
+  system_id?: number | null
+  system_type?: string | null
+  defect_type?: string | null
 }
 
 export interface UpdateTaskData {
@@ -25,6 +28,9 @@ export interface UpdateTaskData {
   is_paid?: boolean
   payment_amount?: number | null
   planned_date?: string | null
+  system_id?: number | null
+  system_type?: string | null
+  defect_type?: string | null
 }
 
 export const tasksApi = {
@@ -37,6 +43,7 @@ export const tasksApi = {
     if (filters?.assignee_id) params.append('assignee_id', String(filters.assignee_id))
     if (filters?.address_id) params.append('address_id', String(filters.address_id))
     if (filters?.search) params.append('search', filters.search)
+    if (filters?.sort) params.append('sort', filters.sort)
     if (filters?.page) params.append('page', String(filters.page))
     if (filters?.size) params.append('size', String(filters.size))
 
@@ -60,13 +67,13 @@ export const tasksApi = {
 
   // Update existing task (via admin API)
   async updateTask(id: number, taskData: UpdateTaskData): Promise<Task> {
-    const { data } = await apiClient.put<Task>(`/admin/tasks/${id}`, taskData)
+    const { data } = await apiClient.patch<Task>(`/admin/tasks/${id}`, taskData)
     return data
   },
 
   // Update task status
-  async updateTaskStatus(id: number, status: string): Promise<Task> {
-    const { data } = await apiClient.put<Task>(`/tasks/${id}/status`, { status })
+  async updateTaskStatus(id: number, status: string, comment = ''): Promise<Task> {
+    const { data } = await apiClient.patch<Task>(`/tasks/${id}/status`, { status, comment })
     return data
   },
 
@@ -77,7 +84,7 @@ export const tasksApi = {
 
   // Assign task to user
   async assignTask(id: number, assignedUserId: number | null): Promise<Task> {
-    const { data } = await apiClient.put<Task>(`/tasks/${id}/assign`, {
+    const { data } = await apiClient.patch<Task>(`/tasks/${id}/assign`, {
       assigned_user_id: assignedUserId,
     })
     return data

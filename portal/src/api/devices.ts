@@ -17,7 +17,7 @@ export interface SendTestNotificationPayload {
 
 export const devicesApi = {
   list: async (): Promise<Device[]> => {
-    const { data } = await apiClient.get<Device[]>('/devices/all')
+    const { data } = await apiClient.get<Device[]>('/devices')
     return data
   },
 

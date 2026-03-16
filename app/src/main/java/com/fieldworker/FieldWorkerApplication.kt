@@ -187,6 +187,11 @@ class FieldWorkerApplication : Application(), Configuration.Provider {
             
             // Сохраняем локально
             preferences.setFcmToken(token)
+
+            if (!preferences.isLoggedIn()) {
+                Log.d(TAG, "Skipping device registration until user is authenticated")
+                return@addOnCompleteListener
+            }
             
             // Отправляем на сервер
             CoroutineScope(Dispatchers.IO).launch {

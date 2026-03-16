@@ -10,10 +10,13 @@ import {
   Bell,
   Calendar,
   DollarSign,
+  Shield,
+  Building2,
   type LucideIcon
 } from 'lucide-react'
+import type { UserRole } from '@/types/user'
 
-export type UserRole = 'admin' | 'dispatcher' | 'worker'
+export type { UserRole }
 
 export interface MenuItem {
   id: string
@@ -113,6 +116,13 @@ export const menuConfig: MenuSection[] = [
         icon: BarChart3,
         roles: ['admin', 'dispatcher'],
       },
+      {
+        id: 'sla',
+        path: '/sla',
+        label: 'SLA',
+        icon: Shield,
+        roles: ['admin', 'dispatcher'],
+      },
     ],
   },
   {
@@ -153,18 +163,50 @@ export const menuConfig: MenuSection[] = [
         icon: Settings,
         roles: ['admin'],
       },
+      {
+        id: 'admin-organizations',
+        path: '/admin/organizations',
+        label: 'Организации',
+        icon: Building2,
+        roles: ['admin'],
+      },
     ],
   },
 ]
 
 /**
  * Фильтрация меню по роли пользователя
+ * 
+ * @param role Роль пользователя
+ * @param organizationId ID организации (если есть — org-admin, скрываем "Организации")
  */
-export function getMenuForRole(role: UserRole): MenuSection[] {
+/**
+ * Пункты меню, скрытые для org-admin (admin с organizationId).
+ * Org-admin управляет только своей организацией, не имеет доступа
+ * к системным настройкам и управлению организациями.
+ */
+const HIDDEN_FOR_ORG_ADMIN = new Set([
+  'admin-organizations',
+  'admin-settings',
+  'finance',
+])
+
+export function isOrgAdmin(role: UserRole, organizationId?: number | null): boolean {
+  return role === 'admin' && organizationId != null
+}
+
+export function getMenuForRole(role: UserRole, organizationId?: number | null): MenuSection[] {
+  const orgAdmin = isOrgAdmin(role, organizationId)
+
   return menuConfig
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => item.roles.includes(role)),
+      items: section.items.filter((item) => {
+        if (!item.roles.includes(role)) return false
+        // Org-admin (admin с organizationId) — скрываем системные разделы
+        if (orgAdmin && HIDDEN_FOR_ORG_ADMIN.has(item.id)) return false
+        return true
+      }),
     }))
     .filter((section) => section.items.length > 0)
 }
@@ -187,8 +229,11 @@ export function getHomePathForRole(role: UserRole): string {
 /**
  * Проверка доступа к пути
  */
-export function canAccessPath(path: string, role: UserRole): boolean {
+export function canAccessPath(path: string, role: UserRole, organizationId?: number | null): boolean {
   const allItems = menuConfig.flatMap((section) => section.items)
   const item = allItems.find((item) => path.startsWith(item.path))
-  return item ? item.roles.includes(role) : false
+  if (!item) return false
+  if (!item.roles.includes(role)) return false
+  if (isOrgAdmin(role, organizationId) && HIDDEN_FOR_ORG_ADMIN.has(item.id)) return false
+  return true
 }

@@ -20,6 +20,7 @@ export interface CreateUserData {
   email?: string
   phone?: string
   role: UserRole
+  organization_id?: number
 }
 
 export interface UpdateUserData {

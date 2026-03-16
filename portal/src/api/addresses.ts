@@ -115,7 +115,7 @@ export const addressesApi = {
 
   // Обновить адрес
   async updateAddress(id: number, addressData: UpdateAddressData): Promise<Address> {
-    const { data } = await apiClient.put<Address>(`/addresses/${id}`, addressData)
+    const { data } = await apiClient.patch<Address>(`/addresses/${id}`, addressData)
     return data
   },
 
@@ -171,7 +171,7 @@ export const addressesApi = {
   },
 
   async updateSystem(addressId: number, systemId: number, systemData: UpdateSystemData): Promise<AddressSystem> {
-    const { data } = await apiClient.put<AddressSystem>(`/addresses/${addressId}/systems/${systemId}`, systemData)
+    const { data } = await apiClient.patch<AddressSystem>(`/addresses/${addressId}/systems/${systemId}`, systemData)
     return data
   },
 
@@ -193,7 +193,7 @@ export const addressesApi = {
   },
 
   async updateEquipment(addressId: number, equipmentId: number, equipmentData: UpdateEquipmentData): Promise<AddressEquipment> {
-    const { data } = await apiClient.put<AddressEquipment>(`/addresses/${addressId}/equipment/${equipmentId}`, equipmentData)
+    const { data } = await apiClient.patch<AddressEquipment>(`/addresses/${addressId}/equipment/${equipmentId}`, equipmentData)
     return data
   },
 
@@ -254,7 +254,7 @@ export const addressesApi = {
   },
 
   async updateContact(addressId: number, contactId: number, contactData: UpdateContactData): Promise<AddressContact> {
-    const { data } = await apiClient.put<AddressContact>(`/addresses/${addressId}/contacts/${contactId}`, contactData)
+    const { data } = await apiClient.patch<AddressContact>(`/addresses/${addressId}/contacts/${contactId}`, contactData)
     return data
   },
 

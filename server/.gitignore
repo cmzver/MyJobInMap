@@ -44,16 +44,30 @@ env/
 # Database
 tasks.db
 tasks.db-journal
+tasks.db-wal
+tasks.db-shm
 *.sqlite
 *.sqlite3
+*.sqlite-journal
+*.sqlite3-journal
 
 # Environment
 .env
 .env.local
 .env.*.local
+firebase-service-account.json
 
 # Uploads
-uploads/photos/*
+uploads/**
+!uploads/
+!uploads/.gitkeep
+!uploads/address_documents/
+!uploads/address_documents/.gitkeep
+!uploads/apk/
+!uploads/apk/.gitkeep
+!uploads/chat/
+!uploads/chat/.gitkeep
+!uploads/photos/
 !uploads/photos/.gitkeep
 
 # Logs
@@ -64,6 +78,8 @@ logs/
 *.tmp
 *.bak
 .temp/
+chat_test_out.txt
+test_chat_results.txt
 
 # Android
 app/build/

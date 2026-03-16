@@ -123,12 +123,6 @@ export interface AddressSystem {
   service_start_date: string | null
   service_end_date: string | null
   monthly_cost: number | null
-  model: string | null
-  manufacturer: string | null
-  install_date: string | null
-  warranty_until: string | null
-  last_maintenance: string | null
-  next_maintenance: string | null
   notes: string | null
   created_at: string
   updated_at: string
@@ -207,6 +201,7 @@ export interface AddressContact {
   address_id: number
   contact_type: ContactType
   name: string
+  position: string | null
   phone: string | null
   email: string | null
   notes: string | null
@@ -225,6 +220,7 @@ export type HistoryEventType =
   | 'equipment_added'
   | 'equipment_updated'
   | 'contact_added'
+  | 'contact_updated'
 
 export interface AddressHistory {
   id: number

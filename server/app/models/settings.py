@@ -4,14 +4,18 @@ Settings Models
 Модели настроек системы, кастомных полей и прав доступа.
 
 Этот модуль содержит все модели связанные с конфигурацией системы:
-- SystemSettingModel: Системные настройки (группы: images, backup, notifications, security, interface, server)
+- SystemSettingModel: Системные настройки (группы: images, backup, notifications, security, interface, branding, server)
 - CustomFieldModel: Динамические поля для заявок
 - CustomFieldValueModel: Значения кастомных полей
 - RolePermissionModel: Разрешения для ролей
 """
 
+import logging
+
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, JSON
 from sqlalchemy.orm import Session
+
+from app.config import settings as app_settings
 
 from app.models.base import Base, utcnow
 
@@ -25,7 +29,7 @@ class SystemSettingModel(Base):
     Модель системных настроек.
     
     Хранит все настраиваемые параметры сервера с поддержкой типизации и групп.
-    Группы: images, backup, notifications, security, interface, server
+    Группы: images, backup, notifications, security, interface, branding, server
     Типы: string, int, float, bool, json, select
     """
     __tablename__ = "system_settings"
@@ -214,15 +218,32 @@ def get_setting(db: Session, key: str, default=None):
     return default
 
 
-def set_setting(db: Session, key: str, value, updated_by: str = None):
-    """Установить значение настройки"""
+def set_setting(db: Session, key: str, value, updated_by: str = None, description: str = None, group: str = None):
+    """Установить значение настройки (upsert — создаёт если не существует)."""
     setting = db.query(SystemSettingModel).filter(SystemSettingModel.key == key).first()
     if setting:
         setting.set_typed_value(value)
         setting.updated_by = updated_by
+        if description is not None:
+            setting.description = description
+        if group is not None:
+            setting.group = group
         db.commit()
         return setting
-    return None
+    # Create new setting
+    setting = SystemSettingModel(
+        key=key,
+        value=str(value) if value is not None else "",
+        value_type="string",
+        label=description or key,
+        description=description or key,
+        group=group or "general",
+        updated_by=updated_by,
+    )
+    db.add(setting)
+    db.commit()
+    db.refresh(setting)
+    return setting
 
 
 def get_settings_by_group(db: Session, group: str):
@@ -441,11 +462,85 @@ def init_default_settings(db: Session):
             ],
             "sort_order": 5
         },
+
+        # === Брендинг входа ===
+        {
+            "key": "login_app_name",
+            "value": "FieldWorker",
+            "value_type": "string",
+            "group": "branding",
+            "label": "Название приложения",
+            "description": "Основное название портала на экране входа",
+            "sort_order": 1
+        },
+        {
+            "key": "login_product_label",
+            "value": "Field Service Platform",
+            "value_type": "string",
+            "group": "branding",
+            "label": "Подзаголовок продукта",
+            "description": "Короткая подпись в бренд-блоке экрана входа",
+            "sort_order": 2
+        },
+        {
+            "key": "login_headline",
+            "value": "Защищённый вход в рабочее пространство",
+            "value_type": "string",
+            "group": "branding",
+            "label": "Главный заголовок",
+            "description": "Крупный заголовок левой панели экрана входа",
+            "sort_order": 3
+        },
+        {
+            "key": "login_description",
+            "value": "Единая авторизация для администраторов, диспетчеров и исполнителей с tenant-изоляцией по организациям.",
+            "value_type": "string",
+            "group": "branding",
+            "label": "Описание экрана входа",
+            "description": "Основной поясняющий текст на странице авторизации",
+            "sort_order": 4
+        },
+        {
+            "key": "login_organization_name",
+            "value": "",
+            "value_type": "string",
+            "group": "branding",
+            "label": "Название организации на входе",
+            "description": "Необязательное имя организации для отдельной брендированной точки входа",
+            "sort_order": 5
+        },
+        {
+            "key": "support_email",
+            "value": "",
+            "value_type": "string",
+            "group": "branding",
+            "label": "Email поддержки",
+            "description": "Почта в блоке получения доступа на экране входа",
+            "sort_order": 6
+        },
+        {
+            "key": "support_phone",
+            "value": "",
+            "value_type": "string",
+            "group": "branding",
+            "label": "Телефон поддержки",
+            "description": "Телефон в блоке получения доступа на экране входа",
+            "sort_order": 7
+        },
+        {
+            "key": "support_hours",
+            "value": "Пн-Пт, 09:00-18:00",
+            "value_type": "string",
+            "group": "branding",
+            "label": "Часы работы поддержки",
+            "description": "Расписание, отображаемое в блоке поддержки на экране входа",
+            "sort_order": 8
+        },
         
         # === Сервер (только чтение) ===
         {
             "key": "server_version",
-            "value": "2.3.0",
+            "value": app_settings.API_VERSION,
             "value_type": "string",
             "group": "server",
             "label": "Версия сервера",
@@ -601,4 +696,4 @@ def init_default_settings(db: Session):
         migration_setting.value = "true"
     
     db.commit()
-    print("✅ Default settings and permissions initialized")
+    logging.getLogger(__name__).info("Default settings and permissions initialized")

@@ -40,7 +40,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -54,6 +53,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.fieldworker.R
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
@@ -77,31 +77,25 @@ import org.osmdroid.views.overlay.Marker
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen(
-    viewModel: MapViewModel = hiltViewModel()
+    viewModel: MapViewModel = hiltViewModel(),
+    onOpenObjectCard: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val view = LocalView.current
-    
-    // Получаем baseUrl из preferences (полный URL с портом)
+
     val baseUrl = viewModel.preferences.getFullServerUrl()
     val authToken = viewModel.preferences.getAuthToken()
-    
-    // Состояние для выбранного фото (перед подтверждением загрузки)
+
     var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
-    
-    // Сбрасываем selectedPhotoUri когда загрузка завершилась
+
     LaunchedEffect(uiState.isUploadingPhoto) {
-        if (!uiState.isUploadingPhoto && selectedPhotoUri != null) {
-            // Проверяем, не было ли ошибки
-            if (uiState.error == null) {
-                selectedPhotoUri = null
-            }
+        if (!uiState.isUploadingPhoto && selectedPhotoUri != null && uiState.error == null) {
+            selectedPhotoUri = null
         }
     }
-    
-    // Image picker для загрузки фото (теперь сохраняем Uri, не загружаем сразу)
+
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
         onResult = { uri: Uri? ->
@@ -110,8 +104,7 @@ fun MapScreen(
             }
         }
     )
-    
-    // Состояние разрешения на геолокацию
+
     var hasLocationPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -120,41 +113,37 @@ fun MapScreen(
             ) == PackageManager.PERMISSION_GRANTED
         )
     }
-    
-    // Запрос разрешения на геолокацию
+
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         hasLocationPermission = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (hasLocationPermission) {
             requestLocation(context, viewModel)
         }
     }
-    
-    // Запрашиваем местоположение при старте, если есть разрешение
+
     LaunchedEffect(hasLocationPermission) {
         if (hasLocationPermission) {
             requestLocation(context, viewModel)
         }
     }
-    
-    // Показываем ошибки в Snackbar
+
     LaunchedEffect(uiState.error) {
         uiState.error?.let { error ->
             snackbarHostState.showSnackbar(error)
             viewModel.clearError()
         }
     }
-    
-    // Показываем успешное обновление
+
     LaunchedEffect(uiState.statusUpdateSuccess) {
         if (uiState.statusUpdateSuccess) {
             snackbarHostState.showSnackbar("Статус обновлён")
             viewModel.clearStatusUpdateSuccess()
         }
     }
-    
+
     Box(modifier = Modifier.fillMaxSize()) {
         // Карта с маркерами
         OsmMapView(
@@ -255,6 +244,9 @@ fun MapScreen(
     if (uiState.selectedTask != null) {
         TaskDetailBottomSheet(
             task = uiState.selectedTask!!,
+            addressDetails = uiState.addressDetails,
+            isLoadingAddress = uiState.isLoadingAddress,
+            hasAttemptedAddressLookup = uiState.hasAttemptedAddressLookup,
             comments = uiState.comments,
             isLoadingComments = uiState.isLoadingComments,
             photos = uiState.photos,
@@ -264,6 +256,7 @@ fun MapScreen(
             authToken = authToken,
             onDismiss = { viewModel.selectTask(null) },
             onStatusChange = { viewModel.showStatusDialog() },
+            onOpenObjectCard = onOpenObjectCard,
             onAddComment = { text -> viewModel.addComment(uiState.selectedTask!!.id, text) },
             onAddPhotoClick = {
                 photoPickerLauncher.launch(
@@ -549,53 +542,89 @@ fun StatusChangeDialog(
     onStatusSelected: (TaskStatus, String) -> Unit
 ) {
     var comment by remember { mutableStateOf("") }
-    var selectedStatus by remember { mutableStateOf(currentStatus) }
+    val availableStatuses = when (currentStatus) {
+        TaskStatus.NEW -> listOf(TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED)
+        TaskStatus.IN_PROGRESS -> listOf(TaskStatus.DONE, TaskStatus.CANCELLED)
+        else -> emptyList()
+    }
+    var selectedStatus by remember(currentStatus) { mutableStateOf(availableStatuses.firstOrNull() ?: currentStatus) }
+    val requiresComment = selectedStatus == TaskStatus.DONE || selectedStatus == TaskStatus.CANCELLED
+    val dialogTitle = when (selectedStatus) {
+        TaskStatus.DONE -> "Комментарий к завершению заявки"
+        TaskStatus.CANCELLED -> "Комментарий к отмене заявки"
+        else -> "Изменить статус"
+    }
+    val commentLabel = when (selectedStatus) {
+        TaskStatus.DONE -> "Что выполнено"
+        TaskStatus.CANCELLED -> "Причина отмены"
+        else -> if (requiresComment) "Комментарий" else "Комментарий (необязательно)"
+    }
+    val commentPlaceholder = when (selectedStatus) {
+        TaskStatus.DONE -> "Кратко опишите выполненные работы"
+        TaskStatus.CANCELLED -> "Кратко опишите причину отмены"
+        else -> "Введите комментарий"
+    }
+    val confirmText = when (selectedStatus) {
+        TaskStatus.DONE -> "Завершить заявку"
+        TaskStatus.CANCELLED -> "Отменить заявку"
+        else -> "Сохранить"
+    }
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Изменить статус") },
+        title = { Text(dialogTitle) },
         text = {
             Column {
-                TaskStatus.entries.filter { it != TaskStatus.UNKNOWN }.forEach { status ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = selectedStatus == status,
-                            onClick = { selectedStatus = status }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Box(
+                if (availableStatuses.isEmpty()) {
+                    Text(
+                        text = "Для текущего статуса доступных переходов нет.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    availableStatuses.forEach { status ->
+                        Row(
                             modifier = Modifier
-                                .size(12.dp)
-                                .clip(CircleShape)
-                                .background(status.toColor())
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(status.displayName)
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedStatus == status,
+                                onClick = { selectedStatus = status }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .clip(CircleShape)
+                                    .background(status.toColor())
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(status.displayName)
+                        }
                     }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedTextField(
+                        value = comment,
+                        onValueChange = { comment = it },
+                        label = { Text(commentLabel) },
+                        placeholder = { Text(commentPlaceholder) },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 3
+                    )
                 }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                OutlinedTextField(
-                    value = comment,
-                    onValueChange = { comment = it },
-                    label = { Text("Комментарий (необязательно)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    maxLines = 3
-                )
             }
         },
         confirmButton = {
             Button(
                 onClick = { onStatusSelected(selectedStatus, comment) },
-                enabled = selectedStatus != currentStatus || comment.isNotBlank()
+                enabled = availableStatuses.isNotEmpty() &&
+                    selectedStatus != currentStatus &&
+                    (!requiresComment || comment.isNotBlank())
             ) {
-                Text("Сохранить")
+                Text(confirmText)
             }
         },
         dismissButton = {
@@ -636,7 +665,7 @@ fun OsmMapView(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    
+
     val mapView = remember {
         MapView(context).apply {
             setTileSource(TileSourceFactory.MAPNIK)
@@ -645,7 +674,7 @@ fun OsmMapView(
             controller.setCenter(GeoPoint(55.7558, 37.6173))
         }
     }
-    
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -655,17 +684,16 @@ fun OsmMapView(
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        
+
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             mapView.onDetach()
         }
     }
-    
+
     LaunchedEffect(tasks, showMyLocation, myLocationLat, myLocationLon) {
         mapView.overlays.clear()
-        
-        // Добавляем маркер моего местоположения
+
         if (showMyLocation && myLocationLat != null && myLocationLon != null) {
             val myLocationMarker = Marker(mapView).apply {
                 position = GeoPoint(myLocationLat, myLocationLon)
@@ -675,8 +703,7 @@ fun OsmMapView(
             }
             mapView.overlays.add(myLocationMarker)
         }
-        
-        // Добавляем маркеры задач
+
         tasks.filter { it.hasValidCoordinates() }.forEach { task ->
             val marker = Marker(mapView).apply {
                 position = GeoPoint(task.lat!!, task.lon!!)
@@ -684,7 +711,7 @@ fun OsmMapView(
                 snippet = task.address
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                 icon = getMarkerIcon(context, task.status)
-                
+
                 setOnMarkerClickListener { _, _ ->
                     onMarkerClick(task)
                     true
@@ -692,8 +719,7 @@ fun OsmMapView(
             }
             mapView.overlays.add(marker)
         }
-        
-        // Центрируем карту
+
         if (showMyLocation && myLocationLat != null && myLocationLon != null) {
             mapView.controller.setCenter(GeoPoint(myLocationLat, myLocationLon))
         } else {
@@ -701,10 +727,10 @@ fun OsmMapView(
                 mapView.controller.setCenter(GeoPoint(task.lat!!, task.lon!!))
             }
         }
-        
+
         mapView.invalidate()
     }
-    
+
     AndroidView(
         factory = { mapView },
         modifier = modifier

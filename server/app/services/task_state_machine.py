@@ -1,18 +1,27 @@
 """Task status transitions validator."""
+import json
+from pathlib import Path
 from typing import Dict, Set
 from app.models.enums import TaskStatus
+
+
+def _load_valid_transitions() -> Dict[str, Set[str]]:
+    """Load status transitions from the shared JSON definition."""
+    transitions_path = Path(__file__).resolve().parents[3] / "portal" / "src" / "config" / "taskStatusTransitions.json"
+    with transitions_path.open("r", encoding="utf-8") as file:
+        raw_transitions = json.load(file)
+
+    return {
+        str(status): {str(next_status) for next_status in next_statuses}
+        for status, next_statuses in raw_transitions.items()
+    }
 
 
 class TaskStatusMachine:
     """State machine for task status transitions."""
 
     # Допустимые переходы: статус X может переходить в статусы Y
-    VALID_TRANSITIONS: Dict[str, Set[str]] = {
-        TaskStatus.NEW.value: {TaskStatus.IN_PROGRESS.value, TaskStatus.CANCELLED.value},
-        TaskStatus.IN_PROGRESS.value: {TaskStatus.DONE.value, TaskStatus.CANCELLED.value},
-        TaskStatus.DONE.value: {TaskStatus.IN_PROGRESS.value, TaskStatus.NEW.value},  # Можно вернуть в работу
-        TaskStatus.CANCELLED.value: {TaskStatus.NEW.value, TaskStatus.IN_PROGRESS.value},  # Можно возобновить
-    }
+    VALID_TRANSITIONS: Dict[str, Set[str]] = _load_valid_transitions()
 
     @staticmethod
     def is_valid_transition(from_status: str, to_status: str) -> bool:

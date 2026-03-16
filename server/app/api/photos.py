@@ -4,6 +4,7 @@ Photos API
 Эндпоинты для работы с фотографиями.
 """
 
+import logging
 import uuid
 from pathlib import Path
 from typing import List
@@ -13,14 +14,17 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import (
-    UserModel, TaskModel, TaskPhotoModel, UserRole, get_db
+    UserModel, TaskModel, TaskPhotoModel, get_db
 )
 from app.schemas import PhotoResponse
 from app.services import get_current_user_required, require_permission, enforce_worker_task_access, image_optimizer, check_permission
 from app.api.deps import require_task_access, TaskAccess
+from app.services.tenant_filter import TenantFilter
 
 
 router = APIRouter(tags=["Photos"])
+
+logger = logging.getLogger(__name__)
 
 
 @router.post("/api/tasks/{task_id}/photos", response_model=PhotoResponse)
@@ -55,13 +59,31 @@ async def upload_task_photo(
             detail=f"Файл слишком большой. Максимум: {settings.MAX_FILE_SIZE // 1024 // 1024} MB"
         )
     
+    # Проверка MIME-типа по magic bytes (содержимому файла)
+    _MAGIC_BYTES = {
+        b'\xff\xd8\xff': "image/jpeg",
+        b'\x89PNG\r\n\x1a\n': "image/png",
+        b'RIFF': "image/webp",  # WebP начинается RIFF....WEBP
+    }
+    detected_mime = None
+    for magic, mime in _MAGIC_BYTES.items():
+        if content[:len(magic)] == magic:
+            detected_mime = mime
+            break
+    
+    if detected_mime is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Файл не является допустимым изображением (неверный формат содержимого)"
+        )
+    
     # Оптимизация изображения (сжатие, ресайз)
     original_size = len(content)
     content, file_ext, mime_type = image_optimizer.optimize(content, file_ext)
     optimized_size = len(content)
     
     if original_size != optimized_size:
-        print(f"📸 Фото оптимизировано: {original_size // 1024} KB -> {optimized_size // 1024} KB")
+        logger.info("Photo optimized: %d KB -> %d KB", original_size // 1024, optimized_size // 1024)
     
     # Сохранение
     unique_name = f"{task_id}_{uuid.uuid4().hex[:8]}{file_ext}"
@@ -71,7 +93,7 @@ async def upload_task_photo(
         with open(file_path, "wb") as f:
             f.write(content)
     except IOError as e:
-        print(f"❌ File write error: {e}")
+        logger.error("File write error: %s", e)
         raise HTTPException(status_code=500, detail="Ошибка сохранения файла")
     
     photo = TaskPhotoModel(
@@ -177,6 +199,12 @@ async def delete_photo(
     photo = db.query(TaskPhotoModel).filter(TaskPhotoModel.id == photo_id).first()
     if not photo:
         raise HTTPException(status_code=404, detail="Фото не найдено")
+
+    task = db.query(TaskModel).filter(TaskModel.id == photo.task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
+
+    TenantFilter(current_user).enforce_access(task, detail="Нет доступа к фото этой заявки")
     
     # Проверка прав на удаление фото
     if not check_permission(db, current_user, 'delete_photos'):

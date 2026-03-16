@@ -3,6 +3,7 @@ import { ChevronDown } from 'lucide-react'
 import { addressesApi } from '@/api/addresses'
 import Spinner from '@/components/Spinner'
 import Card from '@/components/Card'
+import Input from '@/components/Input'
 import type { Address } from '@/types/address'
 
 interface AddressFormData {
@@ -11,6 +12,7 @@ interface AddressFormData {
   building: string
   corpus: string
   entrance: string
+  apartment: string
 }
 
 interface AddressFormProps {
@@ -101,7 +103,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
   }, [])
 
   const handleSelectCity = (city: string) => {
-    onChange({ ...value, city, street: '', building: '', corpus: '', entrance: '' })
+    onChange({ ...value, city, street: '', building: '', corpus: '', entrance: '', apartment: '' })
     setCities([])
     setCitiesQuery('')
     setCitiesOpen(false)
@@ -133,7 +135,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
   )
 
   const handleSelectStreet = (street: string) => {
-    onChange({ ...value, street, building: '', corpus: '', entrance: '' })
+    onChange({ ...value, street, building: '', corpus: '', entrance: '', apartment: '' })
     setStreets([])
     setStreetsQuery('')
     setStreetsOpen(false)
@@ -166,7 +168,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
 
   const handleSelectBuilding = (building: string) => {
     // Сразу обновляем building (синхронно)
-    onChange({ ...value, building, corpus: '', entrance: '' })
+    onChange({ ...value, building, corpus: '', entrance: '', apartment: '' })
     
     // Закрываем dropdown и очищаем поиск
     setBuildings([])
@@ -191,12 +193,12 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
         
         if (result.length === 0) {
           // Нет корпусов - устанавливаем 'none'
-          onChange({ city: currentCity, street: currentStreet, building, corpus: 'none', entrance: '' })
+          onChange({ city: currentCity, street: currentStreet, building, corpus: 'none', entrance: '', apartment: '' })
           loadEntrances(currentCity, currentStreet, building, undefined, 'none')
         } else if (result.length === 1) {
           // Один корпус - выбираем автоматически
-          const singleCorpus = result[0]
-          onChange({ city: currentCity, street: currentStreet, building, corpus: singleCorpus, entrance: '' })
+          const singleCorpus = result[0]!
+          onChange({ city: currentCity, street: currentStreet, building, corpus: singleCorpus, entrance: '', apartment: '' })
           loadEntrances(currentCity, currentStreet, building, singleCorpus, singleCorpus)
         }
         // Если несколько корпусов - оставляем corpus пустым, ждём ручной выбор
@@ -215,23 +217,24 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
         .searchAddresses(fullAddress, 1)
         .then((results) => {
           if (results.length > 0) {
+            const found = results[0]!
             // Преобразуем AddressSearchResult в Address
             const address: Address = {
-              id: results[0].id,
-              address: results[0].address,
+              id: found.id,
+              address: found.address,
               city: value.city,
               street: value.street,
               building: building,
               corpus: value.corpus,
               entrance: value.entrance,
-              lat: results[0].lat,
-              lon: results[0].lon,
-              entrance_count: results[0].entrance_count,
-              floor_count: results[0].floor_count,
+              lat: found.lat,
+              lon: found.lon,
+              entrance_count: found.entrance_count,
+              floor_count: found.floor_count,
               apartment_count: null,
               has_elevator: null,
-              has_intercom: results[0].has_intercom,
-              intercom_code: results[0].intercom_code,
+              has_intercom: found.has_intercom,
+              intercom_code: found.intercom_code,
               management_company: null,
               management_phone: null,
               notes: null,
@@ -253,7 +256,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
 
   // ===== Корпусы =====
   const handleSelectCorpus = (corpus: string) => {
-    onChange({ ...value, corpus, entrance: '' })
+    onChange({ ...value, corpus, entrance: '', apartment: '' })
     setCorpusesOpen(false)
     
     // Загружаем доступные подъезды для выбранного корпуса
@@ -277,7 +280,8 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
             street, 
             building, 
             corpus: corpusValue || corpusForApi || 'none', 
-            entrance: result[0] 
+            entrance: result[0]!,
+            apartment: '' 
           })
         }
       })
@@ -517,6 +521,15 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
               )}
             </div>
           </div>
+        )}
+
+        {value.building && (
+          <Input
+            label="Квартира"
+            placeholder="Например, 45"
+            value={value.apartment}
+            onChange={(e) => onChange({ ...value, apartment: e.target.value })}
+          />
         )}
       </div>
     </Card>

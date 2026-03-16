@@ -1,0 +1,52 @@
+# FieldWorker Docker Compose — Monitoring Stack
+# ================================================
+# Использование (вместе с основным compose):
+#   docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+#
+# Prometheus: http://localhost:9090
+# Grafana:    http://localhost:3000 (admin/admin)
+
+services:
+  # ==========================================================================
+  # Prometheus — сбор метрик
+  # ==========================================================================
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: fieldworker-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    depends_on:
+      - api
+
+  # ==========================================================================
+  # Grafana — визуализация метрик
+  # ==========================================================================
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: fieldworker-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./monitoring/grafana/provisioning/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus_data:
+  grafana_data:

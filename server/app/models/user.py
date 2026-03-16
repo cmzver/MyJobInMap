@@ -26,6 +26,9 @@ class UserModel(Base):
     created_at = Column(DateTime, default=utcnow)
     last_login = Column(DateTime, nullable=True)
     
+    # Multi-tenant
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
+    
     # Настройки отправки отчётов: 'group', 'contact', 'none'
     report_target = Column(String(20), default='group')
     # Номер телефона для отправки отчётов (если report_target='contact')
@@ -39,6 +42,9 @@ class UserModel(Base):
     
     # Уведомления пользователя
     notifications = relationship("NotificationModel", back_populates="user", cascade="all, delete-orphan")
+    
+    # Организация
+    organization = relationship("OrganizationModel", back_populates="users")
 
 
 class DeviceModel(Base):

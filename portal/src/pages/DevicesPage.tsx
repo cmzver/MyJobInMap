@@ -15,21 +15,12 @@ import {
   Clock,
   AlertTriangle
 } from 'lucide-react'
-import { format } from 'date-fns'
-import { ru } from 'date-fns/locale'
 import { useDevices, useSendTestNotification, useDeleteDevice } from '@/hooks/useDevices'
+import { formatDateTime as formatDate } from '@/utils/dateFormat'
 import Button from '@/components/Button'
 import Spinner from '@/components/Spinner'
 import EmptyState from '@/components/EmptyState'
 import Card from '@/components/Card'
-
-function formatDate(dateStr: string): string {
-  try {
-    return format(new Date(dateStr), 'dd.MM.yyyy HH:mm', { locale: ru })
-  } catch {
-    return dateStr
-  }
-}
 
 function truncateToken(token: string, length = 20): string {
   if (token.length <= length) return token
