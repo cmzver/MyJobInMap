@@ -16,10 +16,13 @@ from app.services.auth import (
     verify_password,
     get_password_hash,
     create_access_token,
+    create_refresh_token,
+    verify_refresh_token,
     authenticate_user,
     get_current_user,
     get_current_user_required,
     get_current_admin,
+    get_current_superadmin,
     get_current_dispatcher_or_admin,
     check_permission,
     require_permission,
@@ -43,6 +46,7 @@ from app.services.notification_service import (
     create_task_status_notification,
     create_task_assignment_notification
 )
+from app.services.audit_log import audit_log
 
 __all__ = [
     # Geocoding
@@ -58,10 +62,13 @@ __all__ = [
     "verify_password",
     "get_password_hash",
     "create_access_token",
+    "create_refresh_token",
+    "verify_refresh_token",
     "authenticate_user",
     "get_current_user",
     "get_current_user_required",
     "get_current_admin",
+    "get_current_superadmin",
     "get_current_dispatcher_or_admin",
     "check_permission",
     "require_permission",
@@ -86,4 +93,6 @@ __all__ = [
     "create_notification",
     "create_task_status_notification",
     "create_task_assignment_notification",
+    # Audit
+    "audit_log",
 ]

@@ -256,7 +256,7 @@ class TaskStatusUpdate(BaseModel):
 
     status: TaskStatus
 
-    comment: str = Field(default="", max_length=1000)
+    comment: str = Field(default="", max_length=1000, description="Комментарий к смене статуса. Обязателен для DONE и CANCELLED")
 
 
 
@@ -356,6 +356,8 @@ class TaskResponse(BaseModel):
 
     defect_type: Optional[str] = Field(None, description="Тип неисправности", json_schema_extra={"example": "Нет изображения"})
 
+    organization_id: Optional[int] = Field(None, description="ID организации")
+
     comments: List[CommentResponse] = Field([], description="История комментариев и изменений")
 
 
@@ -444,5 +446,39 @@ class TaskListResponse(BaseModel):
 
     defect_type: Optional[str] = None
 
+    organization_id: Optional[int] = None
+
     comments_count: int = 0
+
+
+# ============================================================================
+# Text Parsing Schemas
+# ============================================================================
+
+class ParseTaskRequest(BaseModel):
+    """Запрос на парсинг сообщения диспетчерской"""
+    text: str
+
+
+class ParsedTaskResponse(BaseModel):
+    """Ответ с распарсенными данными заявки"""
+    success: bool
+    data: Optional[dict] = None
+    error: Optional[str] = None
+
+
+class CreateTaskFromTextRequest(BaseModel):
+    """Запрос на создание заявки из текстового сообщения"""
+    text: str
+    source: Optional[str] = None  # telegram, web
+    sender: Optional[str] = None  # Отправитель (имя/номер)
+    assigned_user_id: Optional[int] = None  # Назначить исполнителя
+
+
+class CreateTaskFromTextResponse(BaseModel):
+    """Ответ на создание заявки из текста"""
+    success: bool
+    task: Optional[TaskResponse] = None
+    parsed_data: Optional[dict] = None
+    error: Optional[str] = None
 

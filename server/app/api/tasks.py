@@ -30,7 +30,12 @@ from app.services import (
     get_task_service
 )
 from app.services.task_parser import parse_dispatcher_message
+from app.services.websocket_manager import (
+    broadcast_task_created, broadcast_task_status_changed,
+    broadcast_task_assigned, broadcast_task_deleted, broadcast_task_updated
+)
 from app.api.deps import require_task_access, TaskAccess
+from app.services.tenant_filter import TenantFilter
 from app.utils import task_to_response, task_to_list_response, normalize_priority_value, get_priority_rank, priority_rank_expr
 
 
@@ -49,12 +54,39 @@ async def create_task(
     if task.assigned_user_id and not check_permission(db, user, 'assign_tasks'):
         raise HTTPException(status_code=403, detail="Нет прав на назначение задач")
 
+    # Multi-tenant: проверка лимита заявок организации
+    if user.organization_id and user.organization:
+        org = user.organization
+        if org.max_tasks:
+            current_count = db.query(func.count(TaskModel.id)).filter(
+                TaskModel.organization_id == user.organization_id
+            ).scalar() or 0
+            if current_count >= org.max_tasks:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Достигнут лимит заявок организации ({org.max_tasks})"
+                )
+
     try:
         db_task = task_service.create(task, user=user)
+        # Multi-tenant: привязать заявку к организации пользователя
+        tenant = TenantFilter(user)
+        tenant.set_org_id(db_task)
+        db.commit()
     except TaskServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
-    logger.info(f"? ?????? ?{db_task.task_number} ???????")
+    logger.info(f"Заявка №{db_task.task_number} создана")
+
+    # WebSocket broadcast
+    import asyncio
+    asyncio.ensure_future(broadcast_task_created(
+        task_id=db_task.id,
+        task_number=db_task.task_number or "",
+        title=db_task.title or "",
+        user_id=user.id,
+        organization_id=db_task.organization_id,
+    ))
 
     return task_to_response(db_task)
 
@@ -68,6 +100,7 @@ async def get_tasks(
     assignee_id: Optional[int] = None,
     search: Optional[str] = None,
     address_id: Optional[int] = None,
+    sort: Optional[str] = None,
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("view_tasks"))
 ):
@@ -81,6 +114,10 @@ async def get_tasks(
     # Проверка права на просмотр заявок
     
     query = db.query(TaskModel)
+    
+    # Multi-tenant: фильтрация по организации
+    tenant = TenantFilter(user)
+    query = tenant.apply(query, TaskModel)
     
     if status:
         query = query.filter(TaskModel.status == status.value)
@@ -96,28 +133,19 @@ async def get_tasks(
 
     if search:
         base = search.strip()
-        patterns = {
-            base,
-            base.lower(),
-            base.upper(),
-            base.capitalize(),
-            base.title(),
-        }
-        like_clauses = []
-        for pat in patterns:
-            like_pat = f"%{pat}%"
-            like_clauses.extend([
-                TaskModel.task_number.ilike(like_pat),
-                TaskModel.title.ilike(like_pat),
-                TaskModel.raw_address.ilike(like_pat),
-                TaskModel.description.ilike(like_pat),
-                TaskModel.customer_name.ilike(like_pat),
-                TaskModel.customer_phone.ilike(like_pat),
-            ])
+        like_pat = f"%{base}%"
+        like_clauses = [
+            TaskModel.task_number.ilike(like_pat),
+            TaskModel.title.ilike(like_pat),
+            TaskModel.raw_address.ilike(like_pat),
+            TaskModel.description.ilike(like_pat),
+            TaskModel.customer_name.ilike(like_pat),
+            TaskModel.customer_phone.ilike(like_pat),
+        ]
         query = query.filter(or_(*like_clauses))
     
     if address_id:
-        address = db.query(AddressModel).filter(AddressModel.id == address_id).first()
+        address = tenant.apply(db.query(AddressModel), AddressModel).filter(AddressModel.id == address_id).first()
         if address:
             filters = build_task_filters_for_address(address)
             if filters:
@@ -133,12 +161,20 @@ async def get_tasks(
     
     # Считаем общее количество
     total = query.count()
+
+    sort_value = (sort or '').strip().lower()
+    if sort_value == 'created_at_asc':
+        order_by = [TaskModel.created_at.asc()]
+    elif sort_value == 'created_at_desc':
+        order_by = [TaskModel.created_at.desc()]
+    else:
+        order_by = [
+            priority_rank_expr(TaskModel.priority).desc(),
+            TaskModel.created_at.desc(),
+        ]
     
     # Применяем пагинацию
-    tasks = query.order_by(
-        priority_rank_expr(TaskModel.priority).desc(),
-        TaskModel.created_at.desc()
-    ).offset((page - 1) * size).limit(size).all()
+    tasks = query.order_by(*order_by).offset((page - 1) * size).limit(size).all()
     
     return PaginatedResponse(
         items=[task_to_list_response(t) for t in tasks],
@@ -160,7 +196,7 @@ async def get_task(
     return task_to_response(access.task)
 
 
-@router.put("/{task_id}/status", response_model=TaskResponse)
+@router.patch("/{task_id}/status", response_model=TaskResponse)
 async def update_task_status(
     task_id: int,
     status_update: TaskStatusUpdate,
@@ -170,6 +206,7 @@ async def update_task_status(
     """Изменить статус заявки."""
 
 
+    old_status = access.task.status
     try:
         updated_task = task_service.update_status(
             task_id=task_id,
@@ -179,6 +216,17 @@ async def update_task_status(
         )
     except TaskServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
+
+    # WebSocket broadcast
+    import asyncio
+    asyncio.ensure_future(broadcast_task_status_changed(
+        task_id=task_id,
+        task_number=updated_task.task_number or "",
+        old_status=old_status,
+        new_status=status_update.status.value,
+        user_id=access.user.id,
+        organization_id=updated_task.organization_id,
+    ))
 
     return task_to_response(updated_task)
 
@@ -191,14 +239,31 @@ async def delete_task(
     task_service=Depends(get_task_service)
 ):
     """Удалить заявку"""
+    tenant = TenantFilter(user)
+
+    # Сохраняем номер заявки до удаления
+    task_obj = db.query(TaskModel).filter(TaskModel.id == task_id).first()
+    if task_obj:
+        tenant.enforce_access(task_obj, detail="Нет доступа к этой заявке")
+    task_number = task_obj.task_number if task_obj else ""
     try:
         task_service.delete(task_id)
     except TaskServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
+
+    # WebSocket broadcast
+    import asyncio
+    asyncio.ensure_future(broadcast_task_deleted(
+        task_id=task_id,
+        task_number=task_number,
+        user_id=user.id,
+        organization_id=task_obj.organization_id if task_obj else None,
+    ))
+
     return {"message": "Task deleted", "id": task_id}
 
 
-@router.put("/{task_id}/planned-date", response_model=TaskListResponse)
+@router.patch("/{task_id}/planned-date", response_model=TaskListResponse)
 async def update_planned_date(
     task_id: int,
     planned_date_update: PlannedDateUpdate,
@@ -271,7 +336,7 @@ async def get_comments(
     ).order_by(CommentModel.created_at.desc()).all()
 
 
-@router.put("/{task_id}/assign", response_model=TaskResponse)
+@router.patch("/{task_id}/assign", response_model=TaskResponse)
 async def assign_task(
     task_id: int,
     assignee_data: TaskAssignRequest,
@@ -280,11 +345,36 @@ async def assign_task(
     task_service=Depends(get_task_service)
 ):
     """Назначить заявку исполнителю."""
+    tenant = TenantFilter(user)
+    task_obj = db.query(TaskModel).filter(TaskModel.id == task_id).first()
+    if not task_obj:
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
+    tenant.enforce_access(task_obj, detail="Нет доступа к этой заявке")
+
+    if assignee_data.assigned_user_id is not None:
+        assignee = db.query(UserModel).filter(UserModel.id == assignee_data.assigned_user_id).first()
+        if not assignee:
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
+        tenant.enforce_access(assignee, detail="Нельзя назначить пользователя из другой организации")
 
     try:
         task = task_service.assign(task_id, assignee_data.assigned_user_id, user)
     except TaskServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
+
+    # WebSocket broadcast
+    if assignee_data.assigned_user_id:
+        import asyncio
+        assignee = db.query(UserModel).filter(UserModel.id == assignee_data.assigned_user_id).first()
+        assignee_name = (assignee.full_name or assignee.username) if assignee else ""
+        asyncio.ensure_future(broadcast_task_assigned(
+            task_id=task_id,
+            task_number=task.task_number or "",
+            assigned_user_id=assignee_data.assigned_user_id,
+            assigned_user_name=assignee_name,
+            user_id=user.id,
+            organization_id=task.organization_id,
+        ))
 
     return task_to_response(task)
 
@@ -293,33 +383,10 @@ async def assign_task(
 # Task Parser (из сообщений диспетчерской)
 # ============================================================================
 
-from pydantic import BaseModel
-
-class ParseTaskRequest(BaseModel):
-    """Запрос на парсинг сообщения диспетчерской"""
-    text: str
-
-class ParsedTaskResponse(BaseModel):
-    """Ответ с распарсенными данными заявки"""
-    success: bool
-    data: Optional[dict] = None
-    error: Optional[str] = None
-
-
-class CreateTaskFromTextRequest(BaseModel):
-    """Запрос на создание заявки из текстового сообщения"""
-    text: str
-    source: Optional[str] = None  # telegram, web
-    sender: Optional[str] = None  # Отправитель (имя/номер)
-    assigned_user_id: Optional[int] = None  # Назначить исполнителя
-
-
-class CreateTaskFromTextResponse(BaseModel):
-    """Ответ на создание заявки из текста"""
-    success: bool
-    task: Optional[TaskResponse] = None
-    parsed_data: Optional[dict] = None
-    error: Optional[str] = None
+from app.schemas import (
+    ParseTaskRequest, ParsedTaskResponse,
+    CreateTaskFromTextRequest, CreateTaskFromTextResponse,
+)
 
 
 @router.post("/parse", response_model=ParsedTaskResponse)
@@ -414,10 +481,13 @@ async def create_task_from_text(
     
     # Проверяем исполнителя
     assigned_id = request.assigned_user_id
+    tenant = TenantFilter(user)
     if assigned_id:
         assigned_user = db.query(UserModel).filter(UserModel.id == assigned_id).first()
         if not assigned_user:
             assigned_id = None
+        else:
+            tenant.enforce_access(assigned_user, detail="Нельзя назначить пользователя из другой организации")
     
     # Создаём заявку
     db_task = TaskModel(
@@ -432,6 +502,10 @@ async def create_task_from_text(
     )
     
     db.add(db_task)
+    db.commit()
+    db.refresh(db_task)
+
+    tenant.set_org_id(db_task)
     db.commit()
     db.refresh(db_task)
     

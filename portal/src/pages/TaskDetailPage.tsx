@@ -1,14 +1,13 @@
 import { useEffect, useState, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import toast from 'react-hot-toast'
+import { mutationToast } from '@/utils/apiError'
 import { logError } from '@/utils/logger'
+import { formatDateTime, getSla } from '@/utils/dateFormat'
 import { 
   ArrowLeft, 
-  MapPin, 
-  Calendar, 
+  MapPin,
   User, 
-  DollarSign,
   Edit,
   Trash2,
   MessageSquare,
@@ -34,14 +33,11 @@ import Spinner from '@/components/Spinner'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
 import Card from '@/components/Card'
+import Modal from '@/components/Modal'
+import Textarea from '@/components/Textarea'
 import type { TaskStatus } from '@/types/task'
-
-const statusTransitions: Record<TaskStatus, TaskStatus[]> = {
-  NEW: ['IN_PROGRESS', 'CANCELLED'],
-  IN_PROGRESS: ['DONE', 'CANCELLED'],
-  DONE: ['IN_PROGRESS', 'NEW'],
-  CANCELLED: ['NEW', 'IN_PROGRESS'],
-}
+import { cn } from '@/utils/cn'
+import { getAvailableStatusTransitions, getStatusCommentCopy, requiresStatusComment } from '@/config/taskConstants'
 
 const statusLabels: Record<TaskStatus, string> = {
   NEW: 'Новая',
@@ -74,17 +70,17 @@ interface CollapsibleCardProps {
 
 function CollapsibleCard({ title, meta, defaultOpen = false, children }: CollapsibleCardProps) {
   return (
-    <details className="group rounded-lg" open={defaultOpen}>
+    <details className="group rounded-xl" open={defaultOpen}>
       <summary className="list-none [&::-webkit-details-marker]:hidden">
-        <div className="bg-white dark:bg-gray-800 rounded-lg group-open:rounded-b-none shadow dark:shadow-gray-900/30 transition-colors border border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between cursor-pointer">
+        <div className="bg-white dark:bg-gray-800 rounded-xl group-open:rounded-b-none transition-colors border border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between cursor-pointer">
           <div className="flex items-center gap-2">
             <ChevronDown className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180" />
-            <span className="text-lg font-semibold text-gray-900 dark:text-white">{title}</span>
+            <span className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">{title}</span>
           </div>
           {meta && <div className="text-sm text-gray-500 dark:text-gray-400">{meta}</div>}
         </div>
       </summary>
-      <div className="bg-white dark:bg-gray-800 rounded-b-lg shadow dark:shadow-gray-900/30 transition-colors border border-t-0 border-gray-200 dark:border-gray-700 p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-b-xl transition-colors border border-t-0 border-gray-200 dark:border-gray-700 p-4">
         {children}
       </div>
     </details>
@@ -99,6 +95,9 @@ export default function TaskDetailPage() {
 
   const [comment, setComment] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [pendingStatus, setPendingStatus] = useState<TaskStatus | null>(null)
+  const [statusComment, setStatusComment] = useState('')
+  const [statusCommentError, setStatusCommentError] = useState('')
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null)
   const [photoType, setPhotoType] = useState<'before' | 'after' | 'completion'>('before')
   const [isEditingAssignee, setIsEditingAssignee] = useState(false)
@@ -179,40 +178,6 @@ export default function TaskDetailPage() {
     setSelectedPhoto(null)
   }, [photos])
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('ru-RU', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
-
-  const getSla = (plannedDate?: string | null, status?: TaskStatus) => {
-    if (!plannedDate) {
-      return { label: 'Нет срока', tone: 'text-gray-500 dark:text-gray-400' }
-    }
-    if (status === 'DONE' || status === 'CANCELLED') {
-      return { label: 'Закрыта', tone: 'text-gray-500 dark:text-gray-400' }
-    }
-    const deadline = new Date(plannedDate).getTime()
-    const now = Date.now()
-    const diffMs = deadline - now
-    const diffHours = Math.round(Math.abs(diffMs) / (1000 * 60 * 60))
-    const diffDays = Math.floor(diffHours / 24)
-    const hoursRemainder = diffHours % 24
-    const label = diffMs < 0
-      ? `Просрочено на ${diffDays > 0 ? `${diffDays}д ` : ''}${hoursRemainder}ч`
-      : `Осталось ${diffDays > 0 ? `${diffDays}д ` : ''}${hoursRemainder}ч`
-    const tone = diffMs < 0
-      ? 'text-red-600 dark:text-red-400'
-      : diffHours <= 24
-        ? 'text-amber-600 dark:text-amber-400'
-        : 'text-green-600 dark:text-green-400'
-    return { label, tone }
-  }
-
   const formatStatusLabel = (value?: string | null) => {
     if (!value) return 'Не указан'
     return statusLabels[value as TaskStatus] || value
@@ -222,30 +187,51 @@ export default function TaskDetailPage() {
     return value || 'Не назначен'
   }
 
-  const handleStatusChange = (newStatus: TaskStatus) => {
+  const resetStatusCommentDialog = () => {
+    setPendingStatus(null)
+    setStatusComment('')
+    setStatusCommentError('')
+  }
+
+  const submitStatusChange = (newStatus: TaskStatus, commentText = '') => {
     updateStatusMutation.mutate(
-      { id: taskId, status: newStatus },
-      {
-        onSuccess: () => {
-          toast.success(`Статус изменён на "${statusLabels[newStatus]}"`)
-        },
-        onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Ошибка изменения статуса')
-        },
-      }
+      { id: taskId, status: newStatus, comment: commentText },
+      mutationToast({
+        success: `Статус изменён на "${statusLabels[newStatus]}"`,
+        error: 'Ошибка изменения статуса',
+        onSuccess: () => resetStatusCommentDialog(),
+      })
     )
   }
 
+  const handleStatusChange = (newStatus: TaskStatus) => {
+    if (requiresStatusComment(newStatus)) {
+      setPendingStatus(newStatus)
+      setStatusComment('')
+      setStatusCommentError('')
+      return
+    }
+
+    submitStatusChange(newStatus)
+  }
+
+  const handleConfirmStatusChange = () => {
+    if (!pendingStatus) return
+    const commentCopy = getStatusCommentCopy(pendingStatus)
+    if (!statusComment.trim()) {
+      setStatusCommentError(commentCopy.error)
+      return
+    }
+
+    submitStatusChange(pendingStatus, statusComment.trim())
+  }
+
   const handleDelete = () => {
-    deleteMutation.mutate(taskId, {
-      onSuccess: () => {
-        toast.success('Заявка удалена')
-        navigate('/tasks')
-      },
-      onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Ошибка удаления')
-      },
-    })
+    deleteMutation.mutate(taskId, mutationToast({
+      success: 'Заявка удалена',
+      error: 'Ошибка удаления',
+      onSuccess: () => navigate('/tasks'),
+    }))
   }
 
   const handleAddComment = () => {
@@ -253,15 +239,11 @@ export default function TaskDetailPage() {
     
     addCommentMutation.mutate(
       { taskId, text: comment.trim() },
-      {
-        onSuccess: () => {
-          setComment('')
-          toast.success('Комментарий добавлен')
-        },
-        onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Ошибка добавления комментария')
-        },
-      }
+      mutationToast({
+        success: 'Комментарий добавлен',
+        error: 'Ошибка добавления комментария',
+        onSuccess: () => setComment(''),
+      })
     )
   }
 
@@ -271,17 +253,15 @@ export default function TaskDetailPage() {
 
     uploadPhotoMutation.mutate(
       { taskId, file, photoType },
-      {
+      mutationToast({
+        success: 'Фото загружено',
+        error: 'Ошибка загрузки фото',
         onSuccess: () => {
-          toast.success('Фото загружено')
           if (fileInputRef.current) {
             fileInputRef.current.value = ''
           }
         },
-        onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Ошибка загрузки фото')
-        },
-      }
+      })
     )
   }
 
@@ -290,15 +270,11 @@ export default function TaskDetailPage() {
     
     deletePhotoMutation.mutate(
       { photoId, taskId },
-      {
-        onSuccess: () => {
-          toast.success('Фото удалено')
-          setSelectedPhoto(null)
-        },
-        onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Ошибка удаления фото')
-        },
-      }
+      mutationToast({
+        success: 'Фото удалено',
+        error: 'Ошибка удаления фото',
+        onSuccess: () => setSelectedPhoto(null),
+      })
     )
   }
 
@@ -328,7 +304,7 @@ export default function TaskDetailPage() {
     )
   }
 
-  const availableTransitions = statusTransitions[task.status] || []
+  const availableTransitions = getAvailableStatusTransitions(task.status)
   const sla = getSla(task.planned_date, task.status)
   const canEdit = permissions?.permissions?.edit_tasks ?? user?.role === 'admin'
   const canDelete = permissions?.permissions?.delete_tasks ?? user?.role === 'admin'
@@ -375,97 +351,209 @@ export default function TaskDetailPage() {
   ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
   return (
-    <div className="max-w-4xl mx-auto w-full min-w-0 overflow-x-hidden">
-      {/* Header */}
-      <div className="mb-6">
+    <div className="max-w-5xl mx-auto w-full min-w-0 overflow-x-hidden">
+      <div className="mb-5">
         <Button variant="ghost" onClick={() => navigate('/tasks')} className="mb-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Назад к списку
         </Button>
 
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                {task.task_number || `#${task.id}`}
+        <Card compact className="overflow-hidden">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {task.task_number || `#${task.id}`}
+                </span>
+                <span className="h-1 w-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+                <PriorityBadge
+                  priority={task.priority}
+                  className="rounded-md border border-gray-200 bg-transparent px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-600 dark:border-gray-700 dark:bg-transparent dark:text-gray-300"
+                />
+              </div>
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white break-words">
+                {task.title}
               </h1>
-              <StatusBadge status={task.status} />
-              <PriorityBadge priority={task.priority} />
             </div>
-            <h2 className="text-lg text-gray-700 dark:text-gray-300 break-words">{task.title}</h2>
+
+            <div className="flex flex-wrap gap-2">
+              {canEdit && (
+                <Button variant="outline" size="sm" onClick={() => navigate(`/tasks/${taskId}/edit`)}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Редактировать
+                </Button>
+              )}
+              {canDelete && (
+                <Button variant="danger" size="sm" onClick={() => setShowDeleteConfirm(true)}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Удалить
+                </Button>
+              )}
+            </div>
           </div>
 
-          <div className="flex gap-2">
-            {canEdit && (
-              <Button variant="secondary" size="sm" onClick={() => navigate(`/tasks/${taskId}/edit`)}>
-                <Edit className="h-4 w-4 mr-2" />
-                Редактировать
-              </Button>
-            )}
-            {canDelete && (
-              <Button variant="danger" size="sm" onClick={() => setShowDeleteConfirm(true)}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Удалить
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-w-0">
-        {/* Main content */}
-        <div className="lg:col-span-2 space-y-6 min-w-0">
-          {/* Defect */}
-          <Card title="Неисправность">
+          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50/40 p-3.5 dark:border-gray-700 dark:bg-gray-900/20">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-gray-900 dark:text-white font-medium">
-                  {task.defect_type || 'Не указана'}
+              <div className="pt-0.5 text-gray-400 dark:text-gray-500">
+                <MapPin className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
+                  Адрес заявки
                 </p>
-                {task.system_type && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Система: {systemTypeLabels[task.system_type] || task.system_type}
-                  </p>
+                <p className="mt-1 text-[15px] font-semibold text-gray-900 dark:text-white break-words leading-5">
+                  {task.raw_address || 'Не указан'}
+                </p>
+                {(task.customer_name || task.customer_phone || (task.lat && task.lon)) && (
+                  <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-gray-600 dark:text-gray-300">
+                    {task.customer_name && <span>{task.customer_name}</span>}
+                    {task.customer_phone && (
+                      <a
+                        className="inline-flex items-center gap-1 hover:text-primary-600 dark:hover:text-primary-400"
+                        href={`tel:${task.customer_phone}`}
+                      >
+                        <Phone className="h-3.5 w-3.5" />
+                        {task.customer_phone}
+                      </a>
+                    )}
+                    {task.lat && task.lon && (
+                      <button
+                        type="button"
+                        onClick={() => window.open(`https://yandex.ru/maps/?pt=${task.lon},${task.lat}&z=17`, '_blank')}
+                        className="inline-flex items-center gap-1 hover:text-primary-600 dark:hover:text-primary-400"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Открыть на карте
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
-          </Card>
+          </div>
 
-          {/* Description */}
-          <Card title="Описание работ">
+          <div className="mt-4 border-t border-gray-200 pt-3 dark:border-gray-800">
+            <div className="grid gap-x-8 gap-y-4 lg:grid-cols-2">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
+                Исполнитель
+              </p>
+              <div className="mt-1.5 text-sm font-medium text-gray-900 dark:text-white">
+                {isEditingAssignee ? (
+                  <select
+                    value={task.assigned_user_id || ''}
+                    onChange={(e) => {
+                      const newAssigneeId = e.target.value ? Number(e.target.value) : null
+                      assignMutation.mutate(
+                        { id: taskId, assignedUserId: newAssigneeId },
+                        mutationToast({
+                          success: 'Исполнитель изменён',
+                          error: 'Ошибка назначения',
+                          onSuccess: () => setIsEditingAssignee(false),
+                        })
+                      )
+                    }}
+                    disabled={assignMutation.isPending}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    autoFocus
+                    onBlur={() => setIsEditingAssignee(false)}
+                  >
+                    <option value="">Не назначен</option>
+                    {assignableUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name || u.username}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <button
+                    onClick={() => setIsEditingAssignee(true)}
+                    className="inline-flex items-center gap-1 text-left text-sm transition-colors hover:text-primary-600 dark:hover:text-primary-400"
+                    title="Нажмите, чтобы изменить"
+                  >
+                    <span>{task.assigned_user_name || 'Не назначен'}</span>
+                    <Edit className="h-3 w-3 text-gray-400" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
+                Статус и срок
+              </p>
+              <div className="mt-1.5 space-y-2 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge
+                    status={task.status}
+                    className="rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.06em]"
+                  />
+                  <span className="text-gray-900 dark:text-white">{formatDateTime(task.planned_date)}</span>
+                  <span className={cn('text-sm font-medium', sla.tone)}>{sla.label}</span>
+                </div>
+                {availableTransitions.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {availableTransitions.map((status) => (
+                      <Button
+                        key={status}
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          'h-auto rounded-md px-2.5 py-1 text-xs font-medium',
+                          status === 'CANCELLED'
+                            ? 'border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/30'
+                            : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+                        )}
+                        onClick={() => handleStatusChange(status)}
+                        isLoading={updateStatusMutation.isPending}
+                      >
+                        {statusLabels[status]}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="min-w-0 border-t border-gray-200 pt-3 dark:border-gray-800 lg:pt-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
+                Неисправность
+              </p>
+              <p className="mt-1.5 text-sm font-medium text-gray-900 dark:text-white break-words">
+                {task.defect_type || 'Не указана'}
+              </p>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 break-words">
+                {task.system_type ? systemTypeLabels[task.system_type] || task.system_type : 'Система не указана'}
+              </p>
+            </div>
+
+            <div className="min-w-0 border-t border-gray-200 pt-3 dark:border-gray-800 lg:pt-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
+                Оплата
+              </p>
+              <p className="mt-1.5 text-sm font-medium text-gray-900 dark:text-white break-words">
+                {task.is_paid ? (task.payment_amount ? `${task.payment_amount} ₽` : 'Платная') : 'Не указана'}
+              </p>
+            </div>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+            <span>Создана {formatDateTime(task.created_at)}</span>
+            <span className="hidden h-1 w-1 rounded-full bg-gray-300 dark:bg-gray-600 sm:block" />
+            <span>Обновлена {formatDateTime(task.updated_at)}</span>
+          </div>
+        </Card>
+      </div>
+
+      <div className="space-y-5 min-w-0">
+
+          <Card title="Описание" compact>
             <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
               {task.description || 'Описание не указано'}
             </p>
           </Card>
 
-          {/* Address */}
-          <Card title="Адрес">
-            <div className="flex items-start gap-3">
-              <MapPin className="h-5 w-5 text-primary-500 flex-shrink-0 mt-0.5" />
-              <div className="min-w-0">
-                <p className="text-gray-900 dark:text-white font-medium break-words">{task.raw_address || 'Не указан'}</p>
-                {task.lat && task.lon && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Координаты: {task.lat.toFixed(6)}, {task.lon.toFixed(6)}
-                  </p>
-                )}
-              </div>
-            </div>
-            {task.lat && task.lon && (
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                className="mt-4"
-                onClick={() => window.open(`https://yandex.ru/maps/?pt=${task.lon},${task.lat}&z=17`, '_blank')}
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Открыть на карте
-              </Button>
-            )}
-          </Card>
-
-          {/* Photos */}
           <CollapsibleCard
             title="Фотографии"
             meta={photosLoading ? '...' : `${photos.length} фото`}
@@ -521,6 +609,7 @@ export default function TaskDetailPage() {
                         src={photoUrl}
                         alt={photo.original_name || 'Фото'}
                         className="w-full h-24 object-cover rounded-lg"
+                        loading="lazy"
                       />
                     ) : (
                       <div className="w-full h-24 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-500">
@@ -577,7 +666,7 @@ export default function TaskDetailPage() {
                           {event.title}
                         </p>
                         <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                          {formatDate(event.timestamp)}
+                          {formatDateTime(event.timestamp)}
                         </span>
                       </div>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
@@ -647,7 +736,7 @@ export default function TaskDetailPage() {
                             {c.author || 'Система'}
                           </span>
                           <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {formatDate(c.created_at)}
+                            {formatDateTime(c.created_at)}
                           </span>
                         </div>
                         {isStatusChange && (
@@ -707,154 +796,46 @@ export default function TaskDetailPage() {
               </div>
             </div>
           </CollapsibleCard>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Status change */}
-          {availableTransitions.length > 0 && (
-            <Card title="Изменить статус">
-              <div className="space-y-2">
-                {availableTransitions.map((status) => (
-                  <Button
-                    key={status}
-                    variant={status === 'CANCELLED' ? 'danger' : 'primary'}
-                    className="w-full"
-                    onClick={() => handleStatusChange(status)}
-                    isLoading={updateStatusMutation.isPending}
-                  >
-                    {statusLabels[status]}
-                  </Button>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {/* Info */}
-          <Card title="Информация">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <Clock className="h-5 w-5 text-gray-400" />
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Срок выполнения</p>
-                  <p className={sla.tone}>{sla.label}</p>
-                </div>
-              </div>
-
-              {/* Customer */}
-              <div className="flex items-start gap-3">
-                <User className="h-5 w-5 text-gray-400 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Клиент</p>
-                  <p className="text-gray-900 dark:text-white">
-                    {task.customer_name || 'Не указан'}
-                  </p>
-                  {task.customer_phone && (
-                    <div className="mt-1 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                      <Phone className="h-4 w-4 text-gray-400" />
-                      <a className="hover:text-primary-600 dark:hover:text-primary-400" href={`tel:${task.customer_phone}`}>
-                        {task.customer_phone}
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Assignee */}
-              <div className="flex items-start gap-3">
-                <User className="h-5 w-5 text-gray-400 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Исполнитель</p>
-                  {isEditingAssignee ? (
-                    <select
-                      value={task.assigned_user_id || ''}
-                      onChange={(e) => {
-                        const newAssigneeId = e.target.value ? Number(e.target.value) : null
-                        assignMutation.mutate(
-                          { id: taskId, assignedUserId: newAssigneeId },
-                          {
-                            onSuccess: () => {
-                              toast.success('Исполнитель изменён')
-                              setIsEditingAssignee(false)
-                            },
-                            onError: (err) => {
-                              toast.error(err instanceof Error ? err.message : 'Ошибка назначения')
-                            },
-                          }
-                        )
-                      }}
-                      disabled={assignMutation.isPending}
-                      className="w-full mt-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded focus:ring-2 focus:ring-primary-500"
-                      autoFocus
-                      onBlur={() => setIsEditingAssignee(false)}
-                    >
-                      <option value="">Не назначен</option>
-                      {assignableUsers.map(u => (
-                        <option key={u.id} value={u.id}>
-                          {u.full_name || u.username}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <button
-                      onClick={() => setIsEditingAssignee(true)}
-                      className="text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors text-left"
-                      title="Нажмите, чтобы изменить"
-                    >
-                      {task.assigned_user_name || 'Не назначен'}
-                      <Edit className="h-3 w-3 inline ml-1 text-gray-400" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Created */}
-              <div className="flex items-center gap-3">
-                <Calendar className="h-5 w-5 text-gray-400" />
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Создана</p>
-                  <p className="text-gray-900 dark:text-white">{formatDate(task.created_at)}</p>
-                </div>
-              </div>
-
-              {/* Updated */}
-              <div className="flex items-center gap-3">
-                <Clock className="h-5 w-5 text-gray-400" />
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Обновлена</p>
-                  <p className="text-gray-900 dark:text-white">{formatDate(task.updated_at)}</p>
-                </div>
-              </div>
-
-              {/* Planned date */}
-              {task.planned_date && (
-                <div className="flex items-center gap-3">
-                  <Calendar className="h-5 w-5 text-primary-500" />
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Плановая дата</p>
-                    <p className="text-primary-600 dark:text-primary-400 font-medium">
-                      {formatDate(task.planned_date)}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Payment */}
-              {task.is_paid && (
-                <div className="flex items-center gap-3">
-                  <DollarSign className="h-5 w-5 text-green-500" />
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Платная</p>
-                    <p className="text-green-600 dark:text-green-400 font-medium">
-                      {task.amount ? `${task.amount} ₽` : 'Да'}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </Card>
-        </div>
       </div>
+
+      <Modal
+        isOpen={pendingStatus !== null}
+        onClose={() => {
+          if (!updateStatusMutation.isPending) {
+            resetStatusCommentDialog()
+          }
+        }}
+        title={getStatusCommentCopy(pendingStatus).title}
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {getStatusCommentCopy(pendingStatus).description}
+          </p>
+          <Textarea
+            value={statusComment}
+            onChange={(event) => {
+              setStatusComment(event.target.value)
+              if (statusCommentError) {
+                setStatusCommentError('')
+              }
+            }}
+            label={getStatusCommentCopy(pendingStatus).label}
+            placeholder={getStatusCommentCopy(pendingStatus).placeholder}
+            error={statusCommentError}
+            disabled={updateStatusMutation.isPending}
+            autoFocus
+          />
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={resetStatusCommentDialog} disabled={updateStatusMutation.isPending}>
+              Отмена
+            </Button>
+            <Button onClick={handleConfirmStatusChange} isLoading={updateStatusMutation.isPending}>
+              {getStatusCommentCopy(pendingStatus).submitText}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Delete confirmation modal */}
       {showDeleteConfirm && (

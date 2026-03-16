@@ -5,40 +5,72 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.fieldworker.data.preferences.AppPreferences
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import androidx.paging.compose.collectAsLazyPagingItems
+import com.fieldworker.ui.components.PhotoUploadConfirmDialog
 import com.fieldworker.ui.list.TaskListScreen
 import com.fieldworker.ui.map.MapScreen
 import com.fieldworker.ui.map.MapViewModel
+import com.fieldworker.ui.navigation.Screen
+import com.fieldworker.ui.objectcard.ObjectDetailsScreen
 import com.fieldworker.ui.settings.ConnectionStatus
 import com.fieldworker.ui.settings.DeveloperScreen
 import com.fieldworker.ui.settings.SettingsScreen
-import com.fieldworker.ui.components.PhotoUploadConfirmDialog
 
 /**
- * Главный экран приложения с навигацией между картой, списком и настройками
+ * Главный экран приложения с Navigation Compose.
+ * 
+ * Использует NavHost для переключения между табами:
+ * - Карта (MapScreen)
+ * - Список заявок (TaskListScreen)
+ * - Настройки (SettingsScreen)
+ * - Экран разработчика (DeveloperScreen) — отдельный destination
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
+    notificationTaskId: Long? = null,
+    onNotificationTaskHandled: () -> Unit = {},
     onLogout: () -> Unit = {},
+    onCheckForUpdates: () -> Unit = {},
+    isCheckingForUpdates: Boolean = false,
     viewModel: MapViewModel = hiltViewModel()
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
-    var showDeveloperScreen by remember { mutableStateOf(false) }
+    val navController = rememberNavController()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    
     var showLogoutDialog by remember { mutableStateOf(false) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val pagingItems = viewModel.tasksPagingFlow.collectAsLazyPagingItems()
     val snackbarHostState = remember { SnackbarHostState() }
     val connectionStatus by viewModel.connectionStatus.collectAsStateWithLifecycle()
+    val currentScreen = when (currentRoute) {
+        Screen.TaskList.route -> Screen.TaskList
+        Screen.Settings.route -> Screen.Settings
+        Screen.Developer.route -> Screen.Developer
+        Screen.ObjectCard.route -> Screen.ObjectCard
+        else -> Screen.Map
+    }
+    val topTitle = mainTitleFor(currentScreen)
+    val topSubtitle = mainSubtitleFor(currentScreen, uiState.newTasksCount, connectionStatus)
     
     // Получаем baseUrl из preferences (полный URL с портом)
     val baseUrl = viewModel.preferences.getFullServerUrl()
@@ -83,98 +115,142 @@ fun MainScreen(
         }
     }
     
+    val showMainTopBar = currentScreen != Screen.Map && currentScreen != Screen.TaskList && currentScreen != Screen.Developer && currentScreen != Screen.ObjectCard
+    val showBottomBar = currentScreen != Screen.Developer && currentScreen != Screen.ObjectCard
+
+    LaunchedEffect(notificationTaskId) {
+        val taskId = notificationTaskId ?: return@LaunchedEffect
+        navController.navigate(Screen.TaskList.route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+        viewModel.openTaskFromNotification(taskId)
+        onNotificationTaskHandled()
+    }
+    
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 0.dp
-            ) {
-                NavigationBarItem(
-                    icon = { 
-                        Icon(
-                            Icons.Default.Place, 
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp)
-                        ) 
-                    },
-                    label = { 
+        topBar = {
+            if (showMainTopBar) {
+                Surface(
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         Text(
-                            "Карта",
-                            style = MaterialTheme.typography.labelSmall
-                        ) 
-                    },
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                )
-                NavigationBarItem(
-                    icon = { 
-                        BadgedBox(
-                            badge = {
-                                val newCount = uiState.tasks.count { it.status.name == "NEW" }
-                                if (newCount > 0) {
-                                    Badge(
-                                        containerColor = MaterialTheme.colorScheme.error
-                                    ) { 
-                                        Text("$newCount") 
-                                    }
-                                }
-                            }
+                            text = topTitle,
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 1.dp,
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant
+                            )
                         ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.List, 
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp)
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = connectionStatusIcon(connectionStatus),
+                                    contentDescription = null,
+                                    tint = connectionStatusTint(connectionStatus),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = topSubtitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        bottomBar = {
+            if (showBottomBar) {
+                Surface(
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    NavigationBar(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                            .navigationBarsPadding(),
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 0.dp
+                    ) {
+                        Screen.bottomNavItems.forEach { screen ->
+                            NavigationBarItem(
+                                icon = {
+                                    if (screen == Screen.TaskList) {
+                                        BadgedBox(
+                                            badge = {
+                                                val newCount = uiState.newTasksCount
+                                                if (newCount > 0) {
+                                                    Badge(
+                                                        containerColor = MaterialTheme.colorScheme.error
+                                                    ) {
+                                                        Text("$newCount")
+                                                    }
+                                                }
+                                            }
+                                        ) {
+                                            Icon(
+                                                screen.icon!!,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+                                    } else {
+                                        Icon(
+                                            screen.icon!!,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                },
+                                label = {
+                                    Text(
+                                        screen.label,
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                },
+                                selected = currentRoute == screen.route,
+                                onClick = {
+                                    navController.navigate(screen.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             )
                         }
-                    },
-                    label = { 
-                        Text(
-                            "Список",
-                            style = MaterialTheme.typography.labelSmall
-                        ) 
-                    },
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                )
-                NavigationBarItem(
-                    icon = { 
-                        Icon(
-                            Icons.Default.Settings, 
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp)
-                        ) 
-                    },
-                    label = { 
-                        Text(
-                            "Настройки",
-                            style = MaterialTheme.typography.labelSmall
-                        ) 
-                    },
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                )
+                    }
+                }
             }
         }
     ) { paddingValues ->
@@ -183,65 +259,100 @@ fun MainScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            when (selectedTab) {
-                0 -> MapScreen(viewModel = viewModel)
-                1 -> TaskListScreen(
-                    tasks = uiState.filteredTasks,
-                    comments = uiState.comments,
-                    isLoading = uiState.isLoading,
-                    isLoadingComments = uiState.isLoadingComments,
-                    selectedTask = uiState.selectedTask,
-                    showStatusDialog = uiState.showStatusDialog,
-                    onRefresh = { viewModel.loadTasks() },
-                    onTaskClick = { task -> viewModel.selectTask(task) },
-                    onTaskDismiss = { viewModel.selectTask(null) },
-                    onStatusChange = { viewModel.showStatusDialog() },
-                    onHideStatusDialog = { viewModel.hideStatusDialog() },
-                    onStatusSelected = { taskId: Long, status, comment ->
-                        viewModel.updateTaskStatus(taskId, status, comment)
-                    },
-                    onAddComment = { taskId: Long, text -> viewModel.addComment(taskId, text) },
-                    statusFilter = uiState.statusFilter,
-                    priorityFilter = uiState.priorityFilter,
-                    searchQuery = uiState.searchQuery,
-                    onStatusFilterChange = { viewModel.setStatusFilter(it) },
-                    onPriorityFilterChange = { viewModel.setPriorityFilter(it) },
-                    onSearchQueryChange = { viewModel.setSearchQuery(it) },
-                    sortOrder = uiState.sortOrder,
-                    onSortOrderChange = { viewModel.setSortOrder(it) },
-                    userLat = uiState.myLocationLat,
-                    userLon = uiState.myLocationLon,
-                    // Фотографии
-                    photos = uiState.photos,
-                    isLoadingPhotos = uiState.isLoadingPhotos,
-                    isUploadingPhoto = uiState.isUploadingPhoto,
-                    baseUrl = baseUrl,
-                    authToken = authToken,
-                    onAddPhotoClick = {
-                        photoPickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    },
-                    onDeletePhoto = { photoId -> viewModel.deletePhoto(photoId) },
-                    // Планируемая дата
-                    onPlannedDateChange = { taskId, date -> viewModel.updatePlannedDate(taskId, date) }
-                )
-                2 -> SettingsScreen(
-                    preferences = viewModel.preferences,
-                    authRepository = viewModel.authRepository,
-                    onTestConnection = { url -> viewModel.testConnection(url) },
-                    connectionStatus = connectionStatus,
-                    onOpenDeveloperScreen = { showDeveloperScreen = true },
-                    onLogout = { showLogoutDialog = true }
-                )
-            }
-            
-            // Экран разработчика поверх всего
-            if (showDeveloperScreen) {
-                DeveloperScreen(
-                    preferences = viewModel.preferences,
-                    onBack = { showDeveloperScreen = false }
-                )
+            NavHost(
+                navController = navController,
+                startDestination = Screen.Map.route
+            ) {
+                composable(Screen.Map.route) {
+                    MapScreen(
+                        viewModel = viewModel,
+                        onOpenObjectCard = {
+                            navController.navigate(Screen.ObjectCard.route)
+                        }
+                    )
+                }
+                
+                composable(Screen.TaskList.route) {
+                    TaskListScreen(
+                        tasks = uiState.filteredTasks,
+                        comments = uiState.comments,
+                        isLoading = uiState.isLoading,
+                        isLoadingComments = uiState.isLoadingComments,
+                        selectedTask = uiState.selectedTask,
+                        addressDetails = uiState.addressDetails,
+                        isLoadingAddress = uiState.isLoadingAddress,
+                        hasAttemptedAddressLookup = uiState.hasAttemptedAddressLookup,
+                        showStatusDialog = uiState.showStatusDialog,
+                        onRefresh = { viewModel.loadTasks() },
+                        onTaskClick = { task -> viewModel.selectTask(task) },
+                        onTaskDismiss = { viewModel.selectTask(null) },
+                        onStatusChange = { viewModel.showStatusDialog() },
+                        onHideStatusDialog = { viewModel.hideStatusDialog() },
+                        onStatusSelected = { taskId: Long, status, comment ->
+                            viewModel.updateTaskStatus(taskId, status, comment)
+                        },
+                        onAddComment = { taskId: Long, text -> viewModel.addComment(taskId, text) },
+                        statusFilter = uiState.statusFilter,
+                        searchQuery = uiState.searchQuery,
+                        onStatusFilterChange = { viewModel.setStatusFilter(it) },
+                        onSearchQueryChange = { viewModel.setSearchQuery(it) },
+                        sortOrder = uiState.sortOrder,
+                        onSortOrderChange = { viewModel.setSortOrder(it) },
+                        userLat = uiState.myLocationLat,
+                        userLon = uiState.myLocationLon,
+                        // Paging 3
+                        pagingItems = pagingItems,
+                        // Фотографии
+                        photos = uiState.photos,
+                        isLoadingPhotos = uiState.isLoadingPhotos,
+                        isUploadingPhoto = uiState.isUploadingPhoto,
+                        baseUrl = baseUrl,
+                        authToken = authToken,
+                        onOpenObjectCard = {
+                            navController.navigate(Screen.ObjectCard.route)
+                        },
+                        onAddPhotoClick = {
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        onDeletePhoto = { photoId -> viewModel.deletePhoto(photoId) },
+                        // Планируемая дата
+                        onPlannedDateChange = { taskId, date -> viewModel.updatePlannedDate(taskId, date) }
+                    )
+                }
+                
+                composable(Screen.Settings.route) {
+                    SettingsScreen(
+                        preferences = viewModel.preferences,
+                        authRepository = viewModel.authRepository,
+                        onTestConnection = { url -> viewModel.testConnection(url) },
+                        connectionStatus = connectionStatus,
+                        onCheckForUpdates = onCheckForUpdates,
+                        isCheckingForUpdates = isCheckingForUpdates,
+                        onOpenDeveloperScreen = {
+                            navController.navigate(Screen.Developer.route)
+                        },
+                        onLogout = { showLogoutDialog = true }
+                    )
+                }
+                
+                composable(Screen.Developer.route) {
+                    DeveloperScreen(
+                        preferences = viewModel.preferences,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable(Screen.ObjectCard.route) {
+                    ObjectDetailsScreen(
+                        task = uiState.selectedTask,
+                        addressDetails = uiState.addressDetails,
+                        isLoading = uiState.isLoadingAddress,
+                        hasAttemptedLookup = uiState.hasAttemptedAddressLookup,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
             }
             
             // Диалог выхода
@@ -282,4 +393,50 @@ fun MainScreen(
             }
         }
     }
+}
+
+private fun mainTitleFor(screen: Screen): String {
+    return when (screen) {
+        Screen.Map -> "Карта выездов"
+        Screen.TaskList -> "Мои заявки"
+        Screen.Settings -> "Настройки и профиль"
+        Screen.Developer -> "Режим разработчика"
+        Screen.ObjectCard -> "Карточка объекта"
+    }
+}
+
+private fun mainSubtitleFor(
+    screen: Screen,
+    newTasksCount: Int,
+    connectionStatus: ConnectionStatus
+): String {
+    return when (screen) {
+        Screen.Map -> if (newTasksCount > 0) "$newTasksCount новых заявок ждут обработки" else connectionStatusLabel(connectionStatus)
+        Screen.TaskList -> if (newTasksCount > 0) "$newTasksCount новых заявок в очереди" else "Список синхронизирован и готов к работе"
+        Screen.Settings -> "Сервер, уведомления, обновления и локальные настройки"
+        Screen.Developer -> "Диагностика и служебные параметры приложения"
+        Screen.ObjectCard -> "Сведения по адресу, оборудованию и истории объекта"
+    }
+}
+
+private fun connectionStatusLabel(status: ConnectionStatus): String {
+    return when (status) {
+        ConnectionStatus.IDLE -> "Последняя синхронизация без ошибок"
+        ConnectionStatus.TESTING -> "Проверяем доступность сервера"
+        ConnectionStatus.SUCCESS -> "Сервер доступен"
+        is ConnectionStatus.ERROR -> status.message
+    }
+}
+
+private fun connectionStatusIcon(status: ConnectionStatus) = when (status) {
+    ConnectionStatus.IDLE, ConnectionStatus.SUCCESS -> Icons.Default.CheckCircle
+    ConnectionStatus.TESTING -> Icons.Default.Refresh
+    is ConnectionStatus.ERROR -> Icons.Default.Warning
+}
+
+@Composable
+private fun connectionStatusTint(status: ConnectionStatus) = when (status) {
+    ConnectionStatus.IDLE, ConnectionStatus.SUCCESS -> MaterialTheme.colorScheme.primary
+    ConnectionStatus.TESTING -> MaterialTheme.colorScheme.tertiary
+    is ConnectionStatus.ERROR -> MaterialTheme.colorScheme.error
 }

@@ -12,13 +12,21 @@ from app.models.enums import UserRole
 
 
 class Token(BaseModel):
-    """JWT токен"""
+    """JWT токен с refresh token"""
     access_token: str
+    refresh_token: str
     token_type: str
     user_id: int
     username: str
     role: str
     full_name: str
+    organization_id: Optional[int] = None
+    organization_name: Optional[str] = None
+
+
+class RefreshRequest(BaseModel):
+    """Запрос обновления токена"""
+    refresh_token: str
 
 
 class TokenData(BaseModel):
@@ -36,6 +44,7 @@ class UserCreate(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     role: UserRole = UserRole.WORKER
+    organization_id: Optional[int] = None
 
 
 class UserUpdate(BaseModel):
@@ -61,6 +70,7 @@ class UserResponse(BaseModel):
     created_at: datetime
     last_login: Optional[datetime]
     assigned_tasks_count: int = 0
+    organization_id: Optional[int] = None
 
 
 class PasswordChange(BaseModel):

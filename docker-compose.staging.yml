@@ -1,0 +1,71 @@
+# FieldWorker Docker Compose — Staging Environment
+# ==================================================
+# Запуск: docker-compose -f docker-compose.staging.yml up -d
+# Логи:   docker-compose -f docker-compose.staging.yml logs -f
+# Стоп:   docker-compose -f docker-compose.staging.yml down
+#
+# Staging = приближено к production (PostgreSQL, JSON логи),
+# но с выделенными именами контейнеров и отдельными данными.
+
+services:
+  # ==========================================================================
+  # PostgreSQL Database (Staging)
+  # ==========================================================================
+  db:
+    image: postgres:15-alpine
+    container_name: fieldworker_staging_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fieldworker_staging}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-staging_secret_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-fieldworker_staging}
+    ports:
+      - "5433:5432"   # 5433 чтобы не конфликтовать с production (5432)
+    volumes:
+      - staging_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fieldworker_staging}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================================================
+  # FieldWorker API Server (Staging)
+  # ==========================================================================
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: fieldworker_staging_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-fieldworker_staging}:${POSTGRES_PASSWORD:-staging_secret_change_me}@db:5432/${POSTGRES_DB:-fieldworker_staging}
+      - SECRET_KEY=${SECRET_KEY:-staging-secret-key-change-me}
+      - ENVIRONMENT=staging
+      - PORT=8001
+      - LOG_LEVEL=DEBUG
+      - LOG_FORMAT=json
+      - CORS_ORIGINS=*
+      - BACKUP_SCHEDULER_ENABLED=false
+    ports:
+      - "8002:8001"   # 8002 чтобы не конфликтовать с production (8001)
+    volumes:
+      - staging_uploads:/app/uploads
+      - staging_logs:/app/logs
+      - staging_backups:/app/backups
+      - ./portal/dist:/portal/dist:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  staging_postgres_data:
+  staging_uploads:
+  staging_logs:
+  staging_backups:

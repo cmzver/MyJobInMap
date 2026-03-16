@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import toast from 'react-hot-toast'
+import { mutationToast } from '@/utils/apiError'
+import { formatDateOnly as formatDate } from '@/utils/dateFormat'
 import { 
   Plus, 
   RefreshCw, 
@@ -17,7 +19,7 @@ import type { User as UserType, UserRole, CreateUserData, UpdateUserData } from 
 import Button from '@/components/Button'
 import Input from '@/components/Input'
 import Select from '@/components/Select'
-import Spinner from '@/components/Spinner'
+import { SkeletonTable } from '@/components/Skeleton'
 import Badge from '@/components/Badge'
 import EmptyState from '@/components/EmptyState'
 
@@ -115,15 +117,11 @@ export default function UsersPage() {
 
       updateMutation.mutate(
         { id: editingUser.id, data: updateData },
-        {
-          onSuccess: () => {
-            toast.success('Пользователь обновлён')
-            handleCloseModal()
-          },
-          onError: (err) => {
-            toast.error(err instanceof Error ? err.message : 'Ошибка обновления')
-          },
-        }
+        mutationToast({
+          success: 'Пользователь обновлён',
+          error: 'Ошибка обновления',
+          onSuccess: () => handleCloseModal(),
+        })
       )
     } else {
       // Create
@@ -136,36 +134,20 @@ export default function UsersPage() {
         role: formData.role,
       }
 
-      createMutation.mutate(createData, {
-        onSuccess: () => {
-          toast.success('Пользователь создан')
-          handleCloseModal()
-        },
-        onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Ошибка создания')
-        },
-      })
+      createMutation.mutate(createData, mutationToast({
+        success: 'Пользователь создан',
+        error: 'Ошибка создания',
+        onSuccess: () => handleCloseModal(),
+      }))
     }
   }
 
   const handleDelete = (id: number) => {
-    deleteMutation.mutate(id, {
-      onSuccess: () => {
-        toast.success('Пользователь удалён')
-        setDeleteConfirm(null)
-      },
-      onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Ошибка удаления')
-      },
-    })
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('ru-RU', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    })
+    deleteMutation.mutate(id, mutationToast({
+      success: 'Пользователь удалён',
+      error: 'Ошибка удаления',
+      onSuccess: () => setDeleteConfirm(null),
+    }))
   }
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending
@@ -199,9 +181,7 @@ export default function UsersPage() {
 
       {/* Content */}
       {isLoading ? (
-        <div className="flex justify-center items-center py-20">
-          <Spinner size="lg" />
-        </div>
+        <SkeletonTable rows={4} columns={5} />
       ) : !users || users.length === 0 ? (
         <EmptyState
           icon={UsersIcon}

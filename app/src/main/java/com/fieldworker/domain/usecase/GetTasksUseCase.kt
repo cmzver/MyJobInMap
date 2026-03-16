@@ -1,8 +1,10 @@
 package com.fieldworker.domain.usecase
 
+import androidx.paging.PagingData
 import com.fieldworker.data.repository.OfflineFirstTasksRepository
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Task
+import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,9 +18,15 @@ class GetTasksUseCase @Inject constructor(
 ) {
     
     /**
-     * Получить Flow всех задач из локальной БД
+     * Получить Flow всех задач из локальной БД (для карты)
      */
     val tasksFlow = repository.tasksFlow
+    
+    /**
+     * Paging 3 Flow задач из Room (для списка).
+     * Room автоматически инвалидирует PagingSource при изменениях.
+     */
+    val tasksPagingFlow: Flow<PagingData<Task>> = repository.tasksPagingFlow
     
     /**
      * Получить Flow количества отложенных действий

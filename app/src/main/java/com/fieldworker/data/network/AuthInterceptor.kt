@@ -10,12 +10,13 @@ import javax.inject.Singleton
 /**
  * Интерцептор для обработки 401 Unauthorized ответов.
  * 
- * При получении 401:
- * - Очищает токен авторизации
- * - Отправляет событие для автоматического выхода из аккаунта
+ * Работает совместно с TokenAuthenticator:
+ * 1. TokenAuthenticator автоматически обновляет токен при 401
+ * 2. AuthInterceptor обрабатывает случаи, когда refresh тоже не помог
+ *    (финальный 401 после попытки refresh)
  * 
- * Это обеспечивает автоматический редирект на экран логина,
- * когда токен истёк или стал невалидным.
+ * Если запрос имеет заголовок X-Refresh-Retry — значит это повторная попытка
+ * после refresh, и если снова 401, нужно разлогинить.
  */
 @Singleton
 class AuthInterceptor @Inject constructor(
@@ -31,17 +32,14 @@ class AuthInterceptor @Inject constructor(
         val request = chain.request()
         val response = chain.proceed(request)
         
-        // Проверяем, является ли ответ 401 Unauthorized
+        // Проверяем 401 только если это запрос ПОСЛЕ refresh retry
+        // Если X-Refresh-Retry есть, значит Authenticator уже пытался обновить токен
         if (response.code == HTTP_UNAUTHORIZED) {
-            Log.w(TAG, "Received 401 Unauthorized for ${request.url}")
-            
-            // Проверяем, был ли токен в запросе
-            // Если токена не было, это просто неудачная попытка логина - не делаем logout
             val hadToken = request.header("Authorization") != null
+            val wasRetry = request.header("X-Refresh-Retry") != null
             
-            if (hadToken) {
-                Log.w(TAG, "Token expired or invalid, triggering logout")
-                // Отправляем событие логаута через AppPreferences
+            if (hadToken && wasRetry) {
+                Log.w(TAG, "401 after token refresh retry, forcing logout")
                 appPreferences.triggerLogout()
             }
         }

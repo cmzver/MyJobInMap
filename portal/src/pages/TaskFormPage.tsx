@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import toast from 'react-hot-toast'
+import { showApiError, showApiSuccess, mutationToast } from '@/utils/apiError'
 import { ArrowLeft, Save } from 'lucide-react'
 import { useTask, useCreateTask, useUpdateTask, useAssignTask } from '@/hooks/useTasks'
 import { useUsers } from '@/hooks/useUsers'
@@ -28,7 +28,19 @@ const formatAddress = (address: AddressFormData): string => {
   if (address.building) parts.push(`д. ${address.building}`)
   if (address.corpus && address.corpus !== 'none') parts.push(`к. ${address.corpus}`)
   if (address.entrance) parts.push(`под. ${address.entrance}`)
+  if (address.apartment) parts.push(`кв. ${address.apartment}`)
   
+  return parts.join(', ')
+}
+
+const formatTaskTitle = (address: AddressFormData): string => {
+  const parts: string[] = []
+
+  if (address.street) parts.push(address.street)
+  if (address.building) parts.push(`дом ${address.building}`)
+  if (address.corpus && address.corpus !== 'none') parts.push(`корп. ${address.corpus}`)
+  if (address.apartment) parts.push(`кв. ${address.apartment}`)
+
   return parts.join(', ')
 }
 
@@ -40,6 +52,7 @@ const parseAddress = (addressStr: string): AddressFormData => {
     building: '',
     corpus: '',
     entrance: '',
+    apartment: '',
   }
   
   if (!addressStr) return result
@@ -48,26 +61,32 @@ const parseAddress = (addressStr: string): AddressFormData => {
   const parts = addressStr.split(',').map(p => p.trim())
   
   for (let i = 0; i < parts.length; i++) {
-    const part = parts[i]
+    const part = parts[i]!
     
     // Ищем дом (д. или дом)
     const buildingMatch = part.match(/^д\.?\s*(\S+)$/i) || part.match(/^дом\s*(\S+)$/i)
     if (buildingMatch) {
-      result.building = buildingMatch[1]
+      result.building = buildingMatch[1] ?? ''
       continue
     }
     
     // Ищем корпус (к. или корп.)
     const corpusMatch = part.match(/^к\.?\s*(\S+)$/i) || part.match(/^корп\.?\s*(\S+)$/i)
     if (corpusMatch) {
-      result.corpus = corpusMatch[1]
+      result.corpus = corpusMatch[1] ?? ''
       continue
     }
     
     // Ищем подъезд (под. или подъезд)
     const entranceMatch = part.match(/^под\.?\s*(\S+)$/i) || part.match(/^подъезд\s*(\S+)$/i)
     if (entranceMatch) {
-      result.entrance = entranceMatch[1]
+      result.entrance = entranceMatch[1] ?? ''
+      continue
+    }
+
+    const apartmentMatch = part.match(/^кв\.?\s*(\S+)$/i) || part.match(/^квартира\s*(\S+)$/i)
+    if (apartmentMatch) {
+      result.apartment = apartmentMatch[1] ?? ''
       continue
     }
     
@@ -107,6 +126,7 @@ interface AddressFormData {
   building: string
   corpus: string
   entrance: string
+  apartment: string
 }
 
 interface TaskFormData {
@@ -131,6 +151,7 @@ const initialAddressData: AddressFormData = {
   building: '',
   corpus: '',
   entrance: '',
+  apartment: '',
 }
 
 const initialFormData: TaskFormData = {
@@ -348,10 +369,11 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
     if (!validate()) return
 
     const fullAddress = formatAddress(formData.address)
+    const taskTitle = formatTaskTitle(formData.address) || formData.address.street || 'Новая заявка'
 
     if (mode === 'create') {
       const createData = {
-        title: `${formData.address.street}, дом ${formData.address.building}`,
+        title: taskTitle,
         description: formData.description.trim(),
         address: fullAddress,
         customer_name: formData.customer_name.trim() || null,
@@ -367,18 +389,14 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         defect_type: formData.defect_type_name || null,
       }
       
-      createMutation.mutate(createData, {
-        onSuccess: (newTask) => {
-          toast.success('Заявка создана')
-          navigate(`/tasks/${newTask.id}`)
-        },
-        onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Ошибка создания заявки')
-        },
-      })
+      createMutation.mutate(createData, mutationToast({
+        success: 'Заявка создана',
+        error: 'Ошибка создания заявки',
+        onSuccess: (newTask) => navigate(`/tasks/${newTask.id}`),
+      }))
     } else if (taskId) {
       const updateData = {
-        title: task?.title || formData.address.street,
+        title: taskTitle,
         description: formData.description.trim(),
         address: fullAddress,
         customer_name: formData.customer_name.trim() || null,
@@ -406,22 +424,22 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
                 { id: taskId, assignedUserId: newAssigneeId },
                 {
                   onSuccess: () => {
-                    toast.success('Заявка обновлена')
+                    showApiSuccess('Заявка обновлена')
                     navigate(`/tasks/${taskId}`)
                   },
                   onError: () => {
-                    toast.success('Заявка обновлена')
+                    showApiSuccess('Заявка обновлена')
                     navigate(`/tasks/${taskId}`)
                   },
                 }
               )
             } else {
-              toast.success('Заявка обновлена')
+              showApiSuccess('Заявка обновлена')
               navigate(`/tasks/${taskId}`)
             }
           },
           onError: (err) => {
-            toast.error(err instanceof Error ? err.message : 'Ошибка обновления заявки')
+            showApiError(err, 'Ошибка обновления заявки')
           },
         }
       )
@@ -499,6 +517,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
                     building: formData.address.building,
                     corpus: formData.address.corpus,
                     entrance: formData.address.entrance,
+                    apartment: formData.address.apartment,
                   }
                   sessionStorage.setItem('address-prefill', JSON.stringify(prefill))
                   navigate('/addresses')

@@ -14,11 +14,14 @@ data class LoginRequest(
 )
 
 /**
- * DTO для ответа с токеном
+ * DTO для ответа с токеном (access + refresh)
  */
 data class TokenResponse(
     @SerializedName("access_token")
     val accessToken: String,
+    
+    @SerializedName("refresh_token")
+    val refreshToken: String,
     
     @SerializedName("token_type")
     val tokenType: String,
@@ -34,6 +37,14 @@ data class TokenResponse(
     
     @SerializedName("full_name")
     val fullName: String
+)
+
+/**
+ * DTO для запроса обновления токена
+ */
+data class RefreshTokenRequest(
+    @SerializedName("refresh_token")
+    val refreshToken: String
 )
 
 /**

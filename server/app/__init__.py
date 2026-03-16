@@ -4,4 +4,4 @@ FieldWorker API Server
 Модульная структура REST API для управления заявками.
 """
 
-__version__ = "2.4.2"
+__version__ = "2.14.2"

@@ -39,6 +39,8 @@ fun SettingsScreen(
     authRepository: AuthRepository? = null,
     onTestConnection: (String) -> Unit,
     connectionStatus: ConnectionStatus,
+    onCheckForUpdates: () -> Unit = {},
+    isCheckingForUpdates: Boolean = false,
     onOpenDeveloperScreen: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
@@ -80,14 +82,22 @@ fun SettingsScreen(
     var versionTapCount by remember { mutableStateOf(0) }
     
     // Получаем версию приложения
-    val appVersion = remember {
+    val appVersionInfo = remember {
         try {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            packageInfo.versionName ?: "1.0.0"
+            val versionCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                packageInfo.longVersionCode.toInt()
+            } else {
+                @Suppress("DEPRECATION")
+                packageInfo.versionCode
+            }
+            (packageInfo.versionName ?: "1.0.0") to versionCode
         } catch (e: Exception) {
-            "1.0.0"
+            "1.0.0" to 1
         }
     }
+    val appVersion = appVersionInfo.first
+    val appVersionCode = appVersionInfo.second
     
     Scaffold(
         topBar = {
@@ -483,6 +493,36 @@ fun SettingsScreen(
                 }
             }
             
+            HorizontalDivider()
+
+            // ==================== Обновления ====================
+            SettingsSection(title = "Обновления", icon = Icons.Default.Refresh) {
+                Text(
+                    text = "Установлена версия $appVersion (код $appVersionCode)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedButton(
+                    onClick = onCheckForUpdates,
+                    enabled = !isCheckingForUpdates,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (isCheckingForUpdates) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(Icons.Default.Refresh, contentDescription = null)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Проверить обновления")
+                }
+            }
+
             HorizontalDivider()
             
             // ==================== Сброс ====================

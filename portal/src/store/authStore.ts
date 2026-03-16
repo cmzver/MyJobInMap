@@ -1,15 +1,19 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import apiClient from '@/api/client'
+import type { UserRole } from '@/types/user'
 
-export interface User {
+/** Подмножество User, доступное из JWT / login-ответа */
+export interface AuthUser {
   id: number
   username: string
   fullName: string
   full_name?: string
   email?: string
   phone?: string
-  role: 'admin' | 'dispatcher' | 'worker'
+  role: UserRole
+  organizationId?: number | null
+  organizationName?: string | null
 }
 
 interface LoginResponse {
@@ -18,17 +22,19 @@ interface LoginResponse {
   username: string
   full_name?: string | null
   role?: string | null
+  organization_id?: number | null
+  organization_name?: string | null
   detail?: string
 }
 
 
 interface AuthState {
-  user: User | null
+  user: AuthUser | null
   token: string | null
   isAuthenticated: boolean
   login: (username: string, password: string) => Promise<void>
   logout: () => void
-  setUser: (user: User, token: string) => void
+  setUser: (user: AuthUser, token: string) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -40,22 +46,19 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (username: string, password: string) => {
         try {
-          const response = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
+          // FastAPI OAuth2PasswordRequestForm expects form-urlencoded
+          const response = await apiClient.post<LoginResponse>(
+            '/auth/login',
+            new URLSearchParams({
               username: username.trim(),
               password: password.trim(),
             }),
-          })
+            {
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            }
+          )
 
-          const data: LoginResponse = await response.json()
-
-          if (!response.ok) {
-            throw new Error(data.detail || 'Ошибка входа')
-          }
+          const data = response.data
 
           const role =
             data.role === 'admin' || data.role === 'dispatcher' || data.role === 'worker'
@@ -68,26 +71,26 @@ export const useAuthStore = create<AuthState>()(
               username: data.username,
               fullName: data.full_name || data.username,
               role,
+              organizationId: data.organization_id ?? null,
+              organizationName: data.organization_name ?? null,
             },
             token: data.access_token,
             isAuthenticated: true,
           })
-
-          apiClient.defaults.headers.common['Authorization'] = `Bearer ${data.access_token}`
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'Ошибка входа'
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const axiosError = error as any
+          const message = axiosError?.response?.data?.detail || axiosError?.message || 'Ошибка входа'
           throw new Error(message)
         }
       },
 
       logout: () => {
-        delete apiClient.defaults.headers.common['Authorization']
         set({ user: null, token: null, isAuthenticated: false })
       },
 
-      setUser: (user: User, token: string) => {
+      setUser: (user: AuthUser, token: string) => {
         set({ user, token, isAuthenticated: true })
-        apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`
       },
     }),
     {

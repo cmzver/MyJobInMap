@@ -10,6 +10,8 @@ data class Task(
     val title: String,
     val address: String,
     val description: String,
+    val customerName: String? = null,
+    val customerPhone: String? = null,
     val lat: Double?,
     val lon: Double?,
     val status: TaskStatus,
@@ -17,6 +19,13 @@ data class Task(
     val createdAt: String,
     val updatedAt: String,
     val plannedDate: String? = null,
+    val assignedUserId: Long? = null,
+    val assignedUserName: String? = null,
+    val isRemote: Boolean = false,
+    val isPaid: Boolean = false,
+    val paymentAmount: Double = 0.0,
+    val systemType: String? = null,
+    val defectType: String? = null,
     val commentsCount: Int = 0
 ) {
     /**
@@ -115,7 +124,17 @@ enum class Priority(val value: Int, val displayName: String) {
                 2 -> CURRENT
                 3 -> URGENT
                 4 -> EMERGENCY
-                else -> PLANNED // По умолчанию плановая
+                else -> PLANNED
+            }
+        }
+
+        fun fromString(value: String): Priority {
+            return when (value.uppercase()) {
+                "PLANNED" -> PLANNED
+                "CURRENT" -> CURRENT
+                "URGENT" -> URGENT
+                "EMERGENCY" -> EMERGENCY
+                else -> value.toIntOrNull()?.let { fromInt(it) } ?: PLANNED
             }
         }
         

@@ -16,8 +16,7 @@ import PriorityBadge from '@/components/PriorityBadge'
 import { useAuthStore } from '@/store/authStore'
 import apiClient from '@/api/client'
 import { Task } from '@/types/task'
-import { format } from 'date-fns'
-import { ru } from 'date-fns/locale'
+import { formatDatePretty as formatDate } from '@/utils/dateFormat'
 
 type StatusFilter = 'all' | 'NEW' | 'IN_PROGRESS' | 'DONE'
 
@@ -48,14 +47,6 @@ export default function MyTasksPage() {
     { value: 'IN_PROGRESS', label: 'В работе', icon: Navigation },
     { value: 'DONE', label: 'Выполнено', icon: CheckCircle2 },
   ]
-
-  const formatDate = (dateStr: string) => {
-    try {
-      return format(new Date(dateStr), 'd MMM yyyy, HH:mm', { locale: ru })
-    } catch {
-      return dateStr
-    }
-  }
 
   const openNavigation = (lat?: number, lon?: number, address?: string) => {
     if (lat && lon) {

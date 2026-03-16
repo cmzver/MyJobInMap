@@ -164,10 +164,11 @@ class TestGeocodeMock:
     
     def test_geocode_cached_result(self):
         """Кэшированный результат возвращается без вызова API."""
+        import time
         service = GeocodingService()
-        # Добавляем в кэш по нормализованному ключу
+        # Добавляем в кэш по нормализованному ключу (формат: (coords, timestamp))
         normalized = service.normalize_address("test address")
-        service._cache[normalized] = (59.9343, 30.3351)
+        service._cache[normalized] = ((59.9343, 30.3351), time.monotonic())
         
         result = service.geocode("test address")
         

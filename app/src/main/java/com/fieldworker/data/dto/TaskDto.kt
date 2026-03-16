@@ -21,6 +21,12 @@ data class TaskDto(
     
     @SerializedName("description")
     val description: String?,
+
+    @SerializedName("customer_name")
+    val customerName: String? = null,
+
+    @SerializedName("customer_phone")
+    val customerPhone: String? = null,
     
     @SerializedName("lat")
     val lat: Double?,
@@ -32,7 +38,7 @@ data class TaskDto(
     val status: String,
     
     @SerializedName("priority")
-    val priority: Int = 1,
+    val priority: String = "PLANNED",
     
     @SerializedName("created_at")
     val createdAt: String?,
@@ -42,6 +48,27 @@ data class TaskDto(
     
     @SerializedName("planned_date")
     val plannedDate: String? = null,
+
+    @SerializedName("assigned_user_id")
+    val assignedUserId: Long? = null,
+
+    @SerializedName("assigned_user_name")
+    val assignedUserName: String? = null,
+
+    @SerializedName("is_remote")
+    val isRemote: Boolean = false,
+
+    @SerializedName("is_paid")
+    val isPaid: Boolean = false,
+
+    @SerializedName("payment_amount")
+    val paymentAmount: Double = 0.0,
+
+    @SerializedName("system_type")
+    val systemType: String? = null,
+
+    @SerializedName("defect_type")
+    val defectType: String? = null,
     
     @SerializedName("comments_count")
     val commentsCount: Int = 0
@@ -121,6 +148,12 @@ data class TaskDetailDto(
     
     @SerializedName("description")
     val description: String?,
+
+    @SerializedName("customer_name")
+    val customerName: String? = null,
+
+    @SerializedName("customer_phone")
+    val customerPhone: String? = null,
     
     @SerializedName("lat")
     val lat: Double?,
@@ -132,7 +165,7 @@ data class TaskDetailDto(
     val status: String,
     
     @SerializedName("priority")
-    val priority: Int = 1,
+    val priority: String = "PLANNED",
     
     @SerializedName("created_at")
     val createdAt: String?,
@@ -142,6 +175,27 @@ data class TaskDetailDto(
     
     @SerializedName("planned_date")
     val plannedDate: String? = null,
+
+    @SerializedName("assigned_user_id")
+    val assignedUserId: Long? = null,
+
+    @SerializedName("assigned_user_name")
+    val assignedUserName: String? = null,
+
+    @SerializedName("is_remote")
+    val isRemote: Boolean = false,
+
+    @SerializedName("is_paid")
+    val isPaid: Boolean = false,
+
+    @SerializedName("payment_amount")
+    val paymentAmount: Double = 0.0,
+
+    @SerializedName("system_type")
+    val systemType: String? = null,
+
+    @SerializedName("defect_type")
+    val defectType: String? = null,
     
     @SerializedName("comments")
     val comments: List<CommentDto> = emptyList()

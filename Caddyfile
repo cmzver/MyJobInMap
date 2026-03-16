@@ -1,0 +1,39 @@
+# FieldWorker — Caddy Reverse Proxy с автоматическим SSL
+# =======================================================
+#
+# Caddy автоматически получает и обновляет SSL сертификаты через Let's Encrypt.
+# Замените {$DOMAIN} на ваш домен (или задайте переменную окружения DOMAIN).
+#
+# Использование:
+#   docker-compose -f docker-compose.yml -f docker-compose.ssl.yml up -d
+
+{$DOMAIN:localhost} {
+    # Reverse proxy на FastAPI сервер
+    reverse_proxy api:8001
+
+    # WebSocket поддержка
+    @websocket {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    reverse_proxy @websocket api:8001
+
+    # Логи в JSON формате
+    log {
+        output stdout
+        format json
+    }
+
+    # Заголовки безопасности
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy strict-origin-when-cross-origin
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        -Server
+    }
+
+    # Сжатие
+    encode gzip zstd
+}

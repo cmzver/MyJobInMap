@@ -8,9 +8,11 @@ export interface DefectType {
   system_types?: string[]  // Для каких типов систем применим этот тип неисправности
 }
 
+export type SettingValue = string | number | boolean | string[]
+
 export interface SystemSetting {
   key: string
-  value: any
+  value: SettingValue
   value_type: string
   group: string
   label: string
@@ -23,6 +25,17 @@ export interface SettingsGroup {
   label: string
   icon?: string
   settings: SystemSetting[]
+}
+
+export interface PublicLoginBranding {
+  appName: string
+  productLabel: string
+  headline: string
+  description: string
+  organizationName?: string | null
+  supportEmail?: string | null
+  supportPhone?: string | null
+  supportHours: string
 }
 
 export const settingsApi = {
@@ -39,20 +52,25 @@ export const settingsApi = {
   },
 
   // Обновить настройку
-  async updateSetting(key: string, value: any): Promise<SystemSetting> {
-    const { data } = await apiClient.put<SystemSetting>(`/admin/settings/${key}`, { value })
+  async updateSetting(key: string, value: SettingValue): Promise<SystemSetting> {
+    const { data } = await apiClient.patch<SystemSetting>(`/admin/settings/${key}`, { value })
     return data
   },
 
   // Получить типы неисправностей
   async getDefectTypes(): Promise<DefectType[]> {
-    const { data } = await apiClient.get<DefectType[]>('/admin/settings/defect-types/list')
+    const { data } = await apiClient.get<DefectType[]>('/admin/settings/defect-types')
+    return data
+  },
+
+  async getPublicLoginBranding(): Promise<PublicLoginBranding> {
+    const { data } = await apiClient.get<PublicLoginBranding>('/public/login-branding')
     return data
   },
 
   // Добавить тип неисправности
   async addDefectType(name: string, description?: string): Promise<DefectType> {
-    const { data } = await apiClient.post<DefectType>('/admin/settings/defect-types/add', {
+    const { data } = await apiClient.post<DefectType>('/admin/settings/defect-types', {
       name,
       description,
     })
@@ -69,6 +87,7 @@ const queryKeys = {
   settings: ['settings'],
   setting: (key: string) => ['setting', key],
   defectTypes: ['defect-types'],
+  publicLoginBranding: ['public-login-branding'],
 }
 
 export function useSettings() {
@@ -92,7 +111,7 @@ export function useUpdateSetting() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ key, value }: { key: string; value: any }) =>
+    mutationFn: ({ key, value }: { key: string; value: SettingValue }) =>
       settingsApi.updateSetting(key, value),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.settings })
@@ -106,6 +125,14 @@ export function useDefectTypes() {
     queryKey: queryKeys.defectTypes,
     queryFn: () => settingsApi.getDefectTypes(),
     staleTime: 300000, // 5 minutes
+  })
+}
+
+export function usePublicLoginBranding() {
+  return useQuery({
+    queryKey: queryKeys.publicLoginBranding,
+    queryFn: () => settingsApi.getPublicLoginBranding(),
+    staleTime: 300000,
   })
 }
 

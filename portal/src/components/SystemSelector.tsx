@@ -142,11 +142,6 @@ export default function SystemSelector({
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                           {getSystemTypeLabel(system.system_type)}
                         </p>
-                        {system.model && (
-                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                            Модель: {system.model}
-                          </p>
-                        )}
                         {system.status && (
                           <p className={`text-xs mt-1 ${
                             system.status === 'active'

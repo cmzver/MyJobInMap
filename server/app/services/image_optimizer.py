@@ -6,16 +6,18 @@ Image Optimization Service
 """
 
 import io
+import logging
 from pathlib import Path
 from typing import Tuple, Optional
+
+logger = logging.getLogger(__name__)
 
 try:
     from PIL import Image
     PILLOW_AVAILABLE = True
 except ImportError:
     PILLOW_AVAILABLE = False
-    print("⚠️  Pillow не установлен. Сжатие изображений отключено.")
-    print("   Установите: pip install Pillow")
+    logger.warning("Pillow не установлен. Сжатие изображений отключено. Установите: pip install Pillow")
 
 from app.config import settings
 
@@ -73,7 +75,7 @@ class ImageOptimizationService:
         try:
             return self._process_image(content, original_ext)
         except Exception as e:
-            print(f"⚠️  Ошибка оптимизации изображения: {e}")
+            logger.warning(f"Ошибка оптимизации изображения: {e}")
             # Возвращаем оригинал при ошибке
             mime_types = {
                 ".jpg": "image/jpeg",
@@ -111,7 +113,7 @@ class ImageOptimizationService:
             ratio = min(self.max_dimension / width, self.max_dimension / height)
             new_size = (int(width * ratio), int(height * ratio))
             img = img.resize(new_size, Image.Resampling.LANCZOS)
-            print(f"📐 Ресайз: {width}x{height} -> {new_size[0]}x{new_size[1]}")
+            logger.debug(f"Ресайз: {width}x{height} -> {new_size[0]}x{new_size[1]}")
         
         # Определяем выходной формат
         if self.convert_to_webp:
@@ -154,9 +156,9 @@ class ImageOptimizationService:
         reduction = ((original_size - new_size) / original_size) * 100
         
         if reduction > 0:
-            print(f"🗜️  Сжатие: {original_size // 1024} KB -> {new_size // 1024} KB (-{reduction:.1f}%)")
+            logger.debug(f"Сжатие: {original_size // 1024} KB -> {new_size // 1024} KB (-{reduction:.1f}%)")
         else:
-            print(f"📊 Размер: {new_size // 1024} KB (оптимизация не уменьшила)")
+            logger.debug(f"Размер: {new_size // 1024} KB (оптимизация не уменьшила)")
         
         return optimized_content, output_ext, mime_type
     

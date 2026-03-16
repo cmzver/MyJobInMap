@@ -1,7 +1,8 @@
-"""
+﻿"""
 System Settings API
 ===================
-API для управления системными настройками, кастомными полями и разрешениями.
+API РґР»СЏ СѓРїСЂР°РІР»РµРЅРёСЏ СЃРёСЃС‚РµРјРЅС‹РјРё РЅР°СЃС‚СЂРѕР№РєР°РјРё Рё С‚РёРїР°РјРё РґРµС„РµРєС‚РѕРІ.
+Custom Fields, Permissions Рё Backups вЂ” СЃРј. admin.py.
 """
 
 from typing import List, Optional, Dict, Any
@@ -12,36 +13,37 @@ from pydantic import BaseModel
 
 from app.models import (
     get_db, UserModel,
-    SystemSettingModel, CustomFieldModel, CustomFieldValueModel, RolePermissionModel,
-    get_setting, set_setting, get_all_settings, get_settings_by_group, init_default_settings
+    SystemSettingModel,
+    get_setting, set_setting, get_all_settings, init_default_settings
 )
-from app.services import get_current_admin
+from app.services import get_current_admin, get_current_superadmin
 
 
 router = APIRouter(prefix="/api/admin", tags=["System Settings"])
+public_router = APIRouter(prefix="/api/public", tags=["Public Settings"])
 
 
 # ============================================
-# Pydantic Schemas (только локальные, не дублируются в schemas/)
+# Pydantic Schemas (С‚РѕР»СЊРєРѕ Р»РѕРєР°Р»СЊРЅС‹Рµ, РЅРµ РґСѓР±Р»РёСЂСѓСЋС‚СЃСЏ РІ schemas/)
 # ============================================
 
 class DefectTypeResponse(BaseModel):
-    """Ответ с типом неисправности"""
+    """РћС‚РІРµС‚ СЃ С‚РёРїРѕРј РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё"""
     id: str
     name: str
     description: Optional[str] = None
-    system_types: Optional[List[str]] = None  # Типы систем для которых применим этот тип неисправности
+    system_types: Optional[List[str]] = None  # РўРёРїС‹ СЃРёСЃС‚РµРј РґР»СЏ РєРѕС‚РѕСЂС‹С… РїСЂРёРјРµРЅРёРј СЌС‚РѕС‚ С‚РёРї РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё
 
 
 class DefectTypeCreate(BaseModel):
-    """Создание типа неисправности"""
+    """РЎРѕР·РґР°РЅРёРµ С‚РёРїР° РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё"""
     name: str
     description: Optional[str] = None
-    system_types: Optional[List[str]] = None  # Типы систем для которых применим этот тип неисправности
+    system_types: Optional[List[str]] = None  # РўРёРїС‹ СЃРёСЃС‚РµРј РґР»СЏ РєРѕС‚РѕСЂС‹С… РїСЂРёРјРµРЅРёРј СЌС‚РѕС‚ С‚РёРї РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё
 
 
 class SettingResponse(BaseModel):
-    """Ответ с настройкой"""
+    """РћС‚РІРµС‚ СЃ РЅР°СЃС‚СЂРѕР№РєРѕР№"""
     key: str
     value: Any
     value_type: str
@@ -54,7 +56,7 @@ class SettingResponse(BaseModel):
 
 
 class SettingsGroupResponse(BaseModel):
-    """Группа настроек"""
+    """Р“СЂСѓРїРїР° РЅР°СЃС‚СЂРѕРµРє"""
     group: str
     label: str
     icon: str
@@ -62,64 +64,70 @@ class SettingsGroupResponse(BaseModel):
 
 
 class InterfaceSettingsResponse(BaseModel):
-    """Публичные настройки интерфейса"""
+    """РџСѓР±Р»РёС‡РЅС‹Рµ РЅР°СЃС‚СЂРѕР№РєРё РёРЅС‚РµСЂС„РµР№СЃР°"""
     enable_resizable_columns: bool
     compact_table_view: bool
 
 
+class LoginBrandingResponse(BaseModel):
+    """Публичные настройки брендинга и блока поддержки для экрана входа."""
+    appName: str
+    productLabel: str
+    headline: str
+    description: str
+    organizationName: Optional[str] = None
+    supportEmail: Optional[str] = None
+    supportPhone: Optional[str] = None
+    supportHours: str
+
+
 class LocalSettingUpdate(BaseModel):
-    """Обновление настройки (локальная схема)"""
+    """РћР±РЅРѕРІР»РµРЅРёРµ РЅР°СЃС‚СЂРѕР№РєРё (Р»РѕРєР°Р»СЊРЅР°СЏ СЃС…РµРјР°)"""
     value: Any
 
 
-class LocalCustomFieldCreate(BaseModel):
-    """Создание кастомного поля (локальная схема для этого API)"""
-    name: str
-    label: str
-    field_type: str = "text"
-    is_required: bool = False
-    show_in_list: bool = False
-    show_in_card: bool = True
-    options: Optional[List[str]] = None
-    default_value: Optional[str] = None
-    placeholder: Optional[str] = None
-    field_group: str = "custom"
-
-
-class LocalCustomFieldResponse(BaseModel):
-    """Ответ с кастомным полем (локальная схема для этого API)"""
-    id: int
-    name: str
-    label: str
-    field_type: str
-    is_required: bool
-    is_active: bool
-    show_in_list: bool
-    show_in_card: bool
-    options: Optional[List[str]]
-    default_value: Optional[str]
-    placeholder: Optional[str]
-    sort_order: int
-    field_group: str
-
-
-class LocalRolePermissionsUpdate(BaseModel):
-    """Обновление разрешений роли (локальная схема)"""
-    permissions: Dict[str, bool]
-
-
 # ============================================
-# Группы настроек с метаданными
+# Р“СЂСѓРїРїС‹ РЅР°СЃС‚СЂРѕРµРє СЃ РјРµС‚Р°РґР°РЅРЅС‹РјРё
 # ============================================
 
 SETTINGS_GROUPS = {
-    "images": {"label": "Изображения", "icon": "bi-image"},
-    "backup": {"label": "Резервное копирование", "icon": "bi-cloud-arrow-up"},
-    "notifications": {"label": "Уведомления", "icon": "bi-bell"},
-    "security": {"label": "Безопасность", "icon": "bi-shield-lock"},
-    "interface": {"label": "Интерфейс", "icon": "bi-layout-text-window"},
-    "server": {"label": "Сервер", "icon": "bi-server"},
+    "images": {"label": "РР·РѕР±СЂР°Р¶РµРЅРёСЏ", "icon": "bi-image"},
+    "backup": {"label": "Р РµР·РµСЂРІРЅРѕРµ РєРѕРїРёСЂРѕРІР°РЅРёРµ", "icon": "bi-cloud-arrow-up"},
+    "notifications": {"label": "РЈРІРµРґРѕРјР»РµРЅРёСЏ", "icon": "bi-bell"},
+    "security": {"label": "Р‘РµР·РѕРїР°СЃРЅРѕСЃС‚СЊ", "icon": "bi-shield-lock"},
+    "interface": {"label": "РРЅС‚РµСЂС„РµР№СЃ", "icon": "bi-layout-text-window"},
+    "branding": {"label": "Р‘СЂРµРЅРґРёРЅРі", "icon": "bi-palette"},
+    "server": {"label": "РЎРµСЂРІРµСЂ", "icon": "bi-server"},
 }
+
+
+def _clean_optional_string(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
+def _build_login_branding_response(db: Session) -> LoginBrandingResponse:
+    init_default_settings(db)
+
+    return LoginBrandingResponse(
+        appName=str(get_setting(db, "login_app_name", "FieldWorker") or "FieldWorker").strip(),
+        productLabel=str(get_setting(db, "login_product_label", "Field Service Platform") or "Field Service Platform").strip(),
+        headline=str(get_setting(db, "login_headline", "Защищённый вход в рабочее пространство") or "Защищённый вход в рабочее пространство").strip(),
+        description=str(
+            get_setting(
+                db,
+                "login_description",
+                "Единая авторизация для администраторов, диспетчеров и исполнителей с tenant-изоляцией по организациям.",
+            )
+            or "Единая авторизация для администраторов, диспетчеров и исполнителей с tenant-изоляцией по организациям."
+        ).strip(),
+        organizationName=_clean_optional_string(get_setting(db, "login_organization_name", None)),
+        supportEmail=_clean_optional_string(get_setting(db, "support_email", None)),
+        supportPhone=_clean_optional_string(get_setting(db, "support_phone", None)),
+        supportHours=str(get_setting(db, "support_hours", "Пн-Пт, 09:00-18:00") or "Пн-Пт, 09:00-18:00").strip(),
+    )
 
 
 # ============================================
@@ -129,15 +137,15 @@ SETTINGS_GROUPS = {
 @router.get("/settings", response_model=List[SettingsGroupResponse])
 async def get_system_settings(
     db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin)
+    admin: UserModel = Depends(get_current_superadmin)
 ):
-    """Получить все системные настройки, сгруппированные"""
-    # Инициализируем настройки если не существуют
+    """РџРѕР»СѓС‡РёС‚СЊ РІСЃРµ СЃРёСЃС‚РµРјРЅС‹Рµ РЅР°СЃС‚СЂРѕР№РєРё, СЃРіСЂСѓРїРїРёСЂРѕРІР°РЅРЅС‹Рµ"""
+    # РРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј РЅР°СЃС‚СЂРѕР№РєРё РµСЃР»Рё РЅРµ СЃСѓС‰РµСЃС‚РІСѓСЋС‚
     init_default_settings(db)
     
     settings = get_all_settings(db)
     
-    # Группируем по group
+    # Р“СЂСѓРїРїРёСЂСѓРµРј РїРѕ group
     groups_dict = {}
     for setting in settings:
         if setting.group not in groups_dict:
@@ -166,7 +174,7 @@ async def get_system_settings(
 
 @router.get("/settings/interface", response_model=InterfaceSettingsResponse)
 async def get_interface_settings(db: Session = Depends(get_db)):
-    """Получить публичные настройки интерфейса"""
+    """РџРѕР»СѓС‡РёС‚СЊ РїСѓР±Р»РёС‡РЅС‹Рµ РЅР°СЃС‚СЂРѕР№РєРё РёРЅС‚РµСЂС„РµР№СЃР°"""
     init_default_settings(db)
     enable_resizable_columns = get_setting(db, "enable_resizable_columns")
     compact_table_view = get_setting(db, "compact_table_view")
@@ -181,17 +189,105 @@ async def get_interface_settings(db: Session = Depends(get_db)):
     )
 
 
+@public_router.get("/login-branding", response_model=LoginBrandingResponse)
+async def get_login_branding_settings(db: Session = Depends(get_db)):
+    """Получить публичные настройки брендинга и блока поддержки для страницы входа."""
+    return _build_login_branding_response(db)
+
+
+# ============================================
+# Defect Types API
+# ============================================
+
+@router.get("/settings/defect-types", response_model=List[DefectTypeResponse])
+async def get_defect_types(
+    db: Session = Depends(get_db),
+):
+    """РџРѕР»СѓС‡РёС‚СЊ СЃРїРёСЃРѕРє С‚РёРїРѕРІ РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚РµР№ (РґРѕСЃС‚СѓРїРЅРѕ РІСЃРµРј)"""
+    init_default_settings(db)
+
+    # get_setting РІРѕР·РІСЂР°С‰Р°РµС‚ СѓР¶Рµ РїР°СЂСЃРµРЅРЅРѕРµ Р·РЅР°С‡РµРЅРёРµ (list РёР»Рё None)
+    types_data = get_setting(db, "defect_types")
+    
+    if not types_data:
+        return []
+    
+    try:
+        return [DefectTypeResponse(**t) for t in types_data]
+    except (ValueError, TypeError):
+        return []
+
+
+@router.post("/settings/defect-types", response_model=DefectTypeResponse)
+async def add_defect_type(
+    data: DefectTypeCreate,
+    db: Session = Depends(get_db),
+    admin: UserModel = Depends(get_current_superadmin)
+):
+    """Р”РѕР±Р°РІРёС‚СЊ РЅРѕРІС‹Р№ С‚РёРї РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё (С‚РѕР»СЊРєРѕ Р°РґРјРёРЅС‹)"""
+    import json
+    import uuid
+    
+    # get_setting РІРѕР·РІСЂР°С‰Р°РµС‚ СѓР¶Рµ РїР°СЂСЃРµРЅРЅРѕРµ Р·РЅР°С‡РµРЅРёРµ (list РёР»Рё None)
+    types_data = get_setting(db, "defect_types")
+    if not types_data:
+        types_data = []
+    
+    # РЎРѕР·РґР°С‘Рј РЅРѕРІС‹Р№ С‚РёРї
+    new_type = {
+        "id": str(uuid.uuid4()),
+        "name": data.name.strip(),
+        "description": data.description,
+        "system_types": data.system_types or []
+    }
+    
+    types_data.append(new_type)
+    
+    # РЎРѕС…СЂР°РЅСЏРµРј РѕР±РЅРѕРІР»РµРЅРЅС‹Р№ СЃРїРёСЃРѕРє
+    set_setting(db, "defect_types", json.dumps(types_data, ensure_ascii=False))
+    
+    return DefectTypeResponse(**new_type)
+
+
+@router.delete("/settings/defect-types/{defect_type_id}")
+async def delete_defect_type(
+    defect_type_id: str,
+    db: Session = Depends(get_db),
+    admin: UserModel = Depends(get_current_superadmin)
+):
+    """РЈРґР°Р»РёС‚СЊ С‚РёРї РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё (С‚РѕР»СЊРєРѕ Р°РґРјРёРЅС‹)"""
+    import json
+    
+    # get_setting РІРѕР·РІСЂР°С‰Р°РµС‚ СѓР¶Рµ РїР°СЂСЃРµРЅРЅРѕРµ Р·РЅР°С‡РµРЅРёРµ (list РёР»Рё None)
+    types_data = get_setting(db, "defect_types")
+    
+    if not types_data:
+        raise HTTPException(status_code=404, detail="РўРёРї РЅРµ РЅР°Р№РґРµРЅ")
+    
+    # РС‰РµРј Рё СѓРґР°Р»СЏРµРј С‚РёРї
+    original_len = len(types_data)
+    types_data = [t for t in types_data if t.get("id") != defect_type_id]
+    
+    if len(types_data) == original_len:
+        raise HTTPException(status_code=404, detail="РўРёРї РЅРµ РЅР°Р№РґРµРЅ")
+    
+    # РЎРѕС…СЂР°РЅСЏРµРј РѕР±РЅРѕРІР»РµРЅРЅС‹Р№ СЃРїРёСЃРѕРє
+    set_setting(db, "defect_types", json.dumps(types_data, ensure_ascii=False))
+    
+    return {"status": "deleted"}
+
+
 @router.get("/settings/{key}")
 async def get_single_setting(
     key: str,
     db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin)
+    admin: UserModel = Depends(get_current_superadmin)
 ):
-    """Получить одну настройку"""
+    """РџРѕР»СѓС‡РёС‚СЊ РѕРґРЅСѓ РЅР°СЃС‚СЂРѕР№РєСѓ"""
     init_default_settings(db)
     setting = db.query(SystemSettingModel).filter(SystemSettingModel.key == key).first()
     if not setting:
-        raise HTTPException(status_code=404, detail="Настройка не найдена")
+        raise HTTPException(status_code=404, detail="РќР°СЃС‚СЂРѕР№РєР° РЅРµ РЅР°Р№РґРµРЅР°")
     
     return SettingResponse(
         key=setting.key,
@@ -206,21 +302,21 @@ async def get_single_setting(
     )
 
 
-@router.put("/settings/{key}")
+@router.patch("/settings/{key}")
 async def update_setting(
     key: str,
     data: LocalSettingUpdate,
     db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin)
+    admin: UserModel = Depends(get_current_superadmin)
 ):
-    """Обновить настройку"""
+    """РћР±РЅРѕРІРёС‚СЊ РЅР°СЃС‚СЂРѕР№РєСѓ"""
     init_default_settings(db)
     setting = db.query(SystemSettingModel).filter(SystemSettingModel.key == key).first()
     if not setting:
-        raise HTTPException(status_code=404, detail="Настройка не найдена")
+        raise HTTPException(status_code=404, detail="РќР°СЃС‚СЂРѕР№РєР° РЅРµ РЅР°Р№РґРµРЅР°")
     
     if setting.is_readonly:
-        raise HTTPException(status_code=400, detail="Настройка только для чтения")
+        raise HTTPException(status_code=400, detail="РќР°СЃС‚СЂРѕР№РєР° С‚РѕР»СЊРєРѕ РґР»СЏ С‡С‚РµРЅРёСЏ")
     
     setting.set_typed_value(data.value)
     setting.updated_by = admin.username
@@ -229,24 +325,25 @@ async def update_setting(
     return {"status": "ok", "key": key, "value": setting.get_typed_value()}
 
 
-@router.post("/settings/bulk")
+@router.patch("/settings")
 async def update_settings_bulk(
     updates: Dict[str, Any],
     db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin)
+    admin: UserModel = Depends(get_current_superadmin)
 ):
-    """Массовое обновление настроек"""
+    """РњР°СЃСЃРѕРІРѕРµ РѕР±РЅРѕРІР»РµРЅРёРµ РЅР°СЃС‚СЂРѕРµРє"""
+    init_default_settings(db)
     updated = []
     errors = []
     
     for key, value in updates.items():
         setting = db.query(SystemSettingModel).filter(SystemSettingModel.key == key).first()
         if not setting:
-            errors.append(f"Настройка '{key}' не найдена")
+            errors.append(f"РќР°СЃС‚СЂРѕР№РєР° '{key}' РЅРµ РЅР°Р№РґРµРЅР°")
             continue
         
         if setting.is_readonly:
-            errors.append(f"Настройка '{key}' только для чтения")
+            errors.append(f"РќР°СЃС‚СЂРѕР№РєР° '{key}' С‚РѕР»СЊРєРѕ РґР»СЏ С‡С‚РµРЅРёСЏ")
             continue
         
         setting.set_typed_value(value)
@@ -260,375 +357,3 @@ async def update_settings_bulk(
         "updated": updated,
         "errors": errors
     }
-
-
-# ============================================
-# Custom Fields Endpoints
-# ============================================
-
-@router.get("/custom-fields", response_model=List[LocalCustomFieldResponse])
-async def get_custom_fields(
-    db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin)
-):
-    """Получить все кастомные поля"""
-    fields = db.query(CustomFieldModel).order_by(
-        CustomFieldModel.sort_order,
-        CustomFieldModel.id
-    ).all()
-    
-    return [
-        LocalCustomFieldResponse(
-            id=f.id,
-            name=f.name,
-            label=f.label,
-            field_type=f.field_type,
-            is_required=f.is_required,
-            is_active=f.is_active,
-            show_in_list=f.show_in_list,
-            show_in_card=f.show_in_card,
-            options=f.options,
-            default_value=f.default_value,
-            placeholder=f.placeholder,
-            sort_order=f.sort_order,
-            field_group=f.field_group
-        )
-        for f in fields
-    ]
-
-
-@router.post("/custom-fields", response_model=LocalCustomFieldResponse)
-async def create_custom_field(
-    data: LocalCustomFieldCreate,
-    db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin)
-):
-    """Создать кастомное поле"""
-    # Проверяем уникальность имени
-    existing = db.query(CustomFieldModel).filter(CustomFieldModel.name == data.name).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Поле с таким именем уже существует")
-    
-    # Получаем максимальный sort_order
-    max_order = db.query(CustomFieldModel).count()
-    
-    field = CustomFieldModel(
-        name=data.name,
-        label=data.label,
-        field_type=data.field_type,
-        is_required=data.is_required,
-        show_in_list=data.show_in_list,
-        show_in_card=data.show_in_card,
-        options=data.options,
-        default_value=data.default_value,
-        placeholder=data.placeholder,
-        field_group=data.field_group,
-        sort_order=max_order + 1
-    )
-    
-    db.add(field)
-    db.commit()
-    db.refresh(field)
-    
-    return LocalCustomFieldResponse(
-        id=field.id,
-        name=field.name,
-        label=field.label,
-        field_type=field.field_type,
-        is_required=field.is_required,
-        is_active=field.is_active,
-        show_in_list=field.show_in_list,
-        show_in_card=field.show_in_card,
-        options=field.options,
-        default_value=field.default_value,
-        placeholder=field.placeholder,
-        sort_order=field.sort_order,
-        field_group=field.field_group
-    )
-
-
-@router.put("/custom-fields/{field_id}")
-async def update_custom_field(
-    field_id: int,
-    data: LocalCustomFieldCreate,
-    db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin)
-):
-    """Обновить кастомное поле"""
-    field = db.query(CustomFieldModel).filter(CustomFieldModel.id == field_id).first()
-    if not field:
-        raise HTTPException(status_code=404, detail="Поле не найдено")
-    
-    # Проверяем уникальность имени (исключая текущее поле)
-    existing = db.query(CustomFieldModel).filter(
-        CustomFieldModel.name == data.name,
-        CustomFieldModel.id != field_id
-    ).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Поле с таким именем уже существует")
-    
-    field.name = data.name
-    field.label = data.label
-    field.field_type = data.field_type
-    field.is_required = data.is_required
-    field.show_in_list = data.show_in_list
-    field.show_in_card = data.show_in_card
-    field.options = data.options
-    field.default_value = data.default_value
-    field.placeholder = data.placeholder
-    field.field_group = data.field_group
-    
-    db.commit()
-    
-    return {"status": "ok", "id": field_id}
-
-
-@router.delete("/custom-fields/{field_id}")
-async def delete_custom_field(
-    field_id: int,
-    db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin)
-):
-    """Удалить кастомное поле"""
-    field = db.query(CustomFieldModel).filter(CustomFieldModel.id == field_id).first()
-    if not field:
-        raise HTTPException(status_code=404, detail="Поле не найдено")
-    
-    # Удаляем все значения этого поля
-    db.query(CustomFieldValueModel).filter(CustomFieldValueModel.field_id == field_id).delete()
-    
-    db.delete(field)
-    db.commit()
-    
-    return {"status": "ok"}
-
-
-@router.put("/custom-fields/{field_id}/toggle")
-async def toggle_custom_field(
-    field_id: int,
-    db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin)
-):
-    """Включить/выключить кастомное поле"""
-    field = db.query(CustomFieldModel).filter(CustomFieldModel.id == field_id).first()
-    if not field:
-        raise HTTPException(status_code=404, detail="Поле не найдено")
-    
-    field.is_active = not field.is_active
-    db.commit()
-    
-    return {"status": "ok", "is_active": field.is_active}
-
-
-# ============================================
-# Role Permissions Endpoints
-# ============================================
-
-@router.get("/permissions")
-async def get_all_permissions(
-    db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin)
-):
-    """Получить все разрешения по ролям"""
-    # Инициализируем если не существуют
-    init_default_settings(db)
-    
-    permissions = db.query(RolePermissionModel).all()
-    
-    # Группируем по ролям
-    result = {}
-    for perm in permissions:
-        if perm.role not in result:
-            result[perm.role] = {}
-        result[perm.role][perm.permission] = perm.is_allowed
-    
-    return result
-
-
-@router.put("/permissions/{role}")
-async def update_role_permissions(
-    role: str,
-    data: LocalRolePermissionsUpdate,
-    db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin)
-):
-    """Обновить разрешения для роли"""
-    if role not in ["admin", "dispatcher", "worker"]:
-        raise HTTPException(status_code=400, detail="Неизвестная роль")
-    
-    if role == "admin":
-        raise HTTPException(status_code=400, detail="Нельзя изменять разрешения администратора")
-    
-    for permission, is_allowed in data.permissions.items():
-        perm = db.query(RolePermissionModel).filter(
-            RolePermissionModel.role == role,
-            RolePermissionModel.permission == permission
-        ).first()
-        
-        if perm:
-            perm.is_allowed = is_allowed
-        else:
-            perm = RolePermissionModel(
-                role=role,
-                permission=permission,
-                is_allowed=is_allowed
-            )
-            db.add(perm)
-    
-    db.commit()
-    
-    return {"status": "ok", "role": role}
-
-
-# ============================================
-# Backup Endpoints
-# ============================================
-
-@router.post("/backup/run")
-async def run_backup(
-    db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin)
-):
-    """Запустить резервное копирование вручную"""
-    import subprocess
-    import sys
-    from pathlib import Path
-    
-    script_path = Path(__file__).resolve().parent.parent.parent / "scripts" / "backup_db.py"
-    
-    # Получаем настройки
-    include_photos = get_setting(db, "backup_include_photos", False)
-    retention_days = get_setting(db, "backup_retention_days", 7)
-    
-    cmd = [sys.executable, str(script_path), f"--keep={retention_days}"]
-    if include_photos:
-        cmd.append("--with-photos")
-    
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-        
-        if result.returncode == 0:
-            return {
-                "status": "ok",
-                "message": "Бэкап успешно создан",
-                "output": result.stdout
-            }
-        else:
-            return {
-                "status": "error",
-                "message": "Ошибка создания бэкапа",
-                "output": result.stderr
-            }
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=500, detail="Таймаут создания бэкапа")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/backup/list")
-async def list_backups(
-    db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin)
-):
-    """Получить список бэкапов"""
-    from pathlib import Path
-    from app.config import settings
-    
-    backup_dir = settings.BASE_DIR / "backups"
-    
-    if not backup_dir.exists():
-        return {"backups": []}
-    
-    backups = []
-    for f in backup_dir.glob("tasks_db_*"):
-        stat = f.stat()
-        backups.append({
-            "name": f.name,
-            "size": stat.st_size,
-            "created": datetime.fromtimestamp(stat.st_mtime).isoformat()
-        })
-    
-    # Сортируем по дате (новые первыми)
-    backups.sort(key=lambda x: x["created"], reverse=True)
-    
-    return {"backups": backups}
-
-
-# ============================================
-# Defect Types API
-# ============================================
-
-@router.get("/settings/defect-types/list", response_model=List[DefectTypeResponse])
-async def get_defect_types(
-    db: Session = Depends(get_db),
-):
-    """Получить список типов неисправностей (доступно всем)"""
-    # get_setting возвращает уже парсенное значение (list или None)
-    types_data = get_setting(db, "defect_types")
-    
-    if not types_data:
-        return []
-    
-    try:
-        return [DefectTypeResponse(**t) for t in types_data]
-    except (ValueError, TypeError):
-        return []
-
-
-@router.post("/settings/defect-types/add", response_model=DefectTypeResponse)
-async def add_defect_type(
-    data: DefectTypeCreate,
-    db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin)
-):
-    """Добавить новый тип неисправности (только админы)"""
-    import json
-    import uuid
-    
-    # get_setting возвращает уже парсенное значение (list или None)
-    types_data = get_setting(db, "defect_types")
-    if not types_data:
-        types_data = []
-    
-    # Создаём новый тип
-    new_type = {
-        "id": str(uuid.uuid4()),
-        "name": data.name.strip(),
-        "description": data.description,
-        "system_types": data.system_types or []
-    }
-    
-    types_data.append(new_type)
-    
-    # Сохраняем обновленный список
-    set_setting(db, "defect_types", json.dumps(types_data, ensure_ascii=False))
-    
-    return DefectTypeResponse(**new_type)
-
-
-@router.delete("/settings/defect-types/{defect_type_id}")
-async def delete_defect_type(
-    defect_type_id: str,
-    db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin)
-):
-    """Удалить тип неисправности (только админы)"""
-    import json
-    
-    # get_setting возвращает уже парсенное значение (list или None)
-    types_data = get_setting(db, "defect_types")
-    
-    if not types_data:
-        raise HTTPException(status_code=404, detail="Тип не найден")
-    
-    # Ищем и удаляем тип
-    original_len = len(types_data)
-    types_data = [t for t in types_data if t.get("id") != defect_type_id]
-    
-    if len(types_data) == original_len:
-        raise HTTPException(status_code=404, detail="Тип не найден")
-    
-    # Сохраняем обновленный список
-    set_setting(db, "defect_types", json.dumps(types_data, ensure_ascii=False))
-    
-    return {"status": "deleted"}

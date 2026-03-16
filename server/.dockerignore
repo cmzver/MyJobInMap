@@ -1,10 +1,42 @@
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
 venv/
+.venv/
+
+# Environment
 .env
+
+# Database (use volumes)
 *.db
+*.sqlite
+backups/*.sqlite.gz
+
+# Git
 .git/
 .gitignore
-README.md
+
+# Documentation
+*.md
+LICENSE
+
+# Tests
+tests/
+test_*.py
+conftest.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Logs
+logs/
 *.log
+
+# Dev files
+Makefile
+scripts/archive/
+scripts/demos/

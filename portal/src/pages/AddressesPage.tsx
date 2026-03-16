@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { mutationToast } from '@/utils/apiError'
 import { 
   MapPin, 
   Plus, 
@@ -213,27 +214,19 @@ export default function AddressesPage() {
       return
     }
 
-    createMutation.mutate(formData, {
-      onSuccess: () => {
-        toast.success('Адрес добавлен')
-        handleCloseModal()
-      },
-      onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Ошибка создания')
-      },
-    })
+    createMutation.mutate(formData, mutationToast({
+      success: 'Адрес добавлен',
+      error: 'Ошибка создания',
+      onSuccess: () => handleCloseModal(),
+    }))
   }
 
   const handleDelete = (id: number) => {
-    deleteMutation.mutate(id, {
-      onSuccess: () => {
-        toast.success('Адрес удалён')
-        setDeleteConfirm(null)
-      },
-      onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Ошибка удаления')
-      },
-    })
+    deleteMutation.mutate(id, mutationToast({
+      success: 'Адрес удалён',
+      error: 'Ошибка удаления',
+      onSuccess: () => setDeleteConfirm(null),
+    }))
   }
 
   const isSubmitting = createMutation.isPending

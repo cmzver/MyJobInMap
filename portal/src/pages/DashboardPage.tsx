@@ -11,15 +11,18 @@ import {
   Calendar,
   Zap,
   Activity,
-  ArrowUpRight
+  ArrowUpRight,
+  Smartphone
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import Card from '@/components/Card'
 import Spinner from '@/components/Spinner'
+import { SkeletonStats, SkeletonTaskList } from '@/components/Skeleton'
 import PriorityBadge from '@/components/PriorityBadge'
 import StatusBadge from '@/components/StatusBadge'
 import apiClient from '@/api/client'
+import { getAdminSettingsPath } from '@/utils/adminSettingsTabs'
 import type { TaskPriority, TaskStatus } from '@/types/task'
 
 interface DashboardStats {
@@ -132,7 +135,7 @@ export default function DashboardPage() {
       DONE: { label: 'Выполнена', className: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
       CANCELLED: { label: 'Отменена', className: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400' },
     }
-    const { label, className } = statusMap[status] || statusMap.NEW
+    const { label, className } = statusMap[status] ?? statusMap['NEW']!
     return <span className={`px-2 py-1 text-xs font-medium rounded-full ${className}`}>{label}</span>
   }
 
@@ -146,9 +149,7 @@ export default function DashboardPage() {
 
       {/* Stats Cards */}
       {statsLoading ? (
-        <div className="flex justify-center py-12">
-          <Spinner size="lg" />
-        </div>
+        <SkeletonStats count={4} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {statCards.map((stat) => (
@@ -184,9 +185,7 @@ export default function DashboardPage() {
           </div>
           <div className="p-5">
             {tasksLoading ? (
-              <div className="flex justify-center py-8">
-                <Spinner />
-              </div>
+              <SkeletonTaskList count={3} />
             ) : recentTasks && recentTasks.length > 0 ? (
               <div className="space-y-4">
                 {recentTasks.map((task) => (
@@ -466,12 +465,20 @@ export default function DashboardPage() {
               </span>
             </div>
             <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-              <Link
-                to="/admin/settings"
-                className="flex items-center justify-center gap-2 w-full p-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition"
-              >
-                Системные настройки <ArrowUpRight size={14} />
-              </Link>
+              <div className="grid grid-cols-1 gap-2">
+                <Link
+                  to="/admin/settings"
+                  className="flex items-center justify-center gap-2 w-full p-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition"
+                >
+                  Системные настройки <ArrowUpRight size={14} />
+                </Link>
+                <Link
+                  to={getAdminSettingsPath('updates')}
+                  className="flex items-center justify-center gap-2 w-full p-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition"
+                >
+                  Обновления Android <Smartphone size={14} />
+                </Link>
+              </div>
             </div>
           </div>
         </Card>

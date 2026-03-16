@@ -21,7 +21,7 @@ import com.fieldworker.data.local.entity.TaskEntity
         CommentEntity::class,
         PendingAction::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class FieldWorkerDatabase : RoomDatabase() {
@@ -48,6 +48,23 @@ abstract class FieldWorkerDatabase : RoomDatabase() {
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE pending_actions ADD COLUMN tempId TEXT DEFAULT NULL")
+            }
+        }
+
+        /**
+         * Migration 3 -> 4: add explicit task metadata from updated server API.
+         */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN customerName TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN customerPhone TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN assignedUserId INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN assignedUserName TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN isRemote INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN isPaid INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN paymentAmount REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN systemType TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN defectType TEXT DEFAULT NULL")
             }
         }
     }

@@ -4,7 +4,9 @@ Geocoding Service
 Сервис геокодирования адресов с кэшированием.
 """
 
+import logging
 import re
+import time
 from typing import Optional, Tuple
 
 from geopy.geocoders import Nominatim
@@ -13,16 +15,22 @@ from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 from app.config import settings
 from app.models.enums import TaskPriority
 
+logger = logging.getLogger(__name__)
+
+# TTL для кэша геокодинга — 24 часа
+_GEOCODING_CACHE_TTL = 86400
+
 
 class GeocodingService:
-    """Сервис геокодирования адресов с кэшированием"""
+    """Сервис геокодирования адресов с кэшированием и TTL"""
     
     def __init__(self):
         self.geolocator = Nominatim(
             user_agent=settings.GEOCODING_USER_AGENT,
             timeout=settings.GEOCODING_TIMEOUT
         )
-        self._cache: dict[str, Tuple[float, float]] = {}
+        # Кэш: key -> (coords, timestamp)
+        self._cache: dict[str, Tuple[Tuple[float, float], float]] = {}
         self._cache_max_size = settings.GEOCODING_CACHE_SIZE
     
     @property
@@ -31,17 +39,25 @@ class GeocodingService:
         return len(self._cache)
     
     def _get_from_cache(self, key: str) -> Optional[Tuple[float, float]]:
-        """Получить координаты из кэша"""
-        return self._cache.get(key)
+        """Получить координаты из кэша (с проверкой TTL)"""
+        entry = self._cache.get(key)
+        if entry is None:
+            return None
+        coords, ts = entry
+        if time.monotonic() - ts > _GEOCODING_CACHE_TTL:
+            del self._cache[key]
+            return None
+        return coords
     
     def _add_to_cache(self, key: str, coords: Tuple[float, float]):
-        """Добавить координаты в кэш"""
+        """Добавить координаты в кэш с таймстампом"""
+        now = time.monotonic()
         if len(self._cache) >= self._cache_max_size:
-            # Удаляем первые 100 записей (FIFO-like)
-            keys_to_remove = list(self._cache.keys())[:100]
-            for k in keys_to_remove:
+            # Удаляем старейшие 100 записей по таймстампу
+            sorted_keys = sorted(self._cache, key=lambda k: self._cache[k][1])
+            for k in sorted_keys[:100]:
                 del self._cache[k]
-        self._cache[key] = coords
+        self._cache[key] = (coords, now)
     
     def extract_priority(self, text: str) -> str:
         """
@@ -209,12 +225,12 @@ class GeocodingService:
                     optimized += f", {region}"
                 optimized += ", Россия"
                 
-                print(f"   🔄 Trying: '{optimized}'")
+                logger.debug("Geocoding attempt: '%s'", optimized)
                 location = self.geolocator.geocode(optimized)
                 if location:
                     coords = (location.latitude, location.longitude)
                     self._add_to_cache(normalized, coords)
-                    print(f"   ✅ Found: {coords}")
+                    logger.debug("Geocoding found: %s", coords)
                     return coords
                 
                 # Без корпуса
@@ -244,9 +260,9 @@ class GeocodingService:
                 return coords
                     
         except (GeocoderTimedOut, GeocoderServiceError) as e:
-            pass  # Geocoding timeout/error
+            logger.warning("Geocoding timeout/error for '%s': %s", address, e)
         except Exception as e:
-            pass  # Geocoding error
+            logger.warning("Geocoding failed for '%s': %s", address, e)
         
         # Location not found - return default
         return (0.0, 0.0)

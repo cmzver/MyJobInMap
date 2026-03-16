@@ -3,6 +3,7 @@
  * Централизованное место для всех констант, связанных с задачами
  */
 import type { TaskStatus, TaskPriority } from '@/types/task'
+import taskStatusTransitions from './taskStatusTransitions.json'
 
 // =====================================================
 // Опции для Select компонентов
@@ -41,6 +42,17 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   IN_PROGRESS: 'В работе',
   DONE: 'Выполнена',
   CANCELLED: 'Отменена',
+}
+
+export const STATUS_TRANSITIONS = taskStatusTransitions as Record<TaskStatus, TaskStatus[]>
+
+export interface StatusCommentCopy {
+  title: string
+  description: string
+  label: string
+  placeholder: string
+  submitText: string
+  error: string
 }
 
 export const PRIORITY_LABELS: Record<TaskPriority, string> = {
@@ -119,6 +131,59 @@ export function getPriorityLabel(value?: TaskPriority | number | string | null):
 export function getStatusLabel(status?: TaskStatus | string | null): string {
   if (!status) return 'Не указан'
   return STATUS_LABELS[status as TaskStatus] || String(status)
+}
+
+export function getAvailableStatusTransitions(status?: TaskStatus | string | null): TaskStatus[] {
+  if (!status) return []
+  return STATUS_TRANSITIONS[status as TaskStatus] || []
+}
+
+export function isStatusTransitionAllowed(fromStatus: TaskStatus, toStatus: TaskStatus): boolean {
+  if (fromStatus === toStatus) return false
+  return getAvailableStatusTransitions(fromStatus).includes(toStatus)
+}
+
+export function requiresStatusComment(status: TaskStatus): boolean {
+  return status === 'DONE' || status === 'CANCELLED'
+}
+
+export function getStatusCommentCopy(status: TaskStatus | null, options?: { plural?: boolean }): StatusCommentCopy {
+  const plural = options?.plural ?? false
+
+  if (status === 'DONE') {
+    return {
+      title: plural ? 'Комментарий к завершению заявок' : 'Комментарий к завершению заявки',
+      description: plural
+        ? 'Опишите, какие работы выполнены по выбранным заявкам.'
+        : 'Опишите, какие работы выполнены и чем завершилась заявка.',
+      label: 'Что выполнено',
+      placeholder: 'Кратко опишите выполненные работы',
+      submitText: plural ? 'Завершить заявки' : 'Завершить заявку',
+      error: plural ? 'Заполните комментарий, чтобы завершить заявки' : 'Заполните комментарий, чтобы завершить заявку',
+    }
+  }
+
+  if (status === 'CANCELLED') {
+    return {
+      title: plural ? 'Комментарий к отмене заявок' : 'Комментарий к отмене заявки',
+      description: plural
+        ? 'Укажите причину, по которой выбранные заявки отменяются.'
+        : 'Укажите причину, по которой заявка была отменена.',
+      label: 'Причина отмены',
+      placeholder: 'Кратко опишите причину отмены',
+      submitText: plural ? 'Отменить заявки' : 'Отменить заявку',
+      error: plural ? 'Заполните комментарий, чтобы отменить заявки' : 'Заполните комментарий, чтобы отменить заявку',
+    }
+  }
+
+  return {
+    title: 'Комментарий к смене статуса',
+    description: plural ? 'Добавьте комментарий к смене статуса заявок.' : 'Добавьте комментарий к смене статуса заявки.',
+    label: 'Комментарий',
+    placeholder: 'Введите комментарий',
+    submitText: plural ? 'Применить' : 'Сохранить',
+    error: 'Комментарий обязателен',
+  }
 }
 
 /**

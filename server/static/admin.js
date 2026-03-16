@@ -508,7 +508,7 @@ async function saveTask() {
     try {
         let response;
         if (taskId) {
-            response = await api.put(`/api/admin/tasks/${taskId}`, data);
+            response = await api.patch(`/api/admin/tasks/${taskId}`, data);
         } else {
             response = await api.post('/api/tasks', data);
         }
@@ -757,7 +757,7 @@ async function saveUser() {
     try {
         let response;
         if (userId) {
-            response = await api.put(`/api/admin/users/${userId}`, data);
+            response = await api.patch(`/api/admin/users/${userId}`, data);
         } else {
             if (!password) {
                 alert('Введите пароль для нового пользователя');
@@ -1009,7 +1009,7 @@ function renderSettingInput(setting) {
 
 window.updateSetting = async function(key, value) {
     try {
-        const response = await api.put(`/api/admin/settings/${key}`, { value });
+        const response = await api.patch(`/api/admin/settings/${key}`, { value });
         if (response.ok) {
             systemSettings[key].value = value;
             Utils.showToast('Настройка сохранена', 'success');
@@ -1240,7 +1240,7 @@ async function loadBackupList() {
     const container = document.getElementById('backup-list');
     if (!container) return;
     try {
-        const response = await api.get('/api/admin/backup/list');
+        const response = await api.get('/api/admin/backups');
         if (response.ok) {
             const data = await response.json();
             if (data.backups.length === 0) {
@@ -1262,7 +1262,7 @@ async function loadBackupList() {
 window.runBackup = async function() {
     if (!confirm('Создать бэкап?')) return;
     try {
-        const response = await api.post('/api/admin/backup/run', {});
+        const response = await api.post('/api/admin/backups', {});
         if (response.ok) {
             Utils.showToast('Бэкап создан', 'success');
             loadBackupList();
@@ -1405,7 +1405,7 @@ function renderPermissionsTable() {
 
 window.updatePermission = async function(role, permission, isAllowed) {
     try {
-        const response = await api.put(`/api/admin/permissions/${role}`, { permissions: { [permission]: isAllowed } });
+        const response = await api.patch(`/api/admin/permissions/${role}`, { permissions: { [permission]: isAllowed } });
         if (response.ok) {
             if (!rolePermissions[role]) rolePermissions[role] = {};
             rolePermissions[role][permission] = isAllowed;
@@ -1561,7 +1561,7 @@ window.resetCardLayout = function() {
 
 window.saveCardLayout = async function() {
     try {
-        const response = await api.put('/api/admin/settings/card_layout', { value: cardLayout });
+        const response = await api.patch('/api/admin/settings/card_layout', { value: cardLayout });
         if (response.ok) Utils.showToast('Сохранено', 'success');
         else Utils.showToast('Ошибка сохранения', 'danger');
     } catch (err) { Utils.showToast('Ошибка сохранения', 'danger'); }

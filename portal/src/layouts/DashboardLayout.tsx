@@ -2,6 +2,7 @@ import { ReactNode, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useTheme } from '@/hooks/useTheme'
+import { useWebSocket } from '@/hooks/useWebSocket'
 import { getMenuForRole, type MenuSection, type MenuItem } from '@/config/menuConfig'
 import { 
   LayoutDashboard, 
@@ -15,6 +16,7 @@ import {
   Apple,
   Palette,
   ChevronDown,
+  Building2,
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -26,6 +28,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
   const { theme, setTheme, isDark } = useTheme()
+
+  // WebSocket — реал-тайм уведомления (инвалидация React Query кэша)
+  useWebSocket()
+
   const isModern = theme === 'modern' || theme === 'mac' || theme === 'aurora'
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false)
@@ -37,7 +43,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   // Получаем меню для роли пользователя
-  const menuSections = user?.role ? getMenuForRole(user.role) : []
+  const menuSections = user?.role ? getMenuForRole(user.role, user.organizationId) : []
 
   const themeOptions = [
     { value: 'light' as const, label: 'Светлая', icon: Sun },
@@ -201,6 +207,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                         <p className="text-sm font-medium text-gray-900 dark:text-white">{user?.fullName}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">{user?.role && getRoleLabel(user.role)}</p>
+                        {user?.organizationName && (
+                          <p className="text-xs text-primary-600 dark:text-primary-400 mt-0.5">{user.organizationName}</p>
+                        )}
                       </div>
                       <Link
                         to="/profile"
@@ -232,13 +241,21 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Sidebar - Desktop */}
         <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 lg:pt-16 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-colors">
           <div className="flex-1 overflow-y-auto px-3 py-6">
+            {user?.organizationName && (
+              <div className="px-4 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                  <Building2 size={14} className="mr-2 flex-shrink-0" />
+                  <span className="font-medium truncate">{user.organizationName}</span>
+                </div>
+              </div>
+            )}
             {menuSections.map((section) => renderMenuSection(section))}
           </div>
           
           {/* Version info at bottom */}
           <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              FieldWorker Portal v3.0
+              FieldWorker Portal v2.4.6
             </p>
           </div>
         </aside>

@@ -87,6 +87,36 @@ code {
       opacity: 0.4;
     }
   }
+
+  /* Login page animations */
+  .animate-login-gradient {
+    animation: login-gradient 8s ease infinite;
+  }
+
+  @keyframes login-gradient {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  .animate-login-shake {
+    animation: login-shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  }
+
+  @keyframes login-shake {
+    10%, 90% { transform: translateX(-1px); }
+    20%, 80% { transform: translateX(2px); }
+    30%, 50%, 70% { transform: translateX(-4px); }
+    40%, 60% { transform: translateX(4px); }
+  }
+
+  .animate-login-fade-in {
+    animation: login-fade-in 0.3s ease-out;
+  }
+
+  @keyframes login-fade-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 }
 
 /* Modern theme overrides */
@@ -285,6 +315,20 @@ code {
   box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
   border: 1px solid rgba(0, 0, 0, 0.04);
   padding: 14px;
+}
+
+.dark .fw-map-card {
+  background: rgba(30, 41, 59, 0.97);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+/* Leaflet popup close button in dark mode */
+.dark .fw-popup .leaflet-popup-close-button {
+  color: #94a3b8 !important;
+}
+.dark .fw-popup .leaflet-popup-close-button:hover {
+  color: #e2e8f0 !important;
 }
 
 /* Leaflet control positioning for map page */

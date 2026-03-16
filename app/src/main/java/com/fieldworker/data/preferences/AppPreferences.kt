@@ -2,6 +2,9 @@ package com.fieldworker.data.preferences
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKeys
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.TaskStatus
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -15,7 +18,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Управление настройками приложения через SharedPreferences
+ * Управление настройками приложения через SharedPreferences.
+ * 
+ * Секретные данные (токены, user ID) хранятся в EncryptedSharedPreferences,
+ * остальные настройки — в обычных SharedPreferences.
  */
 @Singleton
 class AppPreferences @Inject constructor(
@@ -24,6 +30,33 @@ class AppPreferences @Inject constructor(
     private val prefs: SharedPreferences = context.getSharedPreferences(
         PREFS_NAME, Context.MODE_PRIVATE
     )
+    
+    /**
+     * Зашифрованное хранилище для секретных данных (токены, credentials).
+     * При ошибке инициализации (старые устройства, повреждённые ключи) —
+     * fallback на обычные SharedPreferences.
+     */
+    private val securePrefs: SharedPreferences = try {
+        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+        EncryptedSharedPreferences.create(
+            SECURE_PREFS_NAME,
+            masterKeyAlias,
+            context,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    } catch (e: Exception) {
+        Log.e("AppPreferences", "Failed to create EncryptedSharedPreferences, using fallback", e)
+        context.getSharedPreferences(SECURE_PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
+    private val secureStorageAvailable: Boolean = securePrefs !== prefs
+    
+    init {
+        // Миграция: перенести токены из обычного хранилища в зашифрованное
+        migrateTokensToSecureStorage()
+        restoreAuthFromFallbackIfNeeded()
+    }
     
     // StateFlow для реактивного обновления настроек
     private val _serverUrl = MutableStateFlow(getServerUrl())
@@ -186,7 +219,7 @@ class AppPreferences @Inject constructor(
         return prefs.getString(KEY_FCM_TOKEN, null)
     }
     
-    fun setFcmToken(token: String) {
+    fun setFcmToken(token: String?) {
         prefs.edit().putString(KEY_FCM_TOKEN, token).apply()
     }
     
@@ -227,62 +260,67 @@ class AppPreferences @Inject constructor(
         _showMyLocation.value = true
     }
     
-    // ==================== Авторизация ====================
+    // ==================== Авторизация (зашифрованное хранилище) ====================
     
     fun getAuthToken(): String? {
-        return prefs.getString(KEY_AUTH_TOKEN, null)
+        return getSecureValue(KEY_AUTH_TOKEN)
     }
     
     fun setAuthToken(token: String?) {
-        if (token != null) {
-            prefs.edit().putString(KEY_AUTH_TOKEN, token).apply()
-        } else {
-            prefs.edit().remove(KEY_AUTH_TOKEN).apply()
-        }
+        setSecureValue(KEY_AUTH_TOKEN, token)
+    }
+    
+    fun getRefreshToken(): String? {
+        return getSecureValue(KEY_REFRESH_TOKEN)
+    }
+    
+    fun setRefreshToken(token: String?) {
+        setSecureValue(KEY_REFRESH_TOKEN, token)
     }
     
     fun getUserId(): Long {
-        return prefs.getLong(KEY_USER_ID, -1)
+        return securePrefs.getLong(KEY_USER_ID, prefs.getLong(KEY_USER_ID, -1))
     }
     
     fun setUserId(id: Long) {
+        securePrefs.edit().putLong(KEY_USER_ID, id).apply()
         prefs.edit().putLong(KEY_USER_ID, id).apply()
     }
     
     fun getUsername(): String? {
-        return prefs.getString(KEY_USERNAME, null)
+        return getSecureValue(KEY_USERNAME)
     }
     
     fun setUsername(username: String?) {
-        if (username != null) {
-            prefs.edit().putString(KEY_USERNAME, username).apply()
-        } else {
-            prefs.edit().remove(KEY_USERNAME).apply()
-        }
+        setSecureValue(KEY_USERNAME, username)
     }
     
     fun getUserFullName(): String? {
-        return prefs.getString(KEY_USER_FULLNAME, null)
+        return getSecureValue(KEY_USER_FULLNAME)
     }
     
     fun setUserFullName(name: String?) {
-        if (name != null) {
-            prefs.edit().putString(KEY_USER_FULLNAME, name).apply()
-        } else {
-            prefs.edit().remove(KEY_USER_FULLNAME).apply()
-        }
+        setSecureValue(KEY_USER_FULLNAME, name)
     }
     
     fun getUserRole(): String? {
-        return prefs.getString(KEY_USER_ROLE, null)
+        return getSecureValue(KEY_USER_ROLE)
     }
     
     fun setUserRole(role: String?) {
-        if (role != null) {
-            prefs.edit().putString(KEY_USER_ROLE, role).apply()
-        } else {
-            prefs.edit().remove(KEY_USER_ROLE).apply()
-        }
+        setSecureValue(KEY_USER_ROLE, role)
+    }
+
+    fun getDismissedUpdateVersionCode(): Int {
+        return prefs.getInt(KEY_DISMISSED_UPDATE_VERSION_CODE, -1)
+    }
+
+    fun setDismissedUpdateVersionCode(versionCode: Int) {
+        prefs.edit().putInt(KEY_DISMISSED_UPDATE_VERSION_CODE, versionCode).apply()
+    }
+
+    fun clearDismissedUpdateVersionCode() {
+        prefs.edit().remove(KEY_DISMISSED_UPDATE_VERSION_CODE).apply()
     }
     
     fun isLoggedIn(): Boolean {
@@ -290,13 +328,22 @@ class AppPreferences @Inject constructor(
     }
     
     fun logout() {
-        prefs.edit()
+        securePrefs.edit()
             .remove(KEY_AUTH_TOKEN)
+            .remove(KEY_REFRESH_TOKEN)
             .remove(KEY_USER_ID)
             .remove(KEY_USERNAME)
             .remove(KEY_USER_FULLNAME)
             .remove(KEY_USER_ROLE)
             .apply()
+            prefs.edit()
+                .remove(KEY_AUTH_TOKEN)
+                .remove(KEY_REFRESH_TOKEN)
+                .remove(KEY_USER_ID)
+                .remove(KEY_USERNAME)
+                .remove(KEY_USER_FULLNAME)
+                .remove(KEY_USER_ROLE)
+                .apply()
     }
     
     /**
@@ -317,9 +364,74 @@ class AppPreferences @Inject constructor(
     fun clearForcedLogoutFlag() {
         _forcedLogoutRequested = false
     }
+    
+    /**
+     * Одноразовая миграция токенов из обычного SharedPreferences
+     * в зашифрованное хранилище. Происходит при обновлении приложения.
+     */
+    private fun migrateTokensToSecureStorage() {
+        val oldToken = prefs.getString(KEY_AUTH_TOKEN, null)
+        if (oldToken != null) {
+            Log.d("AppPreferences", "Migrating tokens to secure storage")
+            securePrefs.edit()
+                .putString(KEY_AUTH_TOKEN, oldToken)
+                .putString(KEY_REFRESH_TOKEN, prefs.getString(KEY_REFRESH_TOKEN, null))
+                .putLong(KEY_USER_ID, prefs.getLong(KEY_USER_ID, -1))
+                .putString(KEY_USERNAME, prefs.getString(KEY_USERNAME, null))
+                .putString(KEY_USER_FULLNAME, prefs.getString(KEY_USER_FULLNAME, null))
+                .putString(KEY_USER_ROLE, prefs.getString(KEY_USER_ROLE, null))
+                .apply()
+            // Удаляем из обычного хранилища
+            prefs.edit()
+                .remove(KEY_AUTH_TOKEN)
+                .remove(KEY_REFRESH_TOKEN)
+                .remove(KEY_USER_ID)
+                .remove(KEY_USERNAME)
+                .remove(KEY_USER_FULLNAME)
+                .remove(KEY_USER_ROLE)
+                .apply()
+            Log.d("AppPreferences", "Token migration complete")
+        }
+    }
+
+    private fun restoreAuthFromFallbackIfNeeded() {
+        if (!secureStorageAvailable) {
+            return
+        }
+
+        val fallbackToken = prefs.getString(KEY_AUTH_TOKEN, null) ?: return
+        if (securePrefs.getString(KEY_AUTH_TOKEN, null) != null) {
+            return
+        }
+
+        Log.w("AppPreferences", "Restoring auth data from fallback storage")
+        securePrefs.edit()
+            .putString(KEY_AUTH_TOKEN, fallbackToken)
+            .putString(KEY_REFRESH_TOKEN, prefs.getString(KEY_REFRESH_TOKEN, null))
+            .putLong(KEY_USER_ID, prefs.getLong(KEY_USER_ID, -1))
+            .putString(KEY_USERNAME, prefs.getString(KEY_USERNAME, null))
+            .putString(KEY_USER_FULLNAME, prefs.getString(KEY_USER_FULLNAME, null))
+            .putString(KEY_USER_ROLE, prefs.getString(KEY_USER_ROLE, null))
+            .apply()
+    }
+
+    private fun getSecureValue(key: String): String? {
+        return securePrefs.getString(key, null) ?: prefs.getString(key, null)
+    }
+
+    private fun setSecureValue(key: String, value: String?) {
+        if (value != null) {
+            securePrefs.edit().putString(key, value).apply()
+            prefs.edit().putString(key, value).apply()
+        } else {
+            securePrefs.edit().remove(key).apply()
+            prefs.edit().remove(key).apply()
+        }
+    }
 
     companion object {
         private const val PREFS_NAME = "fieldworker_prefs"
+        private const val SECURE_PREFS_NAME = "fieldworker_secure_prefs"
         
         // Ключи
         private const val KEY_SERVER_URL = "server_url"
@@ -338,10 +450,12 @@ class AppPreferences @Inject constructor(
         
         // Авторизация
         private const val KEY_AUTH_TOKEN = "auth_token"
+        private const val KEY_REFRESH_TOKEN = "refresh_token"
         private const val KEY_USER_ID = "user_id"
         private const val KEY_USERNAME = "username"
         private const val KEY_USER_FULLNAME = "user_fullname"
         private const val KEY_USER_ROLE = "user_role"
+        private const val KEY_DISMISSED_UPDATE_VERSION_CODE = "dismissed_update_version_code"
         
         // Значения по умолчанию
         const val DEFAULT_SERVER_URL = "http://10.0.2.2"

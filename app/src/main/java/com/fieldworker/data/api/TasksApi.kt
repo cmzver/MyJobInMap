@@ -14,9 +14,10 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.HTTP
 import retrofit2.http.Multipart
+import retrofit2.http.PATCH
 import retrofit2.http.POST
-import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -51,7 +52,7 @@ interface TasksApi {
      * @param id ID задачи
      * @param status Новый статус и комментарий
      */
-    @PUT("api/tasks/{id}/status")
+    @PATCH("api/tasks/{id}/status")
     suspend fun updateTaskStatus(
         @Path("id") id: Long,
         @Body status: UpdateStatusDto
@@ -69,7 +70,7 @@ interface TasksApi {
     /**
      * Обновить планируемую дату выполнения
      */
-    @PUT("api/tasks/{id}/planned-date")
+    @PATCH("api/tasks/{id}/planned-date")
     suspend fun updatePlannedDate(
         @Path("id") id: Long,
         @Body plannedDate: UpdatePlannedDateDto
@@ -88,7 +89,7 @@ interface TasksApi {
     /**
      * Зарегистрировать FCM токен устройства
      */
-    @POST("api/devices/register")
+    @POST("api/devices")
     suspend fun registerDevice(
         @Body token: FCMTokenDto
     ): Response<Unit>
@@ -96,7 +97,7 @@ interface TasksApi {
     /**
      * Удалить регистрацию FCM токена
      */
-    @DELETE("api/devices/unregister")
+    @HTTP(method = "DELETE", path = "api/devices/unregister", hasBody = true)
     suspend fun unregisterDevice(
         @Body token: FCMTokenDto
     ): Response<Unit>

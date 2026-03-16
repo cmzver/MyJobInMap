@@ -1,11 +1,11 @@
-# FieldWorker Docker Compose
-# ==========================
+# FieldWorker Docker Compose (SQLite)
+# ====================================
 # Запуск: docker-compose up -d
 # Остановка: docker-compose down
 # Логи: docker-compose logs -f
 # Пересборка: docker-compose up -d --build
-
-version: '3.8'
+#
+# Конфигурация через .env файл в корне проекта (см. server/.env.example)
 
 services:
   # ==========================================================================
@@ -17,12 +17,22 @@ services:
       dockerfile: Dockerfile
     container_name: fieldworker-api
     restart: unless-stopped
+    env_file:
+      - ./server/.env
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DATABASE_URL=sqlite:///./tasks.db
     volumes:
-      - ./server/tasks.db:/app/tasks.db
-      - ./server/firebase-service-account.json:/app/firebase-service-account.json:ro
+      - ./server:/app
       - ./portal/dist:/portal/dist:ro
     ports:
-      - "8001:8001"
+      - "${PORT:-8001}:8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 
   # ==========================================================================

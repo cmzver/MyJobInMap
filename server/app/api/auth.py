@@ -6,18 +6,19 @@ Auth API
 
 from datetime import datetime, timezone
 from typing import Optional, Dict
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.models import UserModel, RolePermissionModel, get_db, init_default_settings
 from app.schemas import (
-    Token, UserResponse,
+    Token, RefreshRequest, UserResponse,
     ReportSettingsUpdate, ReportSettingsResponse
 )
+from app.services.audit_log import audit_login_success, audit_login_failed
 from app.services import (
-    authenticate_user, create_access_token,
+    authenticate_user, create_access_token, create_refresh_token, verify_refresh_token,
     get_current_user_required, get_password_hash, verify_password
 )
 from app.services.rate_limiter import login_rate_limiter
@@ -89,25 +90,36 @@ async def login(
     # Аутентифицировать пользователя
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
+        audit_login_failed(form_data.username, client_ip)
         raise HTTPException(status_code=401, detail="Неверный логин или пароль")
     
     # Успешный вход - сбросить counter
     login_rate_limiter.reset(client_ip)
+    audit_login_success(user.id, user.username, client_ip)
     
     user.last_login = datetime.now(timezone.utc)
     db.commit()
     
-    access_token = create_access_token(
-        data={"sub": user.username, "user_id": user.id, "role": user.role}
-    )
+    token_data = {"sub": user.username, "user_id": user.id, "role": user.role}
+    access_token = create_access_token(data=token_data)
+    refresh_token = create_refresh_token(data=token_data)
     
+    # Получаем данные организации
+    org_id = user.organization_id
+    org_name = None
+    if org_id and user.organization:
+        org_name = user.organization.name
+
     return Token(
         access_token=access_token,
+        refresh_token=refresh_token,
         token_type="bearer",
         user_id=user.id,
         username=user.username,
         role=user.role,
-        full_name=user.full_name or user.username
+        full_name=user.full_name or user.username,
+        organization_id=org_id,
+        organization_name=org_name
     )
 
 
@@ -124,11 +136,96 @@ async def get_me(user: UserModel = Depends(get_current_user_required)):
         is_active=user.is_active,
         created_at=user.created_at,
         last_login=user.last_login,
-        assigned_tasks_count=len(user.assigned_tasks) if user.assigned_tasks else 0
+        assigned_tasks_count=len(user.assigned_tasks) if user.assigned_tasks else 0,
+        organization_id=user.organization_id
     )
 
 
-@router.put("/profile", response_model=UserResponse)
+@router.post("/refresh", response_model=Token)
+async def refresh_token(
+    data: RefreshRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Обновить access token с помощью refresh token.
+    
+    Возвращает новую пару access + refresh токенов.
+    Старый refresh token становится невалидным (ротация).
+    
+    Args:
+        data: Запрос с refresh_token
+        db: Database session
+    
+    Returns:
+        Новая пара токенов + информация о пользователе
+    
+    Raises:
+        401 Unauthorized: Если refresh token невалидный или истёк
+    """
+    payload = verify_refresh_token(data.refresh_token)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token"
+        )
+    
+    user_id = payload.get("user_id")
+    username = payload.get("sub")
+    
+    if not user_id or not username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token payload"
+        )
+    
+    # Проверяем, что пользователь существует и активен
+    user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or deactivated"
+        )
+    
+    # Проверяем, что организация активна
+    if user.organization_id and user.organization:
+        if not user.organization.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Организация деактивирована"
+            )
+    
+    # Проверяем что username совпадает (защита от переиспользования ID)
+    if user.username != username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token mismatch"
+        )
+    
+    # Создаём новую пару токенов (ротация)
+    token_data = {"sub": user.username, "user_id": user.id, "role": user.role}
+    new_access_token = create_access_token(data=token_data)
+    new_refresh_token = create_refresh_token(data=token_data)
+    
+    # Получаем данные организации для refresh
+    refresh_org_id = user.organization_id
+    refresh_org_name = None
+    if refresh_org_id and user.organization:
+        refresh_org_name = user.organization.name
+
+    return Token(
+        access_token=new_access_token,
+        refresh_token=new_refresh_token,
+        token_type="bearer",
+        user_id=user.id,
+        username=user.username,
+        role=user.role,
+        full_name=user.full_name or user.username,
+        organization_id=refresh_org_id,
+        organization_name=refresh_org_name
+    )
+
+
+@router.patch("/profile", response_model=UserResponse)
 async def update_profile(
     data: ProfileUpdate,
     user: UserModel = Depends(get_current_user_required),
@@ -155,11 +252,12 @@ async def update_profile(
         is_active=user.is_active,
         created_at=user.created_at,
         last_login=user.last_login,
-        assigned_tasks_count=len(user.assigned_tasks) if user.assigned_tasks else 0
+        assigned_tasks_count=len(user.assigned_tasks) if user.assigned_tasks else 0,
+        organization_id=user.organization_id
     )
 
 
-@router.put("/password")
+@router.patch("/password")
 async def change_password(
     data: PasswordChange,
     user: UserModel = Depends(get_current_user_required),
@@ -167,7 +265,7 @@ async def change_password(
 ):
     """Изменить пароль текущего пользователя"""
     # Проверка текущего пароля
-    if not verify_password(data.current_password, user.hashed_password):
+    if not verify_password(data.current_password, user.password_hash):
         raise HTTPException(status_code=400, detail="Неверный текущий пароль")
     
     # Валидация нового пароля
@@ -175,7 +273,7 @@ async def change_password(
         raise HTTPException(status_code=400, detail="Пароль должен быть не менее 6 символов")
     
     # Обновление пароля
-    user.hashed_password = get_password_hash(data.new_password)
+    user.password_hash = get_password_hash(data.new_password)
     db.commit()
     
     return {"success": True, "message": "Пароль успешно изменён"}
@@ -205,7 +303,7 @@ async def get_my_permissions(
     return PermissionsResponse(role=user.role, permissions=permissions)
 
 
-@router.put("/report-settings", response_model=ReportSettingsResponse)
+@router.patch("/report-settings", response_model=ReportSettingsResponse)
 async def update_report_settings(
     settings: ReportSettingsUpdate,
     user: UserModel = Depends(get_current_user_required),

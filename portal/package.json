@@ -9,10 +9,13 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css}\""
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.14.2",
+    "@tanstack/react-virtual": "^3.13.18",
     "axios": "^1.6.2",
     "clsx": "^2.0.0",
     "date-fns": "^3.0.0",
@@ -42,6 +45,7 @@
     "prettier": "^3.1.1",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.3.3",
-    "vite": "^5.0.8"
+    "vite": "^5.0.8",
+    "vitest": "^4.0.18"
   }
 }

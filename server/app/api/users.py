@@ -5,17 +5,17 @@ Users API (Alias)
 Алиас для /api/admin/users с ограниченными правами.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from app.models import UserModel, TaskModel, get_db
 from app.schemas import UserCreate, UserUpdate, UserResponse
-from app.services import get_password_hash, get_current_user, get_current_admin
+from app.services import get_password_hash, get_current_user_required, get_current_admin
+from app.services.tenant_filter import TenantFilter
 from app.utils import user_to_response
 
 
@@ -37,24 +37,32 @@ class UserStatsResponse(BaseModel):
 @router.get("", response_model=List[UserResponse])
 async def get_users(
     db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    current_user: UserModel = Depends(get_current_user_required)
 ):
     """Получить список пользователей (для назначения исполнителей)"""
-    # Показываем всех активных пользователей
-    users = db.query(UserModel).filter(UserModel.is_active == True).all()
+    tenant = TenantFilter(current_user)
+    users = tenant.apply(db.query(UserModel), UserModel).filter(UserModel.is_active == True).all()
     return [user_to_response(u) for u in users]
 
 
 @router.get("/me/stats", response_model=UserStatsResponse)
 async def get_my_stats(
     db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    current_user: UserModel = Depends(get_current_user_required)
 ):
     """Получить статистику текущего пользователя"""
     user_id = current_user.id
+    tenant = TenantFilter(current_user)
+
+    def _as_utc(value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
     
     # Все задачи пользователя
-    all_tasks = db.query(TaskModel).filter(
+    all_tasks = tenant.apply(db.query(TaskModel), TaskModel).filter(
         TaskModel.assigned_user_id == user_id
     ).all()
     
@@ -75,30 +83,31 @@ async def get_my_stats(
     if completed_with_time:
         total_hours = 0
         for t in completed_with_time:
-            # Убираем timezone info если есть
-            created = t.created_at.replace(tzinfo=None) if t.created_at.tzinfo else t.created_at
-            completed = t.completed_at.replace(tzinfo=None) if t.completed_at.tzinfo else t.completed_at
+            created = _as_utc(t.created_at)
+            completed = _as_utc(t.completed_at)
+            if created is None or completed is None:
+                continue
             diff = completed - created
             total_hours += diff.total_seconds() / 3600
         avg_completion_hours = round(total_hours / len(completed_with_time), 1)
     
     # Задачи за эту неделю
-    week_ago = datetime.now() - timedelta(days=7)
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
     tasks_this_week = sum(
         1 for t in all_tasks 
-        if t.created_at and t.created_at.replace(tzinfo=None) >= week_ago
+        if (created_at := _as_utc(t.created_at)) and created_at >= week_ago
     )
     
     # Задачи за этот месяц
-    month_ago = datetime.now() - timedelta(days=30)
+    month_ago = datetime.now(timezone.utc) - timedelta(days=30)
     tasks_this_month = sum(
         1 for t in all_tasks 
-        if t.created_at and t.created_at.replace(tzinfo=None) >= month_ago
+        if (created_at := _as_utc(t.created_at)) and created_at >= month_ago
     )
     
     # Серия дней с выполненными заявками
     streak_days = 0
-    today = datetime.now().date()
+    today = datetime.now(timezone.utc).date()
     for i in range(365):  # Максимум год назад
         check_date = today - timedelta(days=i)
         has_completed = any(
@@ -126,12 +135,13 @@ async def get_my_stats(
 async def get_user(
     user_id: int,
     db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+    current_user: UserModel = Depends(get_current_user_required)
 ):
     """Получить пользователя по ID"""
     user = db.query(UserModel).filter(UserModel.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    TenantFilter(current_user).enforce_access(user)
     return user_to_response(user)
 
 
@@ -147,15 +157,22 @@ async def create_user(
     if existing:
         raise HTTPException(status_code=400, detail="Username already exists")
     
+    tenant = TenantFilter(admin)
+
     user = UserModel(
         username=data.username,
-        hashed_password=get_password_hash(data.password),
+        password_hash=get_password_hash(data.password),
         full_name=data.full_name,
         email=data.email,
         phone=data.phone,
-        role=data.role,
-        is_active=data.is_active if data.is_active is not None else True
+        role=data.role.value,
+        is_active=True,
     )
+
+    if tenant.is_superadmin and data.organization_id is not None:
+        user.organization_id = data.organization_id
+    else:
+        tenant.set_org_id(user)
     
     db.add(user)
     db.commit()
@@ -164,7 +181,7 @@ async def create_user(
     return user_to_response(user)
 
 
-@router.put("/{user_id}", response_model=UserResponse)
+@router.patch("/{user_id}", response_model=UserResponse)
 async def update_user(
     user_id: int,
     data: UserUpdate,
@@ -175,20 +192,8 @@ async def update_user(
     user = db.query(UserModel).filter(UserModel.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
-    # Обновляем поля
-    if data.username is not None:
-        # Проверка на дубликат
-        existing = db.query(UserModel).filter(
-            UserModel.username == data.username,
-            UserModel.id != user_id
-        ).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Username already exists")
-        user.username = data.username
-    
-    if data.password:
-        user.hashed_password = get_password_hash(data.password)
+
+    TenantFilter(admin).enforce_access(user)
     
     if data.full_name is not None:
         user.full_name = data.full_name
@@ -197,7 +202,7 @@ async def update_user(
     if data.phone is not None:
         user.phone = data.phone
     if data.role is not None:
-        user.role = data.role
+        user.role = data.role.value
     if data.is_active is not None:
         user.is_active = data.is_active
     
@@ -217,6 +222,8 @@ async def delete_user(
     user = db.query(UserModel).filter(UserModel.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    TenantFilter(admin).enforce_access(user)
     
     if user.id == admin.id:
         raise HTTPException(status_code=400, detail="Cannot delete yourself")

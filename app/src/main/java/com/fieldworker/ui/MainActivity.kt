@@ -9,12 +9,15 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,17 +25,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.AuthRepository
 import com.fieldworker.data.repository.OfflineFirstTasksRepository
 import com.fieldworker.ui.auth.LoginScreen
+import com.fieldworker.ui.components.UpdateDialog
 import com.fieldworker.ui.main.MainScreen
 import com.fieldworker.ui.theme.FieldWorkerTheme
+import com.fieldworker.ui.update.UpdateViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 /**
@@ -45,6 +55,7 @@ class MainActivity : ComponentActivity() {
     
     companion object {
         private const val TAG = "MainActivity"
+        const val EXTRA_TASK_ID = "task_id"
     }
     
     @Inject
@@ -56,8 +67,11 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var authRepository: AuthRepository
     
+    private val updateViewModel: UpdateViewModel by viewModels()
+    
     // Флаг готовности приложения (используется для Splash Screen)
     private var isAppReady = false
+    private var pendingNotificationTaskId by mutableStateOf<Long?>(null)
     
     // Запрос разрешения на уведомления для Android 13+
     private val requestPermissionLauncher = registerForActivityResult(
@@ -75,6 +89,7 @@ class MainActivity : ComponentActivity() {
         val splashScreen = installSplashScreen()
         
         super.onCreate(savedInstanceState)
+        pendingNotificationTaskId = extractTaskIdFromIntent(intent)
         
         // Контролируем, когда скрыть Splash Screen
         splashScreen.setKeepOnScreenCondition { !isAppReady }
@@ -168,7 +183,51 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         AuthState.LoggedIn -> {
+                            // === Проверка обновлений ===
+                            val updateState by updateViewModel.updateState.collectAsState()
+                            val downloadedApk by updateViewModel.downloadedApk.collectAsState()
+                            val lifecycleOwner = LocalLifecycleOwner.current
+                            val appVersionInfo = rememberAppVersionInfo()
+
+                            LaunchedEffect(appVersionInfo.versionCode, appVersionInfo.versionName) {
+                                updateViewModel.checkForUpdate(
+                                    versionCode = appVersionInfo.versionCode,
+                                    versionName = appVersionInfo.versionName,
+                                    isManualCheck = false
+                                )
+                            }
+
+                            DisposableEffect(lifecycleOwner, appVersionInfo.versionCode, appVersionInfo.versionName) {
+                                val observer = LifecycleEventObserver { _, event ->
+                                    if (event == Lifecycle.Event.ON_RESUME) {
+                                        updateViewModel.checkForUpdate(
+                                            versionCode = appVersionInfo.versionCode,
+                                            versionName = appVersionInfo.versionName,
+                                            isManualCheck = false
+                                        )
+                                    }
+                                }
+
+                                lifecycleOwner.lifecycle.addObserver(observer)
+                                onDispose {
+                                    lifecycleOwner.lifecycle.removeObserver(observer)
+                                }
+                            }
+                            
                             MainScreen(
+                                notificationTaskId = pendingNotificationTaskId,
+                                onNotificationTaskHandled = {
+                                    pendingNotificationTaskId = null
+                                    intent?.removeExtra(EXTRA_TASK_ID)
+                                },
+                                onCheckForUpdates = {
+                                    updateViewModel.checkForUpdate(
+                                        versionCode = appVersionInfo.versionCode,
+                                        versionName = appVersionInfo.versionName,
+                                        isManualCheck = true
+                                    )
+                                },
+                                isCheckingForUpdates = updateState is com.fieldworker.ui.components.UpdateState.Checking,
                                 onLogout = {
                                     lifecycleScope.launch {
                                         tasksRepository.clearCache()
@@ -182,6 +241,21 @@ class MainActivity : ComponentActivity() {
                                     finish()
                                 }
                             )
+                            
+                            // Диалог обновления
+                            if (updateState != null) {
+                                UpdateDialog(
+                                    state = updateState!!,
+                                    onDismiss = { updateViewModel.dismiss() },
+                                    onDownload = { updateViewModel.startDownload() },
+                                    onInstall = {
+                                        downloadedApk?.let { apk ->
+                                            installApk(apk)
+                                        }
+                                    },
+                                    onCancelDownload = { updateViewModel.cancelDownload() }
+                                )
+                            }
                         }
                         AuthState.NotLoggedIn -> {
                             LoginScreen(
@@ -195,14 +269,20 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingNotificationTaskId = extractTaskIdFromIntent(intent)
+    }
     
     /**
      * Состояние авторизации
      */
     private sealed class AuthState {
-        object Loading : AuthState()
-        object LoggedIn : AuthState()
-        object NotLoggedIn : AuthState()
+        data object Loading : AuthState()
+        data object LoggedIn : AuthState()
+        data object NotLoggedIn : AuthState()
     }
     
     private fun askNotificationPermission() {
@@ -222,4 +302,62 @@ class MainActivity : ComponentActivity() {
             Log.d(TAG, "Notification permission not required (API < 33)")
         }
     }
+    
+    /**
+     * Запуск установки APK через FileProvider
+     */
+    private fun installApk(apkFile: File) {
+        try {
+            val uri = FileProvider.getUriForFile(
+                this,
+                "${packageName}.fileprovider",
+                apkFile
+            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to install APK", e)
+        }
+    }
+
+    private fun extractTaskIdFromIntent(intent: Intent?): Long? {
+        val rawTaskId = intent?.getStringExtra(EXTRA_TASK_ID) ?: return null
+        return rawTaskId.toLongOrNull()
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun rememberAppVersionInfo(): AppVersionInfo {
+        return remember(packageName) {
+            val packageInfo = try {
+                packageManager.getPackageInfo(packageName, 0)
+            } catch (e: Exception) {
+                null
+            }
+
+            val versionCode = if (packageInfo != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    packageInfo.longVersionCode.toInt()
+                } else {
+                    @Suppress("DEPRECATION")
+                    packageInfo.versionCode
+                }
+            } else {
+                1
+            }
+
+            AppVersionInfo(
+                versionCode = versionCode,
+                versionName = packageInfo?.versionName ?: "1.0"
+            )
+        }
+    }
+
+    private data class AppVersionInfo(
+        val versionCode: Int,
+        val versionName: String
+    )
 }

@@ -1,0 +1,6 @@
+{
+  "NEW": ["IN_PROGRESS", "CANCELLED"],
+  "IN_PROGRESS": ["DONE", "CANCELLED"],
+  "DONE": [],
+  "CANCELLED": []
+}

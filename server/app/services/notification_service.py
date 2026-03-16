@@ -105,7 +105,8 @@ def create_task_status_notification(
         admins = db.query(UserModel).filter(
             UserModel.role.in_(["admin", "dispatcher"]),
             UserModel.is_active == True,  # noqa: E712
-            UserModel.id != changed_by.id
+            UserModel.id != changed_by.id,
+            UserModel.organization_id == task.organization_id,
         ).all()
         
         for admin in admins:

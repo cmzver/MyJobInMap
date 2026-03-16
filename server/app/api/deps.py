@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models import TaskModel, UserModel, get_db
 from app.services import check_permission, enforce_worker_task_access, get_current_user_required
+from app.services.tenant_filter import TenantFilter
 
 
 def get_task_or_404(
@@ -39,6 +40,8 @@ def require_task_access(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=detail
             )
+        tenant = TenantFilter(user)
+        tenant.enforce_access(task, detail=worker_detail)
         enforce_worker_task_access(user, task, detail=worker_detail)
         return TaskAccess(task=task, user=user)
 

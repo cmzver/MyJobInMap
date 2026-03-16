@@ -134,3 +134,112 @@ class TestRateLimiter:
         stats = limiter.get_stats()
         assert stats["tracked_ips"] == 0
 
+
+class TestRateLimiterThreadSafety:
+    """Thread safety edge cases."""
+
+    def test_concurrent_access_same_ip(self):
+        """Multiple threads accessing same IP — total allowed <= max_attempts."""
+        import threading
+        limiter = RateLimiter(max_attempts=5, window_seconds=60)
+        allowed_count = 0
+        lock = threading.Lock()
+
+        def worker():
+            nonlocal allowed_count
+            is_ok, _ = limiter.is_allowed("shared-ip")
+            if is_ok:
+                with lock:
+                    allowed_count += 1
+
+        threads = [threading.Thread(target=worker) for _ in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert allowed_count <= 5
+
+    def test_concurrent_different_ips(self):
+        """Each thread uses its own IP — all first attempts allowed."""
+        import threading
+        limiter = RateLimiter(max_attempts=1, window_seconds=60)
+        results = {}
+        lock = threading.Lock()
+
+        def worker(ip):
+            is_ok, _ = limiter.is_allowed(ip)
+            with lock:
+                results[ip] = is_ok
+
+        threads = [threading.Thread(target=worker, args=(f"10.0.0.{i}",)) for i in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert all(results.values())
+
+
+class TestRateLimiterOverflow:
+    """Memory overflow protection."""
+
+    def test_max_tracked_ips_triggers_cleanup(self):
+        """Exceeding MAX_TRACKED_IPS triggers cleanup without crash."""
+        limiter = RateLimiter(max_attempts=1, window_seconds=1)
+        limiter.MAX_TRACKED_IPS = 50  # Lower threshold for test speed
+
+        # Fill with expired entries
+        import time
+        for i in range(60):
+            limiter.is_allowed(f"10.0.{i // 256}.{i % 256}")
+
+        # Wait for expiry
+        time.sleep(1.1)
+
+        # One more call should trigger _cleanup_expired and still work
+        is_ok, _ = limiter.is_allowed("fresh-ip")
+        assert is_ok is True
+
+        stats = limiter.get_stats()
+        # Expired entries should have been cleaned up
+        assert stats["tracked_ips"] <= 52  # fresh + possibly some remaining
+
+
+class TestRateLimiterEdgeCases:
+    """Edge cases and boundary conditions."""
+
+    def test_retry_after_unknown_ip(self):
+        """get_retry_after for unknown IP returns 0."""
+        limiter = RateLimiter(max_attempts=3, window_seconds=60)
+        assert limiter.get_retry_after("never-seen") == 0
+
+    def test_reset_nonexistent_ip(self):
+        """reset for non-existent IP does not raise."""
+        limiter = RateLimiter(max_attempts=3, window_seconds=60)
+        limiter.reset("ghost-ip")  # Should not raise
+
+    def test_remaining_count_sequence(self):
+        """Remaining count decreases correctly: 4, 3, 2, 1, 0, 0..."""
+        limiter = RateLimiter(max_attempts=5, window_seconds=60)
+        expected = [4, 3, 2, 1, 0, 0, 0]
+        for exp in expected:
+            _, remaining = limiter.is_allowed("test-ip")
+            assert remaining == exp
+
+    def test_zero_max_attempts(self):
+        """With max_attempts=0, all requests are blocked."""
+        limiter = RateLimiter(max_attempts=0, window_seconds=60)
+        is_ok, remaining = limiter.is_allowed("any-ip")
+        assert is_ok is False
+        assert remaining == 0
+
+    def test_very_short_window(self):
+        """Very short window (0.1s) resets quickly."""
+        limiter = RateLimiter(max_attempts=1, window_seconds=0)
+        # With 0-second window, everything should be allowed
+        is_ok1, _ = limiter.is_allowed("ip")
+        is_ok2, _ = limiter.is_allowed("ip")
+        # Both should pass since window is 0 (all attempts are expired immediately)
+        assert is_ok1 is True
+

@@ -73,7 +73,7 @@ class DeviceRepository @Inject constructor(
             val response = tasksApi.unregisterDevice(FCMTokenDto(token))
             
             if (response.isSuccessful) {
-                preferences.setFcmToken(null.toString())
+                preferences.setFcmToken(null)
                 Log.d(TAG, "Device unregistered")
                 Result.success(true)
             } else {

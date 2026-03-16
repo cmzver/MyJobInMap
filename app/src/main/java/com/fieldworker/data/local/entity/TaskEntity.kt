@@ -18,6 +18,8 @@ data class TaskEntity(
     val title: String,
     val address: String,
     val description: String,
+    val customerName: String? = null,
+    val customerPhone: String? = null,
     val lat: Double?,
     val lon: Double?,
     val status: String,
@@ -25,6 +27,13 @@ data class TaskEntity(
     val createdAt: String,
     val updatedAt: String,
     val plannedDate: String? = null,
+    val assignedUserId: Long? = null,
+    val assignedUserName: String? = null,
+    val isRemote: Boolean = false,
+    val isPaid: Boolean = false,
+    val paymentAmount: Double = 0.0,
+    val systemType: String? = null,
+    val defectType: String? = null,
     val commentsCount: Int,
     // Метаданные для синхронизации
     val lastSyncedAt: Long = System.currentTimeMillis(),
@@ -41,6 +50,8 @@ data class TaskEntity(
         title = title,
         address = address,
         description = description,
+        customerName = customerName,
+        customerPhone = customerPhone,
         lat = lat,
         lon = lon,
         status = TaskStatus.fromString(status),
@@ -48,6 +59,13 @@ data class TaskEntity(
         createdAt = createdAt,
         updatedAt = updatedAt,
         plannedDate = plannedDate,
+        assignedUserId = assignedUserId,
+        assignedUserName = assignedUserName,
+        isRemote = isRemote,
+        isPaid = isPaid,
+        paymentAmount = paymentAmount,
+        systemType = systemType,
+        defectType = defectType,
         commentsCount = commentsCount
     )
     
@@ -61,6 +79,8 @@ data class TaskEntity(
             title = task.title,
             address = task.address,
             description = task.description,
+            customerName = task.customerName,
+            customerPhone = task.customerPhone,
             lat = task.lat,
             lon = task.lon,
             status = task.status.name,
@@ -68,6 +88,13 @@ data class TaskEntity(
             createdAt = task.createdAt,
             updatedAt = task.updatedAt,
             plannedDate = task.plannedDate,
+            assignedUserId = task.assignedUserId,
+            assignedUserName = task.assignedUserName,
+            isRemote = task.isRemote,
+            isPaid = task.isPaid,
+            paymentAmount = task.paymentAmount,
+            systemType = task.systemType,
+            defectType = task.defectType,
             commentsCount = task.commentsCount
         )
     }

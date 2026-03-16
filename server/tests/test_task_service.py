@@ -6,9 +6,11 @@ from app.services.task_service import (
     TaskNotFoundError,
     PermissionDeniedError,
     InvalidTransitionError,
+    CommentRequiredError,
 )
 from app.schemas import TaskCreate
-from app.models import TaskModel, UserModel, UserRole, TaskStatus
+from app.models import TaskModel, UserModel, UserRole, TaskStatus, OrganizationModel
+from app.services.auth import get_password_hash
 
 
 class TestTaskServiceInit:
@@ -96,6 +98,41 @@ class TestTaskServiceGetList:
         
         assert len(new_tasks) == 2
         assert all(t.status == TaskStatus.NEW.value for t in new_tasks)
+
+    def test_get_list_is_tenant_scoped(self, db_session):
+        """Org user should not see tasks from another organization via service list."""
+        org1 = OrganizationModel(name="Task Service Org 1", slug="task-service-org-1", is_active=True)
+        org2 = OrganizationModel(name="Task Service Org 2", slug="task-service-org-2", is_active=True)
+        user = UserModel(
+            username="task_service_org_user",
+            password_hash=get_password_hash("test"),
+            full_name="Task Service User",
+            role=UserRole.DISPATCHER.value,
+            is_active=True,
+            organization=org1,
+        )
+        own_task = TaskModel(
+            title="Own Org Task",
+            raw_address="Own Address",
+            status=TaskStatus.NEW.value,
+            priority="CURRENT",
+            organization=org1,
+        )
+        foreign_task = TaskModel(
+            title="Foreign Org Task",
+            raw_address="Foreign Address",
+            status=TaskStatus.NEW.value,
+            priority="CURRENT",
+            organization=org2,
+        )
+        db_session.add_all([org1, org2, user, own_task, foreign_task])
+        db_session.commit()
+
+        service = TaskService(db_session)
+        tasks = service.get_list(user)
+
+        assert len(tasks) == 1
+        assert tasks[0].title == "Own Org Task"
 
 
 class TestTaskServiceCreate:
@@ -205,10 +242,46 @@ class TestTaskServiceUpdateStatus:
         db_session.commit()
         
         service = TaskService(db_session)
-        updated = service.update_status(task.id, "DONE", user=admin_user)
+        updated = service.update_status(task.id, "DONE", comment_text="Работы завершены", user=admin_user)
         
         assert updated.status == TaskStatus.DONE.value
         assert updated.completed_at is not None
+
+    def test_done_requires_comment(self, db_session, admin_user):
+        """Test DONE transition requires comment."""
+        task = TaskModel(
+            title="Task",
+            raw_address="Addr",
+            status=TaskStatus.IN_PROGRESS.value,
+            priority="CURRENT",
+        )
+        db_session.add(task)
+        db_session.commit()
+
+        service = TaskService(db_session)
+
+        with pytest.raises(CommentRequiredError) as exc_info:
+            service.update_status(task.id, "DONE", comment_text="   ", user=admin_user)
+
+        assert exc_info.value.status_code == 422
+
+    def test_cancelled_requires_comment(self, db_session, admin_user):
+        """Test CANCELLED transition requires comment."""
+        task = TaskModel(
+            title="Task",
+            raw_address="Addr",
+            status=TaskStatus.IN_PROGRESS.value,
+            priority="CURRENT",
+        )
+        db_session.add(task)
+        db_session.commit()
+
+        service = TaskService(db_session)
+
+        with pytest.raises(CommentRequiredError) as exc_info:
+            service.update_status(task.id, "CANCELLED", comment_text="", user=admin_user)
+
+        assert exc_info.value.status_code == 422
 
 
 class TestTaskServiceAssign:
@@ -332,7 +405,7 @@ class TestTaskServiceStatusNames:
         """Test PRIORITY_DISPLAY_NAMES contains all priorities."""
         from app.utils import PRIORITY_DISPLAY_NAMES
         from app.models.enums import TaskPriority
-        assert PRIORITY_DISPLAY_NAMES[TaskPriority.PLANNED.value] == "????????"
-        assert PRIORITY_DISPLAY_NAMES[TaskPriority.CURRENT.value] == "???????"
-        assert PRIORITY_DISPLAY_NAMES[TaskPriority.URGENT.value] == "???????"
-        assert PRIORITY_DISPLAY_NAMES[TaskPriority.EMERGENCY.value] == "?????????"
+        assert PRIORITY_DISPLAY_NAMES[TaskPriority.PLANNED.value] == "Плановая"
+        assert PRIORITY_DISPLAY_NAMES[TaskPriority.CURRENT.value] == "Текущая"
+        assert PRIORITY_DISPLAY_NAMES[TaskPriority.URGENT.value] == "Срочная"
+        assert PRIORITY_DISPLAY_NAMES[TaskPriority.EMERGENCY.value] == "Аварийная"

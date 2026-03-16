@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useCallback, useRef, Fragment } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { showApiError } from '@/utils/apiError'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { Search, Plus, RefreshCw, MapPin, Calendar, User, AlertTriangle, Clock, ChevronDown, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTasks } from '@/hooks/useTasks'
@@ -8,25 +10,36 @@ import { useUsers } from '@/hooks/useUsers'
 import { tasksApi } from '@/api/tasks'
 import type { CreateTaskData } from '@/api/tasks'
 import apiClient from '@/api/client'
-import type { TaskStatus, TaskPriority, TaskFilters, Task } from '@/types/task'
+import type { TaskStatus, TaskPriority, TaskFilters, Task, TaskSort } from '@/types/task'
+import { formatDateTime, getSla } from '@/utils/dateFormat'
 import {
   STATUS_OPTIONS,
   PRIORITY_OPTIONS,
   normalizePriority,
   getPriorityLabel as getPriorityLabelFn,
   getStatusLabel as getStatusLabelFn,
+  getStatusCommentCopy,
+  isStatusTransitionAllowed,
   parsePriorityFromImport,
 } from '@/config/taskConstants'
 import Button from '@/components/Button'
 import Select from '@/components/Select'
-import Spinner from '@/components/Spinner'
+import { SkeletonTaskList } from '@/components/Skeleton'
 import Pagination from '@/components/Pagination'
 import EmptyState from '@/components/EmptyState'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
 import Badge from '@/components/Badge'
+import Modal from '@/components/Modal'
+import Textarea from '@/components/Textarea'
 
 const PAGE_SIZE = 20
+const PAGE_SIZE_OPTIONS = [20, 50, 100]
+const VIRTUALIZE_THRESHOLD = 40
+const ROW_HEIGHT_NORMAL = 56
+const ROW_HEIGHT_COMPACT = 44
+const GROUP_HEADER_HEIGHT = 40
+const TABLE_MAX_HEIGHT = 720
 const SEARCH_DEBOUNCE_MS = 700
 const TABLE_COLUMN_COUNT = 9
 const COLUMN_STORAGE_KEY = 'tasks-table-column-widths'
@@ -36,18 +49,6 @@ type ColumnKey = 'select' | 'number' | 'title' | 'address' | 'status' | 'priorit
 interface InterfaceSettings {
   enable_resizable_columns: boolean
   compact_table_view: boolean
-}
-
-const isStatusTransitionAllowed = (fromStatus: TaskStatus, toStatus: TaskStatus) => {
-  if (fromStatus === toStatus) return false
-  switch (fromStatus) {
-    case 'NEW':
-      return toStatus === 'IN_PROGRESS' || toStatus === 'CANCELLED'
-    case 'IN_PROGRESS':
-      return toStatus === 'DONE' || toStatus === 'CANCELLED'
-    default:
-      return false
-  }
 }
 
 const defaultColumnWidths: Record<ColumnKey, number> = {
@@ -104,6 +105,11 @@ const groupOptions = [
   { value: 'status', label: 'По статусу' },
   { value: 'assignee', label: 'По исполнителю' },
   { value: 'priority', label: 'По приоритету' },
+]
+
+const sortOptions = [
+  { value: 'created_at_desc', label: 'Дата заявки: новые сверху' },
+  { value: 'created_at_asc', label: 'Дата заявки: старые сверху' },
 ]
 
 const importHeaderMap: Record<string, string> = {
@@ -191,6 +197,8 @@ export default function TasksPage() {
   } | null>(null)
   const initialPage = Number(searchParams.get('page') || 1)
   const [page, setPage] = useState(() => (Number.isFinite(initialPage) && initialPage > 0 ? initialPage : 1))
+  const initialSize = Number(searchParams.get('size') || PAGE_SIZE)
+  const [pageSize, setPageSize] = useState(() => (PAGE_SIZE_OPTIONS.includes(initialSize) ? initialSize : PAGE_SIZE))
   const [searchInput, setSearchInput] = useState(() => searchParams.get('search') || '')
   const [search, setSearch] = useState(() => searchParams.get('search') || '')
   const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get('status') || '')
@@ -198,10 +206,20 @@ export default function TasksPage() {
   const [assigneeFilter, setAssigneeFilter] = useState<string>(() => searchParams.get('assignee') || '')
   const [addressIdFilter, setAddressIdFilter] = useState<string>(() => searchParams.get('address_id') || '')
   const [addressTitleFilter, setAddressTitleFilter] = useState<string>(() => searchParams.get('address_title') || '')
+  const [sortBy, setSortBy] = useState<TaskSort>(() => {
+    const value = searchParams.get('sort')
+    return value === 'created_at_asc' ? 'created_at_asc' : 'created_at_desc'
+  })
   const [groupBy, setGroupBy] = useState('')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkStatus, setBulkStatus] = useState('')
+  const [showBulkStatusCommentModal, setShowBulkStatusCommentModal] = useState(false)
+  const [pendingBulkStatus, setPendingBulkStatus] = useState<TaskStatus | null>(null)
+  const [pendingBulkStatusIds, setPendingBulkStatusIds] = useState<number[]>([])
+  const [pendingBulkSkippedCount, setPendingBulkSkippedCount] = useState(0)
+  const [bulkStatusComment, setBulkStatusComment] = useState('')
+  const [bulkStatusCommentError, setBulkStatusCommentError] = useState('')
   const [bulkAssignee, setBulkAssignee] = useState('')
   const [bulkPriority, setBulkPriority] = useState('')
   const [bulkPlannedDate, setBulkPlannedDate] = useState('')
@@ -211,13 +229,14 @@ export default function TasksPage() {
   // Build filters object
   const filters: TaskFilters = useMemo(() => ({
     page,
-    size: PAGE_SIZE,
+    size: pageSize,
+    sort: sortBy,
     ...(addressIdFilter ? { address_id: Number(addressIdFilter) || undefined } : {}),
     ...(search && { search }),
     ...(statusFilter && { status: statusFilter as TaskStatus }),
     ...(priorityFilter && { priority: priorityFilter as TaskPriority }),
     ...(assigneeFilter && { assignee_id: Number(assigneeFilter) }),
-  }), [page, search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter])
+  }), [page, pageSize, sortBy, search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter])
 
   const { data, isLoading, isError, error, refetch, isFetching } = useTasks(filters)
   const { data: interfaceSettings } = useQuery({
@@ -254,6 +273,11 @@ export default function TasksPage() {
 
   const handleAssigneeFilterChange = (value: string) => {
     setAssigneeFilter(value)
+    setPage(1)
+  }
+
+  const handleSortChange = (value: string) => {
+    setSortBy(value === 'created_at_asc' ? 'created_at_asc' : 'created_at_desc')
     setPage(1)
   }
 
@@ -436,14 +460,14 @@ export default function TasksPage() {
         return
       }
 
-      const headers = rows[0].map((header) => header.trim().toLowerCase())
-      const fieldByIndex = headers.map((header) => importHeaderMap[header] || '')
+      const headers = rows[0]!.map((header) => header.trim().toLowerCase())
+      const fieldByIndex = headers.map((header) => importHeaderMap[header] ?? '')
 
       const tasksToCreate: CreateTaskData[] = []
       let skipped = 0
 
       for (let i = 1; i < rows.length; i += 1) {
-        const row = rows[i]
+        const row = rows[i]!
         const payload: CreateTaskData = {
           title: '',
           description: '',
@@ -451,7 +475,7 @@ export default function TasksPage() {
         }
 
         row.forEach((cell, index) => {
-          const field = fieldByIndex[index]
+          const field = fieldByIndex[index] ?? ''
           const value = cell?.trim?.() ?? ''
           if (!field || !value) return
 
@@ -510,23 +534,13 @@ export default function TasksPage() {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
       toast.success(`Импорт завершён: ${success} успешно, ${failed + skipped} ошибок`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Ошибка импорта CSV')
+      showApiError(err, 'Ошибка импорта CSV')
     } finally {
       setIsImporting(false)
       if (importInputRef.current) {
         importInputRef.current.value = ''
       }
     }
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('ru-RU', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
   }
 
   // Используем функции из taskConstants
@@ -542,30 +556,6 @@ export default function TasksPage() {
   const getStatusLabel = useCallback((value?: TaskStatus | string) => {
     return getStatusLabelFn(value)
   }, [])
-
-  const getSla = (plannedDate?: string | null, status?: TaskStatus) => {
-    if (!plannedDate) {
-      return { label: 'Нет срока', tone: 'text-gray-500 dark:text-gray-400' }
-    }
-    if (status === 'DONE' || status === 'CANCELLED') {
-      return { label: 'Закрыта', tone: 'text-gray-500 dark:text-gray-400' }
-    }
-    const deadline = new Date(plannedDate).getTime()
-    const now = Date.now()
-    const diffMs = deadline - now
-    const diffHours = Math.round(Math.abs(diffMs) / (1000 * 60 * 60))
-    const diffDays = Math.floor(diffHours / 24)
-    const hoursRemainder = diffHours % 24
-    const label = diffMs < 0
-      ? `Просрочено на ${diffDays > 0 ? `${diffDays}д ` : ''}${hoursRemainder}ч`
-      : `Осталось ${diffDays > 0 ? `${diffDays}д ` : ''}${hoursRemainder}ч`
-    const tone = diffMs < 0
-      ? 'text-red-600 dark:text-red-400'
-      : diffHours <= 24
-        ? 'text-amber-600 dark:text-amber-400'
-        : 'text-green-600 dark:text-green-400'
-    return { label, tone }
-  }
 
   const summary = useMemo(() => {
     const items = data?.items ?? []
@@ -712,10 +702,10 @@ export default function TasksPage() {
   const bulkStatusMutation = useMutation<
     { successCount: number; failedCount: number },
     Error,
-    { ids: number[]; status: string }
+    { ids: number[]; status: string; comment?: string }
   >({
-    mutationFn: async ({ ids, status }: { ids: number[]; status: string }) => {
-      const results = await Promise.allSettled(ids.map((id) => tasksApi.updateTaskStatus(id, status)))
+    mutationFn: async ({ ids, status, comment }: { ids: number[]; status: string; comment?: string }) => {
+      const results = await Promise.allSettled(ids.map((id) => tasksApi.updateTaskStatus(id, status, comment)))
       const failedCount = results.filter((result) => result.status === 'rejected').length
       return {
         successCount: ids.length - failedCount,
@@ -777,8 +767,31 @@ export default function TasksPage() {
     }
     const ids = eligibleTasks.map((task) => task.id)
     const skippedCount = selectedTasks.length - eligibleTasks.length
+    if (nextStatus === 'DONE' || nextStatus === 'CANCELLED') {
+      setPendingBulkStatus(nextStatus)
+      setPendingBulkStatusIds(ids)
+      setPendingBulkSkippedCount(skippedCount)
+      setBulkStatusComment('')
+      setBulkStatusCommentError('')
+      setShowBulkStatusCommentModal(true)
+      return
+    }
+
+    await submitBulkStatusChange(ids, nextStatus, skippedCount)
+  }
+
+  const resetBulkStatusCommentModal = () => {
+    setShowBulkStatusCommentModal(false)
+    setPendingBulkStatus(null)
+    setPendingBulkStatusIds([])
+    setPendingBulkSkippedCount(0)
+    setBulkStatusComment('')
+    setBulkStatusCommentError('')
+  }
+
+  const submitBulkStatusChange = async (ids: number[], status: TaskStatus, skippedCount: number, comment = '') => {
     try {
-      const result = await bulkStatusMutation.mutateAsync({ ids, status: bulkStatus })
+      const result = await bulkStatusMutation.mutateAsync({ ids, status, comment })
       if (result.successCount > 0) {
         toast.success(`Статус обновлён для ${result.successCount} заявок`)
       }
@@ -791,9 +804,26 @@ export default function TasksPage() {
       if (result.successCount > 0) {
         clearSelection()
       }
+      resetBulkStatusCommentModal()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Ошибка массового обновления статуса')
+      showApiError(err, 'Ошибка массового обновления статуса')
     }
+  }
+
+  const confirmBulkStatusComment = async () => {
+    if (!pendingBulkStatus) return
+    const commentCopy = getStatusCommentCopy(pendingBulkStatus, { plural: true })
+    if (!bulkStatusComment.trim()) {
+      setBulkStatusCommentError(commentCopy.error)
+      return
+    }
+
+    await submitBulkStatusChange(
+      pendingBulkStatusIds,
+      pendingBulkStatus,
+      pendingBulkSkippedCount,
+      bulkStatusComment.trim(),
+    )
   }
 
   const applyBulkAssignee = async () => {
@@ -812,7 +842,7 @@ export default function TasksPage() {
       toast.success(`Исполнитель обновлён для ${ids.length} заявок`)
       clearSelection()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Ошибка массового назначения')
+      showApiError(err, 'Ошибка массового назначения')
     }
   }
 
@@ -832,7 +862,7 @@ export default function TasksPage() {
       toast.success(`Приоритет обновлён для ${ids.length} заявок`)
       clearSelection()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Ошибка массового обновления приоритета')
+      showApiError(err, 'Ошибка массового обновления приоритета')
     }
   }
 
@@ -851,7 +881,7 @@ export default function TasksPage() {
       toast.success(`Плановая дата обновлена для ${ids.length} заявок`)
       clearSelection()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Ошибка массового обновления даты')
+      showApiError(err, 'Ошибка массового обновления даты')
     }
   }
 
@@ -869,7 +899,7 @@ export default function TasksPage() {
       toast.success(`Удалено заявок: ${ids.length}`)
       clearSelection()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Ошибка массового удаления')
+      showApiError(err, 'Ошибка массового удаления')
     }
   }
 
@@ -893,11 +923,43 @@ export default function TasksPage() {
 
   useEffect(() => {
     clearSelection()
-  }, [page, search, statusFilter, priorityFilter, assigneeFilter, clearSelection])
+  }, [page, sortBy, search, statusFilter, priorityFilter, assigneeFilter, clearSelection])
 
   const selectedCount = selectedIds.size
   const allSelectedOnPage =
     data?.items.length ? data.items.every((task) => selectedIds.has(task.id)) : false
+
+  // Flatten grouped tasks into a row-list for virtualizer
+  const flatRows = useMemo(() => {
+    const rows: Array<{ type: 'group'; key: string; label: string; count: number } | { type: 'task'; task: Task }> = []
+    for (const group of groupedTasks) {
+      const isCollapsed = groupBy ? collapsedGroups.has(group.key) : false
+      if (groupBy) {
+        rows.push({ type: 'group', key: group.key, label: group.label, count: group.items.length })
+      }
+      if (!isCollapsed) {
+        for (const task of group.items) {
+          rows.push({ type: 'task', task })
+        }
+      }
+    }
+    return rows
+  }, [groupedTasks, groupBy, collapsedGroups])
+
+  const shouldVirtualize = flatRows.length > VIRTUALIZE_THRESHOLD
+  const tableContainerRef = useRef<HTMLDivElement>(null)
+  const rowHeight = isCompactView ? ROW_HEIGHT_COMPACT : ROW_HEIGHT_NORMAL
+
+  const virtualizer = useVirtualizer({
+    count: flatRows.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: (index) => {
+      const row = flatRows[index]
+      return row?.type === 'group' ? GROUP_HEADER_HEIGHT : rowHeight
+    },
+    overscan: 10,
+    enabled: shouldVirtualize,
+  })
 
   useEffect(() => {
     const nextParams = new URLSearchParams()
@@ -907,14 +969,16 @@ export default function TasksPage() {
     if (assigneeFilter) nextParams.set('assignee', assigneeFilter)
     if (addressIdFilter) nextParams.set('address_id', addressIdFilter)
     if (addressTitleFilter) nextParams.set('address_title', addressTitleFilter)
+    if (sortBy !== 'created_at_desc') nextParams.set('sort', sortBy)
     if (page > 1) nextParams.set('page', String(page))
+    if (pageSize !== PAGE_SIZE) nextParams.set('size', String(pageSize))
 
     const next = nextParams.toString()
     const current = searchParams.toString()
     if (next !== current) {
       setSearchParams(nextParams, { replace: true })
     }
-  }, [search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter, addressTitleFilter, page, searchParams, setSearchParams])
+  }, [search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter, addressTitleFilter, sortBy, page, pageSize, searchParams, setSearchParams])
 
   useEffect(() => {
     const urlSearch = searchParams.get('search') || ''
@@ -923,8 +987,11 @@ export default function TasksPage() {
     const urlAssignee = searchParams.get('assignee') || ''
     const urlAddressId = searchParams.get('address_id') || ''
     const urlAddressTitle = searchParams.get('address_title') || ''
+    const urlSort = searchParams.get('sort') === 'created_at_asc' ? 'created_at_asc' : 'created_at_desc'
     const rawPage = Number(searchParams.get('page') || 1)
     const urlPage = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
+    const rawSize = Number(searchParams.get('size') || PAGE_SIZE)
+    const urlSize = PAGE_SIZE_OPTIONS.includes(rawSize) ? rawSize : PAGE_SIZE
 
     setSearch((prev) => (prev === urlSearch ? prev : urlSearch))
     setSearchInput((prev) => (prev === urlSearch ? prev : urlSearch))
@@ -933,7 +1000,9 @@ export default function TasksPage() {
     setAssigneeFilter((prev) => (prev === urlAssignee ? prev : urlAssignee))
     setAddressIdFilter((prev) => (prev === urlAddressId ? prev : urlAddressId))
     setAddressTitleFilter((prev) => (prev === urlAddressTitle ? prev : urlAddressTitle))
+    setSortBy((prev) => (prev === urlSort ? prev : urlSort))
     setPage((prev) => (prev === urlPage ? prev : urlPage))
+    setPageSize((prev) => (prev === urlSize ? prev : urlSize))
   }, [searchParams])
 
   return (
@@ -1038,6 +1107,13 @@ export default function TasksPage() {
             placeholder="Все исполнители"
           />
 
+          <Select
+            options={sortOptions}
+            value={sortBy}
+            onChange={handleSortChange}
+            placeholder="Сортировка"
+          />
+
           {/* Grouping */}
           <Select
             options={groupOptions}
@@ -1101,9 +1177,7 @@ export default function TasksPage() {
 
       {/* Content */}
       {isLoading ? (
-        <div className="flex justify-center items-center py-20">
-          <Spinner size="lg" />
-        </div>
+        <SkeletonTaskList count={6} />
       ) : isError ? (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
           <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
@@ -1245,9 +1319,52 @@ export default function TasksPage() {
             </div>
           )}
 
+          <Modal
+            isOpen={showBulkStatusCommentModal}
+            onClose={() => {
+              if (!bulkStatusMutation.isPending) {
+                resetBulkStatusCommentModal()
+              }
+            }}
+            title={getStatusCommentCopy(pendingBulkStatus, { plural: true }).title}
+            size="md"
+          >
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {getStatusCommentCopy(pendingBulkStatus, { plural: true }).description}
+              </p>
+              <Textarea
+                value={bulkStatusComment}
+                onChange={(event) => {
+                  setBulkStatusComment(event.target.value)
+                  if (bulkStatusCommentError) {
+                    setBulkStatusCommentError('')
+                  }
+                }}
+                label={getStatusCommentCopy(pendingBulkStatus, { plural: true }).label}
+                placeholder={getStatusCommentCopy(pendingBulkStatus, { plural: true }).placeholder}
+                error={bulkStatusCommentError}
+                disabled={bulkStatusMutation.isPending}
+                autoFocus
+              />
+              <div className="flex justify-end gap-3">
+                <Button variant="ghost" onClick={resetBulkStatusCommentModal} disabled={bulkStatusMutation.isPending}>
+                  Отмена
+                </Button>
+                <Button onClick={confirmBulkStatusComment} isLoading={bulkStatusMutation.isPending}>
+                  {getStatusCommentCopy(pendingBulkStatus, { plural: true }).submitText}
+                </Button>
+              </div>
+            </div>
+          </Modal>
+
           {/* Tasks Table */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden transition-colors">
-            <div className="overflow-x-auto">
+            <div
+              ref={tableContainerRef}
+              className="overflow-x-auto"
+              style={shouldVirtualize ? { maxHeight: TABLE_MAX_HEIGHT, overflowY: 'auto' } : undefined}
+            >
               <table className={`min-w-full divide-y divide-gray-200 dark:divide-gray-700 ${isResizableEnabled ? 'table-fixed' : ''}`}>
                 {isResizableEnabled && (
                   <colgroup>
@@ -1262,7 +1379,7 @@ export default function TasksPage() {
                     <col style={{ width: columnWidths.sla }} />
                   </colgroup>
                 )}
-                <thead className="bg-gray-50 dark:bg-gray-900/50">
+                <thead className="bg-gray-50 dark:bg-gray-900/50 sticky top-0 z-10">
                   <tr>
                     <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
                       <input
@@ -1308,6 +1425,133 @@ export default function TasksPage() {
                     </th>
                   </tr>
                 </thead>
+                {shouldVirtualize ? (
+                  <tbody
+                    className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
+                    style={{ height: virtualizer.getTotalSize(), position: 'relative' }}
+                  >
+                    {virtualizer.getVirtualItems().map((virtualRow) => {
+                      const row = flatRows[virtualRow.index]
+                      if (!row) return null
+
+                      if (row.type === 'group') {
+                        return (
+                          <tr
+                            key={`group-${row.key}`}
+                            data-index={virtualRow.index}
+                            ref={virtualizer.measureElement}
+                            className="bg-gray-50 dark:bg-gray-900/40"
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              transform: `translateY(${virtualRow.start}px)`,
+                            }}
+                          >
+                            <td colSpan={TABLE_COLUMN_COUNT} className={cellPadding}>
+                              <button
+                                type="button"
+                                className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
+                                onClick={() => toggleGroup(row.key)}
+                              >
+                                <ChevronDown
+                                  className={`h-4 w-4 text-gray-400 transition-transform ${collapsedGroups.has(row.key) ? '-rotate-90' : 'rotate-0'}`}
+                                />
+                                <span className="font-medium">{row.label}</span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  ({row.count})
+                                </span>
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      }
+
+                      const task = row.task
+                      const sla = getSla(task.planned_date, task.status)
+                      return (
+                        <tr
+                          key={task.id}
+                          data-index={virtualRow.index}
+                          ref={virtualizer.measureElement}
+                          onClick={() => handleRowClick(task.id)}
+                          className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            transform: `translateY(${virtualRow.start}px)`,
+                          }}
+                        >
+                          <td className={`${cellPadding} whitespace-nowrap`} onClick={(event) => event.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(task.id)}
+                              onChange={() => toggleSelection(task.id)}
+                              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                              aria-label={`Выбрать заявку ${task.task_number || `#${task.id}`}`}
+                            />
+                          </td>
+                          <td className={`${cellPadding} whitespace-nowrap`}>
+                            <span className="text-sm font-mono text-gray-900 dark:text-gray-100">
+                              {task.task_number || `#${task.id}`}
+                            </span>
+                          </td>
+                          <td className={cellPadding}>
+                            <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-1">
+                              {task.defect_type || task.title || 'Без описания'}
+                            </div>
+                            {(task.defect_type ? task.title : task.description) && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 mt-0.5">
+                                {task.defect_type ? task.title : task.description}
+                              </div>
+                            )}
+                          </td>
+                          <td className={cellPadding}>
+                            <div className="flex items-start gap-1.5">
+                              <MapPin className="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0 mt-0.5" />
+                              <span className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
+                                {task.raw_address || '-'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className={`${cellPadding} whitespace-nowrap`}>
+                            <StatusBadge status={task.status} />
+                          </td>
+                          <td className={`${cellPadding} whitespace-nowrap`}>
+                            <PriorityBadge priority={task.priority} />
+                          </td>
+                          <td className={`${cellPadding} whitespace-nowrap`}>
+                            <div className="flex items-center gap-1.5">
+                              <User className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                              <span className="text-sm text-gray-600 dark:text-gray-300">
+                                {task.assigned_user_name || '-'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className={`${cellPadding} whitespace-nowrap`}>
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                              <span className="text-sm text-gray-500 dark:text-gray-400">
+                                {formatDateTime(task.created_at)}
+                              </span>
+                            </div>
+                          </td>
+                          <td className={`${cellPadding} whitespace-nowrap`}>
+                            <div className="flex items-center gap-1.5">
+                              <Clock className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                              <span className={`text-sm ${sla.tone}`}>
+                                {sla.label}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                ) : (
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {groupedTasks.map((group) => {
                     const isCollapsed = groupBy && collapsedGroups.has(group.key)
@@ -1394,7 +1638,7 @@ export default function TasksPage() {
                                 <div className="flex items-center gap-1.5">
                                   <Calendar className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                                   <span className="text-sm text-gray-500 dark:text-gray-400">
-                                    {formatDate(task.created_at)}
+                                    {formatDateTime(task.created_at)}
                                   </span>
                                 </div>
                               </td>
@@ -1413,24 +1657,44 @@ export default function TasksPage() {
                     )
                   })}
                 </tbody>
+                )}
               </table>
             </div>
           </div>
 
           {/* Pagination */}
-          {data.pages > 1 && (
-            <div className="mt-6 flex justify-center">
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <span>Показывать по:</span>
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <button
+                  key={size}
+                  onClick={() => { setPageSize(size); setPage(1) }}
+                  className={`px-2 py-1 rounded text-sm font-medium transition-colors ${
+                    pageSize === size
+                      ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300'
+                      : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+            {data.pages > 1 && (
               <Pagination
                 currentPage={data.page}
                 totalPages={data.pages}
                 onPageChange={setPage}
               />
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Page info */}
           <div className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
             Показано {((data.page - 1) * data.size) + 1}–{Math.min(data.page * data.size, data.total)} из {data.total}
+            {shouldVirtualize && (
+              <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">(виртуализация вкл.)</span>
+            )}
           </div>
         </>
       )}

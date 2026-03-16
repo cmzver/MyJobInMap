@@ -17,6 +17,7 @@ from app.models.base import Base, engine, SessionLocal, get_db, init_db
 from app.models.enums import TaskStatus, TaskPriority, UserRole
 from app.models.user import UserModel, DeviceModel
 from app.models.task import TaskModel, CommentModel, TaskPhotoModel
+from app.models.organization import OrganizationModel
 from app.models.address import (
     # Enums
     SystemType,
@@ -70,6 +71,8 @@ __all__ = [
     # User Models
     "UserModel",
     "DeviceModel",
+    # Organization
+    "OrganizationModel",
     # Task Models
     "TaskModel",
     "CommentModel",

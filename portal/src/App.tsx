@@ -1,8 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
-import { getHomePathForRole } from '@/config/menuConfig'
+import { getHomePathForRole, isOrgAdmin } from '@/config/menuConfig'
 import { APP_BASENAME } from '@/config/appConfig'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import Spinner from '@/components/Spinner'
@@ -26,6 +27,10 @@ const ProfilePage = lazy(() => import('@/pages/ProfilePage'))
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
 const AdminSettingsPage = lazy(() => import('@/pages/AdminSettingsPage'))
+const SlaPage = lazy(() => import('@/pages/SlaPage'))
+const OrganizationsPage = lazy(() => import('@/pages/OrganizationsPage'))
+const OrganizationDetailPage = lazy(() => import('@/pages/OrganizationDetailPage'))
+const UpdatesPage = lazy(() => import('@/pages/UpdatesPage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
 // Fallback компонент для загрузки
@@ -40,10 +45,12 @@ function PageLoader() {
 // Компонент защищённого роута с проверкой роли
 function ProtectedRoute({ 
   children, 
-  allowedRoles 
+  allowedRoles,
+  requireSuperadmin = false,
 }: { 
   children: React.ReactNode
   allowedRoles?: ('admin' | 'dispatcher' | 'worker')[] 
+  requireSuperadmin?: boolean
 }) {
   const { isAuthenticated, user } = useAuthStore()
   
@@ -54,13 +61,35 @@ function ProtectedRoute({
   if (allowedRoles && user?.role && !allowedRoles.includes(user.role)) {
     return <Navigate to={getHomePathForRole(user.role)} replace />
   }
+
+  if (requireSuperadmin && user?.role && isOrgAdmin(user.role, user.organizationId)) {
+    return <Navigate to={getHomePathForRole(user.role)} replace />
+  }
   
   return <>{children}</>
 }
 
 function App() {
+  const queryClient = useQueryClient()
   const { isAuthenticated, user } = useAuthStore()
   const homePath = user?.role ? getHomePathForRole(user.role) : '/login'
+  const authScopeRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    const authScope = isAuthenticated
+      ? `${user?.id ?? 'anonymous'}:${user?.organizationId ?? 'no-org'}:${user?.role ?? 'no-role'}`
+      : 'guest'
+
+    if (authScopeRef.current === null) {
+      authScopeRef.current = authScope
+      return
+    }
+
+    if (authScopeRef.current !== authScope) {
+      queryClient.clear()
+      authScopeRef.current = authScope
+    }
+  }, [isAuthenticated, queryClient, user?.id, user?.organizationId, user?.role])
 
   return (
     <ErrorBoundary>
@@ -190,7 +219,7 @@ function App() {
                       <Route 
                         path="finance" 
                         element={
-                          <ProtectedRoute allowedRoles={['admin']}>
+                          <ProtectedRoute allowedRoles={['admin']} requireSuperadmin>
                             <FinancePage />
                           </ProtectedRoute>
                         } 
@@ -212,6 +241,16 @@ function App() {
                         } 
                       />
                       
+                      {/* SLA Dashboard - Admin & Dispatcher */}
+                      <Route 
+                        path="sla" 
+                        element={
+                          <ProtectedRoute allowedRoles={['admin', 'dispatcher']}>
+                            <SlaPage />
+                          </ProtectedRoute>
+                        } 
+                      />
+                      
                       {/* Profile - All roles */}
                       <Route path="profile" element={<ProfilePage />} />
                       
@@ -225,8 +264,36 @@ function App() {
                       <Route 
                         path="admin/settings" 
                         element={
-                          <ProtectedRoute allowedRoles={['admin']}>
+                          <ProtectedRoute allowedRoles={['admin']} requireSuperadmin>
                             <AdminSettingsPage />
+                          </ProtectedRoute>
+                        } 
+                      />
+                      
+                      {/* Organizations - Admin only (multi-tenant) */}
+                      <Route 
+                        path="admin/organizations" 
+                        element={
+                          <ProtectedRoute allowedRoles={['admin']} requireSuperadmin>
+                            <OrganizationsPage />
+                          </ProtectedRoute>
+                        } 
+                      />
+                      <Route 
+                        path="admin/organizations/:id" 
+                        element={
+                          <ProtectedRoute allowedRoles={['admin']} requireSuperadmin>
+                            <OrganizationDetailPage />
+                          </ProtectedRoute>
+                        } 
+                      />
+                      
+                      {/* Updates - Admin only, compatibility redirect to settings tab */}
+                      <Route 
+                        path="admin/updates" 
+                        element={
+                          <ProtectedRoute allowedRoles={['admin']} requireSuperadmin>
+                            <UpdatesPage />
                           </ProtectedRoute>
                         } 
                       />

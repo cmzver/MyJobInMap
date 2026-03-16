@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import { showApiError, showApiSuccess } from '@/utils/apiError'
 import {
   Settings,
-  Image,
   HardDrive,
   Bell,
   Shield,
+  Palette,
   Puzzle,
-  LayoutPanelLeft,
   UserCog,
   Save,
   RefreshCw,
@@ -28,16 +29,17 @@ import {
   Clock,
   RotateCcw,
 } from 'lucide-react'
-import Card from '@/components/Card'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
+import Textarea from '@/components/Textarea'
 import Spinner from '@/components/Spinner'
 import EmptyState from '@/components/EmptyState'
 import apiClient from '@/api/client'
 import { useDevices, useSendTestNotification, useDeleteDevice } from '@/hooks/useDevices'
-import { useSetting, useUpdateSetting } from '@/hooks/useSettings'
-import { format } from 'date-fns'
-import { ru } from 'date-fns/locale'
+import { useSetting, useSettings, useUpdateSetting } from '@/hooks/useSettings'
+import { formatDateTime as formatDate } from '@/utils/dateFormat'
+import { cn } from '@/utils/cn'
+import { UpdatesManagementSection } from '@/pages/UpdatesPage'
 
 // Types
 
@@ -72,75 +74,221 @@ interface CustomField {
   order: number
 }
 
-const tabs = [
-  { id: 'general', label: 'Общие', icon: Settings },
-  { id: 'devices', label: 'Устройства', icon: Smartphone },
-  { id: 'images', label: 'Изображения', icon: Image },
-  { id: 'backup', label: 'Бэкапы', icon: HardDrive },
-  { id: 'notifications', label: 'Уведомления', icon: Bell },
-  { id: 'security', label: 'Безопасность', icon: Shield },
-  { id: 'custom-fields', label: 'Поля заявок', icon: Puzzle },
-  { id: 'card-builder', label: 'Конструктор', icon: LayoutPanelLeft },
-  { id: 'permissions', label: 'Права доступа', icon: UserCog },
+type SettingsPanelId =
+  | 'overview'
+  | 'backups'
+  | 'security'
+  | 'interface'
+  | 'portal-branding'
+  | 'mobile-updates'
+  | 'mobile-notifications'
+  | 'mobile-devices'
+  | 'task-defaults'
+  | 'task-media'
+  | 'task-fields'
+  | 'task-layout'
+  | 'permissions-matrix'
+
+type SettingsMenuGroup = {
+  id: string
+  label: string
+  items: Array<{
+    id: SettingsPanelId
+    label: string
+    description: string
+    icon: typeof Settings
+  }>
+}
+
+const settingsMenuGroups: SettingsMenuGroup[] = [
+  {
+    id: 'system',
+    label: 'Система',
+    items: [
+      { id: 'portal-branding', label: 'Брендинг и доступ', description: 'Экран входа, бренд и блок поддержки', icon: Palette },
+      { id: 'overview', label: 'Обзор и БД', description: 'Состояние сервера и сервисные операции', icon: Server },
+      { id: 'backups', label: 'Резервные копии', description: 'Создание, скачивание и восстановление', icon: HardDrive },
+      { id: 'security', label: 'Безопасность', description: 'Rate limiting, сессии и защита входа', icon: Shield },
+      { id: 'interface', label: 'Веб-портал', description: 'Поведение таблиц и интерфейса', icon: Settings },
+    ],
+  },
+  {
+    id: 'mobile',
+    label: 'Мобильное',
+    items: [
+      { id: 'mobile-updates', label: 'Обновления APK', description: 'Публикация и управление релизами', icon: Smartphone },
+      { id: 'mobile-notifications', label: 'Push-уведомления', description: 'Канал Firebase и сценарии оповещений', icon: Bell },
+      { id: 'mobile-devices', label: 'Устройства', description: 'FCM токены и действия по устройствам', icon: Smartphone },
+    ],
+  },
+  {
+    id: 'tasks',
+    label: 'Заявки',
+    items: [
+      { id: 'task-defaults', label: 'По умолчанию', description: 'Стартовые параметры новых заявок', icon: Puzzle },
+      { id: 'task-media', label: 'Изображения', description: 'Оптимизация фото и параметры загрузки', icon: Puzzle },
+      { id: 'task-fields', label: 'Доп. поля', description: 'Конструктор пользовательских полей', icon: Puzzle },
+      { id: 'task-layout', label: 'Макет карточки', description: 'Структура отображения заявки', icon: Puzzle },
+    ],
+  },
+  {
+    id: 'permissions',
+    label: 'Права доступа',
+    items: [
+      { id: 'permissions-matrix', label: 'Матрица прав', description: 'Разрешения по ролям и доступам', icon: UserCog },
+    ],
+  },
 ]
 
+const settingsMenuItems = settingsMenuGroups.flatMap((group) => group.items)
+
+function isSettingsPanelId(value: string | null): value is SettingsPanelId {
+  return value !== null && settingsMenuItems.some((item) => item.id === value)
+}
+
+function getInitialPanelId(searchParams: URLSearchParams): SettingsPanelId {
+  const panel = searchParams.get('panel')
+  if (isSettingsPanelId(panel)) {
+    return panel
+  }
+
+  switch (searchParams.get('tab')) {
+    case 'mobile':
+      return 'mobile-updates'
+    case 'tasks':
+      return 'task-defaults'
+    case 'permissions':
+      return 'permissions-matrix'
+    case 'system':
+    default:
+      return 'overview'
+  }
+}
+
 export default function AdminSettingsPage() {
-  const [activeTab, setActiveTab] = useState('general')
+  const [searchParams, setSearchParams] = useSearchParams()
   const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const activePanel = getInitialPanelId(searchParams)
+  const activeMenuItem = settingsMenuItems.find((item) => item.id === activePanel) ?? {
+    id: 'overview' as const,
+    label: 'Обзор и БД',
+    description: 'Состояние сервера и сервисные операции',
+    icon: Server,
+  }
+  const ActivePanelIcon = activeMenuItem.icon
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('tab')
+    nextParams.set('panel', activePanel)
+
+    if (nextParams.toString() === searchParams.toString()) {
+      return
+    }
+
+    setSearchParams(nextParams, { replace: true })
+  }, [activePanel, searchParams, setSearchParams])
+
+  const handlePanelChange = (panelId: SettingsPanelId) => {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('tab')
+    nextParams.set('panel', panelId)
+    setSearchParams(nextParams, { replace: true })
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Системные настройки
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Управление конфигурацией системы
-          </p>
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start">
+      <aside className="rounded-2xl border border-gray-200 bg-white p-1.5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div className="mb-2 rounded-xl border border-gray-200 bg-slate-50 px-3 py-3 dark:border-gray-800 dark:bg-gray-800/60">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Администрирование</div>
+          <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">Настройки портала</div>
         </div>
-      </div>
+        <nav className="flex flex-col gap-2" aria-label="Разделы настроек">
+          {settingsMenuGroups.map((group) => (
+            <div key={group.id} className="rounded-xl border border-gray-200/80 bg-gray-50/80 px-1.5 py-1.5 dark:border-gray-800 dark:bg-gray-800/30">
+              <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
+                {group.label}
+              </div>
+              <div className="mt-1 flex flex-col gap-1">
+                {group.items.map((item) => {
+                  const Icon = item.icon
+                  const isActive = activePanel === item.id
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200 dark:border-gray-700">
-        <nav className="flex gap-4 overflow-x-auto pb-px" aria-label="Tabs">
-          {tabs.map((tab) => {
-            const Icon = tab.icon
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            )
-          })}
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handlePanelChange(item.id)}
+                      className={cn(
+                        'flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
+                        isActive
+                          ? 'bg-primary-50 text-primary-700 dark:bg-primary-950/40 dark:text-primary-300'
+                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'
+                      )}
+                    >
+                      <Icon className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium">{item.label}</span>
+                        <span className="mt-0.5 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{item.description}</span>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
-      </div>
+      </aside>
 
-      {/* Tab Content */}
-      <div className="mt-6">
-        {activeTab === 'general' && <GeneralSettingsTab showClearConfirm={showClearConfirm} setShowClearConfirm={setShowClearConfirm} />}
-        {activeTab === 'devices' && <DevicesTab />}
-        {activeTab === 'images' && <ImageSettingsTab />}
-        {activeTab === 'backup' && <BackupSettingsTab />}
-        {activeTab === 'notifications' && <NotificationSettingsTab />}
-        {activeTab === 'security' && <SecuritySettingsTab />}
-        {activeTab === 'custom-fields' && <CustomFieldsTab />}
-        {activeTab === 'card-builder' && <CardBuilderTab />}
-        {activeTab === 'permissions' && <PermissionsTab />}
-      </div>
+      <section className="rounded-xl border border-gray-200 bg-white p-2.5 dark:border-gray-800 dark:bg-gray-900">
+        <div className="border-b border-gray-200 px-1 pb-2.5 dark:border-gray-800">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+              <ActivePanelIcon className="h-4 w-4" />
+            </div>
+            <div>
+              <h1 className="text-base font-semibold text-gray-900 dark:text-white">{activeMenuItem.label}</h1>
+            </div>
+          </div>
+
+          {activePanel !== 'portal-branding' && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary-100 bg-primary-50 px-3 py-3 dark:border-primary-900/40 dark:bg-primary-950/20">
+              <div>
+                <p className="text-sm font-semibold text-primary-900 dark:text-primary-200">Не можете найти брендирование входа</p>
+                <p className="mt-1 text-sm text-primary-700 dark:text-primary-300/90">
+                  Откройте раздел «Брендинг и доступ», чтобы изменить экран входа, название портала и контакты поддержки.
+                </p>
+              </div>
+              <Button type="button" size="sm" onClick={() => handlePanelChange('portal-branding')}>
+                <Palette className="mr-2 h-4 w-4" />
+                Открыть брендирование
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="pt-2.5">
+          {activePanel === 'overview' && <GeneralSettingsTab showClearConfirm={showClearConfirm} setShowClearConfirm={setShowClearConfirm} />}
+          {activePanel === 'backups' && <BackupSettingsTab />}
+          {activePanel === 'security' && <SecuritySettingsTab />}
+          {activePanel === 'interface' && <InterfaceSettingsCard />}
+          {activePanel === 'portal-branding' && <PortalBrandingSettingsTab />}
+          {activePanel === 'mobile-updates' && <UpdatesManagementSection embedded />}
+          {activePanel === 'mobile-notifications' && <NotificationSettingsTab />}
+          {activePanel === 'mobile-devices' && <DevicesTab />}
+          {activePanel === 'task-defaults' && <TaskDefaultsCard />}
+          {activePanel === 'task-media' && <ImageSettingsTab />}
+          {activePanel === 'task-fields' && <CustomFieldsTab />}
+          {activePanel === 'task-layout' && <CardBuilderTab />}
+          {activePanel === 'permissions-matrix' && <PermissionsTab />}
+        </div>
+      </section>
     </div>
   )
 }
 
 // ============= General Settings Tab =============
+
 function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showClearConfirm: boolean; setShowClearConfirm: (show: boolean) => void }) {
   const queryClient = useQueryClient()
   const { data: serverInfo, isLoading } = useQuery({
@@ -156,47 +304,44 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
   const seedMutation = useMutation({
     mutationFn: () => apiClient.post('/admin/db/seed'),
     onSuccess: () => {
-      toast.success('Тестовые данные добавлены')
-      // Обновить данные без перезагрузки страницы
+      showApiSuccess('Тестовые данные добавлены')
       queryClient.invalidateQueries({ queryKey: ['server-info'] })
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
     },
     onError: (error: Error) => {
-      const message = (error as import('axios').AxiosError<{detail?: string}>)?.response?.data?.detail || 'Ошибка при добавлении данных'
-      toast.error(message)
+      showApiError(error, 'Ошибка при добавлении данных')
     },
   })
 
   const clearMutation = useMutation({
     mutationFn: () => apiClient.delete('/admin/tasks'),
     onSuccess: () => {
-      toast.success('Заявки и комментарии удалены')
+      showApiSuccess('Заявки и комментарии удалены')
       // Обновить данные без перезагрузки страницы
       queryClient.invalidateQueries({ queryKey: ['server-info'] })
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
     },
     onError: (error: Error) => {
-      const message = (error as import('axios').AxiosError<{detail?: string}>)?.response?.data?.detail || 'Ошибка при очистке'
-      toast.error(message)
+      showApiError(error, 'Ошибка при очистке')
     },
   })
 
   const vacuumMutation = useMutation({
     mutationFn: () => apiClient.post('/admin/db/vacuum'),
     onSuccess: () => {
-      toast.success('БД оптимизирована (VACUUM)')
+      showApiSuccess('БД оптимизирована (VACUUM)')
       queryClient.invalidateQueries({ queryKey: ['db-stats'] })
     },
-    onError: () => toast.error('Ошибка оптимизации'),
+    onError: (err) => showApiError(err, 'Ошибка оптимизации'),
   })
 
   const optimizeMutation = useMutation({
     mutationFn: () => apiClient.post('/admin/db/optimize'),
     onSuccess: () => {
-      toast.success('БД оптимизирована (ANALYZE + VACUUM)')
+      showApiSuccess('БД оптимизирована (ANALYZE + VACUUM)')
       queryClient.invalidateQueries({ queryKey: ['db-stats'] })
     },
-    onError: () => toast.error('Ошибка оптимизации'),
+    onError: (err) => showApiError(err, 'Ошибка оптимизации'),
   })
 
   const integrityMutation = useMutation({
@@ -209,7 +354,7 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
         toast.error(data.message)
       }
     },
-    onError: () => toast.error('Ошибка проверки целостности'),
+    onError: (err) => showApiError(err, 'Ошибка проверки целостности'),
   })
 
   const [cleanupDays, setCleanupDays] = useState(90)
@@ -226,7 +371,7 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
       setShowCleanupConfirm(false)
     },
     onError: (error: Error) => {
-      toast.error((error as import('axios').AxiosError<{detail?: string}>)?.response?.data?.detail || 'Ошибка очистки')
+      showApiError(error, 'Ошибка очистки')
     },
   })
 
@@ -245,163 +390,140 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
     },
   })
 
-  const { data: resizableSetting, isLoading: resizableLoading } = useSetting('enable_resizable_columns')
-  const { data: compactSetting, isLoading: compactLoading } = useSetting('compact_table_view')
-  const updateSettingMutation = useUpdateSetting()
-  const isResizableEnabled = resizableSetting?.value ?? true
-  const isCompactEnabled = compactSetting?.value ?? false
-
   if (isLoading) {
     return <div className="flex justify-center py-12"><Spinner /></div>
   }
 
+  const serverInfoItems = [
+    { label: 'Версия API', value: serverInfo?.version || '2.0.0' },
+    { label: 'Время работы', value: serverInfo?.uptime || 'N/A' },
+    { label: 'Адрес API', value: apiHost, monospace: true },
+    { label: 'Стек портала', value: uiFramework },
+    {
+      label: 'Firebase',
+      value: (
+        <CompactStatusBadge tone={serverInfo?.firebase_enabled ? 'success' : 'danger'}>
+          {serverInfo?.firebase_enabled ? 'Включён' : 'Выключен'}
+        </CompactStatusBadge>
+      ),
+    },
+    { label: 'Кэш геокодинга', value: `${serverInfo?.geocoding_cache_size || 0} записей` },
+  ]
+
+  const databaseInfoItems = dbStats
+    ? [
+        { label: 'Тип БД', value: dbStats.database.type },
+        { label: 'Размер файла', value: `${dbStats.database.size_mb} MB` },
+        { label: 'Заявки', value: String(dbStats.tables.tasks), highlight: true },
+        { label: 'Пользователи', value: String(dbStats.tables.users), highlight: true },
+        { label: 'Комментарии', value: String(dbStats.tables.comments), highlight: true },
+        { label: 'Фото', value: String(dbStats.tables.photos), highlight: true },
+        { label: 'Устройства', value: String(dbStats.tables.devices), highlight: true },
+        { label: 'Бэкапы', value: String(dbStats.backups_count), highlight: true },
+        ...(dbStats.last_activity
+          ? [{ label: 'Последняя активность', value: formatDate(dbStats.last_activity) }]
+          : []),
+      ]
+    : []
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Server Info */}
-      <Card title="Информация о сервере" action={<Server className="h-5 w-5 text-gray-400" />}>
-        <div className="space-y-3 text-sm">
-          <InfoRow label="Версия" value={serverInfo?.version || '2.0.0'} />
-          <InfoRow label="Время работы" value={serverInfo?.uptime || 'N/A'} />
-          <InfoRow label="API" value={apiHost} />
-          <InfoRow label="Портал" value={uiFramework} />
-          <InfoRow 
-            label="Firebase" 
-            value={
-              <span className={`px-2 py-0.5 rounded text-xs ${
-                serverInfo?.firebase_enabled 
-                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
-                  : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-              }`}>
-                {serverInfo?.firebase_enabled ? 'Включён' : 'Выключен'}
-              </span>
-            } 
-          />
-          <InfoRow label="Кэш геокодинга" value={`${serverInfo?.geocoding_cache_size || 0} записей`} />
-        </div>
-      </Card>
-
-      {/* Database Actions */}
-      <Card title="База данных" action={<Database className="h-5 w-5 text-gray-400" />}>
-        <div className="space-y-4">
-          {/* Stats */}
-          {dbStats && (
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="bg-gray-50 dark:bg-gray-800 rounded p-2">
-                <span className="text-gray-500 dark:text-gray-400">Тип:</span>
-                <span className="ml-2 font-medium text-gray-900 dark:text-white">{dbStats.database.type}</span>
-              </div>
-              <div className="bg-gray-50 dark:bg-gray-800 rounded p-2">
-                <span className="text-gray-500 dark:text-gray-400">Размер:</span>
-                <span className="ml-2 font-medium text-gray-900 dark:text-white">{dbStats.database.size_mb} MB</span>
-              </div>
-            </div>
-          )}
-
-          {/* Tables stats */}
-          {dbStats && (
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
-              <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase">Записи в таблицах</p>
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <div className="text-center p-2 bg-gray-50 dark:bg-gray-800 rounded">
-                  <div className="font-bold text-lg text-gray-900 dark:text-white">{dbStats.tables.tasks}</div>
-                  <div className="text-gray-500">Заявки</div>
-                </div>
-                <div className="text-center p-2 bg-gray-50 dark:bg-gray-800 rounded">
-                  <div className="font-bold text-lg text-gray-900 dark:text-white">{dbStats.tables.users}</div>
-                  <div className="text-gray-500">Пользователи</div>
-                </div>
-                <div className="text-center p-2 bg-gray-50 dark:bg-gray-800 rounded">
-                  <div className="font-bold text-lg text-gray-900 dark:text-white">{dbStats.tables.comments}</div>
-                  <div className="text-gray-500">Комментарии</div>
-                </div>
-                <div className="text-center p-2 bg-gray-50 dark:bg-gray-800 rounded">
-                  <div className="font-bold text-lg text-gray-900 dark:text-white">{dbStats.tables.photos}</div>
-                  <div className="text-gray-500">Фото</div>
-                </div>
-                <div className="text-center p-2 bg-gray-50 dark:bg-gray-800 rounded">
-                  <div className="font-bold text-lg text-gray-900 dark:text-white">{dbStats.tables.devices}</div>
-                  <div className="text-gray-500">Устройства</div>
-                </div>
-                <div className="text-center p-2 bg-gray-50 dark:bg-gray-800 rounded">
-                  <div className="font-bold text-lg text-gray-900 dark:text-white">{dbStats.backups_count}</div>
-                  <div className="text-gray-500">Бэкапы</div>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* Data Management Section */}
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
-            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase">Тестовые данные</p>
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => seedMutation.mutate()}
-                disabled={seedMutation.isPending}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                {seedMutation.isPending ? 'Загрузка...' : 'Seed'}
-              </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={() => setShowClearConfirm(true)}
-                disabled={clearMutation.isPending}
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                {clearMutation.isPending ? 'Удаление...' : 'Очистить всё'}
-              </Button>
-            </div>
-          </div>
-
-          {/* Optimization Section */}
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
-            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase">Обслуживание</p>
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => vacuumMutation.mutate()}
-                disabled={vacuumMutation.isPending}
-                title="Очистить неиспользуемое пространство"
-              >
-                <RefreshCw className="h-4 w-4 mr-1" />
-                {vacuumMutation.isPending ? '...' : 'VACUUM'}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => optimizeMutation.mutate()}
-                disabled={optimizeMutation.isPending}
-                title="Анализ и дефрагментация"
-              >
-                <RefreshCw className="h-4 w-4 mr-1" />
-                {optimizeMutation.isPending ? '...' : 'ANALYZE'}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => integrityMutation.mutate()}
-                disabled={integrityMutation.isPending}
-                title="Проверка целостности БД"
-              >
-                <Shield className="h-4 w-4 mr-1" />
-                {integrityMutation.isPending ? '...' : 'Проверка'}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setShowCleanupConfirm(true)}
-                title="Удалить старые заявки"
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Очистка
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Card>
+    <div className="space-y-3">
+      <CompactInfoMatrix title="Сервер" icon={Server} items={serverInfoItems} />
+      <CompactDatabaseSection title="База данных" icon={Database} items={databaseInfoItems}>
+        <CompactActionTile
+          title="VACUUM"
+          description="Освобождает неиспользуемое пространство и уменьшает размер SQLite-файла."
+          actions={
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => vacuumMutation.mutate()}
+              disabled={vacuumMutation.isPending}
+              title="Очистить неиспользуемое пространство"
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              {vacuumMutation.isPending ? 'Выполняется...' : 'Запустить'}
+            </Button>
+          }
+        />
+        <CompactActionTile
+          title="ANALYZE + VACUUM"
+          description="Перестраивает статистику и оптимизирует таблицы после больших изменений данных."
+          actions={
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => optimizeMutation.mutate()}
+              disabled={optimizeMutation.isPending}
+              title="Анализ и дефрагментация"
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              {optimizeMutation.isPending ? 'Выполняется...' : 'Оптимизировать'}
+            </Button>
+          }
+        />
+        <CompactActionTile
+          title="Проверка целостности"
+          description="Запускает встроенную integrity_check-проверку для текущей базы данных."
+          actions={
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => integrityMutation.mutate()}
+              disabled={integrityMutation.isPending}
+              title="Проверка целостности БД"
+            >
+              <Shield className="h-4 w-4 mr-1" />
+              {integrityMutation.isPending ? 'Проверка...' : 'Проверить'}
+            </Button>
+          }
+        />
+        <CompactActionTile
+          title="Удаление старых заявок"
+          description={`Удаляет выполненные и отменённые заявки старше ${cleanupDays} дней вместе с комментариями и фото.`}
+          actions={
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowCleanupConfirm(true)}
+              title="Удалить старые заявки"
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Очистка
+            </Button>
+          }
+        />
+        <CompactActionTile
+          title="Тестовые данные"
+          description="Создаёт пользователей и примерные заявки для локальной проверки сценариев."
+          actions={
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => seedMutation.mutate()}
+              disabled={seedMutation.isPending}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              {seedMutation.isPending ? 'Загрузка...' : 'Seed'}
+            </Button>
+          }
+        />
+        <CompactActionTile
+          title="Очистить заявки и комментарии"
+          description="Удаляет текущие заявки, комментарии и связанные файлы фото из рабочей базы."
+          actions={
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setShowClearConfirm(true)}
+              disabled={clearMutation.isPending}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              {clearMutation.isPending ? 'Удаление...' : 'Очистить всё'}
+            </Button>
+          }
+        />
+      </CompactDatabaseSection>
 
       {/* Cleanup Confirmation Modal */}
       {showCleanupConfirm && (
@@ -446,78 +568,230 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
         </div>
       )}
 
-      {/* Interface Settings */}
-      <Card title="Интерфейс" action={<Settings className="h-5 w-5 text-gray-400" />}>
-        <div className="space-y-4">
-          <label className="flex items-center justify-between gap-4 cursor-pointer">
-            <div>
-              <p className="font-medium text-gray-900 dark:text-white">Изменяемая ширина колонок</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Перетаскивание границ колонок в таблицах</p>
-            </div>
-            <input
-              type="checkbox"
-              checked={isResizableEnabled}
-              disabled={resizableLoading || updateSettingMutation.isPending}
-              onChange={(event) =>
-                updateSettingMutation.mutate({
-                  key: 'enable_resizable_columns',
-                  value: event.target.checked,
-                })
-              }
-              className="w-5 h-5 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
-            />
-          </label>
-          <label className="flex items-center justify-between gap-4 cursor-pointer">
-            <div>
-              <p className="font-medium text-gray-900 dark:text-white">Компактный вид</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Уменьшенные отступы в таблицах</p>
-            </div>
-            <input
-              type="checkbox"
-              checked={isCompactEnabled}
-              disabled={compactLoading || updateSettingMutation.isPending}
-              onChange={(event) =>
-                updateSettingMutation.mutate({
-                  key: 'compact_table_view',
-                  value: event.target.checked,
-                })
-              }
-              className="w-5 h-5 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
-            />
-          </label>
-        </div>
-      </Card>
-
-      {/* Default Values */}
-      <Card title="Значения по умолчанию" action={<Settings className="h-5 w-5 text-gray-400" />}>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Приоритет новых заявок
-            </label>
-            <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
-              <option value="CURRENT">Текущая</option>
-              <option value="PLANNED">Плановая</option>
-              <option value="URGENT">Срочная</option>
-              <option value="EMERGENCY">Аварийная</option>
-            </select>
-          </div>
-          <label className="flex items-center justify-between cursor-pointer">
-            <div>
-              <p className="font-medium text-gray-900 dark:text-white">Автогеокодинг</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Определять координаты по адресу</p>
-            </div>
-            <input
-              type="checkbox"
-              defaultChecked
-              className="w-5 h-5 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
-            />
-          </label>
-        </div>
-      </Card>
-
       {/* Clear Database Confirmation Modal */}
       {showClearConfirm && <ClearDatabaseModal setShowClearConfirm={setShowClearConfirm} />}
+    </div>
+  )
+}
+
+function InterfaceSettingsCard() {
+  const { data: resizableSetting, isLoading: resizableLoading } = useSetting('enable_resizable_columns')
+  const { data: compactSetting, isLoading: compactLoading } = useSetting('compact_table_view')
+  const updateSettingMutation = useUpdateSetting()
+  const isResizableEnabled = Boolean(resizableSetting?.value ?? true)
+  const isCompactEnabled = Boolean(compactSetting?.value ?? false)
+
+  return (
+    <div className="space-y-3">
+      <CompactToggleRow
+        title="Изменяемая ширина колонок"
+        description="Перетаскивание границ колонок в таблицах портала."
+        checked={isResizableEnabled}
+        disabled={resizableLoading || updateSettingMutation.isPending}
+        onChange={(checked) =>
+          updateSettingMutation.mutate({
+            key: 'enable_resizable_columns',
+            value: checked,
+          })
+        }
+      />
+      <CompactToggleRow
+        title="Компактный вид таблиц"
+        description="Уменьшенные вертикальные отступы и плотная подача данных."
+        checked={isCompactEnabled}
+        disabled={compactLoading || updateSettingMutation.isPending}
+        onChange={(checked) =>
+          updateSettingMutation.mutate({
+            key: 'compact_table_view',
+            value: checked,
+          })
+        }
+      />
+    </div>
+  )
+}
+
+type PortalBrandingFormState = {
+  login_app_name: string
+  login_product_label: string
+  login_headline: string
+  login_description: string
+  login_organization_name: string
+  support_email: string
+  support_phone: string
+  support_hours: string
+}
+
+const BRANDING_DEFAULTS: PortalBrandingFormState = {
+  login_app_name: 'FieldWorker',
+  login_product_label: 'Field Service Platform',
+  login_headline: 'Защищённый вход в рабочее пространство',
+  login_description: 'Единая авторизация для администраторов, диспетчеров и исполнителей с tenant-изоляцией по организациям.',
+  login_organization_name: '',
+  support_email: '',
+  support_phone: '',
+  support_hours: 'Пн-Пт, 09:00-18:00',
+}
+
+function PortalBrandingSettingsTab() {
+  const queryClient = useQueryClient()
+  const { data: groups, isLoading } = useSettings()
+  const [form, setForm] = useState<PortalBrandingFormState>(BRANDING_DEFAULTS)
+
+  useEffect(() => {
+    if (!groups) {
+      return
+    }
+
+    const settingsMap = new Map(
+      groups.flatMap((group) => group.settings.map((setting) => [setting.key, setting.value]))
+    )
+
+    setForm({
+      login_app_name: String(settingsMap.get('login_app_name') ?? BRANDING_DEFAULTS.login_app_name),
+      login_product_label: String(settingsMap.get('login_product_label') ?? BRANDING_DEFAULTS.login_product_label),
+      login_headline: String(settingsMap.get('login_headline') ?? BRANDING_DEFAULTS.login_headline),
+      login_description: String(settingsMap.get('login_description') ?? BRANDING_DEFAULTS.login_description),
+      login_organization_name: String(settingsMap.get('login_organization_name') ?? BRANDING_DEFAULTS.login_organization_name),
+      support_email: String(settingsMap.get('support_email') ?? BRANDING_DEFAULTS.support_email),
+      support_phone: String(settingsMap.get('support_phone') ?? BRANDING_DEFAULTS.support_phone),
+      support_hours: String(settingsMap.get('support_hours') ?? BRANDING_DEFAULTS.support_hours),
+    })
+  }, [groups])
+
+  const saveMutation = useMutation({
+    mutationFn: (payload: PortalBrandingFormState) => apiClient.patch('/admin/settings', payload),
+    onSuccess: () => {
+      showApiSuccess('Настройки экрана входа сохранены')
+      queryClient.invalidateQueries({ queryKey: ['settings'] })
+      queryClient.invalidateQueries({ queryKey: ['public-login-branding'] })
+    },
+    onError: (error: Error) => {
+      showApiError(error, 'Не удалось сохранить брендинг входа')
+    },
+  })
+
+  const handleChange = (key: keyof PortalBrandingFormState, value: string) => {
+    setForm((current) => ({ ...current, [key]: value }))
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[220px] items-center justify-center">
+        <Spinner />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-gray-900/70">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Бренд-блок страницы входа</h2>
+        <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
+          Эти параметры отображаются на экране авторизации до входа в систему и доступны без авторизации через публичный endpoint.
+        </p>
+
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          <Input
+            label="Название приложения"
+            value={form.login_app_name}
+            onChange={(e) => handleChange('login_app_name', e.target.value)}
+            placeholder="FieldWorker"
+          />
+          <Input
+            label="Подзаголовок продукта"
+            value={form.login_product_label}
+            onChange={(e) => handleChange('login_product_label', e.target.value)}
+            placeholder="Field Service Platform"
+          />
+          <Input
+            label="Главный заголовок"
+            value={form.login_headline}
+            onChange={(e) => handleChange('login_headline', e.target.value)}
+            placeholder="Защищённый вход в рабочее пространство"
+            className="lg:col-span-2"
+          />
+          <Textarea
+            label="Описание"
+            value={form.login_description}
+            onChange={(e) => handleChange('login_description', e.target.value)}
+            placeholder="Короткое описание возможностей портала на экране входа"
+            className="min-h-[120px] lg:col-span-2"
+          />
+          <Input
+            label="Название организации"
+            value={form.login_organization_name}
+            onChange={(e) => handleChange('login_organization_name', e.target.value)}
+            placeholder="Оставьте пустым для общего входа"
+            className="lg:col-span-2"
+          />
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-gray-900/70">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Блок поддержки и получения доступа</h2>
+        <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
+          Заполните email и или телефон, если на странице входа должен показываться блок с контактами для получения доступа.
+        </p>
+
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          <Input
+            label="Email поддержки"
+            value={form.support_email}
+            onChange={(e) => handleChange('support_email', e.target.value)}
+            placeholder="support@example.com"
+          />
+          <Input
+            label="Телефон поддержки"
+            value={form.support_phone}
+            onChange={(e) => handleChange('support_phone', e.target.value)}
+            placeholder="+7 900 000-00-00"
+          />
+          <Input
+            label="Часы работы"
+            value={form.support_hours}
+            onChange={(e) => handleChange('support_hours', e.target.value)}
+            placeholder="Пн-Пт, 09:00-18:00"
+            className="lg:col-span-2"
+          />
+        </div>
+      </div>
+
+      <CompactActionRow
+        title="Сохранить настройки экрана входа"
+        description="Применяет новые брендовые тексты и контакты поддержки на публичной странице авторизации."
+        actions={
+          <Button onClick={() => saveMutation.mutate(form)} disabled={saveMutation.isPending}>
+            <Save className="mr-2 h-4 w-4" />
+            {saveMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+          </Button>
+        }
+      />
+    </div>
+  )
+}
+
+function TaskDefaultsCard() {
+  return (
+    <div className="space-y-3">
+      <CompactFieldRow
+        label="Приоритет новых заявок"
+        description="Базовый приоритет для новых заявок до ручной корректировки диспетчером."
+        control={
+          <select className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white sm:w-56">
+            <option value="CURRENT">Текущая</option>
+            <option value="PLANNED">Плановая</option>
+            <option value="URGENT">Срочная</option>
+            <option value="EMERGENCY">Аварийная</option>
+          </select>
+        }
+      />
+      <CompactToggleRow
+        title="Автогеокодинг"
+        description="Автоматически определять координаты по адресу при создании заявки."
+        checked
+        onChange={() => undefined}
+      />
     </div>
   )
 }
@@ -536,70 +810,65 @@ function ImageSettingsTab() {
   }
 
   return (
-    <div className="max-w-2xl">
-      <Card title="Оптимизация изображений" action={<Image className="h-5 w-5 text-gray-400" />}>
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Настройки автоматической оптимизации загружаемых фотографий
-          </p>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              type="number"
-              label="Макс. ширина (px)"
-              value={settings.maxWidth}
-              onChange={(e) => setSettings({ ...settings, maxWidth: Number(e.target.value) })}
-            />
-            <Input
-              type="number"
-              label="Макс. высота (px)"
-              value={settings.maxHeight}
-              onChange={(e) => setSettings({ ...settings, maxHeight: Number(e.target.value) })}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Качество ({settings.quality}%)
-            </label>
-            <input
-              type="range"
-              min="10"
-              max="100"
-              value={settings.quality}
-              onChange={(e) => setSettings({ ...settings, quality: Number(e.target.value) })}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
-            />
-            <div className="flex justify-between text-xs text-gray-500 mt-1">
-              <span>Сжатие</span>
-              <span>Качество</span>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Формат сохранения
-            </label>
-            <select
-              value={settings.format}
-              onChange={(e) => setSettings({ ...settings, format: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-            >
-              <option value="webp">WebP (рекомендуется)</option>
-              <option value="jpeg">JPEG</option>
-              <option value="png">PNG</option>
-              <option value="original">Оригинал</option>
-            </select>
-          </div>
-
-          <div className="flex justify-end pt-2">
-            <Button onClick={handleSave}>
-              <Save className="h-4 w-4 mr-2" />
-              Сохранить
-            </Button>
-          </div>
-        </div>
-      </Card>
+    <div className="space-y-3">
+      <CompactFieldRow
+        label="Максимальная ширина"
+        description="Ограничение по ширине для загружаемых изображений после оптимизации."
+        control={
+          <Input
+            type="number"
+            value={settings.maxWidth}
+            onChange={(e) => setSettings({ ...settings, maxWidth: Number(e.target.value) })}
+            className="sm:w-36"
+          />
+        }
+      />
+      <CompactFieldRow
+        label="Максимальная высота"
+        description="Ограничение по высоте, применяемое перед сохранением файла."
+        control={
+          <Input
+            type="number"
+            value={settings.maxHeight}
+            onChange={(e) => setSettings({ ...settings, maxHeight: Number(e.target.value) })}
+            className="sm:w-36"
+          />
+        }
+      />
+      <CompactFieldRow
+        label="Формат сохранения"
+        description="Формат целевого файла после оптимизации и конвертации."
+        control={
+          <select
+            value={settings.format}
+            onChange={(e) => setSettings({ ...settings, format: e.target.value })}
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white sm:w-56"
+          >
+            <option value="webp">WebP (рекомендуется)</option>
+            <option value="jpeg">JPEG</option>
+            <option value="png">PNG</option>
+            <option value="original">Оригинал</option>
+          </select>
+        }
+      />
+      <CompactSliderRow
+        label="Качество изображения"
+        description="Баланс между степенью сжатия и сохранением визуального качества файла."
+        value={settings.quality}
+        min={10}
+        max={100}
+        onChange={(value) => setSettings({ ...settings, quality: value })}
+      />
+      <CompactActionRow
+        title="Сохранить параметры изображений"
+        description="Применяет ограничения размеров, качества и формата для новых загрузок."
+        actions={
+          <Button onClick={handleSave}>
+            <Save className="h-4 w-4 mr-2" />
+            Сохранить
+          </Button>
+        }
+      />
     </div>
   )
 }
@@ -620,7 +889,7 @@ function BackupSettingsTab() {
   const { data: settings, isLoading: settingsLoading } = useQuery({
     queryKey: ['backup-settings'],
     queryFn: async () => {
-      const response = await apiClient.get<BackupSettings>('/admin/backup/settings')
+      const response = await apiClient.get<BackupSettings>('/admin/backups/settings')
       return response.data
     },
   })
@@ -637,42 +906,42 @@ function BackupSettingsTab() {
   const { data: backups, isLoading, refetch } = useQuery({
     queryKey: ['backups'],
     queryFn: async () => {
-      const response = await apiClient.get<{ backups: Backup[] }>('/admin/backup/list')
+      const response = await apiClient.get<{ backups: Backup[] }>('/admin/backups')
       return response.data.backups
     },
   })
 
   const createBackupMutation = useMutation({
-    mutationFn: () => apiClient.post('/admin/backup/run'),
+    mutationFn: () => apiClient.post('/admin/backups'),
     onSuccess: () => {
-      toast.success('Бэкап создан')
+      showApiSuccess('Бэкап создан')
       refetch()
     },
-    onError: () => toast.error('Ошибка создания бэкапа'),
+    onError: (err) => showApiError(err, 'Ошибка создания бэкапа'),
   })
 
   const saveSettingsMutation = useMutation({
-    mutationFn: (data: BackupSettings) => apiClient.put('/admin/backup/settings', data),
-    onSuccess: () => toast.success('Настройки сохранены'),
-    onError: () => toast.error('Ошибка сохранения настроек'),
+    mutationFn: (data: BackupSettings) => apiClient.patch('/admin/backups/settings', data),
+    onSuccess: () => showApiSuccess('Настройки сохранены'),
+    onError: (err) => showApiError(err, 'Ошибка сохранения настроек'),
   })
 
   const deleteBackupMutation = useMutation({
-    mutationFn: (filename: string) => apiClient.delete(`/admin/backup/${filename}`),
+    mutationFn: (filename: string) => apiClient.delete(`/admin/backups/${filename}`),
     onSuccess: () => {
-      toast.success('Бэкап удалён')
+      showApiSuccess('Бэкап удалён')
       refetch()
     },
-    onError: () => toast.error('Ошибка удаления бэкапа'),
+    onError: (err) => showApiError(err, 'Ошибка удаления бэкапа'),
   })
 
   const restoreBackupMutation = useMutation({
-    mutationFn: (filename: string) => apiClient.post(`/admin/backup/restore/${filename}`),
+    mutationFn: (filename: string) => apiClient.post(`/admin/backups/${filename}/restore`),
     onSuccess: () => {
-      toast.success('База данных восстановлена! Рекомендуется перезапустить сервер.')
+      showApiSuccess('База данных восстановлена! Рекомендуется перезапустить сервер.')
       refetch()
     },
-    onError: () => toast.error('Ошибка восстановления'),
+    onError: (err) => showApiError(err, 'Ошибка восстановления'),
   })
 
   const handleSaveSettings = () => {
@@ -697,7 +966,7 @@ function BackupSettingsTab() {
         }
       }
       
-      const response = await fetch(`/api/admin/backup/download/${filename}`, {
+      const response = await fetch(`/api/admin/backups/${filename}/download`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -732,290 +1001,328 @@ function BackupSettingsTab() {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Backup Settings */}
-      <Card title="Настройки резервного копирования" action={<HardDrive className="h-5 w-5 text-gray-400" />}>
-        {settingsLoading ? (
-          <div className="flex justify-center py-8"><Spinner /></div>
-        ) : (
-        <div className="space-y-4">
-          <label className="flex items-center justify-between cursor-pointer">
-            <div>
-              <p className="font-medium text-gray-900 dark:text-white">Автобэкап</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Ежедневное резервное копирование</p>
-            </div>
-            <input
-              type="checkbox"
-              checked={autoBackup}
-              onChange={(e) => setAutoBackup(e.target.checked)}
-              className="w-5 h-5 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
-            />
-          </label>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Расписание
-            </label>
-            <select 
-              value={schedule}
-              onChange={(e) => setSchedule(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-            >
-              <option value="daily">Ежедневно в 03:00</option>
-              <option value="weekly">Еженедельно (Вс, 03:00)</option>
-              <option value="manual">Только вручную</option>
-            </select>
-          </div>
-
-          <Input
-            type="number"
-            label="Хранить копий (дней)"
-            value={retentionDays}
-            onChange={(e) => setRetentionDays(Number(e.target.value))}
+    <div className="space-y-4">
+      {settingsLoading ? (
+        <div className="flex justify-center py-8"><Spinner /></div>
+      ) : (
+        <>
+          <CompactToggleRow
+            title="Автоматический бэкап"
+            description="Ежедневное резервное копирование базы данных по расписанию."
+            checked={autoBackup}
+            onChange={setAutoBackup}
           />
+          <CompactFieldRow
+            label="Расписание"
+            description="Частота автоматического создания резервных копий."
+            control={
+              <select
+                value={schedule}
+                onChange={(e) => setSchedule(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white sm:w-64"
+              >
+                <option value="daily">Ежедневно в 03:00</option>
+                <option value="weekly">Еженедельно (Вс, 03:00)</option>
+                <option value="manual">Только вручную</option>
+              </select>
+            }
+          />
+          <CompactFieldRow
+            label="Срок хранения"
+            description="Сколько дней держать резервные копии перед автоматической ротацией."
+            control={
+              <Input
+                type="number"
+                value={retentionDays}
+                onChange={(e) => setRetentionDays(Number(e.target.value))}
+                className="sm:w-36"
+              />
+            }
+          />
+          <CompactActionRow
+            title="Сохранить параметры резервного копирования"
+            description="Применяет текущее расписание и параметры ротации."
+            actions={
+              <Button
+                onClick={handleSaveSettings}
+                disabled={saveSettingsMutation.isPending}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {saveSettingsMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+              </Button>
+            }
+          />
+        </>
+      )}
 
-          <div className="flex justify-end pt-2">
-            <Button 
-              onClick={handleSaveSettings}
-              disabled={saveSettingsMutation.isPending}
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {saveSettingsMutation.isPending ? 'Сохранение...' : 'Сохранить'}
-            </Button>
-          </div>
-        </div>
-        )}
-      </Card>
-
-      {/* Backup List */}
-      <Card 
-        title="Резервные копии" 
-        action={
+      <CompactActionRow
+        title="Создать резервную копию сейчас"
+        description="Ручной снимок базы данных с сохранением в каталог backups."
+        actions={
           <Button
             size="sm"
             onClick={() => createBackupMutation.mutate()}
             disabled={createBackupMutation.isPending}
           >
             <Play className="h-4 w-4 mr-1" />
-            Создать
+            {createBackupMutation.isPending ? 'Создание...' : 'Создать'}
           </Button>
         }
-      >
-        {isLoading ? (
-          <div className="flex justify-center py-8"><Spinner /></div>
-        ) : !backups?.length ? (
-          <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-            Нет резервных копий
-          </p>
-        ) : (
-          <div className="space-y-2 max-h-80 overflow-y-auto">
-            {backups.map((backup) => (
-              <div
-                key={backup.name}
-                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-              >
-                <div>
-                  <p className="font-medium text-gray-900 dark:text-white text-sm">
-                    {backup.name}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {formatBytes(backup.size)} • {new Date(backup.created).toLocaleString('ru-RU')}
-                  </p>
-                </div>
-                <div className="flex gap-1">
-                  <button 
-                    onClick={() => handleRestore(backup.name)}
-                    disabled={restoreBackupMutation.isPending}
-                    className="p-1.5 text-gray-500 hover:text-green-600 transition-colors disabled:opacity-50"
-                    title="Восстановить из этого бэкапа"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                  </button>
-                  <button 
-                    onClick={() => handleDownload(backup.name)}
-                    className="p-1.5 text-gray-500 hover:text-primary-500 transition-colors"
-                    title="Скачать"
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
-                  <button 
-                    onClick={() => handleDelete(backup.name)}
-                    className="p-1.5 text-gray-500 hover:text-red-500 transition-colors"
-                    title="Удалить"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
+      />
+
+      <CompactGroupLabel icon={HardDrive} title="Доступные резервные копии" className="pt-4" />
+      {isLoading ? (
+        <div className="flex justify-center py-8"><Spinner /></div>
+      ) : !backups?.length ? (
+        <p className="rounded-xl border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          Нет резервных копий
+        </p>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+          {backups.map((backup, index) => (
+            <div
+              key={backup.name}
+              className={cn(
+                'flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between',
+                index !== backups.length - 1 && 'border-b border-gray-200 dark:border-gray-800'
+              )}
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{backup.name}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {formatBytes(backup.size)} • {new Date(backup.created).toLocaleString('ru-RU')}
+                </p>
               </div>
-            ))}
-          </div>
-        )}
-      </Card>
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                <IconActionButton
+                  title="Восстановить из этого бэкапа"
+                  onClick={() => handleRestore(backup.name)}
+                  disabled={restoreBackupMutation.isPending}
+                  icon={<RotateCcw className="h-4 w-4" />}
+                />
+                <IconActionButton
+                  title="Скачать"
+                  onClick={() => handleDownload(backup.name)}
+                  icon={<Download className="h-4 w-4" />}
+                />
+                <IconActionButton
+                  title="Удалить"
+                  onClick={() => handleDelete(backup.name)}
+                  tone="danger"
+                  icon={<Trash2 className="h-4 w-4" />}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
 // ============= Notification Settings Tab =============
 function NotificationSettingsTab() {
+  const { data: pushEnabled, isLoading: pushLoading } = useSetting('push_enabled')
+  const { data: notifyOnNewTask, isLoading: newTaskLoading } = useSetting('notify_on_new_task')
+  const { data: notifyOnStatusChange, isLoading: statusChangeLoading } = useSetting('notify_on_status_change')
+  const updateSettingMutation = useUpdateSetting()
+  const isSaving = updateSettingMutation.isPending
+
+  const settingsLoading = pushLoading || newTaskLoading || statusChangeLoading
+
+  const handleToggle = (key: string, value: boolean, successMessage: string) => {
+    updateSettingMutation.mutate(
+      { key, value },
+      {
+        onSuccess: () => showApiSuccess(successMessage),
+        onError: (error) => showApiError(error, 'Не удалось сохранить настройку'),
+      }
+    )
+  }
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <Card title="Настройки уведомлений" action={<Bell className="h-5 w-5 text-gray-400" />}>
-        <div className="space-y-4">
-          <label className="flex items-center justify-between cursor-pointer">
-            <div>
-              <p className="font-medium text-gray-900 dark:text-white">Push-уведомления</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Отправлять push через Firebase</p>
-            </div>
-            <input
-              type="checkbox"
-              defaultChecked
-              className="w-5 h-5 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
-            />
-          </label>
+    <div className="space-y-4">
+      {settingsLoading ? (
+        <div className="flex justify-center py-8"><Spinner /></div>
+      ) : (
+        <>
+          <CompactToggleRow
+            title="Push-уведомления"
+            description="Отправлять push через Firebase на зарегистрированные устройства."
+            checked={Boolean(pushEnabled?.value ?? true)}
+            disabled={isSaving}
+            onChange={(checked) => handleToggle('push_enabled', checked, 'Настройки push-уведомлений сохранены')}
+          />
+          <CompactToggleRow
+            title="При создании заявки"
+            description="Уведомлять исполнителя о появлении новой назначенной заявки."
+            checked={Boolean(notifyOnNewTask?.value ?? true)}
+            disabled={isSaving}
+            onChange={(checked) => handleToggle('notify_on_new_task', checked, 'Сценарий уведомлений о новых заявках сохранён')}
+          />
+          <CompactToggleRow
+            title="При смене статуса"
+            description="Уведомлять диспетчера при изменении статуса заявки."
+            checked={Boolean(notifyOnStatusChange?.value ?? true)}
+            disabled={isSaving}
+            onChange={(checked) => handleToggle('notify_on_status_change', checked, 'Сценарий уведомлений о смене статуса сохранён')}
+          />
+          <CompactNotice tone="warning">
+            Email-уведомления пока не поддерживаются сервером и не вынесены в сохраняемые системные параметры.
+          </CompactNotice>
+        </>
+      )}
 
-          <label className="flex items-center justify-between cursor-pointer">
-            <div>
-              <p className="font-medium text-gray-900 dark:text-white">Email-уведомления</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Дублировать на email</p>
-            </div>
-            <input
-              type="checkbox"
-              className="w-5 h-5 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
-            />
-          </label>
+      <CompactInfoMatrix
+        title="Статус Firebase"
+        icon={Bell}
+        items={[
+          {
+            label: 'Push-канал',
+            value: (
+              <CompactStatusBadge tone={Boolean(pushEnabled?.value ?? true) ? 'success' : 'danger'}>
+                {Boolean(pushEnabled?.value ?? true) ? 'Включён' : 'Отключён'}
+              </CompactStatusBadge>
+            ),
+          },
+          {
+            label: 'Состояние отправки',
+            value: Boolean(pushEnabled?.value ?? true)
+              ? 'Уведомления будут отправляться на зарегистрированные устройства.'
+              : 'Отправка push-уведомлений отключена системной настройкой.',
+          },
+        ]}
+      />
 
-          <label className="flex items-center justify-between cursor-pointer">
-            <div>
-              <p className="font-medium text-gray-900 dark:text-white">При создании заявки</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Уведомлять исполнителя</p>
-            </div>
-            <input
-              type="checkbox"
-              defaultChecked
-              className="w-5 h-5 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
-            />
-          </label>
-
-          <label className="flex items-center justify-between cursor-pointer">
-            <div>
-              <p className="font-medium text-gray-900 dark:text-white">При смене статуса</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Уведомлять диспетчера</p>
-            </div>
-            <input
-              type="checkbox"
-              defaultChecked
-              className="w-5 h-5 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
-            />
-          </label>
-
-          <div className="flex justify-end pt-2">
-            <Button onClick={() => toast.success('Настройки сохранены')}>
-              <Save className="h-4 w-4 mr-2" />
-              Сохранить
-            </Button>
-          </div>
-        </div>
-      </Card>
-
-      <Card title="Статус Firebase" action={<Bell className="h-5 w-5 text-gray-400" />}>
-        <div className="space-y-4">
-          <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="font-medium text-green-700 dark:text-green-400">Firebase подключён</span>
-            </div>
-            <p className="text-sm text-green-600 dark:text-green-500 mt-1">
-              Пуш-уведомления работают
-            </p>
-          </div>
-
+      <CompactActionRow
+        title="Тестовая отправка"
+        description="Проверяет push-канал и доставку уведомлений на зарегистрированные устройства."
+        actions={
           <Button
             variant="secondary"
-            className="w-full"
             onClick={() => toast.success('Тестовое уведомление отправлено')}
+            disabled={!Boolean(pushEnabled?.value ?? true)}
           >
             <Bell className="h-4 w-4 mr-2" />
             Отправить тестовое уведомление
           </Button>
-        </div>
-      </Card>
+        }
+      />
     </div>
   )
 }
 
 // ============= Security Settings Tab =============
 function SecuritySettingsTab() {
+  const { data: rateLimitAttempts, isLoading: attemptsLoading } = useSetting('rate_limit_attempts')
+  const { data: rateLimitWindow, isLoading: windowLoading } = useSetting('rate_limit_window')
+  const { data: sessionTimeoutHours, isLoading: sessionLoading } = useSetting('session_timeout_hours')
+  const updateSettingMutation = useUpdateSetting()
+
+  const [attempts, setAttempts] = useState(5)
+  const [windowSeconds, setWindowSeconds] = useState(60)
+  const [sessionHours, setSessionHours] = useState(168)
+
+  useEffect(() => {
+    if (typeof rateLimitAttempts?.value === 'number') {
+      setAttempts(rateLimitAttempts.value)
+    }
+  }, [rateLimitAttempts])
+
+  useEffect(() => {
+    if (typeof rateLimitWindow?.value === 'number') {
+      setWindowSeconds(rateLimitWindow.value)
+    }
+  }, [rateLimitWindow])
+
+  useEffect(() => {
+    if (typeof sessionTimeoutHours?.value === 'number') {
+      setSessionHours(sessionTimeoutHours.value)
+    }
+  }, [sessionTimeoutHours])
+
+  const settingsLoading = attemptsLoading || windowLoading || sessionLoading
+
+  const handleSave = async () => {
+    const updates = [
+      { key: 'rate_limit_attempts', value: Math.max(1, attempts) },
+      { key: 'rate_limit_window', value: Math.max(10, windowSeconds) },
+      { key: 'session_timeout_hours', value: Math.max(1, sessionHours) },
+    ]
+
+    try {
+      for (const update of updates) {
+        await updateSettingMutation.mutateAsync(update)
+      }
+      showApiSuccess('Настройки безопасности сохранены')
+    } catch (error) {
+      showApiError(error, 'Не удалось сохранить настройки безопасности')
+    }
+  }
+
   return (
-    <div className="max-w-2xl">
-      <Card title="Настройки безопасности" action={<Shield className="h-5 w-5 text-gray-400" />}>
-        <div className="space-y-6">
-          {/* Rate Limiting */}
-          <div>
-            <h3 className="font-medium text-gray-900 dark:text-white mb-3">Rate Limiting</h3>
-            <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-6">
+      {settingsLoading ? (
+        <div className="flex justify-center py-8"><Spinner /></div>
+      ) : (
+        <>
+          <CompactGroupLabel icon={Shield} title="Ограничение попыток входа" />
+          <CompactFieldRow
+            label="Максимум попыток"
+            description="После превышения лимита IP временно блокируется."
+            control={
               <Input
                 type="number"
-                label="Макс. попыток входа"
-                defaultValue={5}
+                value={attempts}
+                onChange={(event) => setAttempts(Number(event.target.value) || 1)}
+                className="sm:w-32"
               />
+            }
+          />
+          <CompactFieldRow
+            label="Окно в секундах"
+            description="Интервал, внутри которого считаются неудачные попытки входа."
+            control={
               <Input
                 type="number"
-                label="Окно (секунд)"
-                defaultValue={60}
+                value={windowSeconds}
+                onChange={(event) => setWindowSeconds(Number(event.target.value) || 10)}
+                className="sm:w-32"
               />
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              Блокировка IP после N неудачных попыток входа за указанный период
-            </p>
-          </div>
+            }
+          />
 
-          {/* Session */}
-          <div>
-            <h3 className="font-medium text-gray-900 dark:text-white mb-3">Сессии</h3>
-            <Input
-              type="number"
-              label="Время жизни токена (часы)"
-              defaultValue={24}
-            />
-          </div>
+          <CompactGroupLabel icon={Clock} title="Сессии" className="pt-4" />
+          <CompactFieldRow
+            label="Время жизни токена"
+            description="Сколько часов access token остаётся действительным после входа."
+            control={
+              <Input
+                type="number"
+                value={sessionHours}
+                onChange={(event) => setSessionHours(Number(event.target.value) || 1)}
+                className="sm:w-32"
+              />
+            }
+          />
 
-          {/* Password Policy */}
-          <div>
-            <h3 className="font-medium text-gray-900 dark:text-white mb-3">Политика паролей</h3>
-            <div className="space-y-3">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  defaultChecked
-                  className="w-4 h-4 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Минимум 6 символов</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Требовать цифры</span>
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Требовать спецсимволы</span>
-              </label>
-            </div>
-          </div>
+          <CompactGroupLabel icon={Shield} title="Политика паролей" className="pt-4" />
+          <CompactNotice>
+            Сервер пока не хранит отдельные параметры парольной политики в системных настройках. Когда появятся backend-ключи, этот блок можно будет перевести на такое же сохранение, как rate limiting и сессии.
+          </CompactNotice>
 
-          <div className="flex justify-end pt-2">
-            <Button onClick={() => toast.success('Настройки безопасности сохранены')}>
-              <Save className="h-4 w-4 mr-2" />
-              Сохранить
-            </Button>
-          </div>
-        </div>
-      </Card>
+          <CompactActionRow
+            title="Сохранить настройки безопасности"
+            description="Применяет значения rate limiting и времени жизни токена."
+            actions={
+              <Button onClick={handleSave} disabled={updateSettingMutation.isPending}>
+                <Save className="h-4 w-4 mr-2" />
+                {updateSettingMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+              </Button>
+            }
+          />
+        </>
+      )}
     </div>
   )
 }
@@ -1050,31 +1357,34 @@ function CustomFieldsTab() {
 
   return (
     <div>
-      <Card
-        title="Конструктор полей заявок"
-        action={
+      <div className="space-y-3 rounded-2xl border border-gray-200 bg-white/90 p-3.5 shadow-sm dark:border-gray-800 dark:bg-gray-900/70">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Конструктор полей заявок</h4>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Создавайте дополнительные поля для заявок. Они будут отображаться в форме создания и редактирования.
+            </p>
+          </div>
           <Button size="sm" onClick={() => { setEditingField(null); setShowModal(true) }}>
             <Plus className="h-4 w-4 mr-1" />
             Добавить поле
           </Button>
-        }
-      >
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        </div>
+
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           Создавайте дополнительные поля для заявок. Они будут отображаться в форме создания/редактирования.
         </p>
 
         {isLoading ? (
           <div className="flex justify-center py-8"><Spinner /></div>
         ) : !fields?.length ? (
-          <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-            Нет кастомных полей
-          </p>
+          <CompactEmptyPanel title="Нет кастомных полей" description="Добавьте первое поле, чтобы расширить форму заявки." icon={Puzzle} />
         ) : (
           <div className="space-y-2">
             {fields.map((field) => (
               <div
                 key={field.id}
-                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                className="flex items-center justify-between rounded-xl border border-gray-200 bg-slate-50/80 p-3 dark:border-gray-800 dark:bg-gray-800/50"
               >
                 <div className="flex items-center gap-3">
                   <GripVertical className="h-4 w-4 text-gray-400 cursor-move" />
@@ -1117,7 +1427,7 @@ function CustomFieldsTab() {
             ))}
           </div>
         )}
-      </Card>
+      </div>
 
       {/* Custom Field Modal */}
       {showModal && (
@@ -1284,15 +1594,20 @@ function CardBuilderTab() {
   ]
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Available Fields */}
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <div>
-        <Card title="Доступные поля" action={<Puzzle className="h-5 w-5 text-gray-400" />}>
+        <div className="rounded-2xl border border-gray-200 bg-white/90 p-3.5 shadow-sm dark:border-gray-800 dark:bg-gray-900/70">
+          <div className="mb-4 flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+              <Puzzle className="h-4 w-4" />
+            </div>
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Доступные поля</h4>
+          </div>
           <div className="space-y-2">
             {availableFields.map((field) => (
               <div
                 key={field.id}
-                className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded-lg cursor-move hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="flex items-center justify-between rounded-xl border border-gray-200 bg-slate-50/80 p-3 transition-colors hover:bg-slate-100 dark:border-gray-800 dark:bg-gray-800/50 dark:hover:bg-gray-800 cursor-move"
               >
                 <div className="flex items-center gap-2">
                   <GripVertical className="h-4 w-4 text-gray-400" />
@@ -1302,20 +1617,19 @@ function CardBuilderTab() {
               </div>
             ))}
           </div>
-        </Card>
+        </div>
         
-        <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+        <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-900/40 dark:bg-blue-950/20">
           <p className="text-sm text-blue-700 dark:text-blue-400">
             <strong>Подсказка:</strong> Перетащите поля в нужные зоны карточки справа
           </p>
         </div>
       </div>
 
-      {/* Card Preview */}
       <div className="lg:col-span-2">
-        <Card 
-          title="Предпросмотр карточки" 
-          action={
+        <div className="rounded-2xl border border-gray-200 bg-white/90 p-3.5 shadow-sm dark:border-gray-800 dark:bg-gray-900/70">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Предпросмотр карточки</h4>
             <div className="flex gap-2">
               <Button size="sm" variant="secondary" onClick={() => toast.success('Сброшено')}>
                 <RefreshCw className="h-4 w-4 mr-1" />
@@ -1326,9 +1640,8 @@ function CardBuilderTab() {
                 Сохранить
               </Button>
             </div>
-          }
-        >
-          <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg min-h-[500px] space-y-4">
+          </div>
+          <div className="min-h-[500px] space-y-3 rounded-xl bg-gray-100 p-3.5 dark:bg-gray-800">
             {zones.map((zone) => (
               <div key={zone.id} className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3">
                 <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1">
@@ -1354,7 +1667,7 @@ function CardBuilderTab() {
               </div>
             ))}
           </div>
-        </Card>
+        </div>
       </div>
     </div>
   )
@@ -1372,7 +1685,7 @@ function PermissionsTab() {
   })
   const updatePermissionsMutation = useMutation({
     mutationFn: ({ role, permission, value }: { role: string; permission: string; value: boolean }) =>
-      apiClient.put(`/admin/permissions/${role}`, { permissions: { [permission]: value } }),
+      apiClient.patch(`/admin/permissions/${role}`, { permissions: { [permission]: value } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['role-permissions'] })
       toast.success('Права обновлены')
@@ -1408,74 +1721,81 @@ function PermissionsTab() {
   const isDisabled = (role: string) => role === 'admin' || updatePermissionsMutation.isPending
 
   return (
-    <Card title="Права доступа по ролям" action={<UserCog className="h-5 w-5 text-gray-400" />}>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Настройте права доступа и допустимые действия для каждой роли.
-      </p>
-
-      {isLoading ? (
-        <div className="flex justify-center py-8">
-          <Spinner />
+    <div className="space-y-4">
+      <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900/70">
+        <div className="border-b border-gray-200 px-3 py-2 dark:border-gray-800">
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+              <UserCog className="h-4 w-4" />
+            </div>
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Права доступа по ролям</h4>
+          </div>
         </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700">
-                <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Разрешение
-                </th>
-                <th className="text-center py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Админ
-                </th>
-                <th className="text-center py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Диспетчер
-                </th>
-                <th className="text-center py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Исполнитель
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-b border-gray-100 dark:border-gray-800">
-                  <td className="py-3 px-4 text-sm text-gray-700 dark:text-gray-300">
-                    {row.label}
-                  </td>
-                  {(['admin', 'dispatcher', 'worker'] as const).map((role) => {
-                    const checked = permissions?.[role]?.[row.id] ?? (role === 'admin')
-                    return (
-                      <td key={role} className="text-center py-3 px-4">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={isDisabled(role)}
-                          onChange={(event) =>
-                            updatePermissionsMutation.mutate({
-                              role,
-                              permission: row.id,
-                              value: event.target.checked,
-                            })
-                          }
-                          className="w-4 h-4 text-primary-500 border-gray-300 dark:border-gray-600 rounded disabled:opacity-50"
-                        />
+        <div className="p-2.5">
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Spinner />
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+              <table className="w-full">
+                <thead className="bg-gray-50/80 dark:bg-gray-800/60">
+                  <tr className="border-b border-gray-200 dark:border-gray-700">
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                      Разрешение
+                    </th>
+                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">
+                      Админ
+                    </th>
+                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">
+                      Диспетчер
+                    </th>
+                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">
+                      Исполнитель
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.id} className="border-b border-gray-100 transition-colors hover:bg-gray-50/80 dark:border-gray-800 dark:hover:bg-gray-800/40">
+                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                        {row.label}
                       </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      {(['admin', 'dispatcher', 'worker'] as const).map((role) => {
+                        const checked = permissions?.[role]?.[row.id] ?? (role === 'admin')
+                        return (
+                          <td key={role} className="px-4 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              disabled={isDisabled(role)}
+                              onChange={(event) =>
+                                updatePermissionsMutation.mutate({
+                                  role,
+                                  permission: row.id,
+                                  value: event.target.checked,
+                                })
+                              }
+                              className="w-4 h-4 rounded border-gray-300 text-primary-500 disabled:opacity-50 dark:border-gray-600"
+                            />
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-      )}
-    </Card>
+      </div>
+    </div>
   )
 }
 
-// ============= Devices Tab =============
 function DevicesTab() {
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
-  
+
   const { data: devices, isLoading, refetch, isFetching } = useDevices()
   const sendNotification = useSendTestNotification()
   const deleteDevice = useDeleteDevice()
@@ -1483,10 +1803,7 @@ function DevicesTab() {
   const handleSendTest = async (userId?: number) => {
     try {
       await sendNotification.mutateAsync(userId)
-      toast.success(userId 
-        ? 'Тестовое уведомление отправлено' 
-        : 'Уведомление отправлено всем устройствам'
-      )
+      toast.success(userId ? 'Тестовое уведомление отправлено' : 'Уведомление отправлено всем устройствам')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Ошибка отправки')
     }
@@ -1502,26 +1819,17 @@ function DevicesTab() {
     }
   }
 
-  const formatDate = (dateStr: string): string => {
-    try {
-      return format(new Date(dateStr), 'dd.MM.yyyy HH:mm', { locale: ru })
-    } catch {
-      return dateStr
-    }
-  }
-
   const truncateToken = (token: string, length = 20): string => {
     if (token.length <= length) return token
     return `${token.slice(0, length)}...`
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-gray-600 dark:text-gray-400">
-            Управление FCM токенами и push-уведомлениями
+          <p className="text-sm font-medium text-gray-900 dark:text-white">
+            Устройства и push-канал
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -1543,8 +1851,7 @@ function DevicesTab() {
         </div>
       </div>
 
-      {/* Devices Table */}
-      <Card className="overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white/90 dark:border-gray-800 dark:bg-gray-900/70">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-800/50">
@@ -1588,16 +1895,16 @@ function DevicesTab() {
                 </tr>
               ) : (
                 devices.map((device) => (
-                  <tr 
+                  <tr
                     key={device.id}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                    className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
                   >
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-sm font-mono">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="rounded bg-gray-100 px-2 py-1 text-sm font-mono dark:bg-gray-700">
                         {device.id}
                       </span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-gray-400" />
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -1605,26 +1912,26 @@ function DevicesTab() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <span className="text-sm text-gray-600 dark:text-gray-400">
                         {device.device_name || 'Unknown Device'}
                       </span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <span 
-                        className="text-xs font-mono text-gray-500 dark:text-gray-400 cursor-help"
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span
+                        className="cursor-help text-xs font-mono text-gray-500 dark:text-gray-400"
                         title={device.fcm_token}
                       >
                         {truncateToken(device.fcm_token, 30)}
                       </span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <Clock className="w-4 h-4" />
                         {formatDate(device.last_active)}
                       </div>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-right">
+                    <td className="px-4 py-3 whitespace-nowrap text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Button
                           variant="ghost"
@@ -1635,7 +1942,7 @@ function DevicesTab() {
                         >
                           <Send className="w-4 h-4" />
                         </Button>
-                        
+
                         {deleteConfirm === device.id ? (
                           <div className="flex items-center gap-1">
                             <Button
@@ -1673,15 +1980,15 @@ function DevicesTab() {
             </tbody>
           </table>
         </div>
-        
+
         {devices && devices.length > 0 && (
-          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700">
+          <div className="border-t border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/50">
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Всего устройств: {devices.length}
             </p>
           </div>
         )}
-      </Card>
+      </div>
     </div>
   )
 }
@@ -1762,6 +2069,393 @@ function ClearDatabaseModal({ setShowClearConfirm }: { setShowClearConfirm: (sho
   )
 }
 
+function CompactGroupLabel({
+  icon: Icon,
+  title,
+  className,
+}: {
+  icon: typeof Settings
+  title: string
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-3 rounded-xl border border-gray-200 bg-slate-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-800/60',
+        className
+      )}
+    >
+      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm dark:bg-gray-900 dark:text-gray-300">
+        <Icon className="h-4 w-4" />
+      </div>
+      <div>
+        <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">{title}</h4>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Настройки и действия внутри этого блока сгруппированы в отдельные карточки.</p>
+      </div>
+    </div>
+  )
+}
+
+function CompactInfoMatrix({
+  title,
+  icon: Icon,
+  items,
+}: {
+  title: string
+  icon: typeof Settings
+  items: Array<{ label: string; value: React.ReactNode; monospace?: boolean; highlight?: boolean }>
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+          <Icon className="h-4 w-4" />
+        </div>
+        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h4>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {items.map((item) => (
+          <CompactInfoTile
+            key={item.label}
+            label={item.label}
+            value={item.value}
+            monospace={item.monospace}
+            highlight={item.highlight}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CompactDatabaseSection({
+  title,
+  icon: Icon,
+  items,
+  children,
+}: {
+  title: string
+  icon: typeof Settings
+  items: Array<{ label: string; value: React.ReactNode; monospace?: boolean; highlight?: boolean }>
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center gap-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+          <Icon className="h-4 w-4" />
+        </div>
+        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h4>
+      </div>
+
+      <div className="space-y-2.5 rounded-xl border border-gray-200 bg-white/90 p-3 dark:border-gray-800 dark:bg-gray-900/70">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {items.map((item) => (
+            <CompactInfoTile
+              key={item.label}
+              label={item.label}
+              value={item.value}
+              monospace={item.monospace}
+              highlight={item.highlight}
+            />
+          ))}
+        </div>
+
+        <div className="border-t border-gray-200 pt-2.5 dark:border-gray-800">
+          <div className="mb-2 flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+              <RefreshCw className="h-4 w-4" />
+            </div>
+            <div>
+              <h5 className="text-sm font-semibold text-gray-900 dark:text-white">Операции с базой</h5>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Обслуживание, очистка и сервисные действия без переключения в отдельные группы.</p>
+            </div>
+          </div>
+
+          <div className="grid gap-2 lg:grid-cols-2">{children}</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CompactInfoTile({
+  label,
+  value,
+  monospace = false,
+  highlight = false,
+}: {
+  label: string
+  value: React.ReactNode
+  monospace?: boolean
+  highlight?: boolean
+}) {
+  return (
+      <div className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 dark:border-gray-800 dark:bg-gray-800/40">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">{label}</p>
+      <div
+        className={cn(
+          'mt-0.5 text-sm font-semibold text-gray-900 dark:text-white',
+          monospace && 'font-mono text-xs sm:text-sm',
+          highlight && 'text-base'
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function CompactToggleRow({
+  title,
+  description: _description,
+  checked,
+  onChange,
+  disabled,
+}: {
+  title: string
+  description: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+  disabled?: boolean
+}) {
+  return (
+    <div className="grid gap-2 rounded-xl border border-gray-200 bg-white px-2.5 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:border-gray-800 dark:bg-gray-900/70">
+      <div className="pr-2">
+        <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
+      </div>
+      <ToggleSwitch checked={checked} disabled={disabled} onChange={onChange} />
+    </div>
+  )
+}
+
+function CompactFieldRow({
+  label,
+  description: _description,
+  control,
+}: {
+  label: string
+  description: string
+  control: React.ReactNode
+}) {
+  return (
+    <div className="grid gap-2 rounded-xl border border-gray-200 bg-white px-2.5 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:border-gray-800 dark:bg-gray-900/70">
+      <div className="pr-2">
+        <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
+      </div>
+      <div className="sm:flex sm:justify-end">
+        <div className="min-w-[136px] rounded-lg bg-gray-50 p-0.5 dark:bg-gray-800">{control}</div>
+      </div>
+    </div>
+  )
+}
+
+function CompactActionRow({
+  title,
+  description: _description,
+  actions,
+}: {
+  title: string
+  description: string
+  actions: React.ReactNode
+}) {
+  return (
+    <div className="grid gap-2 rounded-xl border border-gray-200 bg-white px-2.5 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:border-gray-800 dark:bg-gray-900/70">
+      <div className="pr-2">
+        <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end">{actions}</div>
+    </div>
+  )
+}
+
+function CompactActionTile({
+  title,
+  description: _description,
+  actions,
+}: {
+  title: string
+  description: string
+  actions: React.ReactNode
+}) {
+  return (
+    <div className="flex h-full flex-col justify-between rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-2 dark:border-gray-800 dark:bg-gray-800/40">
+      <div>
+        <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">{actions}</div>
+    </div>
+  )
+}
+
+function CompactSliderRow({
+  label,
+  description: _description,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string
+  description: string
+  value: number
+  min: number
+  max: number
+  onChange: (value: number) => void
+}) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white px-2.5 py-2 dark:border-gray-800 dark:bg-gray-900/70">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="pr-2">
+          <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
+        </div>
+        <div className="min-w-[210px] rounded-lg bg-gray-50 p-1.5 dark:bg-gray-800">
+          <div className="mb-1 flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
+            <span>Сжатие</span>
+            <span>{value}%</span>
+            <span>Качество</span>
+          </div>
+          <input
+            type="range"
+            min={min}
+            max={max}
+            value={value}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className="w-full h-2 cursor-pointer appearance-none rounded-lg bg-gray-200 dark:bg-gray-700"
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CompactNotice({
+  children,
+  tone = 'default',
+}: {
+  children: React.ReactNode
+  tone?: 'default' | 'warning'
+}) {
+  return (
+    <div
+      className={cn(
+        'rounded-lg border px-2.5 py-2 text-sm',
+        tone === 'warning'
+          ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300'
+          : 'border-dashed border-gray-300 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800/40 dark:text-gray-300'
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
+function CompactEmptyPanel({
+  title,
+  description: _description,
+  icon: Icon,
+}: {
+  title: string
+  description: string
+  icon: typeof Settings
+}) {
+  return (
+    <div className="rounded-lg border border-dashed border-gray-300 px-3 py-4 dark:border-gray-700">
+      <div className="flex flex-col items-center justify-center text-center">
+        <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+          <Icon className="h-4 w-4" />
+        </div>
+        <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
+      </div>
+    </div>
+  )
+}
+
+function ToggleSwitch({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        'relative inline-flex h-6 w-11 items-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+        checked
+          ? 'border-primary-500 bg-primary-500 dark:border-primary-400 dark:bg-primary-400'
+          : 'border-gray-300 bg-gray-200 dark:border-gray-600 dark:bg-gray-700'
+      )}
+    >
+      <span
+        className={cn(
+          'inline-block h-4 w-4 rounded-full bg-white transition-transform',
+          checked ? 'translate-x-6' : 'translate-x-1'
+        )}
+      />
+    </button>
+  )
+}
+
+function CompactStatusBadge({
+  children,
+  tone,
+}: {
+  children: React.ReactNode
+  tone: 'success' | 'danger'
+}) {
+  return (
+    <span
+      className={cn(
+        'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
+        tone === 'success'
+          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+          : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
+function IconActionButton({
+  title,
+  onClick,
+  icon,
+  tone = 'default',
+  disabled,
+}: {
+  title: string
+  onClick: () => void
+  icon: React.ReactNode
+  tone?: 'default' | 'danger'
+  disabled?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={cn(
+        'rounded-lg border border-gray-200 p-2 text-gray-500 transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-400',
+        tone === 'danger'
+          ? 'hover:border-red-200 hover:text-red-500 dark:hover:border-red-900/70 dark:hover:text-red-400'
+          : 'hover:border-primary-200 hover:text-primary-500 dark:hover:border-primary-900/70 dark:hover:text-primary-400'
+      )}
+    >
+      {icon}
+    </button>
+  )
+}
+
 // ============= Helper Functions =============
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 Bytes'
@@ -1769,14 +2463,4 @@ function formatBytes(bytes: number): string {
   const sizes = ['Bytes', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-}
-
-// ============= Helper Component =============
-function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex justify-between items-center">
-      <span className="text-gray-500 dark:text-gray-400">{label}</span>
-      <span className="font-medium text-gray-900 dark:text-white">{value}</span>
-    </div>
-  )
 }

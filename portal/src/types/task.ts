@@ -1,5 +1,6 @@
 export type TaskStatus = 'NEW' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED'
 export type TaskPriority = 'EMERGENCY' | 'URGENT' | 'CURRENT' | 'PLANNED'
+export type TaskSort = 'created_at_desc' | 'created_at_asc'
 
 export interface Task {
   id: number
@@ -14,9 +15,10 @@ export interface Task {
   status: TaskStatus
   priority: TaskPriority
   is_paid: boolean
-  amount: number | null
+  is_remote: boolean
   payment_amount: number | null
   planned_date: string | null
+  completed_at: string | null
   assigned_user_id: number | null
   assigned_user_name: string | null
   // Система и тип неисправности
@@ -64,6 +66,7 @@ export interface TaskFilters {
   assignee_id?: number
   search?: string
   address_id?: number
+  sort?: TaskSort
   date_from?: string
   date_to?: string
   page?: number

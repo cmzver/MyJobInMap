@@ -21,8 +21,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useTheme } from '@/hooks/useTheme'
 import apiClient from '@/api/client'
 import { Task } from '@/types/task'
-import { format } from 'date-fns'
-import { ru } from 'date-fns/locale'
+import { formatDatePretty } from '@/utils/dateFormat'
 
 // Import Leaflet CSS
 import 'leaflet/dist/leaflet.css'
@@ -149,14 +148,7 @@ const getTaskSecondaryTitle = (task: Task) => {
   return ''
 }
 
-const formatDateTime = (dateStr: string | null) => {
-  if (!dateStr) return '—'
-  try {
-    return format(new Date(dateStr), 'd MMM yyyy, HH:mm', { locale: ru })
-  } catch {
-    return dateStr
-  }
-}
+const formatDateTime = formatDatePretty
 
 // Component to fit bounds
 function FitBounds({ tasks }: { tasks: Task[] }) {
@@ -218,7 +210,7 @@ export default function MapPage() {
     queryFn: async () => {
       const params = new URLSearchParams()
       if (!allStatusesSelected && sortedStatuses.length === 1) {
-        params.append('status', sortedStatuses[0]) // API принимает только один статус
+        params.append('status', sortedStatuses[0]!) // API принимает только один статус
       }
       if (isWorker && user?.id) {
         params.append('assignee_id', String(user.id))
@@ -359,7 +351,7 @@ export default function MapPage() {
           <LocateControl />
           
           {groupedTasks.map((group) => {
-            const primaryTask = group.tasks[0]
+            const primaryTask = group.tasks[0]!
             const groupStatus = getGroupStatus(group.tasks) as keyof typeof markerColors
             const icon = group.tasks.length > 1
               ? createCountMarkerIcon(markerColors[groupStatus], group.tasks.length)
@@ -383,20 +375,20 @@ export default function MapPage() {
                       <div>
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                            <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                               В этой точке
                             </p>
-                            <p className="text-sm font-semibold text-gray-900">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                               {group.tasks.length} заявок
                             </p>
                           </div>
-                          <span className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold bg-orange-100 text-orange-700">
+                          <span className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
                             В работе
                           </span>
                         </div>
                         {primaryTask.raw_address && (
-                          <div className="mt-2 flex items-start gap-2 text-xs text-gray-600">
-                            <MapPin size={14} className="text-gray-400 mt-0.5" />
+                          <div className="mt-2 flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400">
+                            <MapPin size={14} className="text-gray-400 dark:text-gray-500 mt-0.5" />
                             <span className="line-clamp-2">{primaryTask.raw_address}</span>
                           </div>
                         )}
@@ -410,25 +402,25 @@ export default function MapPage() {
                             <Link
                               key={task.id}
                               to={`/tasks/${task.id}`}
-                              className="block rounded-xl border border-gray-100 px-3 py-2 hover:bg-gray-50 transition shadow-sm"
+                              className="block rounded-xl border border-gray-100 dark:border-gray-600 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition shadow-sm"
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
                                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: statusColor }} />
-                                  <span className="text-xs font-mono text-gray-500">№{getTaskNumber(task)}</span>
+                                  <span className="text-xs font-mono text-gray-500 dark:text-gray-400">№{getTaskNumber(task)}</span>
                                 </div>
                                 <PriorityBadge priority={task.priority} />
                               </div>
-                              <div className="mt-1 text-sm font-semibold text-gray-900 line-clamp-2">
+                              <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-2">
                                 {getTaskPrimaryTitle(task)}
                               </div>
                               {taskSubtitle && (
-                                <div className="mt-0.5 text-xs text-gray-500 line-clamp-1">
+                                <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
                                   {taskSubtitle}
                                 </div>
                               )}
                               {task.assigned_user_name && (
-                                <div className="mt-1 text-xs text-gray-500">
+                                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                   Исполнитель: {task.assigned_user_name}
                                 </div>
                               )}
@@ -442,23 +434,23 @@ export default function MapPage() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="inline-flex items-center gap-2">
-                            <span className="px-3 py-1 rounded-full bg-slate-100 text-xs font-semibold text-gray-800">
+                            <span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-semibold text-gray-800 dark:text-gray-200">
                               № {getTaskNumber(primaryTask)}
                             </span>
                             <PriorityBadge priority={primaryTask.priority} />
                             <StatusBadge status={primaryTask.status} />
                           </div>
-                          <h3 className="mt-2 text-lg font-semibold text-gray-900 leading-tight">
+                          <h3 className="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100 leading-tight">
                             {getTaskPrimaryTitle(primaryTask)}
                           </h3>
                           {secondaryTitle && (
-                            <p className="mt-1 text-sm text-gray-600">
+                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                               {secondaryTitle}
                             </p>
                           )}
                         </div>
                       </div>
-                      <div className="space-y-2 text-sm text-gray-700">
+                      <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
                         <div className="flex items-start gap-2">
                           <MapPin size={16} className="text-orange-500 mt-0.5" />
                           <span className="leading-snug">
@@ -490,7 +482,7 @@ export default function MapPage() {
                             <Phone size={16} className="text-green-500" />
                             <a
                               href={`tel:${primaryTask.customer_phone}`}
-                              className="text-primary-600 hover:text-primary-700 font-semibold"
+                              className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-semibold"
                             >
                               {primaryTask.customer_phone}
                             </a>
@@ -501,7 +493,7 @@ export default function MapPage() {
                         <button
                           type="button"
                           onClick={() => openNavigation(primaryTask)}
-                          className="inline-flex items-center justify-center gap-1 rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 transition"
+                          className="inline-flex items-center justify-center gap-1 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm font-semibold text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
                         >
                           <Navigation size={16} />
                           Маршрут

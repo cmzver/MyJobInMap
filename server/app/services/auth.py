@@ -6,6 +6,7 @@ Auth Service
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Callable
+import logging
 
 import bcrypt
 from jose import JWTError, jwt
@@ -18,6 +19,8 @@ from app.models import UserModel, UserRole, TaskModel, get_db
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
+
+logger = logging.getLogger(__name__)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -35,11 +38,30 @@ def get_password_hash(password: str) -> str:
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Создание JWT токена"""
+    """Создание JWT access токена (короткоживущий)"""
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_HOURS))
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "type": "access"})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Создание JWT refresh токена (долгоживущий, 30 дней)"""
+    to_encode = {"sub": data.get("sub"), "user_id": data.get("user_id")}
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS))
+    to_encode.update({"exp": expire, "type": "refresh"})
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def verify_refresh_token(token: str) -> Optional[dict]:
+    """Проверка refresh токена. Возвращает payload или None."""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        if payload.get("type") != "refresh":
+            return None
+        return payload
+    except JWTError:
+        return None
 
 
 def authenticate_user(db: Session, username: str, password: str) -> Optional[UserModel]:
@@ -49,6 +71,10 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional[Use
         return None
     if not user.is_active:
         return None
+    # Проверяем, что организация пользователя активна
+    if user.organization_id and user.organization:
+        if not user.organization.is_active:
+            return None
     return user
 
 
@@ -104,6 +130,18 @@ async def get_current_admin(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
+        )
+    return user
+
+
+async def get_current_superadmin(
+    user: UserModel = Depends(get_current_admin)
+) -> UserModel:
+    """Требует суперадмина (admin без organization_id)"""
+    if user.organization_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Superadmin access required"
         )
     return user
 
@@ -188,7 +226,7 @@ def create_default_users(db: Session):
     db.add(worker)
     
     db.commit()
-    print("Default users created: admin/admin, user/user")
+    logger.info("Default users created: admin/admin, user/user")
 
 
 def enforce_worker_task_access(
@@ -196,7 +234,12 @@ def enforce_worker_task_access(
     task: TaskModel,
     detail: str = "Access denied"
 ) -> None:
-    """Raise 403 if a worker tries to access a task not assigned to them."""
+    """Raise 403 if a user tries to access a task outside their tenant or worker scope."""
+    from app.services.tenant_filter import TenantFilter
+
+    tenant = TenantFilter(user)
+    tenant.enforce_access(task, detail=detail)
+
     if user.role == UserRole.WORKER.value and task.assigned_user_id != user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

@@ -19,15 +19,22 @@ val Typography = Typography(
     displayLarge = TextStyle(
         fontFamily = FieldWorkerFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 34.sp,
-        lineHeight = 40.sp,
-        letterSpacing = (-0.2).sp
+        fontSize = 32.sp,
+        lineHeight = 38.sp,
+        letterSpacing = (-0.4).sp
+    ),
+    displayMedium = TextStyle(
+        fontFamily = FieldWorkerFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 28.sp,
+        lineHeight = 34.sp,
+        letterSpacing = (-0.3).sp
     ),
     headlineSmall = TextStyle(
         fontFamily = FieldWorkerFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp,
-        lineHeight = 28.sp
+        fontSize = 24.sp,
+        lineHeight = 30.sp
     ),
     titleLarge = TextStyle(
         fontFamily = FieldWorkerFontFamily,
@@ -50,7 +57,7 @@ val Typography = Typography(
     bodyLarge = TextStyle(
         fontFamily = FieldWorkerFontFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 17.sp,
+        fontSize = 16.sp,
         lineHeight = 24.sp,
         letterSpacing = 0.sp
     ),
@@ -69,7 +76,7 @@ val Typography = Typography(
     labelLarge = TextStyle(
         fontFamily = FieldWorkerFontFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 14.sp,
+        fontSize = 13.sp,
         lineHeight = 18.sp
     ),
     labelMedium = TextStyle(

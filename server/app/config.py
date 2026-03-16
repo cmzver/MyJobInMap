@@ -7,7 +7,8 @@ Configuration
 
 from pathlib import Path
 from functools import lru_cache
-from typing import Set
+from typing import List, Set
+import warnings
 
 from pydantic import Field, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -41,7 +42,8 @@ class Settings(BaseSettings):
         description="Секретный ключ для JWT токенов (ОБЯЗАТЕЛЬНО сменить в production!)"
     )
     ALGORITHM: str = Field(default="HS256", description="Алгоритм подписи JWT")
-    ACCESS_TOKEN_EXPIRE_HOURS: int = Field(default=24 * 7, description="Время жизни токена в часах")
+    ACCESS_TOKEN_EXPIRE_HOURS: int = Field(default=24, description="Время жизни access токена в часах (24ч)")
+    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=30, description="Время жизни refresh токена в днях (30д)")
     
     # === Firebase ===
     FIREBASE_CREDENTIALS: str = Field(
@@ -68,16 +70,33 @@ class Settings(BaseSettings):
     GEOCODING_CACHE_SIZE: int = Field(default=1000, description="Размер кэша геокодинга")
     GEOCODING_USER_AGENT: str = Field(default="fieldworker_app", description="User-Agent для геокодера")
     
+    # === Rate Limiting ===
+    RATE_LIMIT_MAX_ATTEMPTS: int = Field(default=5, ge=1, description="Макс. попыток логина на IP")
+    RATE_LIMIT_WINDOW_SECONDS: int = Field(default=60, ge=10, description="Окно rate limiting (сек)")
+    
+    # === Автоматические бэкапы ===
+    BACKUP_SCHEDULER_ENABLED: bool = Field(default=False, description="Включить встроенный планировщик бэкапов")
+    BACKUP_SCHEDULE_HOUR: int = Field(default=3, ge=0, le=23, description="Час запуска бэкапа (0-23)")
+    BACKUP_SCHEDULE_MINUTE: int = Field(default=0, ge=0, le=59, description="Минута запуска бэкапа (0-59)")
+    BACKUP_RETENTION_DAYS: int = Field(default=30, ge=1, description="Срок хранения бэкапов (дней)")
+    
     # === Сервер ===
     HOST: str = Field(default="0.0.0.0", description="Хост для запуска сервера")
     PORT: int = Field(default=8001, ge=1, le=65535, description="Порт для запуска сервера")
+    ENVIRONMENT: str = Field(default="development", description="Окружение (development/production)")
+    
+    # === CORS ===
+    CORS_ORIGINS: List[str] = Field(
+        default=["*"],
+        description="Список разрешённых CORS origins (через запятую в .env)"
+    )
     
     # === Логирование ===
     LOG_LEVEL: str = Field(default="INFO", description="Уровень логирования")
     LOG_FORMAT: str = Field(default="text", description="Формат логов (text/json)")
     
     # === API Метаданные ===
-    API_VERSION: str = Field(default="2.4.2", description="Версия API")
+    API_VERSION: str = Field(default="2.14.2", description="Версия API")
     API_TITLE: str = Field(default="FieldWorker API", description="Название API")
     API_DESCRIPTION: str = Field(
         default="REST API для управления заявками выездных сотрудников",
@@ -128,6 +147,12 @@ class Settings(BaseSettings):
         """Используется ли PostgreSQL"""
         return self.DATABASE_URL.startswith("postgresql") or self.DATABASE_URL.startswith("postgres")
     
+    @computed_field
+    @property
+    def is_production(self) -> bool:
+        """Производственное окружение"""
+        return self.ENVIRONMENT.lower() == "production"
+    
     # Алиас для обратной совместимости
     @property
     def FIREBASE_CREDENTIALS_PATH(self) -> str:
@@ -136,8 +161,20 @@ class Settings(BaseSettings):
     
     @model_validator(mode="after")
     def create_directories(self) -> "Settings":
-        """Создаём необходимые директории при инициализации"""
+        """Создаём необходимые директории и проверяем безопасность"""
         self.PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+        
+        # Предупреждение о дефолтном SECRET_KEY в production
+        if (
+            self.ENVIRONMENT.lower() == "production"
+            and self.SECRET_KEY == "fieldworker-super-secret-key-change-in-production"
+        ):
+            warnings.warn(
+                "⚠️  Используется дефолтный SECRET_KEY в production! "
+                "Задайте SECRET_KEY в переменных окружения или .env файле!",
+                RuntimeWarning,
+                stacklevel=2
+            )
         return self
 
 
