@@ -29,6 +29,7 @@ from app.api.sla import router as sla_router
 from app.api.websocket import router as websocket_router
 from app.api.organizations import router as organizations_router
 from app.api.updates import router as updates_router
+from app.api.chat import router as chat_router
 
 
 def _build_api_router() -> APIRouter:
@@ -54,6 +55,7 @@ def _build_api_router() -> APIRouter:
     router.include_router(websocket_router)
     router.include_router(organizations_router)
     router.include_router(updates_router)
+    router.include_router(chat_router)
     return router
 
 

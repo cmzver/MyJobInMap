@@ -46,6 +46,7 @@ from app.services.notification_service import (
     create_task_status_notification,
     create_task_assignment_notification
 )
+from app.services import chat_service
 from app.services.audit_log import audit_log
 
 __all__ = [
@@ -93,6 +94,8 @@ __all__ = [
     "create_notification",
     "create_task_status_notification",
     "create_task_assignment_notification",
+    # Chat
+    "chat_service",
     # Audit
     "audit_log",
 ]

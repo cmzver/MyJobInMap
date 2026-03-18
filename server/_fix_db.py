@@ -44,6 +44,7 @@ missing_users = {
     'organization_id': 'INTEGER REFERENCES organizations(id)',
     'report_target': "VARCHAR(20) DEFAULT 'group'",
     'report_contact_phone': 'VARCHAR(20)',
+    'avatar_path': 'VARCHAR(500)',
 }
 for col, typedef in missing_users.items():
     if col not in existing:

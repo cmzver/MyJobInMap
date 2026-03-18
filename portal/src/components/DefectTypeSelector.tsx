@@ -48,7 +48,7 @@ export default function DefectTypeSelector({
         <div className="flex items-center gap-2 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
           <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
           <p className="text-sm text-yellow-700 dark:text-yellow-300">
-            Сначала выберите систему обслуживания
+            Тип неисправности выбирается после системы обслуживания. Если система не указана, это поле можно оставить пустым.
           </p>
         </div>
       </Card>
@@ -59,7 +59,7 @@ export default function DefectTypeSelector({
     <Card title="Тип неисправности">
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Выберите тип неисправности *
+          Выберите тип неисправности
         </label>
 
         {/* Показываем сохранённый тип, если он не в текущем списке */}

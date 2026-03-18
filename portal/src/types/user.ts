@@ -6,6 +6,7 @@ export interface User {
   full_name: string
   email: string | null
   phone: string | null
+  avatar_url?: string | null
   role: UserRole
   is_active: boolean
   created_at: string

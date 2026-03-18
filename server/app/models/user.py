@@ -21,6 +21,7 @@ class UserModel(Base):
     full_name = Column(String(100), default="")
     email = Column(String(100), nullable=True)
     phone = Column(String(20), nullable=True)
+    avatar_path = Column(String(500), nullable=True)
     role = Column(String(20), default=UserRole.WORKER.value)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=utcnow)

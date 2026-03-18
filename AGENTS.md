@@ -1,6 +1,6 @@
 # FieldWorker - AI Agent Guidelines
 
-> **Версия:** 2.14.2 | **Обновлено:** 16 марта 2026
+> **Версия:** 2.15.0 | **Обновлено:** 17 марта 2026
 
 ## Project Overview
 
@@ -108,6 +108,27 @@ MyJobInMap/
 | POST | `/api/admin/organizations/{id}/unassign-user` | Remove user from org |
 | GET | `/api/admin/organizations/{id}/users` | List org users |
 
+### Chat
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/chat/conversations` | List user's conversations (with unread_count) |
+| POST | `/api/chat/conversations` | Create conversation (direct/group/task/org_general) |
+| GET | `/api/chat/conversations/{id}` | Conversation detail (members, settings) |
+| PATCH | `/api/chat/conversations/{id}` | Update conversation (rename group) |
+| POST | `/api/chat/conversations/{id}/members` | Add members |
+| DELETE | `/api/chat/conversations/{id}/members/{user_id}` | Remove member |
+| PATCH | `/api/chat/conversations/{id}/mute` | Mute/unmute conversation |
+| PATCH | `/api/chat/conversations/{id}/archive` | Archive/unarchive conversation |
+| GET | `/api/chat/conversations/{id}/messages` | Messages (cursor pagination: before_id, limit) |
+| POST | `/api/chat/conversations/{id}/messages` | Send message (text, reply_to_id) |
+| PATCH | `/api/chat/messages/{id}` | Edit message (own, 24h window) |
+| DELETE | `/api/chat/messages/{id}` | Soft-delete message |
+| POST | `/api/chat/conversations/{id}/messages/search` | Search messages (ILIKE) |
+| POST | `/api/chat/messages/{id}/attachments` | Upload attachment (10MB, image optimization) |
+| POST | `/api/chat/messages/{id}/reactions` | Toggle reaction (emoji) |
+| POST | `/api/chat/conversations/{id}/read` | Mark as read (read receipt) |
+| GET | `/api/chat/task/{task_id}` | Get/create task conversation (shortcut) |
+
 ### Reports & Analytics
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -147,6 +168,7 @@ MyJobInMap/
 | `notification.py` | NotificationModel |
 | `settings.py` | SystemSettingModel, CustomFieldModel, CustomFieldValueModel, RolePermissionModel + helper functions |
 | `organization.py` | OrganizationModel (name, slug, limits, is_active) |
+| `chat.py` | ConversationModel, ConversationMemberModel, MessageModel, MessageAttachmentModel, MessageReactionModel, MessageMentionModel + enums (ConversationType, ConversationMemberRole, MessageType) |
 | `enums.py` | TaskStatus, TaskPriority, UserRole |
 
 ### Services (`app/services/`)
@@ -167,6 +189,7 @@ MyJobInMap/
 | `excel_export.py` | Экспорт заявок в Excel (openpyxl, 2 листа) |
 | `tenant_service.py` | CRUD для организаций (create, update, deactivate, assign_user) |
 | `tenant_filter.py` | Multi-tenant изоляция данных (apply/check_access/enforce_access) |
+| `chat_service.py` | Чат: CRUD разговоров, сообщения, реакции, read receipts, @mentions, поиск |
 
 ### API Routers (`app/api/`)
 | File | Prefix | Purpose |
@@ -189,6 +212,7 @@ MyJobInMap/
 | `sla.py` | `/api/sla` | SLA метрики (overview, timing, by_priority, trends) |
 | `websocket.py` | `/ws` | WebSocket endpoint с JWT auth |
 | `updates.py` | `/api/updates` | Android APK updates (check, upload, download, history, delete) |
+| `chat.py` | `/api/chat` | Chat: conversations, messages, reactions, read receipts, attachments |
 
 ---
 
@@ -239,7 +263,7 @@ MyJobInMap/
 
 ### Server
 - ✅ **Port 8001** (not 8000)
-- ✅ **Version** stored in `app/config.py` → `API_VERSION = "2.14.2"`
+- ✅ **Version** stored in `app/config.py` → `API_VERSION = "2.15.0"`
 - ✅ **REST standard**: PATCH for partial updates, PUT for full replacements
 - ✅ **Rate Limiting** on `/api/auth/login` (5 attempts / 60 seconds per IP)
 - ✅ **Task Status Transitions** validated:
@@ -263,7 +287,7 @@ MyJobInMap/
 - ✅ **Photo URLs** must use `getFullServerUrl()` (includes port)
 - ✅ **network_security_config**: `cleartextTrafficPermitted="true"` for dev
 - ✅ **APK updates**: `versionName` и `versionCode` извлекаются сервером напрямую из `AndroidManifest.xml` внутри APK
-- ✅ **App version**: `app/build.gradle.kts` → `versionCode = 21402`, `versionName = "2.14.2"`
+- ✅ **App version**: `app/build.gradle.kts` → `versionCode = 21500`, `versionName = "2.15.0"`
 
 ---
 
@@ -345,8 +369,8 @@ npm run build            # Build to dist/
 ## 📝 File Locations
 
 ### Version
-- `server/app/config.py` → `API_VERSION = "2.14.2"`
-- `app/build.gradle.kts` → `versionCode = 21402`, `versionName = "2.14.2"`
+- `server/app/config.py` → `API_VERSION = "2.15.0"`
+- `app/build.gradle.kts` → `versionCode = 21500`, `versionName = "2.15.0"`
 
 ### Changelog
 - `CHANGELOG.md` — Full version history

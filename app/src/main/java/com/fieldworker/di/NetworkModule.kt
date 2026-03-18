@@ -5,7 +5,9 @@ import android.util.Log
 import com.fieldworker.BuildConfig
 import com.fieldworker.data.api.AddressesApi
 import com.fieldworker.data.api.AuthApi
+import com.fieldworker.data.api.ChatApi
 import com.fieldworker.data.api.TasksApi
+import com.fieldworker.data.api.UsersApi
 import com.fieldworker.data.network.AuthInterceptor
 import com.fieldworker.data.network.RetryInterceptor
 import com.fieldworker.data.network.TokenAuthenticator
@@ -23,6 +25,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
+import javax.inject.Named
 import javax.inject.Singleton
 
 /**
@@ -153,6 +156,23 @@ object NetworkModule {
             .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .build()
     }
+
+    @Provides
+    @Singleton
+    @Named("websocket")
+    fun provideWebSocketOkHttpClient(
+        loggingInterceptor: HttpLoggingInterceptor,
+        certificatePinner: CertificatePinner,
+    ): OkHttpClient {
+        return OkHttpClient.Builder()
+            .certificatePinner(certificatePinner)
+            .addInterceptor(loggingInterceptor)
+            .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .pingInterval(30, TimeUnit.SECONDS)
+            .build()
+    }
     
     @Provides
     @Singleton
@@ -181,5 +201,17 @@ object NetworkModule {
     @Singleton
     fun provideAddressesApi(retrofit: Retrofit): AddressesApi {
         return retrofit.create(AddressesApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideChatApi(retrofit: Retrofit): ChatApi {
+        return retrofit.create(ChatApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideUsersApi(retrofit: Retrofit): UsersApi {
+        return retrofit.create(UsersApi::class.java)
     }
 }

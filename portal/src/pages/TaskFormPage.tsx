@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { showApiError, showApiSuccess, mutationToast } from '@/utils/apiError'
 import { ArrowLeft, Save } from 'lucide-react'
 import { useTask, useCreateTask, useUpdateTask, useAssignTask } from '@/hooks/useTasks'
@@ -145,6 +145,12 @@ interface TaskFormData {
   photos: File[]
 }
 
+interface TaskFormDraft {
+  route: string
+  formData: Omit<TaskFormData, 'photos'>
+  selectedSystemType: string
+}
+
 const initialAddressData: AddressFormData = {
   city: '',
   street: '',
@@ -176,8 +182,10 @@ interface TaskFormPageProps {
 
 export default function TaskFormPage({ mode }: TaskFormPageProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const { id } = useParams<{ id: string }>()
   const taskId = id ? Number(id) : undefined
+  const restoredDraftRef = useRef(false)
 
   const [formData, setFormData] = useState<TaskFormData>(initialFormData)
   const [addressErrors, setAddressErrors] = useState<Partial<Record<keyof AddressFormData, string>>>({})
@@ -198,8 +206,36 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
   const updateMutation = useUpdateTask()
   const assignMutation = useAssignTask()
 
+  useEffect(() => {
+    const rawDraft = sessionStorage.getItem('task-form-draft')
+    if (!rawDraft) return
+
+    try {
+      const draft = JSON.parse(rawDraft) as TaskFormDraft
+      if (draft.route !== location.pathname) {
+        return
+      }
+
+      restoredDraftRef.current = true
+      setFormData({
+        ...draft.formData,
+        photos: [],
+      })
+      setSelectedSystemType(draft.selectedSystemType || draft.formData.system_type || '')
+    } catch {
+      // ignore invalid session draft
+    } finally {
+      sessionStorage.removeItem('task-form-draft')
+      sessionStorage.removeItem('task-form-return')
+    }
+  }, [location.pathname])
+
   // Populate form when editing
   useEffect(() => {
+    if (restoredDraftRef.current) {
+      return
+    }
+
     if (mode === 'edit' && task) {
       // Парсим адрес из строки raw_address
       const parsedAddress = parseAddress(task.raw_address || '')
@@ -229,44 +265,85 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         setSelectedSystemType(task.system_type)
       }
       
-      // Пытаемся найти addressId по компонентам адреса для режима редактирования
-      if (parsedAddress.city && parsedAddress.street && parsedAddress.building) {
-        addressesApi.findByComponents(
-          parsedAddress.city, 
-          parsedAddress.street, 
-          parsedAddress.building, 
-          parsedAddress.corpus || undefined
-        ).then((result) => {
-          if (result) {
-            setFormData(prev => ({ ...prev, addressId: result.id }))
-          }
-        }).catch((err) => {
-          if (import.meta.env.DEV) console.error('Error finding address by components:', err)
-        })
-      }
     }
   }, [mode, task])
 
+  useEffect(() => {
+    const city = formData.address.city.trim()
+    const street = formData.address.street.trim()
+    const building = formData.address.building.trim()
+    const corpus = formData.address.corpus.trim()
+
+    if (!city || !street || !building) {
+      setFormData((prev) => (prev.addressId === null ? prev : { ...prev, addressId: null }))
+      return
+    }
+
+    let isCancelled = false
+
+    addressesApi.findByComponents(
+      city,
+      street,
+      building,
+      corpus && corpus !== 'none' ? corpus : undefined
+    )
+      .then((result) => {
+        if (isCancelled) {
+          return
+        }
+
+        setFormData((prev) => {
+          const nextAddressId = result?.id ?? null
+          return prev.addressId === nextAddressId ? prev : { ...prev, addressId: nextAddressId }
+        })
+      })
+      .catch(() => {
+        if (isCancelled) {
+          return
+        }
+
+        setFormData((prev) => (prev.addressId === null ? prev : { ...prev, addressId: null }))
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [formData.address.city, formData.address.street, formData.address.building, formData.address.corpus])
+
   const handleAddressChange = (data: AddressFormData) => {
-    setFormData(prev => ({ ...prev, address: data }))
+    setFormData((prev) => {
+      const addressIdentityChanged =
+        prev.address.city !== data.city ||
+        prev.address.street !== data.street ||
+        prev.address.building !== data.building ||
+        prev.address.corpus !== data.corpus
+
+      if (!addressIdentityChanged) {
+        return { ...prev, address: data }
+      }
+
+      return {
+        ...prev,
+        address: data,
+        addressId: null,
+        system_id: '',
+        system_type: '',
+        defect_type_id: '',
+        defect_type_name: '',
+      }
+    })
+
+    if (
+      formData.address.city !== data.city ||
+      formData.address.street !== data.street ||
+      formData.address.building !== data.building ||
+      formData.address.corpus !== data.corpus
+    ) {
+      setSelectedSystemType('')
+    }
+
     if (addressErrors.city || addressErrors.street || addressErrors.building) {
       setAddressErrors({})
-    }
-    
-    // Пытаемся найти адрес по компонентам (город/улица/дом/корпус)
-    // Только если корпус уже выбран (не пустой)
-    if (data.city && data.street && data.building && data.corpus) {
-      addressesApi.findByComponents(data.city, data.street, data.building, data.corpus)
-        .then((result) => {
-          if (result) {
-            setFormData(prev => ({ ...prev, addressId: result.id }))
-          } else {
-            setFormData(prev => ({ ...prev, addressId: null }))
-          }
-        })
-        .catch(() => {
-          setFormData(prev => ({ ...prev, addressId: null }))
-        })
     }
   }
 
@@ -337,21 +414,6 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
     if (!formData.address.building.trim()) {
       addrErrors.building = 'Дом обязателен'
     }
-    // В режиме редактирования addressId может не найтись для старых заявок
-    if (!formData.addressId && mode === 'create') {
-      errors.addressId = 'Выберите дом из предложенных вариантов'
-    }
-
-    // Система — обязательна только при создании новой заявки
-    if (!formData.system_id && mode === 'create') {
-      errors.system_id = 'Выберите систему'
-    }
-
-    // Тип неисправности — обязателен только при создании новой заявки
-    if (!formData.defect_type_id && mode === 'create') {
-      errors.defect_type_id = 'Выберите тип неисправности'
-    }
-
     // Описание
     if (!formData.description.trim()) {
       errors.description = 'Описание обязательно'
@@ -361,6 +423,31 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
     setOtherErrors(errors)
 
     return Object.keys(addrErrors).length === 0 && Object.keys(errors).length === 0
+  }
+
+  const openAddressCreateFlow = () => {
+    const { photos: _photos, ...draftFormData } = formData
+
+    const prefill = {
+      address: fullAddress,
+      city: formData.address.city,
+      street: formData.address.street,
+      building: formData.address.building,
+      corpus: formData.address.corpus,
+      entrance: formData.address.entrance,
+      apartment: formData.address.apartment,
+    }
+
+    const draft: TaskFormDraft = {
+      route: location.pathname,
+      formData: draftFormData,
+      selectedSystemType,
+    }
+
+    sessionStorage.setItem('address-prefill', JSON.stringify(prefill))
+    sessionStorage.setItem('task-form-draft', JSON.stringify(draft))
+    sessionStorage.setItem('task-form-return', location.pathname)
+    navigate('/addresses')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -447,6 +534,11 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
   }
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending || assignMutation.isPending
+  const showMissingAddressPrompt =
+    !formData.addressId &&
+    Boolean(formData.address.city.trim()) &&
+    Boolean(formData.address.street.trim()) &&
+    Boolean(formData.address.building.trim())
 
   if (mode === 'edit' && taskLoading) {
     return (
@@ -491,37 +583,18 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
           errors={addressErrors}
         />
 
-        {/* Ошибка адреса */}
-        {otherErrors.addressId && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <p className="text-sm text-red-600 dark:text-red-400">{otherErrors.addressId}</p>
-          </div>
-        )}
-        
-        {/* Подсказка для режима редактирования — если адрес не найден в базе */}
-        {mode === 'edit' && !formData.addressId && formData.address.city && formData.address.building && (
+        {/* Подсказка, если адрес не найден в базе */}
+        {showMissingAddressPrompt && (
           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-2">
             <p className="text-sm text-blue-700 dark:text-blue-300">
-              Адрес заявки не найден в базе адресов. Система и тип неисправности опциональны.
+              Адрес не найден в базе адресов. Заявку можно создать и на сторонний адрес, а если хотите вести его в базе, добавьте адрес сейчас.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={() => {
-                  const prefill = {
-                    address: fullAddress,
-                    city: formData.address.city,
-                    street: formData.address.street,
-                    building: formData.address.building,
-                    corpus: formData.address.corpus,
-                    entrance: formData.address.entrance,
-                    apartment: formData.address.apartment,
-                  }
-                  sessionStorage.setItem('address-prefill', JSON.stringify(prefill))
-                  navigate('/addresses')
-                }}
+                onClick={openAddressCreateFlow}
               >
                 Добавить адрес в базу
               </Button>

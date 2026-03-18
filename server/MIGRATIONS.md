@@ -18,6 +18,21 @@ alembic current
 alembic history
 ```
 
+## Legacy SQLite БД без истории Alembic
+
+Если локальная `tasks.db` уже обновлялась вручную и содержит актуальные таблицы/колонки,
+но `alembic upgrade head` падает на старых миграциях с ошибками вроде `duplicate column name`,
+используй такой порядок:
+
+```bash
+cd server
+python _fix_db.py
+alembic stamp head
+```
+
+Это нужно только для старых локальных БД, у которых схема уже доведена до актуального состояния,
+но таблица `alembic_version` пустая или отсутствует.
+
 ## Откат миграции
 
 ```bash

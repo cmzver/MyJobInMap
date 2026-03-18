@@ -217,7 +217,14 @@ export default function AddressesPage() {
     createMutation.mutate(formData, mutationToast({
       success: 'Адрес добавлен',
       error: 'Ошибка создания',
-      onSuccess: () => handleCloseModal(),
+      onSuccess: () => {
+        const returnTo = sessionStorage.getItem('task-form-return')
+        handleCloseModal()
+        if (returnTo) {
+          sessionStorage.removeItem('task-form-return')
+          navigate(returnTo)
+        }
+      },
     }))
   }
 

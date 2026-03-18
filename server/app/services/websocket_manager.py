@@ -184,6 +184,22 @@ class ConnectionManager:
             sent += await self.send_to_user(uid, message)
         return sent
 
+    async def send_to_conversation(
+        self,
+        member_user_ids: list[int],
+        message: dict,
+        exclude_user_id: Optional[int] = None,
+    ) -> int:
+        """
+        Отправить сообщение всем участникам чата.
+
+        Args:
+            member_user_ids: Список user_id участников разговора
+            message: JSON-сериализуемый dict
+            exclude_user_id: Не отправлять отправителю
+        """
+        return await self.broadcast_to_roles(message, member_user_ids, exclude_user_id)
+
     def get_status(self) -> dict:
         """Информация о состоянии менеджера."""
         return {
@@ -311,4 +327,130 @@ async def broadcast_task_deleted(
         }),
         exclude_user_id=user_id,
         organization_id=organization_id,
+    )
+
+
+# ============================================================================
+# Chat broadcast helpers
+# ============================================================================
+
+async def broadcast_chat_message(
+    member_user_ids: list[int],
+    conversation_id: int,
+    message_data: dict,
+    sender_id: Optional[int] = None,
+) -> None:
+    """Broadcast: новое сообщение в чате."""
+    await ws_manager.send_to_conversation(
+        member_user_ids,
+        _event("chat_message", {
+            "conversation_id": conversation_id,
+            **message_data,
+        }),
+        exclude_user_id=sender_id,
+    )
+
+
+async def broadcast_chat_message_edited(
+    member_user_ids: list[int],
+    conversation_id: int,
+    message_id: int,
+    new_text: str,
+    sender_id: Optional[int] = None,
+) -> None:
+    """Broadcast: сообщение отредактировано."""
+    await ws_manager.send_to_conversation(
+        member_user_ids,
+        _event("chat_message_edited", {
+            "conversation_id": conversation_id,
+            "message_id": message_id,
+            "text": new_text,
+        }),
+        exclude_user_id=sender_id,
+    )
+
+
+async def broadcast_chat_message_deleted(
+    member_user_ids: list[int],
+    conversation_id: int,
+    message_id: int,
+    sender_id: Optional[int] = None,
+) -> None:
+    """Broadcast: сообщение удалено."""
+    await ws_manager.send_to_conversation(
+        member_user_ids,
+        _event("chat_message_deleted", {
+            "conversation_id": conversation_id,
+            "message_id": message_id,
+        }),
+        exclude_user_id=sender_id,
+    )
+
+
+async def broadcast_chat_reaction(
+    member_user_ids: list[int],
+    conversation_id: int,
+    message_id: int,
+    emoji: str,
+    user_id: int,
+    action: str,  # "added" or "removed"
+) -> None:
+    """Broadcast: реакция на сообщение."""
+    await ws_manager.send_to_conversation(
+        member_user_ids,
+        _event("chat_reaction", {
+            "conversation_id": conversation_id,
+            "message_id": message_id,
+            "emoji": emoji,
+            "user_id": user_id,
+            "action": action,
+        }),
+        exclude_user_id=user_id,
+    )
+
+
+async def broadcast_chat_read(
+    member_user_ids: list[int],
+    conversation_id: int,
+    user_id: int,
+    last_message_id: int,
+) -> None:
+    """Broadcast: пользователь прочитал сообщения."""
+    await ws_manager.send_to_conversation(
+        member_user_ids,
+        _event("chat_read", {
+            "conversation_id": conversation_id,
+            "user_id": user_id,
+            "last_message_id": last_message_id,
+        }),
+        exclude_user_id=user_id,
+    )
+
+
+async def broadcast_chat_conversation_updated(
+    member_user_ids: list[int],
+    conversation_id: int,
+    action: str,
+    actor_user_id: Optional[int] = None,
+    target_user_id: Optional[int] = None,
+    role: Optional[str] = None,
+    name: Optional[str] = None,
+) -> None:
+    """Broadcast: обновление метаданных/состава чата."""
+    payload = {
+        "conversation_id": conversation_id,
+        "action": action,
+    }
+    if actor_user_id is not None:
+        payload["actor_user_id"] = actor_user_id
+    if target_user_id is not None:
+        payload["target_user_id"] = target_user_id
+    if role is not None:
+        payload["role"] = role
+    if name is not None:
+        payload["name"] = name
+
+    await ws_manager.send_to_conversation(
+        member_user_ids,
+        _event("chat_conversation_updated", payload),
     )

@@ -11,6 +11,7 @@ export interface AuthUser {
   full_name?: string
   email?: string
   phone?: string
+  avatarUrl?: string | null
   role: UserRole
   organizationId?: number | null
   organizationName?: string | null
@@ -21,6 +22,7 @@ interface LoginResponse {
   user_id: number
   username: string
   full_name?: string | null
+  avatar_url?: string | null
   role?: string | null
   organization_id?: number | null
   organization_name?: string | null
@@ -70,6 +72,7 @@ export const useAuthStore = create<AuthState>()(
               id: data.user_id,
               username: data.username,
               fullName: data.full_name || data.username,
+              avatarUrl: data.avatar_url ?? null,
               role,
               organizationId: data.organization_id ?? null,
               organizationName: data.organization_name ?? null,

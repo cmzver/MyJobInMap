@@ -5,6 +5,8 @@
  * Подключается к ws://host/ws?token=JWT и слушает события:
  * - task_created, task_updated, task_status_changed
  * - task_assigned, task_assigned_to_me, task_deleted
+ * - chat_message, chat_message_edited, chat_message_deleted
+ * - chat_reaction, chat_read, chat_typing
  * 
  * Автоматически реконнектится при потере соединения.
  * Инвалидирует React Query кэш при получении события.
@@ -21,9 +23,37 @@ export interface WsEvent {
   timestamp: string
 }
 
+type ChatTypingHandler = (conversationId: number, userId: number, isTyping: boolean) => void
+type ChatReadHandler = (conversationId: number, userId: number, lastMessageId: number) => void
+
 const RECONNECT_DELAY_MS = 3000
 const MAX_RECONNECT_DELAY_MS = 30000
 const PING_INTERVAL_MS = 30000
+
+// Глобальный ref на WS для отправки из компонентов
+let globalWs: WebSocket | null = null
+let chatTypingListeners: ChatTypingHandler[] = []
+let chatReadListeners: ChatReadHandler[] = []
+
+export function sendWsMessage(message: Record<string, unknown>) {
+  if (globalWs?.readyState === WebSocket.OPEN) {
+    globalWs.send(JSON.stringify(message))
+  }
+}
+
+export function onChatTyping(handler: ChatTypingHandler) {
+  chatTypingListeners.push(handler)
+  return () => {
+    chatTypingListeners = chatTypingListeners.filter(h => h !== handler)
+  }
+}
+
+export function onChatRead(handler: ChatReadHandler) {
+  chatReadListeners.push(handler)
+  return () => {
+    chatReadListeners = chatReadListeners.filter(h => h !== handler)
+  }
+}
 
 export function useWebSocket() {
   const { token, isAuthenticated } = useAuthStore()
@@ -77,6 +107,79 @@ export function useWebSocket() {
             queryClient.invalidateQueries({ queryKey: ['dashboard'] })
             break
 
+          // ===== Chat events =====
+          case 'chat_message':
+            queryClient.invalidateQueries({ queryKey: ['chat', 'messages', data.data.conversation_id] })
+            queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] })
+            toast('💬 Новое сообщение', { icon: '✉️', duration: 2000 })
+            break
+
+          case 'chat_message_edited':
+            queryClient.invalidateQueries({ queryKey: ['chat', 'messages', data.data.conversation_id] })
+            break
+
+          case 'chat_message_deleted':
+            queryClient.invalidateQueries({ queryKey: ['chat', 'messages', data.data.conversation_id] })
+            queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] })
+            break
+
+          case 'chat_reaction':
+            queryClient.invalidateQueries({ queryKey: ['chat', 'messages', data.data.conversation_id] })
+            break
+
+          case 'chat_read':
+            queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] })
+            if (
+              typeof data.data.conversation_id === 'number' &&
+              typeof data.data.user_id === 'number' &&
+              typeof data.data.last_message_id === 'number'
+            ) {
+              chatReadListeners.forEach((handler) => handler(
+                data.data.conversation_id as number,
+                data.data.user_id as number,
+                data.data.last_message_id as number,
+              ))
+            }
+            break
+
+          case 'chat_typing': {
+            const convId = data.data.conversation_id as number
+            const userId = data.data.user_id as number
+            const isTyping = data.data.is_typing as boolean
+            chatTypingListeners.forEach(h => h(convId, userId, isTyping))
+            break
+          }
+
+          case 'chat_conversation_updated': {
+            const convId = data.data.conversation_id as number | undefined
+            const action = data.data.action as string | undefined
+            queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] })
+            if (typeof convId === 'number') {
+              queryClient.invalidateQueries({ queryKey: ['chat', 'conversation', convId] })
+              if (action !== 'conversation_renamed' && action !== 'conversation_updated') {
+                queryClient.invalidateQueries({ queryKey: ['chat', 'messages', convId] })
+              }
+            }
+            switch (action) {
+              case 'conversation_renamed':
+                toast('Чат переименован', { icon: '✏️', duration: 2000 })
+                break
+              case 'member_added':
+                toast('В чат добавлен участник', { icon: '➕', duration: 2000 })
+                break
+              case 'member_removed':
+                toast('Состав чата обновлён', { icon: '👥', duration: 2000 })
+                break
+              case 'member_role_updated':
+                toast('Роль участника изменена', { icon: '🛡️', duration: 2000 })
+                break
+              case 'ownership_transferred':
+                toast('Ownership передан', { icon: '👑', duration: 2000 })
+                break
+            }
+            break
+          }
+
           default:
             // Для неизвестных типов — общая инвалидация
             break
@@ -98,6 +201,7 @@ export function useWebSocket() {
     try {
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws
+      globalWs = ws
 
       ws.onopen = () => {
         reconnectDelayRef.current = RECONNECT_DELAY_MS // reset delay on success
@@ -114,6 +218,7 @@ export function useWebSocket() {
 
       ws.onclose = () => {
         wsRef.current = null
+        globalWs = null
         if (pingTimerRef.current) {
           clearInterval(pingTimerRef.current)
           pingTimerRef.current = null
@@ -153,6 +258,7 @@ export function useWebSocket() {
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
+        globalWs = null
       }
     }
   }, [connect])

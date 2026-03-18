@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
@@ -19,6 +19,7 @@ import {
 import Card from '@/components/Card'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
+import UserAvatar from '@/components/UserAvatar'
 import { useAuthStore } from '@/store/authStore'
 import apiClient from '@/api/client'
 
@@ -48,6 +49,7 @@ interface UserStats {
 export default function ProfilePage() {
   const { user, setUser, token } = useAuthStore()
   const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'stats'>('profile')
+  const avatarInputRef = useRef<HTMLInputElement | null>(null)
 
   // Загрузка статистики пользователя
   const { data: stats, isLoading: statsLoading } = useQuery<UserStats>({
@@ -76,7 +78,7 @@ export default function ProfilePage() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: ProfileForm) => {
-      const response = await apiClient.put('/users/me', {
+      const response = await apiClient.patch('/auth/profile', {
         full_name: data.fullName,
         email: data.email,
         phone: data.phone,
@@ -86,7 +88,7 @@ export default function ProfilePage() {
     onSuccess: (data) => {
       showApiSuccess('Профиль обновлён')
       if (user && token) {
-        setUser({ ...user, fullName: data.full_name, email: data.email, phone: data.phone }, token)
+        setUser({ ...user, fullName: data.full_name, email: data.email, phone: data.phone, avatarUrl: data.avatar_url ?? user.avatarUrl ?? null }, token)
       }
     },
     onError: (err) => {
@@ -96,7 +98,7 @@ export default function ProfilePage() {
 
   const updatePasswordMutation = useMutation({
     mutationFn: async (data: PasswordForm) => {
-      await apiClient.put('/users/me/password', {
+      await apiClient.patch('/auth/password', {
         current_password: data.currentPassword,
         new_password: data.newPassword,
       })
@@ -110,6 +112,28 @@ export default function ProfilePage() {
     },
   })
 
+  const uploadAvatarMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData()
+      formData.append('avatar', file)
+      const response = await apiClient.post('/auth/avatar', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
+      return response.data
+    },
+    onSuccess: (data) => {
+      showApiSuccess('Аватар обновлён')
+      if (user && token) {
+        setUser({ ...user, fullName: data.full_name, email: data.email, phone: data.phone, avatarUrl: data.avatar_url ?? null }, token)
+      }
+    },
+    onError: (err) => {
+      showApiError(err, 'Ошибка загрузки аватара')
+    },
+  })
+
   const onProfileSubmit = (data: ProfileForm) => {
     updateProfileMutation.mutate(data)
   }
@@ -120,6 +144,13 @@ export default function ProfilePage() {
       return
     }
     updatePasswordMutation.mutate(data)
+  }
+
+  const handleAvatarSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    uploadAvatarMutation.mutate(file)
+    event.target.value = ''
   }
 
   const getRoleLabel = (role?: string) => {
@@ -151,16 +182,34 @@ export default function ProfilePage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <div className="relative">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-2xl font-bold">
-                {user?.fullName?.charAt(0).toUpperCase() || 'U'}
-              </div>
-              <button className="absolute bottom-0 right-0 p-1.5 bg-white dark:bg-gray-800 rounded-full shadow border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+              <UserAvatar
+                fullName={user?.fullName}
+                avatarUrl={user?.avatarUrl}
+                sizeClassName="h-20 w-20"
+                textClassName="text-2xl"
+              />
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="hidden"
+                onChange={handleAvatarSelect}
+              />
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={uploadAvatarMutation.isPending}
+                className="absolute bottom-0 right-0 rounded-full border border-gray-200 bg-white p-1.5 shadow transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
+              >
                 <Camera size={14} className="text-gray-600 dark:text-gray-400" />
               </button>
             </div>
             <div className="ml-6">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{user?.fullName}</h2>
               <p className="text-gray-500 dark:text-gray-400">@{user?.username}</p>
+              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                JPG, PNG, WEBP или GIF до 5 МБ
+              </p>
               <span className="inline-block mt-2 px-3 py-1 text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded-full">
                 {getRoleLabel(user?.role)}
               </span>

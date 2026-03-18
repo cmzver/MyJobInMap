@@ -72,7 +72,7 @@ export default function SystemSelector({
         <div className="flex items-center gap-2 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
           <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
           <p className="text-sm text-yellow-700 dark:text-yellow-300">
-            Сначала выберите адрес и дом
+            Выберите адрес из базы, если нужна привязка к системе. Для стороннего адреса заявку можно создать без системы обслуживания.
           </p>
         </div>
       </Card>
@@ -166,8 +166,7 @@ export default function SystemSelector({
         ) : (
           <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
             <p className="text-sm text-amber-700 dark:text-amber-300">
-              На этом адресе нет зарегистрированных систем обслуживания.
-              {/* Добавить систему можно в карточке адреса */}
+              На этом адресе нет зарегистрированных систем обслуживания. Заявку можно создать без привязки к системе.
             </p>
           </div>
         )}

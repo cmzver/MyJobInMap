@@ -36,6 +36,17 @@ from app.models.address import (
     AddressHistoryModel,
 )
 from app.models.notification import NotificationModel, NotificationType
+from app.models.chat import (
+    ConversationType,
+    ConversationMemberRole,
+    MessageType,
+    ConversationModel,
+    ConversationMemberModel,
+    MessageModel,
+    MessageAttachmentModel,
+    MessageReactionModel,
+    MessageMentionModel,
+)
 from app.models.settings import (
     SystemSettingModel,
     CustomFieldModel,
@@ -86,6 +97,16 @@ __all__ = [
     "AddressHistoryModel",
     # Notification
     "NotificationModel",
+    # Chat
+    "ConversationType",
+    "ConversationMemberRole",
+    "MessageType",
+    "ConversationModel",
+    "ConversationMemberModel",
+    "MessageModel",
+    "MessageAttachmentModel",
+    "MessageReactionModel",
+    "MessageMentionModel",
     # Settings Models
     "SystemSettingModel",
     "CustomFieldModel",

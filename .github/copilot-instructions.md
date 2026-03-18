@@ -106,6 +106,27 @@ MyJobInMap/
 | DELETE | `/api/admin/backups/{filename}` | Удалить бэкап |
 | GET/PATCH | `/api/admin/backups/settings` | Настройки бэкапов |
 
+### Чат (Chat)
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| GET | `/api/chat/conversations` | Список чатов пользователя (с unread_count) |
+| POST | `/api/chat/conversations` | Создать чат (direct/group/task/org_general) |
+| GET | `/api/chat/conversations/{id}` | Детали чата (участники, настройки) |
+| PATCH | `/api/chat/conversations/{id}` | Обновить чат (переименовать группу) |
+| POST | `/api/chat/conversations/{id}/members` | Добавить участников |
+| DELETE | `/api/chat/conversations/{id}/members/{user_id}` | Удалить участника |
+| PATCH | `/api/chat/conversations/{id}/mute` | Mute/unmute чата |
+| PATCH | `/api/chat/conversations/{id}/archive` | Архивация чата |
+| GET | `/api/chat/conversations/{id}/messages` | Сообщения (cursor: before_id, limit) |
+| POST | `/api/chat/conversations/{id}/messages` | Отправить сообщение (text, reply_to_id) |
+| PATCH | `/api/chat/messages/{id}` | Редактировать сообщение (своё, 24ч) |
+| DELETE | `/api/chat/messages/{id}` | Soft-delete сообщения |
+| POST | `/api/chat/conversations/{id}/messages/search` | Поиск по сообщениям (ILIKE) |
+| POST | `/api/chat/messages/{id}/attachments` | Загрузить вложение (10MB, оптимизация) |
+| POST | `/api/chat/messages/{id}/reactions` | Toggle реакции (emoji) |
+| POST | `/api/chat/conversations/{id}/read` | Пометить прочитанным (read receipt) |
+| GET | `/api/chat/task/{task_id}` | Получить/создать чат заявки |
+
 ### Отчёты и Аналитика
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
@@ -176,7 +197,7 @@ MyJobInMap/
 
 ### Сервер
 - ⚠️ **Порт 8001** (не 8000)
-- ⚠️ **Версия** в `app/config.py` → `API_VERSION = "2.14.2"`
+- ⚠️ **Версия** в `app/config.py` → `API_VERSION = "2.15.0"`
 - ⚠️ **REST стандарт**: PATCH для частичных обновлений, PUT для полных замен
 - ⚠️ **Rate Limiting** на `/api/auth/login` (5 попыток / 60 сек на IP)
 - ⚠️ **Пагинация**: `/api/tasks` возвращает `{ items: [], total, page, size }`
@@ -200,7 +221,7 @@ CANCELLED → терминальный статус
 ### Android
 - ⚠️ **Эмулятор** подключается через `10.0.2.2:8001`
 - ⚠️ **URL фото** через `getFullServerUrl()` (с портом)
-- ⚠️ **Версия Android-приложения** в `app/build.gradle.kts` → `versionCode = 21402`, `versionName = "2.14.2"`
+- ⚠️ **Версия Android-приложения** в `app/build.gradle.kts` → `versionCode = 21500`, `versionName = "2.15.0"`
 
 ---
 
@@ -287,6 +308,6 @@ npm run build            # Сборка в dist/
 
 ---
 
-**Версия:** 2.14.2 (Phase 10.2 — Статусы, Android filters и компактный список)
+**Версия:** 2.15.0 (Phase 11 — Многофункциональный чат: Backend + Portal + Android)
 **Статус:** ✅ Production Ready  
 **Последнее обновление:** 12 марта 2026

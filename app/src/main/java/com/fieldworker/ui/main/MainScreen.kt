@@ -1,5 +1,6 @@
 package com.fieldworker.ui.main
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -15,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -25,6 +27,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.fieldworker.ui.components.PhotoUploadConfirmDialog
+import com.fieldworker.ui.chat.ChatViewModel
+import com.fieldworker.ui.chat.ChatScreen
+import com.fieldworker.ui.chat.ConversationListFilter
+import com.fieldworker.ui.chat.ConversationListScreen
 import com.fieldworker.ui.list.TaskListScreen
 import com.fieldworker.ui.map.MapScreen
 import com.fieldworker.ui.map.MapViewModel
@@ -53,21 +59,29 @@ fun MainScreen(
     isCheckingForUpdates: Boolean = false,
     viewModel: MapViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     val navController = rememberNavController()
+    val chatViewModel: ChatViewModel = hiltViewModel()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     
     var showLogoutDialog by remember { mutableStateOf(false) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val chatListState by chatViewModel.listState.collectAsStateWithLifecycle()
+    val chatState by chatViewModel.chatState.collectAsStateWithLifecycle()
     val pagingItems = viewModel.tasksPagingFlow.collectAsLazyPagingItems()
     val snackbarHostState = remember { SnackbarHostState() }
     val connectionStatus by viewModel.connectionStatus.collectAsStateWithLifecycle()
     val currentScreen = when (currentRoute) {
         Screen.TaskList.route -> Screen.TaskList
+        Screen.Chat.route -> Screen.Chat
         Screen.Settings.route -> Screen.Settings
         Screen.Developer.route -> Screen.Developer
         Screen.ObjectCard.route -> Screen.ObjectCard
         else -> Screen.Map
+    }
+    val unreadChatCount = remember(chatListState.conversations) {
+        chatListState.conversations.sumOf { it.unreadCount }
     }
     val topTitle = mainTitleFor(currentScreen)
     val topSubtitle = mainSubtitleFor(currentScreen, uiState.newTasksCount, connectionStatus)
@@ -98,12 +112,50 @@ fun MainScreen(
             }
         }
     )
+
+    val chatAttachmentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri: Uri? ->
+            uri?.let {
+                chatViewModel.sendAttachment(it)
+            }
+        }
+    )
     
     // Показываем ошибки в Snackbar
     LaunchedEffect(uiState.error) {
         uiState.error?.let { error ->
             snackbarHostState.showSnackbar(error)
             viewModel.clearError()
+        }
+    }
+
+    LaunchedEffect(chatState.error) {
+        chatState.error?.let { error ->
+            snackbarHostState.showSnackbar(error)
+            chatViewModel.clearError()
+        }
+    }
+
+    LaunchedEffect(chatViewModel) {
+        chatViewModel.notifications.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    LaunchedEffect(chatViewModel, context) {
+        chatViewModel.attachmentOpenEvents.collect { attachment ->
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(attachment.uri, attachment.mimeType)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            runCatching {
+                context.startActivity(Intent.createChooser(intent, attachment.fileName))
+            }.onFailure {
+                snackbarHostState.showSnackbar("Нет приложения для открытия файла")
+            }
         }
     }
     
@@ -115,7 +167,7 @@ fun MainScreen(
         }
     }
     
-    val showMainTopBar = currentScreen != Screen.Map && currentScreen != Screen.TaskList && currentScreen != Screen.Developer && currentScreen != Screen.ObjectCard
+    val showMainTopBar = currentScreen != Screen.Map && currentScreen != Screen.TaskList && currentScreen != Screen.Chat && currentScreen != Screen.Developer && currentScreen != Screen.ObjectCard
     val showBottomBar = currentScreen != Screen.Developer && currentScreen != Screen.ObjectCard
 
     LaunchedEffect(notificationTaskId) {
@@ -197,15 +249,20 @@ fun MainScreen(
                         Screen.bottomNavItems.forEach { screen ->
                             NavigationBarItem(
                                 icon = {
-                                    if (screen == Screen.TaskList) {
+                                    if (screen == Screen.TaskList || screen == Screen.Chat) {
                                         BadgedBox(
                                             badge = {
-                                                val newCount = uiState.newTasksCount
-                                                if (newCount > 0) {
+                                                val badgeCount = when (screen) {
+                                                    Screen.TaskList -> uiState.newTasksCount
+                                                    Screen.Chat -> unreadChatCount
+                                                    else -> 0
+                                                }
+
+                                                if (badgeCount > 0) {
                                                     Badge(
                                                         containerColor = MaterialTheme.colorScheme.error
                                                     ) {
-                                                        Text("$newCount")
+                                                        Text(if (badgeCount > 99) "99+" else "$badgeCount")
                                                     }
                                                 }
                                             }
@@ -322,6 +379,82 @@ fun MainScreen(
                     )
                 }
                 
+                composable(Screen.Chat.route) {
+                    val listState by chatViewModel.listState.collectAsStateWithLifecycle()
+                    val currentUserId = viewModel.preferences.getUserId()
+
+                    if (chatState.conversationId != null) {
+                        val typingText = remember(chatState.typingUsers) {
+                            val names = chatState.typingUsers.values.toList()
+                            when (names.size) {
+                                0 -> null
+                                1 -> "${names[0]} печатает..."
+                                else -> names.take(2).joinToString(", ") + " печатают..."
+                            }
+                        }
+                        val recipientCount = remember(chatState.detail, currentUserId) {
+                            (chatState.detail?.members?.count { it.userId != currentUserId } ?: 0)
+                        }
+
+                        ChatScreen(
+                            title = chatState.detail?.displayName
+                                ?: chatState.detail?.name
+                                ?: "Чат",
+                            conversationDetail = chatState.detail,
+                            messages = chatState.messages,
+                            hasMore = chatState.hasMore,
+                            isLoadingMessages = chatState.isLoadingMessages,
+                            isSending = chatState.isSending,
+                            replyTo = chatState.replyTo,
+                            typingText = typingText,
+                            readReceipts = chatState.readReceipts,
+                            recipientCount = recipientCount,
+                            availableUsers = listState.availableUsers,
+                            isLoadingUsers = listState.isLoadingUsers,
+                            baseUrl = baseUrl,
+                            authToken = authToken,
+                            isMuted = chatState.detail?.members?.firstOrNull { it.userId == currentUserId }?.isMuted == true,
+                            isArchived = chatState.detail?.members?.firstOrNull { it.userId == currentUserId }?.isArchived == true,
+                            isSavingConversation = chatState.isSavingConversation,
+                            activeManagementUserId = chatState.activeManagementUserId,
+                            currentUserId = currentUserId,
+                            onBack = { chatViewModel.closeConversation() },
+                            onLoadUsers = { force -> chatViewModel.loadAvailableUsers(force) },
+                            onToggleMute = { chatViewModel.toggleConversationMute() },
+                            onToggleArchive = { chatViewModel.toggleConversationArchive() },
+                            onRenameConversation = { chatViewModel.renameCurrentConversation(it) },
+                            onAddMembers = { chatViewModel.addConversationMembers(it) },
+                            onRemoveMember = { chatViewModel.removeConversationMember(it) },
+                            onUpdateMemberRole = { userId, role -> chatViewModel.updateConversationMemberRole(userId, role) },
+                            onTransferOwnership = { chatViewModel.transferConversationOwnership(it) },
+                            onSendMessage = { chatViewModel.sendMessage(it) },
+                            onAttachFile = { chatAttachmentLauncher.launch("*/*") },
+                            onMessageInputChanged = { chatViewModel.onMessageInputChanged(it) },
+                            onLoadMore = { chatViewModel.loadMoreMessages() },
+                            onDeleteMessage = { chatViewModel.deleteMessage(it) },
+                            onToggleReaction = { msgId, emoji -> chatViewModel.toggleReaction(msgId, emoji) },
+                            onSetReplyTo = { chatViewModel.setReplyTo(it) },
+                            onOpenAttachment = { chatViewModel.openAttachment(it) },
+                        )
+                    } else {
+                        ConversationListScreen(
+                            conversations = listState.conversations,
+                            selectedFilter = listState.selectedFilter,
+                            currentUserId = currentUserId,
+                            availableUsers = listState.availableUsers,
+                            isLoading = listState.isLoading,
+                            isLoadingUsers = listState.isLoadingUsers,
+                            isCreatingConversation = listState.isCreatingConversation,
+                            onConversationClick = { chatViewModel.openConversation(it) },
+                            onFilterChange = { chatViewModel.setConversationListFilter(it) },
+                            onLoadUsers = { force -> chatViewModel.loadAvailableUsers(force) },
+                            onCreateDirectConversation = { chatViewModel.createDirectConversation(it) },
+                            onCreateGroupConversation = { name, userIds -> chatViewModel.createGroupConversation(name, userIds) },
+                            onRefresh = { chatViewModel.loadConversations() },
+                        )
+                    }
+                }
+                
                 composable(Screen.Settings.route) {
                     SettingsScreen(
                         preferences = viewModel.preferences,
@@ -399,6 +532,7 @@ private fun mainTitleFor(screen: Screen): String {
     return when (screen) {
         Screen.Map -> "Карта выездов"
         Screen.TaskList -> "Мои заявки"
+        Screen.Chat -> "Чаты"
         Screen.Settings -> "Настройки и профиль"
         Screen.Developer -> "Режим разработчика"
         Screen.ObjectCard -> "Карточка объекта"
@@ -413,6 +547,7 @@ private fun mainSubtitleFor(
     return when (screen) {
         Screen.Map -> if (newTasksCount > 0) "$newTasksCount новых заявок ждут обработки" else connectionStatusLabel(connectionStatus)
         Screen.TaskList -> if (newTasksCount > 0) "$newTasksCount новых заявок в очереди" else "Список синхронизирован и готов к работе"
+        Screen.Chat -> "Сообщения и обсуждения"
         Screen.Settings -> "Сервер, уведомления, обновления и локальные настройки"
         Screen.Developer -> "Диагностика и служебные параметры приложения"
         Screen.ObjectCard -> "Сведения по адресу, оборудованию и истории объекта"

@@ -12,6 +12,7 @@ import {
   DollarSign,
   Shield,
   Building2,
+  MessageSquare,
   type LucideIcon
 } from 'lucide-react'
 import type { UserRole } from '@/types/user'
@@ -79,6 +80,13 @@ export const menuConfig: MenuSection[] = [
         path: '/calendar',
         label: 'Календарь',
         icon: Calendar,
+        roles: ['admin', 'dispatcher', 'worker'],
+      },
+      {
+        id: 'chat',
+        path: '/chat',
+        label: 'Чат',
+        icon: MessageSquare,
         roles: ['admin', 'dispatcher', 'worker'],
       },
     ],

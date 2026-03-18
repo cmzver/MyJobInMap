@@ -5,13 +5,18 @@ Auth API
 """
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional, Dict
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status, File, UploadFile
+from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.models import UserModel, RolePermissionModel, get_db, init_default_settings
+from app.config import settings
 from app.schemas import (
     Token, RefreshRequest, UserResponse,
     ReportSettingsUpdate, ReportSettingsResponse
@@ -22,6 +27,7 @@ from app.services import (
     get_current_user_required, get_password_hash, verify_password
 )
 from app.services.rate_limiter import login_rate_limiter
+from app.utils import build_user_avatar_url, user_to_response
 
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
@@ -118,27 +124,37 @@ async def login(
         username=user.username,
         role=user.role,
         full_name=user.full_name or user.username,
+        avatar_url=build_user_avatar_url(user),
         organization_id=org_id,
         organization_name=org_name
     )
 
 
+@router.get("/avatar/{user_id}/{file_name}", include_in_schema=False)
+async def get_user_avatar(user_id: int, file_name: str, db: Session = Depends(get_db)):
+    """Получить аватар пользователя по публичному URL."""
+    user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not user or not user.avatar_path:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    avatar_path = Path(user.avatar_path)
+    if avatar_path.name != file_name:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    full_path = (settings.UPLOADS_DIR / avatar_path).resolve()
+    avatars_root = (settings.UPLOADS_DIR / "avatars").resolve()
+    if avatars_root not in full_path.parents:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    if not full_path.exists() or not full_path.is_file():
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    return FileResponse(full_path)
+
+
 @router.get("/me", response_model=UserResponse)
 async def get_me(user: UserModel = Depends(get_current_user_required)):
     """Получить текущего пользователя"""
-    return UserResponse(
-        id=user.id,
-        username=user.username,
-        full_name=user.full_name or "",
-        email=user.email,
-        phone=user.phone,
-        role=user.role,
-        is_active=user.is_active,
-        created_at=user.created_at,
-        last_login=user.last_login,
-        assigned_tasks_count=len(user.assigned_tasks) if user.assigned_tasks else 0,
-        organization_id=user.organization_id
-    )
+    return user_to_response(user)
 
 
 @router.post("/refresh", response_model=Token)
@@ -220,6 +236,7 @@ async def refresh_token(
         username=user.username,
         role=user.role,
         full_name=user.full_name or user.username,
+        avatar_url=build_user_avatar_url(user),
         organization_id=refresh_org_id,
         organization_name=refresh_org_name
     )
@@ -241,20 +258,49 @@ async def update_profile(
     
     db.commit()
     db.refresh(user)
-    
-    return UserResponse(
-        id=user.id,
-        username=user.username,
-        full_name=user.full_name or "",
-        email=user.email,
-        phone=user.phone,
-        role=user.role,
-        is_active=user.is_active,
-        created_at=user.created_at,
-        last_login=user.last_login,
-        assigned_tasks_count=len(user.assigned_tasks) if user.assigned_tasks else 0,
-        organization_id=user.organization_id
-    )
+
+    return user_to_response(user)
+
+
+@router.post("/avatar", response_model=UserResponse)
+async def upload_avatar(
+    avatar: UploadFile = File(...),
+    user: UserModel = Depends(get_current_user_required),
+    db: Session = Depends(get_db),
+):
+    """Загрузить аватар текущего пользователя."""
+    if not avatar.content_type or not avatar.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Разрешены только изображения")
+
+    content = await avatar.read()
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="Файл пустой")
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Размер файла не должен превышать 5 МБ")
+
+    extension = Path(avatar.filename or "avatar").suffix.lower()
+    if extension not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+        raise HTTPException(status_code=400, detail="Поддерживаются JPG, PNG, WEBP и GIF")
+
+    avatar_dir = settings.UPLOADS_DIR / "avatars" / str(user.id)
+    avatar_dir.mkdir(parents=True, exist_ok=True)
+
+    if user.avatar_path:
+        old_path = (settings.UPLOADS_DIR / user.avatar_path).resolve()
+        avatars_root = (settings.UPLOADS_DIR / "avatars").resolve()
+        if avatars_root in old_path.parents and old_path.exists() and old_path.is_file():
+            old_path.unlink(missing_ok=True)
+
+    file_name = f"{uuid4().hex}{extension}"
+    relative_path = Path("avatars") / str(user.id) / file_name
+    destination = settings.UPLOADS_DIR / relative_path
+    destination.write_bytes(content)
+
+    user.avatar_path = relative_path.as_posix()
+    db.commit()
+    db.refresh(user)
+
+    return user_to_response(user)
 
 
 @router.patch("/password")

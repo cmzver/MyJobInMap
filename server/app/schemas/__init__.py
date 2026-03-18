@@ -31,6 +31,17 @@ from app.schemas.settings import (
     BackupListResponse, BackupFile,
     BackupSettingsSchema, BackupSettingsResponse
 )
+from app.schemas.chat import (
+    ConversationCreate, ConversationUpdate,
+    ConversationResponse, ConversationDetailResponse, ConversationListItem,
+    MemberInfo, LastMessagePreview,
+    MessageCreate, MessageUpdate, MessageResponse, MessageListResponse,
+    AttachmentResponse, ReactionInfo, MentionInfo, ReplyPreview,
+    ReactionCreate, ReadReceiptRequest,
+    MemberAddRequest, MemberRemoveRequest,
+    MuteRequest, ArchiveRequest,
+    MessageSearchRequest, TypingIndicator,
+)
 
 __all__ = [
     # Auth
@@ -59,4 +70,14 @@ __all__ = [
     "RolePermissionsResponse", "UpdateRolePermissionRequest",
     "BackupListResponse", "BackupFile",
     "BackupSettingsSchema", "BackupSettingsResponse",
+    # Chat
+    "ConversationCreate", "ConversationUpdate",
+    "ConversationResponse", "ConversationDetailResponse", "ConversationListItem",
+    "MemberInfo", "LastMessagePreview",
+    "MessageCreate", "MessageUpdate", "MessageResponse", "MessageListResponse",
+    "AttachmentResponse", "ReactionInfo", "MentionInfo", "ReplyPreview",
+    "ReactionCreate", "ReadReceiptRequest",
+    "MemberAddRequest", "MemberRemoveRequest",
+    "MuteRequest", "ArchiveRequest",
+    "MessageSearchRequest", "TypingIndicator",
 ]

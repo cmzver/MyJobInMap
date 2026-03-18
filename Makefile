@@ -1,4 +1,4 @@
-.PHONY: help seed test lint format run-server run-android clean docker-up docker-down docker-logs deploy
+.PHONY: help seed test lint format run-server run-android clean docker-up docker-down docker-logs deploy deploy-preset
 
 help:
 	@echo "FieldWorker Development Commands"
@@ -22,6 +22,7 @@ help:
 	@echo ""
 	@echo "Deployment:"
 	@echo "  make deploy            - Deploy to remote server via rsync"
+	@echo "  make deploy-preset     - Deploy to the preset production server"
 
 # Seed database with test data
 seed:
@@ -101,3 +102,7 @@ docker-rebuild:
 deploy:
 	@echo "Deploying to remote server..."
 	@powershell -ExecutionPolicy Bypass -File .\deploy-rsync.ps1
+
+deploy-preset:
+	@echo "Deploying to preset production server..."
+	@powershell -ExecutionPolicy Bypass -File .\scripts\sync-update-server-preset.ps1

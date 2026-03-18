@@ -31,6 +31,7 @@ const SlaPage = lazy(() => import('@/pages/SlaPage'))
 const OrganizationsPage = lazy(() => import('@/pages/OrganizationsPage'))
 const OrganizationDetailPage = lazy(() => import('@/pages/OrganizationDetailPage'))
 const UpdatesPage = lazy(() => import('@/pages/UpdatesPage'))
+const ChatPage = lazy(() => import('@/pages/ChatPage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
 // Fallback компонент для загрузки
@@ -251,6 +252,9 @@ function App() {
                         } 
                       />
                       
+                      {/* Chat - All roles */}
+                      <Route path="chat" element={<ChatPage />} />
+
                       {/* Profile - All roles */}
                       <Route path="profile" element={<ProfilePage />} />
                       

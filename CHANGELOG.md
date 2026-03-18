@@ -8,6 +8,43 @@
 ## [Unreleased]
 
 
+## [2.15.0] - 2026-03-17
+
+### Добавлено
+- **Chat backend** — полная реализация многофункционального чата:
+  - 6 SQLAlchemy моделей: `ConversationModel`, `ConversationMemberModel`, `MessageModel`, `MessageAttachmentModel`, `MessageReactionModel`, `MessageMentionModel`
+  - 4 типа чатов: `direct`, `group`, `task`, `org_general`
+  - 17 REST API эндпоинтов (`/api/chat/*`) — CRUD разговоров, сообщения, реакции, read receipts, поиск, вложения
+  - Cursor-пагинация сообщений (before_id + limit)
+  - Редактирование (24ч окно) и soft-delete сообщений
+  - Toggle реакции (emoji), @mentions с regex парсингом
+  - Загрузка вложений (10MB лимит, оптимизация изображений)
+  - Mute/unmute и архивация чатов
+  - Идемпотентность для direct/task/org_general чатов
+  - WebSocket расширения: `send_to_conversation()`, 5 broadcast хелперов, обработка `chat_typing` и `chat_read`
+  - Alembic миграция для 6 таблиц
+  - 39 API тестов (pytest) — все проходят
+- **Chat Portal UI** — полный интерфейс чата в веб-портале:
+  - Страница `ChatPage` со split-pane layout (адаптивный для мобильных)
+  - Компоненты: `ConversationList`, `MessageBubble`, `MessageInput`, `NewChatModal`
+  - React Query хуки (`useInfiniteQuery` для сообщений с cursor-пагинацией)
+  - WebSocket интеграция: real-time сообщения, реакции, read receipts, typing indicator
+  - Typing indicator с debounce (3с отправка, 4с авто-очистка)
+  - Ответы на сообщения, реакции emoji, удаление
+- **Chat Android UI** — чат в мобильном приложении:
+  - `ChatApi` Retrofit интерфейс (12 эндпоинтов)
+  - DTO, Domain модели и маппинг (DTO → Domain)
+  - `ChatRepository` с `Result<T>` обёрткой
+  - `ChatViewModel` (Hilt) — список чатов, сообщения, отправка, реакции, ответы, подгрузка истории
+  - `ConversationListScreen` — список чатов с аватарами, превью, badge непрочитанных, pull-to-refresh
+  - `ChatScreen` — лента сообщений с bubbles, реакции, ответы, контекстное меню, input bar
+  - Навигация: 4-я вкладка «Чаты» в bottom navigation bar
+  - DI: `ChatApi` провайдер в `NetworkModule`
+
+### Исправлено
+- **SQLAlchemy SAWarning** — заменено `.subquery()` на `.scalar_subquery()` в `chat_service.py`
+
+
 ## [2.14.2] - 2026-03-16
 
 ### Изменено

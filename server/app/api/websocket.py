@@ -85,10 +85,47 @@ async def websocket_endpoint(
     
     try:
         while True:
-            # Ожидаем сообщения от клиента (ping/pong keepalive)
+            # Ожидаем сообщения от клиента (ping/pong keepalive + chat events)
             data = await websocket.receive_json()
-            if data.get("type") == "ping":
+            msg_type = data.get("type")
+            if msg_type == "ping":
                 await websocket.send_json({"type": "pong"})
+            elif msg_type == "chat_typing":
+                # Рассылка typing indicator участникам чата
+                conv_id = data.get("conversation_id")
+                if conv_id:
+                    db = SessionLocal()
+                    try:
+                        from app.models.chat import ConversationMemberModel
+                        members = db.query(ConversationMemberModel.user_id).filter(
+                            ConversationMemberModel.conversation_id == conv_id,
+                        ).all()
+                        member_ids = [m[0] for m in members]
+                        await ws_manager.send_to_conversation(
+                            member_ids,
+                            {
+                                "type": "chat_typing",
+                                "data": {
+                                    "conversation_id": conv_id,
+                                    "user_id": user_id,
+                                    "is_typing": data.get("is_typing", True),
+                                },
+                            },
+                            exclude_user_id=user_id,
+                        )
+                    finally:
+                        db.close()
+            elif msg_type == "chat_read":
+                # Mark as read через WebSocket
+                conv_id = data.get("conversation_id")
+                last_message_id = data.get("last_message_id")
+                if conv_id and last_message_id:
+                    db = SessionLocal()
+                    try:
+                        from app.services.chat_service import mark_as_read
+                        mark_as_read(db, conv_id, user_id, last_message_id)
+                    finally:
+                        db.close()
     except WebSocketDisconnect:
         pass
     except Exception as e:

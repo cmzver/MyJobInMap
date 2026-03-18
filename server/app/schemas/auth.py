@@ -20,6 +20,7 @@ class Token(BaseModel):
     username: str
     role: str
     full_name: str
+    avatar_url: Optional[str] = None
     organization_id: Optional[int] = None
     organization_name: Optional[str] = None
 
@@ -65,6 +66,7 @@ class UserResponse(BaseModel):
     full_name: str
     email: Optional[str]
     phone: Optional[str]
+    avatar_url: Optional[str] = None
     role: str
     is_active: bool
     created_at: datetime

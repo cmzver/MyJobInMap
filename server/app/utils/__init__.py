@@ -10,6 +10,7 @@ Utils Package
 
 
 
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 from sqlalchemy import case
@@ -357,6 +358,8 @@ def user_to_response(user: UserModel) -> UserResponse:
 
         phone=user.phone,
 
+        avatar_url=build_user_avatar_url(user),
+
         role=user.role,
 
         is_active=user.is_active,
@@ -370,6 +373,17 @@ def user_to_response(user: UserModel) -> UserResponse:
         organization_id=user.organization_id,
 
     )
+
+
+def build_user_avatar_url(user: UserModel) -> Optional[str]:
+
+    """Построить публичный URL аватара пользователя."""
+
+    if not user.avatar_path:
+
+        return None
+
+    return f"/api/auth/avatar/{user.id}/{Path(user.avatar_path).name}"
 
 
 

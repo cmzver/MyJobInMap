@@ -1,9 +1,11 @@
-import { ReactNode, useState } from 'react'
+import { ReactNode, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useTheme } from '@/hooks/useTheme'
+import { useConversations } from '@/hooks/useChat'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { getMenuForRole, type MenuSection, type MenuItem } from '@/config/menuConfig'
+import UserAvatar from '@/components/UserAvatar'
 import { 
   LayoutDashboard, 
   LogOut,
@@ -28,9 +30,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
   const { theme, setTheme, isDark } = useTheme()
+  const { data: conversations = [] } = useConversations()
 
   // WebSocket — реал-тайм уведомления (инвалидация React Query кэша)
   useWebSocket()
+
+  const unreadChatCount = useMemo(
+    () => conversations.reduce((sum, conversation) => sum + conversation.unread_count, 0),
+    [conversations],
+  )
+  const mentionChatCount = useMemo(
+    () => conversations.reduce((sum, conversation) => sum + conversation.unread_mention_count, 0),
+    [conversations],
+  )
 
   const isModern = theme === 'modern' || theme === 'mac' || theme === 'aurora'
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -77,6 +89,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const Icon = item.icon
     const isActive = location.pathname === item.path || 
                      (item.path !== '/' && location.pathname.startsWith(item.path))
+    const badge = item.id === 'chat' && unreadChatCount > 0
+      ? unreadChatCount > 99
+        ? '99+'
+        : String(unreadChatCount)
+      : item.badge
+    const showMentionBadge = item.id === 'chat' && mentionChatCount > 0
     
     return (
       <Link
@@ -91,9 +109,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       >
         <Icon size={18} className="mr-3 flex-shrink-0" />
         <span className="flex-1">{item.label}</span>
-        {item.badge && (
+        {showMentionBadge && (
+          <span className="ml-2 px-1.5 py-0.5 text-xs font-bold bg-amber-500 text-white rounded-full">
+            @
+          </span>
+        )}
+        {badge && (
           <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-red-500 text-white rounded-full">
-            {item.badge}
+            {badge}
           </span>
         )}
       </Link>
@@ -187,9 +210,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                   className="flex items-center px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                 >
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-semibold text-sm">
-                    {user?.fullName?.charAt(0).toUpperCase() || 'U'}
-                  </div>
+                  <UserAvatar
+                    fullName={user?.fullName}
+                    avatarUrl={user?.avatarUrl}
+                    sizeClassName="h-8 w-8"
+                    textClassName="text-sm"
+                  />
                   <div className="hidden sm:block ml-3 text-left">
                     <p className="text-sm font-medium text-gray-900 dark:text-white">{user?.fullName}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{user?.role && getRoleLabel(user.role)}</p>
@@ -204,12 +230,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       onClick={() => setIsUserMenuOpen(false)} 
                     />
                     <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1.5 z-20">
-                      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">{user?.fullName}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{user?.role && getRoleLabel(user.role)}</p>
-                        {user?.organizationName && (
-                          <p className="text-xs text-primary-600 dark:text-primary-400 mt-0.5">{user.organizationName}</p>
-                        )}
+                      <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                        <div className="flex items-center gap-3">
+                          <UserAvatar
+                            fullName={user?.fullName}
+                            avatarUrl={user?.avatarUrl}
+                            sizeClassName="h-10 w-10"
+                            textClassName="text-sm"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{user?.fullName}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{user?.role && getRoleLabel(user.role)}</p>
+                            {user?.organizationName && (
+                              <p className="mt-0.5 truncate text-xs text-primary-600 dark:text-primary-400">{user.organizationName}</p>
+                            )}
+                          </div>
+                        </div>
                       </div>
                       <Link
                         to="/profile"

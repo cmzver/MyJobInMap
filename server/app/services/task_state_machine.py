@@ -2,12 +2,31 @@
 import json
 from pathlib import Path
 from typing import Dict, Set
+
 from app.models.enums import TaskStatus
+
+
+def _get_transitions_path() -> Path:
+    """Resolve the shared transitions definition in both local and container setups."""
+    current_path = Path(__file__).resolve()
+    candidate_paths = [
+        current_path.parents[1] / "config" / "taskStatusTransitions.json",
+        current_path.parents[3] / "portal" / "src" / "config" / "taskStatusTransitions.json",
+    ]
+
+    for candidate_path in candidate_paths:
+        if candidate_path.exists():
+            return candidate_path
+
+    raise FileNotFoundError(
+        "Task status transitions definition not found. "
+        f"Checked: {', '.join(str(path) for path in candidate_paths)}"
+    )
 
 
 def _load_valid_transitions() -> Dict[str, Set[str]]:
     """Load status transitions from the shared JSON definition."""
-    transitions_path = Path(__file__).resolve().parents[3] / "portal" / "src" / "config" / "taskStatusTransitions.json"
+    transitions_path = _get_transitions_path()
     with transitions_path.open("r", encoding="utf-8") as file:
         raw_transitions = json.load(file)
 

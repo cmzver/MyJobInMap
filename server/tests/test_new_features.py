@@ -17,7 +17,7 @@ from app.models.task import TaskModel
 from app.services.auth import get_password_hash
 from app.services.sla_service import get_sla_metrics, _get_sla_hours
 from app.services.excel_export import export_tasks_to_excel
-from app.services.websocket_manager import ConnectionManager, _event
+from app.services.websocket_manager import ConnectionManager, _event, broadcast_chat_conversation_updated
 
 
 def run_async(coro):
@@ -475,6 +475,41 @@ class TestWsEvent:
         evt = _event("test", {})
         # Должен парситься как ISO
         datetime.fromisoformat(evt["timestamp"])
+
+    def test_chat_conversation_updated_payload(self, monkeypatch):
+        """Management update event should include action and conversation metadata."""
+        sent = {}
+
+        async def fake_send(member_user_ids, message, exclude_user_id=None):
+            sent["member_user_ids"] = member_user_ids
+            sent["message"] = message
+            sent["exclude_user_id"] = exclude_user_id
+            return len(member_user_ids)
+
+        monkeypatch.setattr(
+            "app.services.websocket_manager.ws_manager.send_to_conversation",
+            fake_send,
+        )
+
+        run_async(broadcast_chat_conversation_updated(
+            member_user_ids=[1, 2, 3],
+            conversation_id=99,
+            action="member_role_updated",
+            actor_user_id=1,
+            target_user_id=2,
+            role="admin",
+        ))
+
+        assert sent["member_user_ids"] == [1, 2, 3]
+        assert sent["exclude_user_id"] is None
+        assert sent["message"]["type"] == "chat_conversation_updated"
+        assert sent["message"]["data"] == {
+            "conversation_id": 99,
+            "action": "member_role_updated",
+            "actor_user_id": 1,
+            "target_user_id": 2,
+            "role": "admin",
+        }
 
 
 # ============================================================================

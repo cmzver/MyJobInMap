@@ -67,8 +67,8 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
       .then((result) => {
         setCorpuses(result)
         
-        // Если есть текущий корпус или нет корпусов - загружаем подъезды
-        const corpusToUse = value.corpus || (result.length === 0 ? 'none' : result[0])
+        // Если есть текущий корпус, загружаем доступные подъезды
+        const corpusToUse = value.corpus || ''
         if (corpusToUse) {
           addressesApi.autocompleteEntrance(value.city, value.street, value.building, corpusToUse === 'none' ? undefined : corpusToUse)
             .then((entranceResult) => {
@@ -83,6 +83,9 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
   // ===== Города =====
   const handleCityChange = useCallback(async (input: string) => {
     setCitiesQuery(input)
+    onChange({ ...value, city: input, street: '', building: '', corpus: '', entrance: '', apartment: '' })
+    onAddressFound?.(null)
+
     if (input.length < 2) {
       setCities([])
       setCitiesOpen(false)
@@ -100,7 +103,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
     } finally {
       setCitiesLoading(false)
     }
-  }, [])
+  }, [onAddressFound, onChange, value])
 
   const handleSelectCity = (city: string) => {
     onChange({ ...value, city, street: '', building: '', corpus: '', entrance: '', apartment: '' })
@@ -113,6 +116,9 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
   const handleStreetChange = useCallback(
     async (input: string) => {
       setStreetsQuery(input)
+      onChange({ ...value, street: input, building: '', corpus: '', entrance: '', apartment: '' })
+      onAddressFound?.(null)
+
       if (input.length < 2 || !value.city) {
         setStreets([])
         setStreetsOpen(false)
@@ -131,7 +137,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
         setStreetsLoading(false)
       }
     },
-    [value.city]
+    [onAddressFound, onChange, value]
   )
 
   const handleSelectStreet = (street: string) => {
@@ -145,6 +151,11 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
   const handleBuildingChange = useCallback(
     async (input: string) => {
       setBuildingsQuery(input)
+      onChange({ ...value, building: input, corpus: '', entrance: '', apartment: '' })
+      onAddressFound?.(null)
+      setCorpuses([])
+      setEntrances([])
+
       if (input.length < 1 || !value.city || !value.street) {
         setBuildings([])
         setBuildingsOpen(false)
@@ -163,7 +174,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
         setBuildingsLoading(false)
       }
     },
-    [value.city, value.street]
+    [onAddressFound, onChange, value]
   )
 
   const handleSelectBuilding = (building: string) => {
@@ -192,9 +203,8 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
         setCorpuses(result)
         
         if (result.length === 0) {
-          // Нет корпусов - устанавливаем 'none'
-          onChange({ city: currentCity, street: currentStreet, building, corpus: 'none', entrance: '', apartment: '' })
-          loadEntrances(currentCity, currentStreet, building, undefined, 'none')
+          // Для стороннего адреса корпус может быть введён вручную
+          onChange({ city: currentCity, street: currentStreet, building, corpus: '', entrance: '', apartment: '' })
         } else if (result.length === 1) {
           // Один корпус - выбираем автоматически
           const singleCorpus = result[0]!
@@ -261,6 +271,12 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
     
     // Загружаем доступные подъезды для выбранного корпуса
     loadEntrances(value.city, value.street, value.building, corpus !== 'none' ? corpus : undefined, corpus)
+  }
+
+  const handleCorpusInputChange = (input: string) => {
+    onChange({ ...value, corpus: input, entrance: '', apartment: '' })
+    onAddressFound?.(null)
+    setEntrances([])
   }
   
   // Helper функция для загрузки подъездов
@@ -422,60 +438,70 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
           {errors.building && <p className="mt-1 text-sm text-red-500">{errors.building}</p>}
         </div>
 
-        {/* Корпус - показывается только после выбора дома */}
+        {/* Корпус - показывается после заполнения дома */}
         {value.building && (
-          <div className="relative">
+          <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Корпус
             </label>
-            <div className="relative">
+            <Input
+              placeholder="Например, 2, А или без корпуса"
+              value={value.corpus === 'none' ? '' : value.corpus}
+              onChange={(e) => handleCorpusInputChange(e.target.value)}
+            />
+
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => !corpusesLoading && setCorpusesOpen(!corpusesOpen)}
-                disabled={corpusesLoading}
-                className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-left flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 ${
-                  corpusesLoading ? 'cursor-not-allowed' : ''
+                onClick={() => handleSelectCorpus('none')}
+                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                  value.corpus === 'none'
+                    ? 'bg-primary-100 dark:bg-primary-900 text-primary-900 dark:text-primary-100 border-primary-300 dark:border-primary-700'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                 }`}
               >
-                <span>{value.corpus ? (value.corpus === 'none' ? 'Корпус отсутствует' : value.corpus) : 'Выберите корпус'}</span>
-                {corpusesLoading ? (
-                  <Spinner size="sm" />
-                ) : (
-                  <ChevronDown className={`h-4 w-4 transition-transform ${corpusesOpen ? 'rotate-180' : ''}`} />
-                )}
+                Без корпуса
               </button>
-              {corpusesOpen && !corpusesLoading && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
-                  {/* Опция "Корпус отсутствует" */}
+
+              {corpuses.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => !corpusesLoading && setCorpusesOpen(!corpusesOpen)}
+                  disabled={corpusesLoading}
+                  className={`px-3 py-1.5 text-sm rounded-lg border transition-colors inline-flex items-center gap-2 ${
+                    corpusesLoading
+                      ? 'opacity-50 cursor-not-allowed bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  Варианты из базы
+                  {corpusesLoading ? <Spinner size="sm" /> : <ChevronDown className={`h-4 w-4 transition-transform ${corpusesOpen ? 'rotate-180' : ''}`} />}
+                </button>
+              )}
+            </div>
+
+            {corpusesOpen && corpuses.length > 0 && !corpusesLoading && (
+              <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                {corpuses.map((corpus) => (
                   <button
+                    key={corpus}
                     type="button"
-                    onClick={() => handleSelectCorpus('none')}
+                    onClick={() => handleSelectCorpus(corpus)}
                     className={`w-full text-left px-3 py-2 text-sm ${
-                      value.corpus === 'none'
+                      value.corpus === corpus
                         ? 'bg-primary-100 dark:bg-primary-900 text-primary-900 dark:text-primary-100'
                         : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
                     }`}
                   >
-                    Корпус отсутствует
+                    Корпус {corpus}
                   </button>
-                  {/* Существующие корпусы */}
-                  {corpuses.map((corpus) => (
-                    <button
-                      key={corpus}
-                      type="button"
-                      onClick={() => handleSelectCorpus(corpus)}
-                      className={`w-full text-left px-3 py-2 text-sm ${
-                        value.corpus === corpus
-                          ? 'bg-primary-100 dark:bg-primary-900 text-primary-900 dark:text-primary-100'
-                          : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
-                      }`}
-                    >
-                      Корпус {corpus}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+                ))}
+              </div>
+            )}
+
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Корпус можно выбрать из базы или ввести вручную для стороннего адреса.
+            </p>
           </div>
         )}
 

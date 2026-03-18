@@ -1,7 +1,10 @@
 """Tests for authentication endpoint."""
+from pathlib import Path
+
 import pytest
 from app.services.rate_limiter import login_rate_limiter
 from app.services.auth import create_refresh_token, create_access_token
+from app.config import settings
 
 
 class TestAuth:
@@ -263,5 +266,34 @@ class TestPasswordChange:
 
         assert response.status_code == 400
         assert "не менее 6 символов" in response.json()["detail"]
+
+
+class TestAvatarUpload:
+    """Test avatar upload and retrieval."""
+
+    def test_upload_avatar_and_get_it(self, client, admin_user, admin_token, db_session):
+        response = client.post(
+            "/api/auth/avatar",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            files={"avatar": ("avatar.png", b"fake-png-content", "image/png")},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["avatar_url"].startswith(f"/api/auth/avatar/{admin_user.id}/")
+
+        db_session.refresh(admin_user)
+        assert admin_user.avatar_path is not None
+
+        avatar_response = client.get(data["avatar_url"])
+        assert avatar_response.status_code == 200
+        assert avatar_response.content == b"fake-png-content"
+
+        saved_path = settings.UPLOADS_DIR / Path(admin_user.avatar_path)
+        if saved_path.exists():
+            saved_path.unlink()
+        user_dir = saved_path.parent
+        if user_dir.exists() and not any(user_dir.iterdir()):
+            user_dir.rmdir()
 
 
