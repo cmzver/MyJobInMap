@@ -61,7 +61,10 @@ class TaskModel(Base):
     photos = relationship("TaskPhotoModel", back_populates="task", cascade="all, delete-orphan")
     notifications = relationship("NotificationModel", back_populates="task")
     organization = relationship("OrganizationModel", back_populates="tasks")
+<<<<<<< HEAD
     conversation = relationship("ConversationModel", back_populates="task", uselist=False)
+=======
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 
 
 class CommentModel(Base):

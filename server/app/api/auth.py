@@ -7,10 +7,14 @@ Auth API
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict
+<<<<<<< HEAD
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status, File, UploadFile
 from fastapi.responses import FileResponse
+=======
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -124,7 +128,10 @@ async def login(
         username=user.username,
         role=user.role,
         full_name=user.full_name or user.username,
+<<<<<<< HEAD
         avatar_url=build_user_avatar_url(user),
+=======
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
         organization_id=org_id,
         organization_name=org_name
     )
@@ -235,6 +242,7 @@ async def refresh_token(
         user_id=user.id,
         username=user.username,
         role=user.role,
+<<<<<<< HEAD
         full_name=user.full_name or user.username,
         avatar_url=build_user_avatar_url(user),
         organization_id=refresh_org_id,
@@ -242,6 +250,100 @@ async def refresh_token(
     )
 
 
+=======
+        is_active=user.is_active,
+        created_at=user.created_at,
+        last_login=user.last_login,
+        assigned_tasks_count=len(user.assigned_tasks) if user.assigned_tasks else 0,
+        organization_id=user.organization_id
+    )
+
+
+@router.post("/refresh", response_model=Token)
+async def refresh_token(
+    data: RefreshRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Обновить access token с помощью refresh token.
+    
+    Возвращает новую пару access + refresh токенов.
+    Старый refresh token становится невалидным (ротация).
+    
+    Args:
+        data: Запрос с refresh_token
+        db: Database session
+    
+    Returns:
+        Новая пара токенов + информация о пользователе
+    
+    Raises:
+        401 Unauthorized: Если refresh token невалидный или истёк
+    """
+    payload = verify_refresh_token(data.refresh_token)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token"
+        )
+    
+    user_id = payload.get("user_id")
+    username = payload.get("sub")
+    
+    if not user_id or not username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token payload"
+        )
+    
+    # Проверяем, что пользователь существует и активен
+    user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or deactivated"
+        )
+    
+    # Проверяем, что организация активна
+    if user.organization_id and user.organization:
+        if not user.organization.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Организация деактивирована"
+            )
+    
+    # Проверяем что username совпадает (защита от переиспользования ID)
+    if user.username != username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token mismatch"
+        )
+    
+    # Создаём новую пару токенов (ротация)
+    token_data = {"sub": user.username, "user_id": user.id, "role": user.role}
+    new_access_token = create_access_token(data=token_data)
+    new_refresh_token = create_refresh_token(data=token_data)
+    
+    # Получаем данные организации для refresh
+    refresh_org_id = user.organization_id
+    refresh_org_name = None
+    if refresh_org_id and user.organization:
+        refresh_org_name = user.organization.name
+
+    return Token(
+        access_token=new_access_token,
+        refresh_token=new_refresh_token,
+        token_type="bearer",
+        user_id=user.id,
+        username=user.username,
+        role=user.role,
+        full_name=user.full_name or user.username,
+        organization_id=refresh_org_id,
+        organization_name=refresh_org_name
+    )
+
+
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 @router.patch("/profile", response_model=UserResponse)
 async def update_profile(
     data: ProfileUpdate,
@@ -258,6 +360,7 @@ async def update_profile(
     
     db.commit()
     db.refresh(user)
+<<<<<<< HEAD
 
     return user_to_response(user)
 
@@ -303,6 +406,24 @@ async def upload_avatar(
     return user_to_response(user)
 
 
+=======
+    
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        full_name=user.full_name or "",
+        email=user.email,
+        phone=user.phone,
+        role=user.role,
+        is_active=user.is_active,
+        created_at=user.created_at,
+        last_login=user.last_login,
+        assigned_tasks_count=len(user.assigned_tasks) if user.assigned_tasks else 0,
+        organization_id=user.organization_id
+    )
+
+
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 @router.patch("/password")
 async def change_password(
     data: PasswordChange,

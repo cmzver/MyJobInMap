@@ -184,6 +184,7 @@ class ConnectionManager:
             sent += await self.send_to_user(uid, message)
         return sent
 
+<<<<<<< HEAD
     async def send_to_conversation(
         self,
         member_user_ids: list[int],
@@ -200,6 +201,8 @@ class ConnectionManager:
         """
         return await self.broadcast_to_roles(message, member_user_ids, exclude_user_id)
 
+=======
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
     def get_status(self) -> dict:
         """Информация о состоянии менеджера."""
         return {
@@ -328,6 +331,7 @@ async def broadcast_task_deleted(
         exclude_user_id=user_id,
         organization_id=organization_id,
     )
+<<<<<<< HEAD
 
 
 # ============================================================================
@@ -454,3 +458,5 @@ async def broadcast_chat_conversation_updated(
         member_user_ids,
         _event("chat_conversation_updated", payload),
     )
+=======
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91

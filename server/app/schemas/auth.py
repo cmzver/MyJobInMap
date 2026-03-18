@@ -20,7 +20,10 @@ class Token(BaseModel):
     username: str
     role: str
     full_name: str
+<<<<<<< HEAD
     avatar_url: Optional[str] = None
+=======
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
     organization_id: Optional[int] = None
     organization_name: Optional[str] = None
 

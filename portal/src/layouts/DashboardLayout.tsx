@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useState } from 'react'
+﻿import { ReactNode, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useTheme } from '@/hooks/useTheme'
@@ -32,7 +32,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { theme, setTheme, isDark } = useTheme()
   const { data: conversations = [] } = useConversations()
 
-  // WebSocket — реал-тайм уведомления (инвалидация React Query кэша)
+  // WebSocket вЂ” СЂРµР°Р»-С‚Р°Р№Рј СѓРІРµРґРѕРјР»РµРЅРёСЏ (РёРЅРІР°Р»РёРґР°С†РёСЏ React Query РєСЌС€Р°)
   useWebSocket()
 
   const unreadChatCount = useMemo(
@@ -54,13 +54,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     navigate('/login')
   }
 
-  // Получаем меню для роли пользователя
+  // РџРѕР»СѓС‡Р°РµРј РјРµРЅСЋ РґР»СЏ СЂРѕР»Рё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
   const menuSections = user?.role ? getMenuForRole(user.role, user.organizationId) : []
 
   const themeOptions = [
-    { value: 'light' as const, label: 'Светлая', icon: Sun },
-    { value: 'dark' as const, label: 'Тёмная', icon: Moon },
-    { value: 'system' as const, label: 'Системная', icon: Monitor },
+    { value: 'light' as const, label: 'РЎРІРµС‚Р»Р°СЏ', icon: Sun },
+    { value: 'dark' as const, label: 'РўС‘РјРЅР°СЏ', icon: Moon },
+    { value: 'system' as const, label: 'РЎРёСЃС‚РµРјРЅР°СЏ', icon: Monitor },
     { value: 'modern' as const, label: 'Modern / Glass', icon: Sparkles },
     { value: 'mac' as const, label: 'macOS / iOS', icon: Apple },
     { value: 'aurora' as const, label: 'Aurora Night', icon: Palette },
@@ -78,9 +78,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const getRoleLabel = (role: string) => {
     switch (role) {
-      case 'admin': return 'Администратор'
-      case 'dispatcher': return 'Диспетчер'
-      case 'worker': return 'Работник'
+      case 'admin': return 'РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ'
+      case 'dispatcher': return 'Р”РёСЃРїРµС‚С‡РµСЂ'
+      case 'worker': return 'Р Р°Р±РѕС‚РЅРёРє'
       default: return role
     }
   }
@@ -167,7 +167,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <button
                   onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
                   className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                  title="Сменить тему"
+                  title="РЎРјРµРЅРёС‚СЊ С‚РµРјСѓ"
                 >
                   <CurrentThemeIcon size={20} />
                 </button>
@@ -252,7 +252,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         onClick={() => setIsUserMenuOpen(false)}
                         className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                       >
-                        Профиль
+                        РџСЂРѕС„РёР»СЊ
                       </Link>
                       <button
                         onClick={() => {
@@ -262,7 +262,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         className="w-full flex items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
                       >
                         <LogOut size={16} className="mr-2" />
-                        Выход
+                        Р’С‹С…РѕРґ
                       </button>
                     </div>
                   </>
@@ -307,7 +307,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700">
-                <span className="text-xl font-bold text-gray-900 dark:text-white">Меню</span>
+                <span className="text-xl font-bold text-gray-900 dark:text-white">РњРµРЅСЋ</span>
                 <button 
                   onClick={() => setIsSidebarOpen(false)} 
                   className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"

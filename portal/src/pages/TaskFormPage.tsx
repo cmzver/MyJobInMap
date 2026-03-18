@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { showApiError, showApiSuccess, mutationToast } from '@/utils/apiError'
 import { ArrowLeft, Save } from 'lucide-react'
@@ -19,16 +19,16 @@ import type { TaskPriority } from '@/types/task'
 import { PRIORITY_OPTIONS_FOR_FORM, normalizePriority } from '@/config/taskConstants'
 
 
-// Форматирование адреса для отображения
+// Р¤РѕСЂРјР°С‚РёСЂРѕРІР°РЅРёРµ Р°РґСЂРµСЃР° РґР»СЏ РѕС‚РѕР±СЂР°Р¶РµРЅРёСЏ
 const formatAddress = (address: AddressFormData): string => {
   const parts: string[] = []
   
   if (address.city) parts.push(address.city)
   if (address.street) parts.push(address.street)
-  if (address.building) parts.push(`д. ${address.building}`)
-  if (address.corpus && address.corpus !== 'none') parts.push(`к. ${address.corpus}`)
-  if (address.entrance) parts.push(`под. ${address.entrance}`)
-  if (address.apartment) parts.push(`кв. ${address.apartment}`)
+  if (address.building) parts.push(`Рґ. ${address.building}`)
+  if (address.corpus && address.corpus !== 'none') parts.push(`Рє. ${address.corpus}`)
+  if (address.entrance) parts.push(`РїРѕРґ. ${address.entrance}`)
+  if (address.apartment) parts.push(`РєРІ. ${address.apartment}`)
   
   return parts.join(', ')
 }
@@ -37,14 +37,14 @@ const formatTaskTitle = (address: AddressFormData): string => {
   const parts: string[] = []
 
   if (address.street) parts.push(address.street)
-  if (address.building) parts.push(`дом ${address.building}`)
-  if (address.corpus && address.corpus !== 'none') parts.push(`корп. ${address.corpus}`)
-  if (address.apartment) parts.push(`кв. ${address.apartment}`)
+  if (address.building) parts.push(`РґРѕРј ${address.building}`)
+  if (address.corpus && address.corpus !== 'none') parts.push(`РєРѕСЂРї. ${address.corpus}`)
+  if (address.apartment) parts.push(`РєРІ. ${address.apartment}`)
 
   return parts.join(', ')
 }
 
-// Парсинг адреса из строки формата "Город, Улица, д. Дом, к. Корпус, под. Подъезд"
+// РџР°СЂСЃРёРЅРі Р°РґСЂРµСЃР° РёР· СЃС‚СЂРѕРєРё С„РѕСЂРјР°С‚Р° "Р“РѕСЂРѕРґ, РЈР»РёС†Р°, Рґ. Р”РѕРј, Рє. РљРѕСЂРїСѓСЃ, РїРѕРґ. РџРѕРґСЉРµР·Рґ"
 const parseAddress = (addressStr: string): AddressFormData => {
   const result: AddressFormData = {
     city: '',
@@ -57,60 +57,60 @@ const parseAddress = (addressStr: string): AddressFormData => {
   
   if (!addressStr) return result
   
-  // Разбиваем по запятым
+  // Р Р°Р·Р±РёРІР°РµРј РїРѕ Р·Р°РїСЏС‚С‹Рј
   const parts = addressStr.split(',').map(p => p.trim())
   
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i]!
     
-    // Ищем дом (д. или дом)
-    const buildingMatch = part.match(/^д\.?\s*(\S+)$/i) || part.match(/^дом\s*(\S+)$/i)
+    // РС‰РµРј РґРѕРј (Рґ. РёР»Рё РґРѕРј)
+    const buildingMatch = part.match(/^Рґ\.?\s*(\S+)$/i) || part.match(/^РґРѕРј\s*(\S+)$/i)
     if (buildingMatch) {
       result.building = buildingMatch[1] ?? ''
       continue
     }
     
-    // Ищем корпус (к. или корп.)
-    const corpusMatch = part.match(/^к\.?\s*(\S+)$/i) || part.match(/^корп\.?\s*(\S+)$/i)
+    // РС‰РµРј РєРѕСЂРїСѓСЃ (Рє. РёР»Рё РєРѕСЂРї.)
+    const corpusMatch = part.match(/^Рє\.?\s*(\S+)$/i) || part.match(/^РєРѕСЂРї\.?\s*(\S+)$/i)
     if (corpusMatch) {
       result.corpus = corpusMatch[1] ?? ''
       continue
     }
     
-    // Ищем подъезд (под. или подъезд)
-    const entranceMatch = part.match(/^под\.?\s*(\S+)$/i) || part.match(/^подъезд\s*(\S+)$/i)
+    // РС‰РµРј РїРѕРґСЉРµР·Рґ (РїРѕРґ. РёР»Рё РїРѕРґСЉРµР·Рґ)
+    const entranceMatch = part.match(/^РїРѕРґ\.?\s*(\S+)$/i) || part.match(/^РїРѕРґСЉРµР·Рґ\s*(\S+)$/i)
     if (entranceMatch) {
       result.entrance = entranceMatch[1] ?? ''
       continue
     }
 
-    const apartmentMatch = part.match(/^кв\.?\s*(\S+)$/i) || part.match(/^квартира\s*(\S+)$/i)
+    const apartmentMatch = part.match(/^РєРІ\.?\s*(\S+)$/i) || part.match(/^РєРІР°СЂС‚РёСЂР°\s*(\S+)$/i)
     if (apartmentMatch) {
       result.apartment = apartmentMatch[1] ?? ''
       continue
     }
     
-    // Первая часть — город
+    // РџРµСЂРІР°СЏ С‡Р°СЃС‚СЊ вЂ” РіРѕСЂРѕРґ
     if (!result.city) {
       result.city = part
       continue
     }
     
-    // Вторая часть — улица
+    // Р’С‚РѕСЂР°СЏ С‡Р°СЃС‚СЊ вЂ” СѓР»РёС†Р°
     if (!result.street) {
       result.street = part
       continue
     }
     
-    // Если есть ещё части без префиксов — возможно это дом
+    // Р•СЃР»Рё РµСЃС‚СЊ РµС‰С‘ С‡Р°СЃС‚Рё Р±РµР· РїСЂРµС„РёРєСЃРѕРІ вЂ” РІРѕР·РјРѕР¶РЅРѕ СЌС‚Рѕ РґРѕРј
     if (!result.building && /^\d+/.test(part)) {
       result.building = part
     }
   }
 
-  // Если перепутались город/улица (часто из Telegram: "СПб, Ленинский пр-т...")
-  const cityLooksLikeStreet = /(ул|пр|пр-т|просп|шоссе|ш|пер|бульвар|проезд)/i.test(result.city)
-  const streetLooksLikeCity = /^(спб|санкт|петербург|москва|екат|екатеринбург|казань|новосибирск|нижний|самара|краснодар)/i.test(result.street)
+  // Р•СЃР»Рё РїРµСЂРµРїСѓС‚Р°Р»РёСЃСЊ РіРѕСЂРѕРґ/СѓР»РёС†Р° (С‡Р°СЃС‚Рѕ РёР· Telegram: "РЎРџР±, Р›РµРЅРёРЅСЃРєРёР№ РїСЂ-С‚...")
+  const cityLooksLikeStreet = /(СѓР»|РїСЂ|РїСЂ-С‚|РїСЂРѕСЃРї|С€РѕСЃСЃРµ|С€|РїРµСЂ|Р±СѓР»СЊРІР°СЂ|РїСЂРѕРµР·Рґ)/i.test(result.city)
+  const streetLooksLikeCity = /^(СЃРїР±|СЃР°РЅРєС‚|РїРµС‚РµСЂР±СѓСЂРі|РјРѕСЃРєРІР°|РµРєР°С‚|РµРєР°С‚РµСЂРёРЅР±СѓСЂРі|РєР°Р·Р°РЅСЊ|РЅРѕРІРѕСЃРёР±РёСЂСЃРє|РЅРёР¶РЅРёР№|СЃР°РјР°СЂР°|РєСЂР°СЃРЅРѕРґР°СЂ)/i.test(result.street)
   if (cityLooksLikeStreet && streetLooksLikeCity) {
     const tmp = result.city
     result.city = result.street
@@ -133,9 +133,9 @@ interface TaskFormData {
   address: AddressFormData
   addressId: number | null
   system_id: number | string
-  system_type: string  // Тип системы (video_surveillance, intercom, etc.)
+  system_type: string  // РўРёРї СЃРёСЃС‚РµРјС‹ (video_surveillance, intercom, etc.)
   defect_type_id: string
-  defect_type_name: string  // Название типа неисправности
+  defect_type_name: string  // РќР°Р·РІР°РЅРёРµ С‚РёРїР° РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё
   description: string
   customer_name: string
   customer_phone: string
@@ -190,7 +190,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
   const [formData, setFormData] = useState<TaskFormData>(initialFormData)
   const [addressErrors, setAddressErrors] = useState<Partial<Record<keyof AddressFormData, string>>>({})
   const [otherErrors, setOtherErrors] = useState<Record<string, string>>({})
-  const [selectedSystemType, setSelectedSystemType] = useState<string>('')  // Тип выбранной системы для фильтрации неисправностей)
+  const [selectedSystemType, setSelectedSystemType] = useState<string>('')  // РўРёРї РІС‹Р±СЂР°РЅРЅРѕР№ СЃРёСЃС‚РµРјС‹ РґР»СЏ С„РёР»СЊС‚СЂР°С†РёРё РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚РµР№)
 
   // Fetch task data for edit mode
   const { data: task, isLoading: taskLoading } = useTask(taskId || 0)
@@ -237,19 +237,19 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
     }
 
     if (mode === 'edit' && task) {
-      // Парсим адрес из строки raw_address
+      // РџР°СЂСЃРёРј Р°РґСЂРµСЃ РёР· СЃС‚СЂРѕРєРё raw_address
       const parsedAddress = parseAddress(task.raw_address || '')
       
-      // Конвертируем priority из числа в строку
+      // РљРѕРЅРІРµСЂС‚РёСЂСѓРµРј priority РёР· С‡РёСЃР»Р° РІ СЃС‚СЂРѕРєСѓ
       const taskPriority = normalizePriority(task.priority as TaskPriority | number | null)
       
-      // Загружаем сохранённые system_id, system_type, defect_type из task
+      // Р—Р°РіСЂСѓР¶Р°РµРј СЃРѕС…СЂР°РЅС‘РЅРЅС‹Рµ system_id, system_type, defect_type РёР· task
       setFormData({
         address: parsedAddress,
-        addressId: null,  // Будет найден ниже через findByComponents
+        addressId: null,  // Р‘СѓРґРµС‚ РЅР°Р№РґРµРЅ РЅРёР¶Рµ С‡РµСЂРµР· findByComponents
         system_id: task.system_id || '',
         system_type: task.system_type || '',
-        defect_type_id: task.defect_type || '',  // ID = название для совместимости
+        defect_type_id: task.defect_type || '',  // ID = РЅР°Р·РІР°РЅРёРµ РґР»СЏ СЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚Рё
         defect_type_name: task.defect_type || '',
         description: task.description || '',
         customer_name: task.customer_name || '',
@@ -260,7 +260,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         photos: [],
       })
       
-      // Устанавливаем тип системы для фильтрации неисправностей
+      // РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј С‚РёРї СЃРёСЃС‚РµРјС‹ РґР»СЏ С„РёР»СЊС‚СЂР°С†РёРё РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚РµР№
       if (task.system_type) {
         setSelectedSystemType(task.system_type)
       }
@@ -351,7 +351,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
     if (foundAddress) {
       setFormData(prev => ({ ...prev, addressId: foundAddress.id }))
     }
-    // Не сбрасываем addressId на null - это делает handleAddressChange
+    // РќРµ СЃР±СЂР°СЃС‹РІР°РµРј addressId РЅР° null - СЌС‚Рѕ РґРµР»Р°РµС‚ handleAddressChange
   }
 
   const handleSystemSelect = (systemId: number | string, system?: AddressSystem) => {
@@ -359,11 +359,11 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
     setFormData(prev => ({ 
       ...prev, 
       system_id: systemId,
-      system_type: system?.system_type || '',  // Сохраняем тип системы для отправки на сервер
-      defect_type_id: systemChanged ? '' : prev.defect_type_id,  // Сбрасываем тип неисправности при смене системы
+      system_type: system?.system_type || '',  // РЎРѕС…СЂР°РЅСЏРµРј С‚РёРї СЃРёСЃС‚РµРјС‹ РґР»СЏ РѕС‚РїСЂР°РІРєРё РЅР° СЃРµСЂРІРµСЂ
+      defect_type_id: systemChanged ? '' : prev.defect_type_id,  // РЎР±СЂР°СЃС‹РІР°РµРј С‚РёРї РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё РїСЂРё СЃРјРµРЅРµ СЃРёСЃС‚РµРјС‹
       defect_type_name: systemChanged ? '' : prev.defect_type_name,
     }))
-    // Сохраняем тип системы для фильтрации неисправностей
+    // РЎРѕС…СЂР°РЅСЏРµРј С‚РёРї СЃРёСЃС‚РµРјС‹ РґР»СЏ С„РёР»СЊС‚СЂР°С†РёРё РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚РµР№
     setSelectedSystemType(system?.system_type || '')
     if (otherErrors.system_id) {
       setOtherErrors(prev => {
@@ -404,19 +404,19 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
     const addrErrors: Partial<Record<keyof AddressFormData, string>> = {}
     const errors: Record<string, string> = {}
 
-    // Адрес
+    // РђРґСЂРµСЃ
     if (!formData.address.city.trim()) {
-      addrErrors.city = 'Город обязателен'
+      addrErrors.city = 'Р“РѕСЂРѕРґ РѕР±СЏР·Р°С‚РµР»РµРЅ'
     }
     if (!formData.address.street.trim()) {
-      addrErrors.street = 'Улица обязательна'
+      addrErrors.street = 'РЈР»РёС†Р° РѕР±СЏР·Р°С‚РµР»СЊРЅР°'
     }
     if (!formData.address.building.trim()) {
-      addrErrors.building = 'Дом обязателен'
+      addrErrors.building = 'Р”РѕРј РѕР±СЏР·Р°С‚РµР»РµРЅ'
     }
-    // Описание
+    // РћРїРёСЃР°РЅРёРµ
     if (!formData.description.trim()) {
-      errors.description = 'Описание обязательно'
+      errors.description = 'РћРїРёСЃР°РЅРёРµ РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ'
     }
 
     setAddressErrors(addrErrors)
@@ -456,7 +456,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
     if (!validate()) return
 
     const fullAddress = formatAddress(formData.address)
-    const taskTitle = formatTaskTitle(formData.address) || formData.address.street || 'Новая заявка'
+    const taskTitle = formatTaskTitle(formData.address) || formData.address.street || 'РќРѕРІР°СЏ Р·Р°СЏРІРєР°'
 
     if (mode === 'create') {
       const createData = {
@@ -470,15 +470,15 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         payment_amount: null,
         planned_date: formData.planned_date || null,
         assigned_user_id: formData.assigned_user_id ? Number(formData.assigned_user_id) : null,
-        // Система и тип неисправности
+        // РЎРёСЃС‚РµРјР° Рё С‚РёРї РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё
         system_id: formData.system_id ? Number(formData.system_id) : null,
         system_type: formData.system_type || null,
         defect_type: formData.defect_type_name || null,
       }
       
       createMutation.mutate(createData, mutationToast({
-        success: 'Заявка создана',
-        error: 'Ошибка создания заявки',
+        success: 'Р—Р°СЏРІРєР° СЃРѕР·РґР°РЅР°',
+        error: 'РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ Р·Р°СЏРІРєРё',
         onSuccess: (newTask) => navigate(`/tasks/${newTask.id}`),
       }))
     } else if (taskId) {
@@ -492,7 +492,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         is_paid: false,
         payment_amount: 0,
         planned_date: formData.planned_date || null,
-        // Система и тип неисправности
+        // РЎРёСЃС‚РµРјР° Рё С‚РёРї РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё
         system_id: formData.system_id ? Number(formData.system_id) : null,
         system_type: formData.system_type || null,
         defect_type: formData.defect_type_name || null,
@@ -511,22 +511,22 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
                 { id: taskId, assignedUserId: newAssigneeId },
                 {
                   onSuccess: () => {
-                    showApiSuccess('Заявка обновлена')
+                    showApiSuccess('Р—Р°СЏРІРєР° РѕР±РЅРѕРІР»РµРЅР°')
                     navigate(`/tasks/${taskId}`)
                   },
                   onError: () => {
-                    showApiSuccess('Заявка обновлена')
+                    showApiSuccess('Р—Р°СЏРІРєР° РѕР±РЅРѕРІР»РµРЅР°')
                     navigate(`/tasks/${taskId}`)
                   },
                 }
               )
             } else {
-              showApiSuccess('Заявка обновлена')
+              showApiSuccess('Р—Р°СЏРІРєР° РѕР±РЅРѕРІР»РµРЅР°')
               navigate(`/tasks/${taskId}`)
             }
           },
           onError: (err) => {
-            showApiError(err, 'Ошибка обновления заявки')
+            showApiError(err, 'РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ Р·Р°СЏРІРєРё')
           },
         }
       )
@@ -560,22 +560,22 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
           className="mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Назад
+          РќР°Р·Р°Рґ
         </Button>
 
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {mode === 'create' ? 'Новая заявка' : 'Редактирование заявки'}
+          {mode === 'create' ? 'РќРѕРІР°СЏ Р·Р°СЏРІРєР°' : 'Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ Р·Р°СЏРІРєРё'}
         </h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           {mode === 'create' 
-            ? 'Заполните информацию о новой заявке' 
-            : `Редактирование заявки ${task?.task_number || `#${taskId}`}`
+            ? 'Р—Р°РїРѕР»РЅРёС‚Рµ РёРЅС„РѕСЂРјР°С†РёСЋ Рѕ РЅРѕРІРѕР№ Р·Р°СЏРІРєРµ' 
+            : `Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ Р·Р°СЏРІРєРё ${task?.task_number || `#${taskId}`}`
           }
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Шаг 1: Адрес */}
+        {/* РЁР°Рі 1: РђРґСЂРµСЃ */}
         <AddressForm 
           value={formData.address} 
           onChange={handleAddressChange}
@@ -583,11 +583,11 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
           errors={addressErrors}
         />
 
-        {/* Подсказка, если адрес не найден в базе */}
+        {/* РџРѕРґСЃРєР°Р·РєР°, РµСЃР»Рё Р°РґСЂРµСЃ РЅРµ РЅР°Р№РґРµРЅ РІ Р±Р°Р·Рµ */}
         {showMissingAddressPrompt && (
           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-2">
             <p className="text-sm text-blue-700 dark:text-blue-300">
-              Адрес не найден в базе адресов. Заявку можно создать и на сторонний адрес, а если хотите вести его в базе, добавьте адрес сейчас.
+              РђРґСЂРµСЃ РЅРµ РЅР°Р№РґРµРЅ РІ Р±Р°Р·Рµ Р°РґСЂРµСЃРѕРІ. Р—Р°СЏРІРєСѓ РјРѕР¶РЅРѕ СЃРѕР·РґР°С‚СЊ Рё РЅР° СЃС‚РѕСЂРѕРЅРЅРёР№ Р°РґСЂРµСЃ, Р° РµСЃР»Рё С…РѕС‚РёС‚Рµ РІРµСЃС‚Рё РµРіРѕ РІ Р±Р°Р·Рµ, РґРѕР±Р°РІСЊС‚Рµ Р°РґСЂРµСЃ СЃРµР№С‡Р°СЃ.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -596,32 +596,32 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
                 size="sm"
                 onClick={openAddressCreateFlow}
               >
-                Добавить адрес в базу
+                Р”РѕР±Р°РІРёС‚СЊ Р°РґСЂРµСЃ РІ Р±Р°Р·Сѓ
               </Button>
             </div>
           </div>
         )}
         
-        {/* Подсказка для старых заявок без системы */}
+        {/* РџРѕРґСЃРєР°Р·РєР° РґР»СЏ СЃС‚Р°СЂС‹С… Р·Р°СЏРІРѕРє Р±РµР· СЃРёСЃС‚РµРјС‹ */}
         {mode === 'edit' && formData.addressId && !formData.system_type && (
           <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
             <p className="text-sm text-amber-700 dark:text-amber-300">
-              ⚠️ Эта заявка была создана без указания системы и типа неисправности. 
-              Выберите их ниже, если хотите добавить эту информацию.
+              вљ пёЏ Р­С‚Р° Р·Р°СЏРІРєР° Р±С‹Р»Р° СЃРѕР·РґР°РЅР° Р±РµР· СѓРєР°Р·Р°РЅРёСЏ СЃРёСЃС‚РµРјС‹ Рё С‚РёРїР° РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё. 
+              Р’С‹Р±РµСЂРёС‚Рµ РёС… РЅРёР¶Рµ, РµСЃР»Рё С…РѕС‚РёС‚Рµ РґРѕР±Р°РІРёС‚СЊ СЌС‚Сѓ РёРЅС„РѕСЂРјР°С†РёСЋ.
             </p>
           </div>
         )}
 
-        {/* Шаг 2: Система */}
+        {/* РЁР°Рі 2: РЎРёСЃС‚РµРјР° */}
         <SystemSelector 
           buildingId={formData.addressId || undefined}
-          buildingAddress={fullAddress || 'Не выбрано'}
+          buildingAddress={fullAddress || 'РќРµ РІС‹Р±СЂР°РЅРѕ'}
           value={formData.system_id}
           onChange={handleSystemSelect}
           error={otherErrors.system_id}
         />
 
-        {/* Шаг 3: Тип неисправности */}
+        {/* РЁР°Рі 3: РўРёРї РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё */}
         <DefectTypeSelector 
           value={formData.defect_type_id}
           onChange={handleDefectTypeChange}
@@ -629,48 +629,48 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
           error={otherErrors.defect_type_id}
         />
 
-        {/* Остальные поля */}
-        <Card title="Информация о заявке">
+        {/* РћСЃС‚Р°Р»СЊРЅС‹Рµ РїРѕР»СЏ */}
+        <Card title="РРЅС„РѕСЂРјР°С†РёСЏ Рѕ Р·Р°СЏРІРєРµ">
           <div className="space-y-4">
-            {/* Описание */}
+            {/* РћРїРёСЃР°РЅРёРµ */}
             <Textarea
-              label="Описание проблемы *"
-              placeholder="Подробное описание неисправности..."
+              label="РћРїРёСЃР°РЅРёРµ РїСЂРѕР±Р»РµРјС‹ *"
+              placeholder="РџРѕРґСЂРѕР±РЅРѕРµ РѕРїРёСЃР°РЅРёРµ РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё..."
               value={formData.description}
               onChange={(e) => handleFormChange('description', e.target.value)}
               rows={4}
               error={otherErrors.description}
             />
 
-            {/* Контакты клиента */}
+            {/* РљРѕРЅС‚Р°РєС‚С‹ РєР»РёРµРЅС‚Р° */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
-                label="Имя клиента"
-                placeholder="Иван Петров"
+                label="РРјСЏ РєР»РёРµРЅС‚Р°"
+                placeholder="РРІР°РЅ РџРµС‚СЂРѕРІ"
                 value={formData.customer_name}
                 onChange={(e) => handleFormChange('customer_name', e.target.value)}
               />
               <Input
-                label="Телефон"
+                label="РўРµР»РµС„РѕРЅ"
                 placeholder="+7 (900) 123-45-67"
                 value={formData.customer_phone}
                 onChange={(e) => handleFormChange('customer_phone', e.target.value)}
               />
             </div>
 
-            {/* Приоритет */}
+            {/* РџСЂРёРѕСЂРёС‚РµС‚ */}
             <Select
-              label="Приоритет"
+              label="РџСЂРёРѕСЂРёС‚РµС‚"
               options={PRIORITY_OPTIONS_FOR_FORM}
               value={formData.priority}
               onChange={(value) => handleFormChange('priority', value as TaskPriority)}
             />
 
-            {/* Исполнитель */}
+            {/* РСЃРїРѕР»РЅРёС‚РµР»СЊ */}
             <Select
-              label="Исполнитель"
+              label="РСЃРїРѕР»РЅРёС‚РµР»СЊ"
               options={[
-                { value: '', label: 'Не назначен' },
+                { value: '', label: 'РќРµ РЅР°Р·РЅР°С‡РµРЅ' },
                 ...assignableUsers.map(u => ({
                   value: String(u.id),
                   label: `${u.full_name || u.username}`,
@@ -680,10 +680,10 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
               onChange={(value) => handleFormChange('assigned_user_id', value)}
             />
 
-            {/* Плановая дата */}
+            {/* РџР»Р°РЅРѕРІР°СЏ РґР°С‚Р° */}
             <Input
               type="datetime-local"
-              label="Желаемое время выполнения"
+              label="Р–РµР»Р°РµРјРѕРµ РІСЂРµРјСЏ РІС‹РїРѕР»РЅРµРЅРёСЏ"
               value={formData.planned_date}
               onChange={(e) => handleFormChange('planned_date', e.target.value)}
             />
@@ -697,11 +697,11 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
             variant="secondary"
             onClick={() => navigate(mode === 'edit' && taskId ? `/tasks/${taskId}` : '/tasks')}
           >
-            Отмена
+            РћС‚РјРµРЅР°
           </Button>
           <Button type="submit" isLoading={isSubmitting}>
             <Save className="h-4 w-4 mr-2" />
-            {mode === 'create' ? 'Создать заявку' : 'Сохранить'}
+            {mode === 'create' ? 'РЎРѕР·РґР°С‚СЊ Р·Р°СЏРІРєСѓ' : 'РЎРѕС…СЂР°РЅРёС‚СЊ'}
           </Button>
         </div>
       </form>

@@ -4,7 +4,10 @@ from pathlib import Path
 import pytest
 from app.services.rate_limiter import login_rate_limiter
 from app.services.auth import create_refresh_token, create_access_token
+<<<<<<< HEAD
 from app.config import settings
+=======
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 
 
 class TestAuth:
@@ -268,6 +271,7 @@ class TestPasswordChange:
         assert "не менее 6 символов" in response.json()["detail"]
 
 
+<<<<<<< HEAD
 class TestAvatarUpload:
     """Test avatar upload and retrieval."""
 
@@ -297,3 +301,5 @@ class TestAvatarUpload:
             user_dir.rmdir()
 
 
+=======
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91

@@ -2,7 +2,10 @@ package com.fieldworker.ui.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+<<<<<<< HEAD
 import androidx.compose.material.icons.filled.Email
+=======
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -39,6 +42,7 @@ sealed class Screen(
         label = "Настройки",
         icon = Icons.Default.Settings
     )
+<<<<<<< HEAD
 
     /** Чаты */
     data object Chat : Screen(
@@ -46,6 +50,8 @@ sealed class Screen(
         label = "Чаты",
         icon = Icons.Default.Email
     )
+=======
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
     
     /** Экран разработчика (не в bottom nav) */
     data object Developer : Screen(route = "developer")
@@ -56,6 +62,10 @@ sealed class Screen(
     companion object {
         /** Tabs для нижней панели навигации */
         val bottomNavItems: List<Screen>
+<<<<<<< HEAD
             get() = listOf(Map, TaskList, Chat, Settings)
+=======
+            get() = listOf(Map, TaskList, Settings)
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
     }
 }

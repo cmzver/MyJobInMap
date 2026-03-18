@@ -1,15 +1,15 @@
-/**
- * useWebSocket — React hook для WebSocket уведомлений
+﻿/**
+ * useWebSocket вЂ” React hook РґР»СЏ WebSocket СѓРІРµРґРѕРјР»РµРЅРёР№
  * ====================================================
  * 
- * Подключается к ws://host/ws?token=JWT и слушает события:
+ * РџРѕРґРєР»СЋС‡Р°РµС‚СЃСЏ Рє ws://host/ws?token=JWT Рё СЃР»СѓС€Р°РµС‚ СЃРѕР±С‹С‚РёСЏ:
  * - task_created, task_updated, task_status_changed
  * - task_assigned, task_assigned_to_me, task_deleted
  * - chat_message, chat_message_edited, chat_message_deleted
  * - chat_reaction, chat_read, chat_typing
  * 
- * Автоматически реконнектится при потере соединения.
- * Инвалидирует React Query кэш при получении события.
+ * РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЂРµРєРѕРЅРЅРµРєС‚РёС‚СЃСЏ РїСЂРё РїРѕС‚РµСЂРµ СЃРѕРµРґРёРЅРµРЅРёСЏ.
+ * РРЅРІР°Р»РёРґРёСЂСѓРµС‚ React Query РєСЌС€ РїСЂРё РїРѕР»СѓС‡РµРЅРёРё СЃРѕР±С‹С‚РёСЏ.
  */
 
 import { useEffect, useRef, useCallback } from 'react'
@@ -30,7 +30,7 @@ const RECONNECT_DELAY_MS = 3000
 const MAX_RECONNECT_DELAY_MS = 30000
 const PING_INTERVAL_MS = 30000
 
-// Глобальный ref на WS для отправки из компонентов
+// Р“Р»РѕР±Р°Р»СЊРЅС‹Р№ ref РЅР° WS РґР»СЏ РѕС‚РїСЂР°РІРєРё РёР· РєРѕРјРїРѕРЅРµРЅС‚РѕРІ
 let globalWs: WebSocket | null = null
 let chatTypingListeners: ChatTypingHandler[] = []
 let chatReadListeners: ChatReadHandler[] = []
@@ -69,12 +69,12 @@ export function useWebSocket() {
         const data = JSON.parse(event.data) as WsEvent
         if (data.type === 'pong') return
 
-        // Инвалидируем кэш React Query при обновлении данных
+        // РРЅРІР°Р»РёРґРёСЂСѓРµРј РєСЌС€ React Query РїСЂРё РѕР±РЅРѕРІР»РµРЅРёРё РґР°РЅРЅС‹С…
         switch (data.type) {
           case 'task_created':
             queryClient.invalidateQueries({ queryKey: ['tasks'] })
             queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-            toast('📋 Новая заявка: ' + (data.data.task_number ?? ''), { icon: '🆕' })
+            toast('рџ“‹ РќРѕРІР°СЏ Р·Р°СЏРІРєР°: ' + (data.data.task_number ?? ''), { icon: 'рџ†•' })
             break
 
           case 'task_status_changed':
@@ -99,7 +99,7 @@ export function useWebSocket() {
 
           case 'task_assigned_to_me':
             queryClient.invalidateQueries({ queryKey: ['tasks'] })
-            toast('📌 Вам назначена заявка: ' + (data.data.task_number ?? ''), { icon: '👤' })
+            toast('рџ“Њ Р’Р°Рј РЅР°Р·РЅР°С‡РµРЅР° Р·Р°СЏРІРєР°: ' + (data.data.task_number ?? ''), { icon: 'рџ‘¤' })
             break
 
           case 'task_deleted':
@@ -111,7 +111,7 @@ export function useWebSocket() {
           case 'chat_message':
             queryClient.invalidateQueries({ queryKey: ['chat', 'messages', data.data.conversation_id] })
             queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] })
-            toast('💬 Новое сообщение', { icon: '✉️', duration: 2000 })
+            toast('рџ’¬ РќРѕРІРѕРµ СЃРѕРѕР±С‰РµРЅРёРµ', { icon: 'вњ‰пёЏ', duration: 2000 })
             break
 
           case 'chat_message_edited':
@@ -162,26 +162,26 @@ export function useWebSocket() {
             }
             switch (action) {
               case 'conversation_renamed':
-                toast('Чат переименован', { icon: '✏️', duration: 2000 })
+                toast('Р§Р°С‚ РїРµСЂРµРёРјРµРЅРѕРІР°РЅ', { icon: 'вњЏпёЏ', duration: 2000 })
                 break
               case 'member_added':
-                toast('В чат добавлен участник', { icon: '➕', duration: 2000 })
+                toast('Р’ С‡Р°С‚ РґРѕР±Р°РІР»РµРЅ СѓС‡Р°СЃС‚РЅРёРє', { icon: 'вћ•', duration: 2000 })
                 break
               case 'member_removed':
-                toast('Состав чата обновлён', { icon: '👥', duration: 2000 })
+                toast('РЎРѕСЃС‚Р°РІ С‡Р°С‚Р° РѕР±РЅРѕРІР»С‘РЅ', { icon: 'рџ‘Ґ', duration: 2000 })
                 break
               case 'member_role_updated':
-                toast('Роль участника изменена', { icon: '🛡️', duration: 2000 })
+                toast('Р РѕР»СЊ СѓС‡Р°СЃС‚РЅРёРєР° РёР·РјРµРЅРµРЅР°', { icon: 'рџ›ЎпёЏ', duration: 2000 })
                 break
               case 'ownership_transferred':
-                toast('Ownership передан', { icon: '👑', duration: 2000 })
+                toast('Ownership РїРµСЂРµРґР°РЅ', { icon: 'рџ‘‘', duration: 2000 })
                 break
             }
             break
           }
 
           default:
-            // Для неизвестных типов — общая инвалидация
+            // Р”Р»СЏ РЅРµРёР·РІРµСЃС‚РЅС‹С… С‚РёРїРѕРІ вЂ” РѕР±С‰Р°СЏ РёРЅРІР°Р»РёРґР°С†РёСЏ
             break
         }
       } catch {
@@ -194,7 +194,7 @@ export function useWebSocket() {
   const connect = useCallback(() => {
     if (!isAuthenticated || !token) return
 
-    // Определяем URL WebSocket
+    // РћРїСЂРµРґРµР»СЏРµРј URL WebSocket
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsUrl = `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`
 
@@ -206,7 +206,7 @@ export function useWebSocket() {
       ws.onopen = () => {
         reconnectDelayRef.current = RECONNECT_DELAY_MS // reset delay on success
 
-        // Запускаем ping/pong keepalive
+        // Р—Р°РїСѓСЃРєР°РµРј ping/pong keepalive
         pingTimerRef.current = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'ping' }))
@@ -224,7 +224,7 @@ export function useWebSocket() {
           pingTimerRef.current = null
         }
 
-        // Автоматический реконнект с exponential backoff
+        // РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРёР№ СЂРµРєРѕРЅРЅРµРєС‚ СЃ exponential backoff
         if (isAuthenticated) {
           reconnectTimerRef.current = setTimeout(() => {
             reconnectDelayRef.current = Math.min(
@@ -237,10 +237,10 @@ export function useWebSocket() {
       }
 
       ws.onerror = () => {
-        // onclose будет вызван автоматически после onerror
+        // onclose Р±СѓРґРµС‚ РІС‹Р·РІР°РЅ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё РїРѕСЃР»Рµ onerror
       }
     } catch {
-      // Ошибка создания WebSocket — retry
+      // РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ WebSocket вЂ” retry
       reconnectTimerRef.current = setTimeout(connect, reconnectDelayRef.current)
     }
   }, [isAuthenticated, token, handleMessage])

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { Suspense, lazy, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -10,7 +10,7 @@ import Spinner from '@/components/Spinner'
 import LoginPage from '@/pages/LoginPage'
 import DashboardLayout from '@/layouts/DashboardLayout'
 
-// Lazy-loaded страницы для code splitting
+// Lazy-loaded СЃС‚СЂР°РЅРёС†С‹ РґР»СЏ code splitting
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
 const TasksPage = lazy(() => import('@/pages/TasksPage'))
 const MyTasksPage = lazy(() => import('@/pages/MyTasksPage'))
@@ -34,7 +34,7 @@ const UpdatesPage = lazy(() => import('@/pages/UpdatesPage'))
 const ChatPage = lazy(() => import('@/pages/ChatPage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
-// Fallback компонент для загрузки
+// Fallback РєРѕРјРїРѕРЅРµРЅС‚ РґР»СЏ Р·Р°РіСЂСѓР·РєРё
 function PageLoader() {
   return (
     <div className="flex items-center justify-center min-h-[400px]">
@@ -43,7 +43,7 @@ function PageLoader() {
   )
 }
 
-// Компонент защищённого роута с проверкой роли
+// РљРѕРјРїРѕРЅРµРЅС‚ Р·Р°С‰РёС‰С‘РЅРЅРѕРіРѕ СЂРѕСѓС‚Р° СЃ РїСЂРѕРІРµСЂРєРѕР№ СЂРѕР»Рё
 function ProtectedRoute({ 
   children, 
   allowedRoles,

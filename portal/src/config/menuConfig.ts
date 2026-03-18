@@ -1,4 +1,4 @@
-import {
+﻿import {
   LayoutDashboard,
   ClipboardList,
   Map,
@@ -36,56 +36,56 @@ export interface MenuSection {
 }
 
 /**
- * Конфигурация меню по ролям
+ * РљРѕРЅС„РёРіСѓСЂР°С†РёСЏ РјРµРЅСЋ РїРѕ СЂРѕР»СЏРј
  * 
- * admin - Полный доступ ко всем разделам
- * dispatcher - Управление заявками и работниками
- * worker - Только свои заявки и карта
+ * admin - РџРѕР»РЅС‹Р№ РґРѕСЃС‚СѓРї РєРѕ РІСЃРµРј СЂР°Р·РґРµР»Р°Рј
+ * dispatcher - РЈРїСЂР°РІР»РµРЅРёРµ Р·Р°СЏРІРєР°РјРё Рё СЂР°Р±РѕС‚РЅРёРєР°РјРё
+ * worker - РўРѕР»СЊРєРѕ СЃРІРѕРё Р·Р°СЏРІРєРё Рё РєР°СЂС‚Р°
  */
 export const menuConfig: MenuSection[] = [
   {
     id: 'main',
-    title: 'Основное',
+    title: 'РћСЃРЅРѕРІРЅРѕРµ',
     items: [
       {
         id: 'dashboard',
         path: '/dashboard',
-        label: 'Дашборд',
+        label: 'Р”Р°С€Р±РѕСЂРґ',
         icon: LayoutDashboard,
         roles: ['admin', 'dispatcher'],
       },
       {
         id: 'my-tasks',
         path: '/my-tasks',
-        label: 'Мои заявки',
+        label: 'РњРѕРё Р·Р°СЏРІРєРё',
         icon: ClipboardList,
         roles: ['worker'],
       },
       {
         id: 'tasks',
         path: '/tasks',
-        label: 'Все заявки',
+        label: 'Р’СЃРµ Р·Р°СЏРІРєРё',
         icon: ClipboardList,
         roles: ['admin', 'dispatcher'],
       },
       {
         id: 'map',
         path: '/map',
-        label: 'Карта',
+        label: 'РљР°СЂС‚Р°',
         icon: Map,
         roles: ['admin', 'dispatcher', 'worker'],
       },
       {
         id: 'calendar',
         path: '/calendar',
-        label: 'Календарь',
+        label: 'РљР°Р»РµРЅРґР°СЂСЊ',
         icon: Calendar,
         roles: ['admin', 'dispatcher', 'worker'],
       },
       {
         id: 'chat',
         path: '/chat',
-        label: 'Чат',
+        label: 'Р§Р°С‚',
         icon: MessageSquare,
         roles: ['admin', 'dispatcher', 'worker'],
       },
@@ -93,26 +93,26 @@ export const menuConfig: MenuSection[] = [
   },
   {
     id: 'management',
-    title: 'Управление',
+    title: 'РЈРїСЂР°РІР»РµРЅРёРµ',
     items: [
       {
         id: 'addresses',
         path: '/addresses',
-        label: 'Адреса',
+        label: 'РђРґСЂРµСЃР°',
         icon: MapPin,
         roles: ['admin', 'dispatcher'],
       },
       {
         id: 'users',
         path: '/users',
-        label: 'Пользователи',
+        label: 'РџРѕР»СЊР·РѕРІР°С‚РµР»Рё',
         icon: Users,
         roles: ['admin'],
       },
       {
         id: 'finance',
         path: '/finance',
-        label: 'Финансы',
+        label: 'Р¤РёРЅР°РЅСЃС‹',
         icon: DollarSign,
         roles: ['admin'],
       },
@@ -120,7 +120,7 @@ export const menuConfig: MenuSection[] = [
       {
         id: 'reports',
         path: '/reports',
-        label: 'Отчёты',
+        label: 'РћС‚С‡С‘С‚С‹',
         icon: BarChart3,
         roles: ['admin', 'dispatcher'],
       },
@@ -135,26 +135,26 @@ export const menuConfig: MenuSection[] = [
   },
   {
     id: 'personal',
-    title: 'Личное',
+    title: 'Р›РёС‡РЅРѕРµ',
     items: [
       {
         id: 'profile',
         path: '/profile',
-        label: 'Профиль',
+        label: 'РџСЂРѕС„РёР»СЊ',
         icon: UserCircle,
         roles: ['admin', 'dispatcher', 'worker'],
       },
       {
         id: 'notifications',
         path: '/notifications',
-        label: 'Уведомления',
+        label: 'РЈРІРµРґРѕРјР»РµРЅРёСЏ',
         icon: Bell,
         roles: ['admin', 'dispatcher', 'worker'],
       },
       {
         id: 'settings',
         path: '/settings',
-        label: 'Настройки',
+        label: 'РќР°СЃС‚СЂРѕР№РєРё',
         icon: Settings,
         roles: ['admin', 'dispatcher', 'worker'],
       },
@@ -162,19 +162,19 @@ export const menuConfig: MenuSection[] = [
   },
   {
     id: 'admin',
-    title: 'Администрирование',
+    title: 'РђРґРјРёРЅРёСЃС‚СЂРёСЂРѕРІР°РЅРёРµ',
     items: [
       {
         id: 'admin-settings',
         path: '/admin/settings',
-        label: 'Система',
+        label: 'РЎРёСЃС‚РµРјР°',
         icon: Settings,
         roles: ['admin'],
       },
       {
         id: 'admin-organizations',
         path: '/admin/organizations',
-        label: 'Организации',
+        label: 'РћСЂРіР°РЅРёР·Р°С†РёРё',
         icon: Building2,
         roles: ['admin'],
       },
@@ -183,15 +183,15 @@ export const menuConfig: MenuSection[] = [
 ]
 
 /**
- * Фильтрация меню по роли пользователя
+ * Р¤РёР»СЊС‚СЂР°С†РёСЏ РјРµРЅСЋ РїРѕ СЂРѕР»Рё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
  * 
- * @param role Роль пользователя
- * @param organizationId ID организации (если есть — org-admin, скрываем "Организации")
+ * @param role Р РѕР»СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
+ * @param organizationId ID РѕСЂРіР°РЅРёР·Р°С†РёРё (РµСЃР»Рё РµСЃС‚СЊ вЂ” org-admin, СЃРєСЂС‹РІР°РµРј "РћСЂРіР°РЅРёР·Р°С†РёРё")
  */
 /**
- * Пункты меню, скрытые для org-admin (admin с organizationId).
- * Org-admin управляет только своей организацией, не имеет доступа
- * к системным настройкам и управлению организациями.
+ * РџСѓРЅРєС‚С‹ РјРµРЅСЋ, СЃРєСЂС‹С‚С‹Рµ РґР»СЏ org-admin (admin СЃ organizationId).
+ * Org-admin СѓРїСЂР°РІР»СЏРµС‚ С‚РѕР»СЊРєРѕ СЃРІРѕРµР№ РѕСЂРіР°РЅРёР·Р°С†РёРµР№, РЅРµ РёРјРµРµС‚ РґРѕСЃС‚СѓРїР°
+ * Рє СЃРёСЃС‚РµРјРЅС‹Рј РЅР°СЃС‚СЂРѕР№РєР°Рј Рё СѓРїСЂР°РІР»РµРЅРёСЋ РѕСЂРіР°РЅРёР·Р°С†РёСЏРјРё.
  */
 const HIDDEN_FOR_ORG_ADMIN = new Set([
   'admin-organizations',
@@ -211,7 +211,7 @@ export function getMenuForRole(role: UserRole, organizationId?: number | null): 
       ...section,
       items: section.items.filter((item) => {
         if (!item.roles.includes(role)) return false
-        // Org-admin (admin с organizationId) — скрываем системные разделы
+        // Org-admin (admin СЃ organizationId) вЂ” СЃРєСЂС‹РІР°РµРј СЃРёСЃС‚РµРјРЅС‹Рµ СЂР°Р·РґРµР»С‹
         if (orgAdmin && HIDDEN_FOR_ORG_ADMIN.has(item.id)) return false
         return true
       }),
@@ -220,7 +220,7 @@ export function getMenuForRole(role: UserRole, organizationId?: number | null): 
 }
 
 /**
- * Получить домашнюю страницу для роли
+ * РџРѕР»СѓС‡РёС‚СЊ РґРѕРјР°С€РЅСЋСЋ СЃС‚СЂР°РЅРёС†Сѓ РґР»СЏ СЂРѕР»Рё
  */
 export function getHomePathForRole(role: UserRole): string {
   switch (role) {
@@ -235,7 +235,7 @@ export function getHomePathForRole(role: UserRole): string {
 }
 
 /**
- * Проверка доступа к пути
+ * РџСЂРѕРІРµСЂРєР° РґРѕСЃС‚СѓРїР° Рє РїСѓС‚Рё
  */
 export function canAccessPath(path: string, role: UserRole, organizationId?: number | null): boolean {
   const allItems = menuConfig.flatMap((section) => section.items)

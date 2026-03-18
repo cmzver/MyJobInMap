@@ -6,6 +6,7 @@ from typing import Dict, Set
 from app.models.enums import TaskStatus
 
 
+<<<<<<< HEAD
 def _get_transitions_path() -> Path:
     """Resolve the shared transitions definition in both local and container setups."""
     current_path = Path(__file__).resolve()
@@ -27,6 +28,11 @@ def _get_transitions_path() -> Path:
 def _load_valid_transitions() -> Dict[str, Set[str]]:
     """Load status transitions from the shared JSON definition."""
     transitions_path = _get_transitions_path()
+=======
+def _load_valid_transitions() -> Dict[str, Set[str]]:
+    """Load status transitions from the shared JSON definition."""
+    transitions_path = Path(__file__).resolve().parents[3] / "portal" / "src" / "config" / "taskStatusTransitions.json"
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
     with transitions_path.open("r", encoding="utf-8") as file:
         raw_transitions = json.load(file)
 

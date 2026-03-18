@@ -105,6 +105,7 @@ MyJobInMap/
 | POST | `/api/admin/backups/{filename}/restore` | **Восстановить из бэкапа** |
 | DELETE | `/api/admin/backups/{filename}` | Удалить бэкап |
 | GET/PATCH | `/api/admin/backups/settings` | Настройки бэкапов |
+<<<<<<< HEAD
 
 ### Чат (Chat)
 | Метод | Endpoint | Описание |
@@ -126,6 +127,8 @@ MyJobInMap/
 | POST | `/api/chat/messages/{id}/reactions` | Toggle реакции (emoji) |
 | POST | `/api/chat/conversations/{id}/read` | Пометить прочитанным (read receipt) |
 | GET | `/api/chat/task/{task_id}` | Получить/создать чат заявки |
+=======
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 
 ### Отчёты и Аналитика
 | Метод | Endpoint | Описание |
@@ -197,7 +200,11 @@ MyJobInMap/
 
 ### Сервер
 - ⚠️ **Порт 8001** (не 8000)
+<<<<<<< HEAD
 - ⚠️ **Версия** в `app/config.py` → `API_VERSION = "2.15.0"`
+=======
+- ⚠️ **Версия** в `app/config.py` → `API_VERSION = "2.14.2"`
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 - ⚠️ **REST стандарт**: PATCH для частичных обновлений, PUT для полных замен
 - ⚠️ **Rate Limiting** на `/api/auth/login` (5 попыток / 60 сек на IP)
 - ⚠️ **Пагинация**: `/api/tasks` возвращает `{ items: [], total, page, size }`
@@ -221,7 +228,11 @@ CANCELLED → терминальный статус
 ### Android
 - ⚠️ **Эмулятор** подключается через `10.0.2.2:8001`
 - ⚠️ **URL фото** через `getFullServerUrl()` (с портом)
+<<<<<<< HEAD
 - ⚠️ **Версия Android-приложения** в `app/build.gradle.kts` → `versionCode = 21500`, `versionName = "2.15.0"`
+=======
+- ⚠️ **Версия Android-приложения** в `app/build.gradle.kts` → `versionCode = 21402`, `versionName = "2.14.2"`
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 
 ---
 
@@ -308,6 +319,10 @@ npm run build            # Сборка в dist/
 
 ---
 
+<<<<<<< HEAD
 **Версия:** 2.15.0 (Phase 11 — Многофункциональный чат: Backend + Portal + Android)
+=======
+**Версия:** 2.14.2 (Phase 10.2 — Статусы, Android filters и компактный список)
+>>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 **Статус:** ✅ Production Ready  
 **Последнее обновление:** 12 марта 2026
