@@ -486,6 +486,20 @@ def get_or_create_task_conversation(
     db: Session, task_id: int, user_id: int, organization_id: Optional[int],
 ) -> ConversationModel:
     """Получить или создать чат заявки."""
+    # Validate task exists
+    from app.models.task import TaskModel
+    task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Validate organization_id matches task's organization if provided
+    if organization_id is not None and task.organization_id != organization_id:
+        raise HTTPException(status_code=400, detail="Organization ID does not match task's organization")
+    
+    # Use task's organization_id if not provided
+    if organization_id is None:
+        organization_id = task.organization_id
+    
     existing = db.query(ConversationModel).filter(
         ConversationModel.type == ConversationType.TASK.value,
         ConversationModel.task_id == task_id,

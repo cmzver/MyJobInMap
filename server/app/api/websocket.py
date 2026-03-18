@@ -96,6 +96,8 @@ async def websocket_endpoint(
                 if conv_id:
                     db = SessionLocal()
                     try:
+                        from app.services.chat_service import _ensure_membership
+                        _ensure_membership(db, conv_id, user_id)
                         from app.models.chat import ConversationMemberModel
                         members = db.query(ConversationMemberModel.user_id).filter(
                             ConversationMemberModel.conversation_id == conv_id,
