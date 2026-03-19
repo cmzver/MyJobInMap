@@ -96,11 +96,7 @@ class Settings(BaseSettings):
     LOG_FORMAT: str = Field(default="text", description="Формат логов (text/json)")
     
     # === API Метаданные ===
-<<<<<<< HEAD
     API_VERSION: str = Field(default="2.15.0", description="Версия API")
-=======
-    API_VERSION: str = Field(default="2.14.2", description="Версия API")
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
     API_TITLE: str = Field(default="FieldWorker API", description="Название API")
     API_DESCRIPTION: str = Field(
         default="REST API для управления заявками выездных сотрудников",

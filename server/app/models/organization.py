@@ -37,7 +37,4 @@ class OrganizationModel(Base):
     users = relationship("UserModel", back_populates="organization")
     tasks = relationship("TaskModel", back_populates="organization")
     addresses = relationship("AddressModel", back_populates="organization")
-<<<<<<< HEAD
     conversations = relationship("ConversationModel", back_populates="organization")
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91

@@ -1,7 +1,7 @@
 """
-Pydantic схемы для работы с адресами и связанными сущностями.
+Pydantic ����� ��� ������ � �������� � ���������� ����������.
 
-Включает: адрес, системы, оборудование, документы, контакты, история.
+��������: �����, �������, ������������, ���������, ��������, �������.
 """
 from datetime import datetime
 from typing import Optional, List
@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 
 # ============================================
-# Enums (для валидации)
+# Enums (��� ���������)
 # ============================================
 
 SYSTEM_TYPES = ["video_surveillance", "intercom", "fire_protection", "access_control", "fire_alarm", "other"]
@@ -26,19 +26,19 @@ CONTACT_TYPES = ["chairman", "elder", "management", "concierge", "other"]
 # ============================================
 
 class AddressBase(BaseModel):
-    """Базовые поля адреса"""
-    address: str = Field(..., min_length=1, max_length=500, json_schema_extra={"example": "СПб, Невский пр., 1"})
-    city: Optional[str] = Field(None, max_length=100, json_schema_extra={"example": "Санкт-Петербург"})
-    street: Optional[str] = Field(None, max_length=200, json_schema_extra={"example": "Невский проспект"})
+    """������� ���� ������"""
+    address: str = Field(..., min_length=1, max_length=500, json_schema_extra={"example": "���, ������� ��., 1"})
+    city: Optional[str] = Field(None, max_length=100, json_schema_extra={"example": "�����-���������"})
+    street: Optional[str] = Field(None, max_length=200, json_schema_extra={"example": "������� ��������"})
     building: Optional[str] = Field(None, max_length=50, json_schema_extra={"example": "1"})
     corpus: Optional[str] = Field(None, max_length=20, json_schema_extra={"example": "2"})
     entrance: Optional[str] = Field(None, max_length=10, json_schema_extra={"example": "3"})
     
-    # Координаты
+    # ����������
     lat: Optional[float] = Field(None, json_schema_extra={"example": 59.9343})
     lon: Optional[float] = Field(None, json_schema_extra={"example": 30.3351})
     
-    # Информация о здании
+    # ���������� � ������
     entrance_count: Optional[int] = Field(1, ge=1, le=50, json_schema_extra={"example": 4})
     floor_count: Optional[int] = Field(1, ge=1, le=100, json_schema_extra={"example": 9})
     apartment_count: Optional[int] = Field(None, ge=1, json_schema_extra={"example": 36})
@@ -46,22 +46,22 @@ class AddressBase(BaseModel):
     has_intercom: Optional[bool] = Field(False, json_schema_extra={"example": True})
     intercom_code: Optional[str] = Field(None, max_length=50, json_schema_extra={"example": "123#4567"})
     
-    # Контактная информация
-    management_company: Optional[str] = Field(None, max_length=200, json_schema_extra={"example": "ООО УК Дом"})
+    # ���������� ����������
+    management_company: Optional[str] = Field(None, max_length=200, json_schema_extra={"example": "��� �� ���"})
     management_phone: Optional[str] = Field(None, max_length=50, json_schema_extra={"example": "+7 (812) 123-45-67"})
     
-    # Дополнительно
-    notes: Optional[str] = Field(None, max_length=2000, json_schema_extra={"example": "Вход со двора"})
-    extra_info: Optional[str] = Field(None, max_length=5000, json_schema_extra={"example": "Доп. информация об объекте"})
+    # �������������
+    notes: Optional[str] = Field(None, max_length=2000, json_schema_extra={"example": "���� �� �����"})
+    extra_info: Optional[str] = Field(None, max_length=5000, json_schema_extra={"example": "���. ���������� �� �������"})
 
 
 class AddressCreate(AddressBase):
-    """Создание нового адреса"""
+    """�������� ������ ������"""
     pass
 
 
 class AddressUpdate(BaseModel):
-    """Обновление адреса (все поля опциональны)"""
+    """���������� ������ (��� ���� �����������)"""
     address: Optional[str] = Field(None, min_length=1, max_length=500)
     city: Optional[str] = Field(None, max_length=100)
     street: Optional[str] = Field(None, max_length=200)
@@ -88,7 +88,7 @@ class AddressUpdate(BaseModel):
 
 
 class AddressResponse(BaseModel):
-    """Ответ с данными адреса"""
+    """����� � ������� ������"""
     model_config = ConfigDict(from_attributes=True)
     
     id: int
@@ -121,7 +121,7 @@ class AddressResponse(BaseModel):
 
 
 class AddressListResponse(BaseModel):
-    """Список адресов с пагинацией"""
+    """������ ������� � ����������"""
     items: List[AddressResponse]
     total: int
     page: int
@@ -130,7 +130,7 @@ class AddressListResponse(BaseModel):
 
 
 class AddressSearchResponse(BaseModel):
-    """Упрощённый ответ для автокомплита"""
+    """���������� ����� ��� ������������"""
     model_config = ConfigDict(from_attributes=True)
     
     id: int
@@ -144,12 +144,12 @@ class AddressSearchResponse(BaseModel):
 
 
 class AddressParseRequest(BaseModel):
-    """Запрос на парсинг адреса"""
+    """������ �� ������� ������"""
     address: str
 
 
 class AddressParseResponse(BaseModel):
-    """Результат парсинга адреса"""
+    """��������� �������� ������"""
     city: Optional[str] = None
     street: Optional[str] = None
     building: Optional[str] = None
@@ -158,7 +158,7 @@ class AddressParseResponse(BaseModel):
 
 
 class AddressComposeRequest(BaseModel):
-    """Запрос на сборку адреса"""
+    """������ �� ������ ������"""
     city: Optional[str] = None
     street: Optional[str] = None
     building: Optional[str] = None
@@ -167,7 +167,7 @@ class AddressComposeRequest(BaseModel):
 
 
 class AddressComposeResponse(BaseModel):
-    """Результат сборки адреса"""
+    """��������� ������ ������"""
     address: str
 
 
@@ -176,10 +176,10 @@ class AddressComposeResponse(BaseModel):
 # ============================================
 
 class AddressSystemBase(BaseModel):
-    """Базовые поля системы"""
-    system_type: str = Field(..., description="Тип системы")
+    """������� ���� �������"""
+    system_type: str = Field(..., description="��� �������")
     name: str = Field(..., min_length=1, max_length=200)
-    status: str = Field(default="active", description="Статус системы")
+    status: str = Field(default="active", description="������ �������")
     contract_number: Optional[str] = Field(None, max_length=100)
     service_start_date: Optional[datetime] = None
     service_end_date: Optional[datetime] = None
@@ -188,12 +188,12 @@ class AddressSystemBase(BaseModel):
 
 
 class AddressSystemCreate(AddressSystemBase):
-    """Создание системы"""
+    """�������� �������"""
     pass
 
 
 class AddressSystemUpdate(BaseModel):
-    """Обновление системы"""
+    """���������� �������"""
     system_type: Optional[str] = None
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     status: Optional[str] = None
@@ -205,7 +205,7 @@ class AddressSystemUpdate(BaseModel):
 
 
 class AddressSystemResponse(AddressSystemBase):
-    """Ответ с системой"""
+    """����� � ��������"""
     model_config = ConfigDict(from_attributes=True)
     
     id: int
@@ -219,27 +219,27 @@ class AddressSystemResponse(AddressSystemBase):
 # ============================================
 
 class AddressEquipmentBase(BaseModel):
-    """Базовые поля оборудования"""
-    equipment_type: str = Field(..., description="Тип оборудования")
+    """������� ���� ������������"""
+    equipment_type: str = Field(..., description="��� ������������")
     name: str = Field(..., min_length=1, max_length=200)
     model: Optional[str] = Field(None, max_length=100)
     serial_number: Optional[str] = Field(None, max_length=100)
-    quantity: int = Field(default=1, ge=1, description="Количество")
+    quantity: int = Field(default=1, ge=1, description="����������")
     location: Optional[str] = Field(None, max_length=200)
     install_date: Optional[datetime] = None
     warranty_until: Optional[datetime] = None
-    status: str = Field(default="working", description="Статус")
+    status: str = Field(default="working", description="������")
     notes: Optional[str] = None
-    system_id: Optional[int] = Field(None, description="ID связанной системы")
+    system_id: Optional[int] = Field(None, description="ID ��������� �������")
 
 
 class AddressEquipmentCreate(AddressEquipmentBase):
-    """Создание оборудования"""
+    """�������� ������������"""
     pass
 
 
 class AddressEquipmentUpdate(BaseModel):
-    """Обновление оборудования"""
+    """���������� ������������"""
     equipment_type: Optional[str] = None
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     model: Optional[str] = Field(None, max_length=100)
@@ -254,7 +254,7 @@ class AddressEquipmentUpdate(BaseModel):
 
 
 class AddressEquipmentResponse(AddressEquipmentBase):
-    """Ответ с оборудованием"""
+    """����� � �������������"""
     model_config = ConfigDict(from_attributes=True)
     
     id: int
@@ -268,21 +268,21 @@ class AddressEquipmentResponse(AddressEquipmentBase):
 # ============================================
 
 class AddressDocumentBase(BaseModel):
-    """Базовые поля документа"""
+    """������� ���� ���������"""
     name: str = Field(..., min_length=1, max_length=300)
-    doc_type: str = Field(default="other", description="Тип документа")
+    doc_type: str = Field(default="other", description="��� ���������")
     valid_from: Optional[datetime] = None
     valid_until: Optional[datetime] = None
     notes: Optional[str] = None
 
 
 class AddressDocumentCreate(AddressDocumentBase):
-    """Создание документа (без файла, файл загружается отдельно)"""
+    """�������� ��������� (��� �����, ���� ����������� ��������)"""
     pass
 
 
 class AddressDocumentUpdate(BaseModel):
-    """Обновление документа"""
+    """���������� ���������"""
     name: Optional[str] = Field(None, min_length=1, max_length=300)
     doc_type: Optional[str] = None
     valid_from: Optional[datetime] = None
@@ -291,7 +291,7 @@ class AddressDocumentUpdate(BaseModel):
 
 
 class AddressDocumentResponse(BaseModel):
-    """Ответ с документом"""
+    """����� � ����������"""
     model_config = ConfigDict(from_attributes=True)
     
     id: int
@@ -306,7 +306,7 @@ class AddressDocumentResponse(BaseModel):
     notes: Optional[str] = None
     created_at: datetime
     created_by_id: Optional[int] = None
-    created_by_name: Optional[str] = None  # Добавляется в API
+    created_by_name: Optional[str] = None  # ����������� � API
 
 
 # ============================================
@@ -314,23 +314,23 @@ class AddressDocumentResponse(BaseModel):
 # ============================================
 
 class AddressContactBase(BaseModel):
-    """Базовые поля контакта"""
-    contact_type: str = Field(default="other", description="Тип контакта")
+    """������� ���� ��������"""
+    contact_type: str = Field(default="other", description="��� ��������")
     name: str = Field(..., min_length=1, max_length=200)
-    position: Optional[str] = Field(None, max_length=200, description="Должность")
+    position: Optional[str] = Field(None, max_length=200, description="���������")
     phone: Optional[str] = Field(None, max_length=50)
     email: Optional[str] = Field(None, max_length=200)
     notes: Optional[str] = None
-    is_primary: bool = Field(default=False, description="Основной контакт")
+    is_primary: bool = Field(default=False, description="�������� �������")
 
 
 class AddressContactCreate(AddressContactBase):
-    """Создание контакта"""
+    """�������� ��������"""
     pass
 
 
 class AddressContactUpdate(BaseModel):
-    """Обновление контакта"""
+    """���������� ��������"""
     contact_type: Optional[str] = None
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     position: Optional[str] = Field(None, max_length=200)
@@ -341,7 +341,7 @@ class AddressContactUpdate(BaseModel):
 
 
 class AddressContactResponse(AddressContactBase):
-    """Ответ с контактом"""
+    """����� � ���������"""
     model_config = ConfigDict(from_attributes=True)
     
     id: int
@@ -355,7 +355,7 @@ class AddressContactResponse(AddressContactBase):
 # ============================================
 
 class AddressHistoryResponse(BaseModel):
-    """Ответ с записью истории"""
+    """����� � ������� �������"""
     model_config = ConfigDict(from_attributes=True)
     
     id: int
@@ -363,7 +363,7 @@ class AddressHistoryResponse(BaseModel):
     event_type: str
     description: str
     user_id: Optional[int] = None
-    user_name: Optional[str] = None  # Добавляется в API
+    user_name: Optional[str] = None  # ����������� � API
     created_at: datetime
 
 
@@ -372,7 +372,7 @@ class AddressHistoryResponse(BaseModel):
 # ============================================
 
 class TaskStats(BaseModel):
-    """Статистика заявок по адресу"""
+    """���������� ������ �� ������"""
     total: int = 0
     new: int = 0
     in_progress: int = 0
@@ -381,10 +381,10 @@ class TaskStats(BaseModel):
 
 
 class AddressFullResponse(BaseModel):
-    """Полная карточка объекта"""
+    """������ �������� �������"""
     model_config = ConfigDict(from_attributes=True)
     
-    # Базовые поля адреса
+    # ������� ���� ������
     id: int
     address: str
     city: Optional[str] = None
@@ -408,7 +408,7 @@ class AddressFullResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     
-    # Связанные данные
+    # ��������� ������
     systems: List[AddressSystemResponse] = []
     equipment: List[AddressEquipmentResponse] = []
     documents: List[AddressDocumentResponse] = []

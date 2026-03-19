@@ -1,7 +1,7 @@
 """
 Services Package
 ================
-Экспорт сервисов.
+Р­РєСЃРїРѕСЂС‚ СЃРµСЂРІРёСЃРѕРІ.
 """
 
 from app.services.geocoding import geocoding_service, GeocodingService
@@ -46,10 +46,7 @@ from app.services.notification_service import (
     create_task_status_notification,
     create_task_assignment_notification
 )
-<<<<<<< HEAD
 from app.services import chat_service
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 from app.services.audit_log import audit_log
 
 __all__ = [
@@ -97,11 +94,8 @@ __all__ = [
     "create_notification",
     "create_task_status_notification",
     "create_task_assignment_notification",
-<<<<<<< HEAD
     # Chat
     "chat_service",
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
     # Audit
     "audit_log",
 ]

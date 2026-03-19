@@ -1,10 +1,6 @@
 # FieldWorker - AI Agent Guidelines
 
-<<<<<<< HEAD
 > **Версия:** 2.15.0 | **Обновлено:** 17 марта 2026
-=======
-> **Версия:** 2.14.2 | **Обновлено:** 16 марта 2026
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 
 ## Project Overview
 
@@ -111,7 +107,6 @@ MyJobInMap/
 | POST | `/api/admin/organizations/assign-user` | Assign user to org |
 | POST | `/api/admin/organizations/{id}/unassign-user` | Remove user from org |
 | GET | `/api/admin/organizations/{id}/users` | List org users |
-<<<<<<< HEAD
 
 ### Chat
 | Method | Endpoint | Description |
@@ -133,52 +128,6 @@ MyJobInMap/
 | POST | `/api/chat/messages/{id}/reactions` | Toggle reaction (emoji) |
 | POST | `/api/chat/conversations/{id}/read` | Mark as read (read receipt) |
 | GET | `/api/chat/task/{task_id}` | Get/create task conversation (shortcut) |
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
-
-### Reports & Analytics
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/reports` | Analytics (periods: today, week, month, year, custom) |
-| GET | `/api/reports/export` | Export CSV |
-
-### Other
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/dashboard/stats` | Dashboard statistics |
-| GET | `/api/finance/summary` | Finance summary |
-| GET | `/api/devices` | List devices |
-| POST | `/api/devices` | Register FCM token |
-| GET | `/api/devices/info` | Device info |
-| GET | `/api/updates/check` | Проверка наличия новой APK версии |
-| GET | `/api/updates/download` | Скачать последнюю APK версию |
-| GET | `/health` | Server health + version |
-| GET | `/api/info` | Server info |
-
-### Web UI
-| URL | Description |
-|-----|-------------|
-| `/portal/` | React Portal (SPA with fallback) |
-| `/admin/` | Old Bootstrap admin panel |
-| `/workspace/` | Worker/dispatcher workspace |
-
----
-
-## 🗃️ Server Architecture
-
-### Models (`app/models/`)
-| File | Models |
-|------|--------|
-| `user.py` | UserModel, DeviceModel |
-| `task.py` | TaskModel, CommentModel, TaskPhotoModel |
-| `address.py` | AddressModel, AddressSystemModel, AddressEquipmentModel, AddressDocumentModel, AddressContactModel, AddressHistoryModel + enums |
-| `notification.py` | NotificationModel |
-| `settings.py` | SystemSettingModel, CustomFieldModel, CustomFieldValueModel, RolePermissionModel + helper functions |
-| `organization.py` | OrganizationModel (name, slug, limits, is_active) |
-<<<<<<< HEAD
-| `chat.py` | ConversationModel, ConversationMemberModel, MessageModel, MessageAttachmentModel, MessageReactionModel, MessageMentionModel + enums (ConversationType, ConversationMemberRole, MessageType) |
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 | `enums.py` | TaskStatus, TaskPriority, UserRole |
 
 ### Services (`app/services/`)
@@ -199,36 +148,7 @@ MyJobInMap/
 | `excel_export.py` | Экспорт заявок в Excel (openpyxl, 2 листа) |
 | `tenant_service.py` | CRUD для организаций (create, update, deactivate, assign_user) |
 | `tenant_filter.py` | Multi-tenant изоляция данных (apply/check_access/enforce_access) |
-<<<<<<< HEAD
 | `chat_service.py` | Чат: CRUD разговоров, сообщения, реакции, read receipts, @mentions, поиск |
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
-
-### API Routers (`app/api/`)
-| File | Prefix | Purpose |
-|------|--------|---------|
-| `auth.py` | `/api/auth` | Login, me |
-| `tasks.py` | `/api/tasks` | Tasks CRUD + comments |
-| `photos.py` | `/api/photos` | Photo upload/download |
-| `admin.py` | `/api/admin` | Tasks, Devices, Custom Fields, Permissions |
-| `admin_users.py` | `/api/admin` | User CRUD, worker list, user stats |
-| `admin_backups.py` | `/api/admin` | Backups, DB management (seed, vacuum, optimize) |
-| `reports.py` | `/api/reports` | Analytics |
-| `dashboard.py` | `/api/dashboard` | Dashboard stats |
-| `finance.py` | `/api/finance` | Finance summary |
-| `devices.py` | `/api/devices` | FCM tokens |
-| `notifications.py` | `/api/notifications` | Push notifications |
-| `addresses.py` | `/api/addresses` | Address CRUD + autocomplete |
-| `address_extended.py` | `/api/addresses/{id}/...` | Systems, equipment, documents, contacts, history |
-| `users.py` | `/api/users` | User management |
-| `system_settings.py` | `/api/system-settings` | System settings |
-| `sla.py` | `/api/sla` | SLA метрики (overview, timing, by_priority, trends) |
-| `websocket.py` | `/ws` | WebSocket endpoint с JWT auth |
-| `updates.py` | `/api/updates` | Android APK updates (check, upload, download, history, delete) |
-<<<<<<< HEAD
-| `chat.py` | `/api/chat` | Chat: conversations, messages, reactions, read receipts, attachments |
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 
 ---
 
@@ -279,11 +199,7 @@ MyJobInMap/
 
 ### Server
 - ✅ **Port 8001** (not 8000)
-<<<<<<< HEAD
 - ✅ **Version** stored in `app/config.py` → `API_VERSION = "2.15.0"`
-=======
-- ✅ **Version** stored in `app/config.py` → `API_VERSION = "2.14.2"`
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 - ✅ **REST standard**: PATCH for partial updates, PUT for full replacements
 - ✅ **Rate Limiting** on `/api/auth/login` (5 attempts / 60 seconds per IP)
 - ✅ **Task Status Transitions** validated:
@@ -307,11 +223,7 @@ MyJobInMap/
 - ✅ **Photo URLs** must use `getFullServerUrl()` (includes port)
 - ✅ **network_security_config**: `cleartextTrafficPermitted="true"` for dev
 - ✅ **APK updates**: `versionName` и `versionCode` извлекаются сервером напрямую из `AndroidManifest.xml` внутри APK
-<<<<<<< HEAD
 - ✅ **App version**: `app/build.gradle.kts` → `versionCode = 21500`, `versionName = "2.15.0"`
-=======
-- ✅ **App version**: `app/build.gradle.kts` → `versionCode = 21402`, `versionName = "2.14.2"`
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 
 ---
 
@@ -393,13 +305,8 @@ npm run build            # Build to dist/
 ## 📝 File Locations
 
 ### Version
-<<<<<<< HEAD
 - `server/app/config.py` → `API_VERSION = "2.15.0"`
 - `app/build.gradle.kts` → `versionCode = 21500`, `versionName = "2.15.0"`
-=======
-- `server/app/config.py` → `API_VERSION = "2.14.2"`
-- `app/build.gradle.kts` → `versionCode = 21402`, `versionName = "2.14.2"`
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 
 ### Changelog
 - `CHANGELOG.md` — Full version history

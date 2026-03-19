@@ -1,7 +1,7 @@
 """
 Notification Schemas
 ====================
-Схемы для уведомлений.
+РЎС…РµРјС‹ РґР»СЏ СѓРІРµРґРѕРјР»РµРЅРёР№.
 """
 
 from datetime import datetime
@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class PushNotificationRequest(BaseModel):
-    """Запрос на отправку push"""
+    """Р—Р°РїСЂРѕСЃ РЅР° РѕС‚РїСЂР°РІРєСѓ push"""
     title: str
     body: str
     task_id: Optional[int] = None
@@ -19,7 +19,7 @@ class PushNotificationRequest(BaseModel):
 
 
 class NotificationBase(BaseModel):
-    """Базовая схема уведомления"""
+    """Р‘Р°Р·РѕРІР°СЏ СЃС…РµРјР° СѓРІРµРґРѕРјР»РµРЅРёСЏ"""
     title: str
     message: str
     type: str = "system"  # task, system, alert
@@ -27,12 +27,12 @@ class NotificationBase(BaseModel):
 
 
 class NotificationCreate(NotificationBase):
-    """Схема создания уведомления"""
+    """РЎС…РµРјР° СЃРѕР·РґР°РЅРёСЏ СѓРІРµРґРѕРјР»РµРЅРёСЏ"""
     user_id: int
 
 
 class NotificationResponse(NotificationBase):
-    """Схема ответа уведомления"""
+    """РЎС…РµРјР° РѕС‚РІРµС‚Р° СѓРІРµРґРѕРјР»РµРЅРёСЏ"""
     id: int
     is_read: bool
     created_at: datetime

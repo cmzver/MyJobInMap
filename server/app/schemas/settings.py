@@ -1,7 +1,7 @@
 """
 Settings Schemas
 ================
-Схемы для системных настроек, кастомных полей и прав доступа.
+РЎС…РµРјС‹ РґР»СЏ СЃРёСЃС‚РµРјРЅС‹С… РЅР°СЃС‚СЂРѕРµРє, РєР°СЃС‚РѕРјРЅС‹С… РїРѕР»РµР№ Рё РїСЂР°РІ РґРѕСЃС‚СѓРїР°.
 """
 
 from typing import Optional, List, Dict, Any, Union
@@ -72,7 +72,7 @@ class CustomFieldResponse(CustomFieldCreate):
 # --- Permissions ---
 
 class RolePermissionsResponse(BaseModel):
-    """Словарь {role: {permission: bool}}"""
+    """РЎР»РѕРІР°СЂСЊ {role: {permission: bool}}"""
     # Dynamic dict structure due to variable roles/perms
     admin: Dict[str, bool] = {}
     dispatcher: Dict[str, bool] = {}
@@ -96,12 +96,12 @@ class BackupListResponse(BaseModel):
 
 
 class BackupSettingsSchema(BaseModel):
-    """Настройки резервного копирования"""
+    """РќР°СЃС‚СЂРѕР№РєРё СЂРµР·РµСЂРІРЅРѕРіРѕ РєРѕРїРёСЂРѕРІР°РЅРёСЏ"""
     auto_backup: bool = True
     schedule: str = "daily"  # daily, weekly, manual
     retention_days: int = 30
 
 
 class BackupSettingsResponse(BackupSettingsSchema):
-    """Ответ с настройками бэкапа"""
+    """РћС‚РІРµС‚ СЃ РЅР°СЃС‚СЂРѕР№РєР°РјРё Р±СЌРєР°РїР°"""
     pass

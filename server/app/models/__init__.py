@@ -1,19 +1,19 @@
 """
 Models Package
 ==============
-Экспорт всех моделей.
+Р­РєСЃРїРѕСЂС‚ РІСЃРµС… РјРѕРґРµР»РµР№.
 
-Структура:
+РЎС‚СЂСѓРєС‚СѓСЂР°:
 - base.py: Base, engine, SessionLocal, get_db, init_db
 - enums.py: TaskStatus, TaskPriority, UserRole
 - user.py: UserModel, DeviceModel
 - task.py: TaskModel, CommentModel, TaskPhotoModel
-- address.py: AddressModel + все связанные (systems, equipment, documents, contacts, history)
+- address.py: AddressModel + РІСЃРµ СЃРІСЏР·Р°РЅРЅС‹Рµ (systems, equipment, documents, contacts, history)
 - notification.py: NotificationModel, NotificationType
 - settings.py: SystemSettingModel, CustomFieldModel, RolePermissionModel + helper functions
 """
 
-from app.models.base import Base, engine, SessionLocal, get_db, init_db
+from app.models.base import Base, engine, SessionLocal, get_db, init_db, run_migrations
 from app.models.enums import TaskStatus, TaskPriority, UserRole
 from app.models.user import UserModel, DeviceModel
 from app.models.task import TaskModel, CommentModel, TaskPhotoModel

@@ -1,7 +1,7 @@
 """
 Device Schemas
 ==============
-Схемы для устройств.
+РЎС…РµРјС‹ РґР»СЏ СѓСЃС‚СЂРѕР№СЃС‚РІ.
 """
 
 from datetime import datetime
@@ -10,13 +10,13 @@ from pydantic import BaseModel, ConfigDict
 
 
 class DeviceRegister(BaseModel):
-    """Регистрация устройства"""
+    """Р РµРіРёСЃС‚СЂР°С†РёСЏ СѓСЃС‚СЂРѕР№СЃС‚РІР°"""
     token: str
     device_name: Optional[str] = None
 
 
 class DeviceResponse(BaseModel):
-    """Ответ с данными устройства"""
+    """РћС‚РІРµС‚ СЃ РґР°РЅРЅС‹РјРё СѓСЃС‚СЂРѕР№СЃС‚РІР°"""
     model_config = ConfigDict(from_attributes=True)
     
     id: int

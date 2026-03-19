@@ -25,12 +25,9 @@ firebase-admin==7.1.0
 
 # PostgreSQL support
 psycopg2-binary==2.9.11
-<<<<<<< HEAD
 
 # Database migrations
 alembic==1.16.5
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 
 # System monitoring
 psutil==7.2.2

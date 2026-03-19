@@ -1,7 +1,7 @@
-﻿"""
+"""
 Admin Backups & Database API
 =============================
-Р­РЅРґРїРѕРёРЅС‚С‹ РґР»СЏ СѓРїСЂР°РІР»РµРЅРёСЏ Р±СЌРєР°РїР°РјРё, РёРЅСЃС‚СЂСѓРјРµРЅС‚Р°РјРё Р‘Р” Рё seed-РґР°РЅРЅС‹РјРё.
+Эндпоинты для управления бэкапами, инструментами БД и seed-данными.
 """
 
 import gzip
@@ -50,7 +50,7 @@ os.makedirs(BACKUP_DIR, exist_ok=True)
 # ============================================================================
 
 def _resolve_sqlite_db_path() -> str:
-    """РћРїСЂРµРґРµР»РёС‚СЊ Р°Р±СЃРѕР»СЋС‚РЅС‹Р№ РїСѓС‚СЊ Рє С„Р°Р№Р»Сѓ SQLite Р‘Р”."""
+    """Определить абсолютный путь к файлу SQLite БД."""
     db_url = settings.DATABASE_URL
     if not db_url.startswith("sqlite"):
         raise HTTPException(status_code=400, detail="Only supported for SQLite")
@@ -69,7 +69,7 @@ def _resolve_sqlite_db_path() -> str:
 
 
 def _validate_backup_filename(filename: str) -> None:
-    """Р’Р°Р»РёРґР°С†РёСЏ РёРјРµРЅРё С„Р°Р№Р»Р° Р±СЌРєР°РїР° (Р·Р°С‰РёС‚Р° РѕС‚ path traversal)."""
+    """Валидация имени файла бэкапа (защита от path traversal)."""
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
     if not filename.endswith(".sqlite.gz"):
@@ -80,7 +80,7 @@ def _validate_backup_filename(filename: str) -> None:
 async def list_backups(
     admin: UserModel = Depends(get_current_superadmin),
 ):
-    """РЎРїРёСЃРѕРє Р±СЌРєР°РїРѕРІ."""
+    """Список бэкапов."""
     backups = []
     if os.path.exists(BACKUP_DIR):
         for f in os.listdir(BACKUP_DIR):
@@ -101,7 +101,7 @@ async def list_backups(
 async def run_backup(
     admin: UserModel = Depends(get_current_superadmin),
 ):
-    """РЎРѕР·РґР°С‚СЊ Р±СЌРєР°Рї Р‘Р” (С‚РѕР»СЊРєРѕ SQLite)."""
+    """Создать бэкап БД (только SQLite)."""
     db_path = _resolve_sqlite_db_path()
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -125,7 +125,7 @@ async def get_backup_settings(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
 ):
-    """РџРѕР»СѓС‡РёС‚СЊ РЅР°СЃС‚СЂРѕР№РєРё СЂРµР·РµСЂРІРЅРѕРіРѕ РєРѕРїРёСЂРѕРІР°РЅРёСЏ."""
+    """Получить настройки резервного копирования."""
     auto_backup = get_setting(db, "backup_auto_enabled", "true")
     schedule = get_setting(db, "backup_schedule", "daily")
     retention = get_setting(db, "backup_retention_days", "30")
@@ -143,13 +143,13 @@ async def update_backup_settings(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
 ):
-    """РћР±РЅРѕРІРёС‚СЊ РЅР°СЃС‚СЂРѕР№РєРё СЂРµР·РµСЂРІРЅРѕРіРѕ РєРѕРїРёСЂРѕРІР°РЅРёСЏ."""
+    """Обновить настройки резервного копирования."""
     set_setting(db, "backup_auto_enabled", str(settings_data.auto_backup).lower(),
-                description="РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРѕРµ СЂРµР·РµСЂРІРЅРѕРµ РєРѕРїРёСЂРѕРІР°РЅРёРµ", group="backup")
+                description="Автоматическое резервное копирование", group="backup")
     set_setting(db, "backup_schedule", settings_data.schedule,
-                description="Р Р°СЃРїРёСЃР°РЅРёРµ Р±СЌРєР°РїРѕРІ (daily/weekly/manual)", group="backup")
+                description="Расписание бэкапов (daily/weekly/manual)", group="backup")
     set_setting(db, "backup_retention_days", str(settings_data.retention_days),
-                description="РЎСЂРѕРє С…СЂР°РЅРµРЅРёСЏ Р±СЌРєР°РїРѕРІ (РґРЅРµР№)", group="backup")
+                description="Срок хранения бэкапов (дней)", group="backup")
 
     return BackupSettingsResponse(
         auto_backup=settings_data.auto_backup,
@@ -165,7 +165,7 @@ async def download_backup(
     filename: str,
     admin: UserModel = Depends(get_current_superadmin),
 ):
-    """РЎРєР°С‡Р°С‚СЊ Р±СЌРєР°Рї."""
+    """Скачать бэкап."""
     _validate_backup_filename(filename)
     file_path = os.path.join(BACKUP_DIR, filename)
     if not os.path.exists(file_path):
@@ -179,7 +179,7 @@ async def delete_backup(
     filename: str,
     admin: UserModel = Depends(get_current_superadmin),
 ):
-    """РЈРґР°Р»РёС‚СЊ Р±СЌРєР°Рї."""
+    """Удалить бэкап."""
     _validate_backup_filename(filename)
     file_path = os.path.join(BACKUP_DIR, filename)
     if not os.path.exists(file_path):
@@ -199,14 +199,14 @@ async def restore_backup(
     admin: UserModel = Depends(get_current_superadmin),
 ):
     """
-    Р’РѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ Р‘Р” РёР· Р±СЌРєР°РїР°.
+    Восстановить БД из бэкапа.
 
-    РџСЂРѕС†РµСЃСЃ:
-    1. РЎРѕР·РґР°С‘С‚СЃСЏ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРёР№ Р±СЌРєР°Рї С‚РµРєСѓС‰РµРіРѕ СЃРѕСЃС‚РѕСЏРЅРёСЏ (pre_restore_*)
-    2. Р Р°СЃРїР°РєРѕРІС‹РІР°РµС‚СЃСЏ РІС‹Р±СЂР°РЅРЅС‹Р№ Р±СЌРєР°Рї
-    3. Р—Р°РјРµРЅСЏРµС‚СЃСЏ С‚РµРєСѓС‰Р°СЏ Р‘Р”
+    Процесс:
+    1. Создаётся автоматический бэкап текущего состояния (pre_restore_*)
+    2. Распаковывается выбранный бэкап
+    3. Заменяется текущая БД
 
-    Р’РђР–РќРћ: РџРѕСЃР»Рµ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ СЂРµРєРѕРјРµРЅРґСѓРµС‚СЃСЏ РїРµСЂРµР·Р°РїСѓСЃС‚РёС‚СЊ СЃРµСЂРІРµСЂ!
+    ВАЖНО: После восстановления рекомендуется перезапустить сервер!
     """
     _validate_backup_filename(filename)
     backup_path = os.path.join(BACKUP_DIR, filename)
@@ -216,7 +216,7 @@ async def restore_backup(
     db_path = _resolve_sqlite_db_path()
 
     try:
-        # 1. Р‘СЌРєР°Рї С‚РµРєСѓС‰РµРіРѕ СЃРѕСЃС‚РѕСЏРЅРёСЏ
+        # 1. Бэкап текущего состояния
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         pre_restore_filename = f"pre_restore_{timestamp}.sqlite.gz"
         pre_restore_path = os.path.join(BACKUP_DIR, pre_restore_filename)
@@ -225,13 +225,13 @@ async def restore_backup(
             with gzip.open(pre_restore_path, "wb") as f_out:
                 shutil.copyfileobj(f_in, f_out)
 
-        # 2. Р Р°СЃРїР°РєРѕРІРєР° РІРѕ РІСЂРµРјРµРЅРЅС‹Р№ С„Р°Р№Р»
+        # 2. Распаковка во временный файл
         temp_db_path = db_path + ".restore_temp"
         with gzip.open(backup_path, "rb") as f_in:
             with open(temp_db_path, "wb") as f_out:
                 shutil.copyfileobj(f_in, f_out)
 
-        # 3. Р’Р°Р»РёРґР°С†РёСЏ SQLite С„Р°Р№Р»Р°
+        # 3. Валидация SQLite файла
         try:
             conn = sqlite3.connect(temp_db_path)
             cursor = conn.cursor()
@@ -242,7 +242,7 @@ async def restore_backup(
             os.remove(temp_db_path)
             raise HTTPException(status_code=400, detail=f"Invalid SQLite file: {str(e)}")
 
-        # 4. Р—Р°РјРµРЅР° С‚РµРєСѓС‰РµР№ Р‘Р”
+        # 4. Замена текущей БД
         old_db_path = db_path + ".old"
         if os.path.exists(old_db_path):
             os.remove(old_db_path)
@@ -259,7 +259,7 @@ async def restore_backup(
             "status": "ok",
             "message": f"Database restored from {filename}",
             "pre_restore_backup": pre_restore_filename,
-            "warning": "Р РµРєРѕРјРµРЅРґСѓРµС‚СЃСЏ РїРµСЂРµР·Р°РїСѓСЃС‚РёС‚СЊ СЃРµСЂРІРµСЂ РґР»СЏ РїСЂРёРјРµРЅРµРЅРёСЏ РёР·РјРµРЅРµРЅРёР№",
+            "warning": "Рекомендуется перезапустить сервер для применения изменений",
         }
     except HTTPException:
         raise
@@ -279,13 +279,13 @@ async def seed_database(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
 ):
-    """Р”РѕР±Р°РІРёС‚СЊ С‚РµСЃС‚РѕРІС‹Рµ РґР°РЅРЅС‹Рµ РІ Р‘Р”."""
+    """Добавить тестовые данные в БД."""
     try:
         tasks_count = db.query(TaskModel).count()
         if tasks_count > 0:
             raise HTTPException(
                 status_code=400,
-                detail="Р’ Р±Р°Р·Рµ СѓР¶Рµ РµСЃС‚СЊ Р·Р°СЏРІРєРё. РЎРЅР°С‡Р°Р»Р° РѕС‡РёСЃС‚РёС‚Рµ Р‘Р”.",
+                detail="В базе уже есть заявки. Сначала очистите БД.",
             )
 
         from app.services import get_password_hash
@@ -312,7 +312,7 @@ async def seed_database(
             worker1 = UserModel(
                 username="worker1",
                 password_hash=get_password_hash("worker1"),
-                full_name="РРІР°РЅ РџРѕР»РµРІРѕР№",
+                full_name="Иван Полевой",
                 role=UserRole.WORKER.value,
                 is_active=True,
             )
@@ -326,7 +326,7 @@ async def seed_database(
             worker2 = UserModel(
                 username="worker2",
                 password_hash=get_password_hash("worker2"),
-                full_name="РђРЅРЅР° РЎРµСЂРІРёСЃРЅР°СЏ",
+                full_name="Анна Сервисная",
                 role=UserRole.WORKER.value,
                 is_active=True,
             )
@@ -339,9 +339,9 @@ async def seed_database(
         test_tasks = [
             TaskModel(
                 task_number="FW-0001",
-                title="РђРІР°СЂРёР№РЅР°СЏ РїСЂРѕС‚РµС‡РєР°",
-                raw_address="РЎРџР±, РќРµРІСЃРєРёР№ РїСЂРѕСЃРїРµРєС‚, 1",
-                description="РЎСЂРѕС‡РЅР°СЏ Р·Р°СЏРІРєР° РЅР° СѓСЃС‚СЂР°РЅРµРЅРёРµ РїСЂРѕС‚РµС‡РєРё РІ СЃР°РЅСѓР·Р»Рµ.",
+                title="Аварийная протечка",
+                raw_address="СПб, Невский проспект, 1",
+                description="Срочная заявка на устранение протечки в санузле.",
                 lat=59.935, lon=30.325,
                 status="NEW", priority=TaskPriority.EMERGENCY.value,
                 assigned_user_id=worker1.id,
@@ -350,9 +350,9 @@ async def seed_database(
             ),
             TaskModel(
                 task_number="FW-0002",
-                title="РџСЂРѕРІРµСЂРєР° РѕС‚РѕРїР»РµРЅРёСЏ",
-                raw_address="РњРѕСЃРєРІР°, РљСЂР°СЃРЅР°СЏ РїР»РѕС‰Р°РґСЊ, 1",
-                description="РџР»Р°РЅРѕРІР°СЏ РїСЂРѕРІРµСЂРєР° СЃРёСЃС‚РµРјС‹ РѕС‚РѕРїР»РµРЅРёСЏ.",
+                title="Проверка отопления",
+                raw_address="Москва, Красная площадь, 1",
+                description="Плановая проверка системы отопления.",
                 lat=55.754, lon=37.620,
                 status="IN_PROGRESS", priority=TaskPriority.CURRENT.value,
                 assigned_user_id=worker2.id,
@@ -361,9 +361,9 @@ async def seed_database(
             ),
             TaskModel(
                 task_number="FW-0003",
-                title="РљРѕРЅСЃСѓР»СЊС‚Р°С†РёСЏ РїРѕ С‚РµР»РµС„РѕРЅСѓ",
-                raw_address="РЈРґР°Р»С‘РЅРЅРѕ",
-                description="РўРµС…РЅРёС‡РµСЃРєР°СЏ РєРѕРЅСЃСѓР»СЊС‚Р°С†РёСЏ РїРѕ РІРёРґРµРѕСЃРІСЏР·Рё.",
+                title="Консультация по телефону",
+                raw_address="Удалённо",
+                description="Техническая консультация по видеосвязи.",
                 lat=None, lon=None,
                 status="DONE", priority=TaskPriority.CURRENT.value,
                 assigned_user_id=worker1.id,
@@ -372,9 +372,9 @@ async def seed_database(
             ),
             TaskModel(
                 task_number="FW-0004",
-                title="Р РµРјРѕРЅС‚ РѕРєРЅР°",
-                raw_address="РљР°Р·Р°РЅСЊ, СѓР». Р›РµРЅРёРЅР°, 42",
-                description="Р—Р°РјРµРЅР° СЂР°Р·Р±РёС‚РѕРіРѕ СЃС‚РµРєР»РѕРїР°РєРµС‚Р°.",
+                title="Ремонт окна",
+                raw_address="Казань, ул. Ленина, 42",
+                description="Замена разбитого стеклопакета.",
                 lat=55.796, lon=49.108,
                 status="NEW", priority=TaskPriority.PLANNED.value,
                 assigned_user_id=None,
@@ -383,9 +383,9 @@ async def seed_database(
             ),
             TaskModel(
                 task_number="FW-0005",
-                title="Р—Р°РјРµРЅР° РґРІРµСЂРЅРѕРіРѕ Р·Р°РјРєР°",
-                raw_address="РЎРџР±, Р›РёРіРѕРІСЃРєРёР№ РїСЂРѕСЃРїРµРєС‚, 120",
-                description="РЈСЃС‚Р°РЅРѕРІРєР° РЅРѕРІРѕРіРѕ Р·Р°РјРєР° Рё Р»РёС‡РёРЅРєРё.",
+                title="Замена дверного замка",
+                raw_address="СПб, Лиговский проспект, 120",
+                description="Установка нового замка и личинки.",
                 lat=59.930, lon=30.340,
                 status="DONE", priority=TaskPriority.CURRENT.value,
                 assigned_user_id=worker2.id,
@@ -400,7 +400,7 @@ async def seed_database(
 
         return {
             "status": "ok",
-            "message": "РўРµСЃС‚РѕРІС‹Рµ РґР°РЅРЅС‹Рµ Р·Р°РіСЂСѓР¶РµРЅС‹ СѓСЃРїРµС€РЅРѕ",
+            "message": "Тестовые данные загружены успешно",
             "users_created": users_created,
             "tasks_created": len(test_tasks),
         }
@@ -408,7 +408,7 @@ async def seed_database(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё РґР°РЅРЅС‹С…: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Ошибка загрузки данных: {str(e)}")
 
 
 # ============================================================================
@@ -420,7 +420,7 @@ async def get_database_stats(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
 ):
-    """РџРѕР»СѓС‡РёС‚СЊ РґРµС‚Р°Р»СЊРЅСѓСЋ СЃС‚Р°С‚РёСЃС‚РёРєСѓ Р‘Р”."""
+    """Получить детальную статистику БД."""
     try:
         db_url = settings.DATABASE_URL
         db_path = None
@@ -502,7 +502,7 @@ async def check_database_integrity(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
 ):
-    """РџСЂРѕРІРµСЂРёС‚СЊ С†РµР»РѕСЃС‚РЅРѕСЃС‚СЊ Р‘Р” (PRAGMA integrity_check)."""
+    """Проверить целостность БД (PRAGMA integrity_check)."""
     try:
         if not settings.is_sqlite:
             raise HTTPException(status_code=400, detail="Integrity check only supported for SQLite")
@@ -514,7 +514,7 @@ async def check_database_integrity(
             "status": "ok" if is_ok else "error",
             "integrity": "passed" if is_ok else "failed",
             "details": [row[0] for row in result] if not is_ok else None,
-            "message": "Р‘Р°Р·Р° РґР°РЅРЅС‹С… РІ РїРѕСЂСЏРґРєРµ" if is_ok else "РћР±РЅР°СЂСѓР¶РµРЅС‹ РїСЂРѕР±Р»РµРјС‹ С†РµР»РѕСЃС‚РЅРѕСЃС‚Рё",
+            "message": "База данных в порядке" if is_ok else "Обнаружены проблемы целостности",
         }
     except HTTPException:
         raise
@@ -531,11 +531,11 @@ async def cleanup_old_data(
     admin: UserModel = Depends(get_current_superadmin),
 ):
     """
-    РЈРґР°Р»РёС‚СЊ СЃС‚Р°СЂС‹Рµ Р·Р°СЏРІРєРё (СЃС‚Р°СЂС€Рµ N РґРЅРµР№).
+    Удалить старые заявки (старше N дней).
 
-    - days: РєРѕР»РёС‡РµСЃС‚РІРѕ РґРЅРµР№ (РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ 90)
-    - include_done: СѓРґР°Р»СЏС‚СЊ РІС‹РїРѕР»РЅРµРЅРЅС‹Рµ Р·Р°СЏРІРєРё
-    - include_cancelled: СѓРґР°Р»СЏС‚СЊ РѕС‚РјРµРЅС‘РЅРЅС‹Рµ Р·Р°СЏРІРєРё
+    - days: количество дней (по умолчанию 90)
+    - include_done: удалять выполненные заявки
+    - include_cancelled: удалять отменённые заявки
     """
     try:
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
@@ -549,7 +549,7 @@ async def cleanup_old_data(
         if not statuses:
             return {
                 "status": "ok",
-                "message": "РќРµ РІС‹Р±СЂР°РЅС‹ СЃС‚Р°С‚СѓСЃС‹ РґР»СЏ СѓРґР°Р»РµРЅРёСЏ",
+                "message": "Не выбраны статусы для удаления",
                 "deleted_tasks": 0,
                 "deleted_comments": 0,
                 "deleted_photos": 0,
@@ -565,7 +565,7 @@ async def cleanup_old_data(
         if not task_ids:
             return {
                 "status": "ok",
-                "message": f"РќРµС‚ Р·Р°СЏРІРѕРє СЃС‚Р°СЂС€Рµ {days} РґРЅРµР№ РґР»СЏ СѓРґР°Р»РµРЅРёСЏ",
+                "message": f"Нет заявок старше {days} дней для удаления",
                 "deleted_tasks": 0,
                 "deleted_comments": 0,
                 "deleted_photos": 0,
@@ -598,7 +598,7 @@ async def cleanup_old_data(
 
         return {
             "status": "ok",
-            "message": f"РЈРґР°Р»РµРЅС‹ Р·Р°СЏРІРєРё СЃС‚Р°СЂС€Рµ {days} РґРЅРµР№",
+            "message": f"Удалены заявки старше {days} дней",
             "deleted_tasks": deleted_tasks,
             "deleted_comments": deleted_comments,
             "deleted_photos": deleted_photos,
@@ -612,14 +612,14 @@ async def cleanup_old_data(
 async def vacuum_database(
     admin: UserModel = Depends(get_current_superadmin),
 ):
-    """РћРїС‚РёРјРёР·РёСЂРѕРІР°С‚СЊ Р‘Р” (VACUUM). РСЃРїРѕР»СЊР·СѓРµС‚ РїСЂСЏРјРѕРµ sqlite3-РїРѕРґРєР»СЋС‡РµРЅРёРµ."""
+    """Оптимизировать БД (VACUUM). Использует прямое sqlite3-подключение."""
     if not settings.is_sqlite:
         raise HTTPException(status_code=400, detail="VACUUM only supported for SQLite")
 
     try:
         db_path = _resolve_sqlite_db_path()
-        # VACUUM РЅРµР»СЊР·СЏ РІС‹РїРѕР»РЅСЏС‚СЊ РІРЅСѓС‚СЂРё С‚СЂР°РЅР·Р°РєС†РёРё SQLAlchemy вЂ” РёСЃРїРѕР»СЊР·СѓРµРј
-        # raw sqlite3 connection СЃ isolation_level=None (autocommit).
+        # VACUUM нельзя выполнять внутри транзакции SQLAlchemy — используем
+        # raw sqlite3 connection с isolation_level=None (autocommit).
         conn = sqlite3.connect(db_path, isolation_level=None)
         conn.execute("VACUUM")
         conn.close()
@@ -634,16 +634,16 @@ async def optimize_database(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
 ):
-    """РћРїС‚РёРјРёР·РёСЂРѕРІР°С‚СЊ РёРЅРґРµРєСЃС‹ Р‘Р” (ANALYZE + VACUUM)."""
+    """Оптимизировать индексы БД (ANALYZE + VACUUM)."""
     if not settings.is_sqlite:
         raise HTTPException(status_code=400, detail="Optimize only supported for SQLite")
 
     try:
-        # ANALYZE РјРѕР¶РЅРѕ РІРЅСѓС‚СЂРё С‚СЂР°РЅР·Р°РєС†РёРё
+        # ANALYZE можно внутри транзакции
         db.execute(text("ANALYZE"))
         db.commit()
 
-        # VACUUM вЂ” РІРЅРµ С‚СЂР°РЅР·Р°РєС†РёРё С‡РµСЂРµР· raw sqlite3
+        # VACUUM — вне транзакции через raw sqlite3
         db_path = _resolve_sqlite_db_path()
         conn = sqlite3.connect(db_path, isolation_level=None)
         conn.execute("VACUUM")
@@ -659,9 +659,9 @@ async def delete_all_tasks(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
 ):
-    """РЈРґР°Р»РёС‚СЊ РІСЃРµ Р·Р°СЏРІРєРё (РІРјРµСЃС‚Рµ СЃ РєРѕРјРјРµРЅС‚Р°СЂРёСЏРјРё Рё С„РѕС‚Рѕ)."""
+    """Удалить все заявки (вместе с комментариями и фото)."""
     try:
-        # РЈРґР°Р»СЏРµРј С„Р°Р№Р»С‹ С„РѕС‚Рѕ СЃ РґРёСЃРєР°
+        # Удаляем файлы фото с диска
         try:
             photos = db.query(TaskPhotoModel).all()
             for photo in photos:

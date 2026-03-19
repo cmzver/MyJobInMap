@@ -1,7 +1,7 @@
 """
 Schemas Package
 ===============
-Экспорт всех Pydantic схем.
+Р­РєСЃРїРѕСЂС‚ РІСЃРµС… Pydantic СЃС…РµРј.
 """
 
 from app.schemas.auth import (

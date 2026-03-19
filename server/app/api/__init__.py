@@ -1,4 +1,4 @@
-﻿"""
+"""
 API Package
 ===========
 Export routers.
@@ -25,6 +25,11 @@ from app.api.dashboard import router as dashboard_router
 from app.api.finance import router as finance_router
 from app.api.users import router as users_router
 from app.api.reports import router as reports_router
+from app.api.sla import router as sla_router
+from app.api.websocket import router as websocket_router
+from app.api.updates import router as updates_router
+from app.api.chat import router as chat_router
+from app.api.organizations import router as organizations_router
 
 
 # Главный роутер
@@ -37,13 +42,27 @@ api_router.include_router(photos_router)
 api_router.include_router(devices_router)
 api_router.include_router(notifications_router)
 api_router.include_router(admin_router)
+api_router.include_router(admin_users_router)
+api_router.include_router(admin_backups_router)
 api_router.include_router(system_settings_router)
+api_router.include_router(public_settings_router)
 api_router.include_router(addresses_router)
 api_router.include_router(address_extended_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(finance_router)
 api_router.include_router(users_router)
 api_router.include_router(reports_router)
+api_router.include_router(sla_router)
+api_router.include_router(websocket_router)
+api_router.include_router(updates_router)
+api_router.include_router(chat_router)
+api_router.include_router(organizations_router)
+
+
+def get_v2_router() -> APIRouter:
+    """Lazy-load v2 router to avoid circular imports."""
+    from app.api.v2 import v2_router
+    return v2_router
 
 
 __all__ = ["api_router", "get_v2_router"]

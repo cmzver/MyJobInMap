@@ -1,4 +1,4 @@
-﻿import { useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
@@ -51,7 +51,7 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'stats'>('profile')
   const avatarInputRef = useRef<HTMLInputElement | null>(null)
 
-  // Р—Р°РіСЂСѓР·РєР° СЃС‚Р°С‚РёСЃС‚РёРєРё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
+  // Загрузка статистики пользователя
   const { data: stats, isLoading: statsLoading } = useQuery<UserStats>({
     queryKey: ['userStats'],
     queryFn: async () => {
@@ -86,13 +86,13 @@ export default function ProfilePage() {
       return response.data
     },
     onSuccess: (data) => {
-      showApiSuccess('РџСЂРѕС„РёР»СЊ РѕР±РЅРѕРІР»С‘РЅ')
+      showApiSuccess('Профиль обновлён')
       if (user && token) {
         setUser({ ...user, fullName: data.full_name, email: data.email, phone: data.phone, avatarUrl: data.avatar_url ?? user.avatarUrl ?? null }, token)
       }
     },
     onError: (err) => {
-      showApiError(err, 'РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ РїСЂРѕС„РёР»СЏ')
+      showApiError(err, 'Ошибка обновления профиля')
     },
   })
 
@@ -104,11 +104,11 @@ export default function ProfilePage() {
       })
     },
     onSuccess: () => {
-      showApiSuccess('РџР°СЂРѕР»СЊ РёР·РјРµРЅС‘РЅ')
+      showApiSuccess('Пароль изменён')
       passwordForm.reset()
     },
     onError: (err) => {
-      showApiError(err, 'РћС€РёР±РєР° РёР·РјРµРЅРµРЅРёСЏ РїР°СЂРѕР»СЏ')
+      showApiError(err, 'Ошибка изменения пароля')
     },
   })
 
@@ -124,13 +124,13 @@ export default function ProfilePage() {
       return response.data
     },
     onSuccess: (data) => {
-      showApiSuccess('РђРІР°С‚Р°СЂ РѕР±РЅРѕРІР»С‘РЅ')
+      showApiSuccess('Аватар обновлён')
       if (user && token) {
         setUser({ ...user, fullName: data.full_name, email: data.email, phone: data.phone, avatarUrl: data.avatar_url ?? null }, token)
       }
     },
     onError: (err) => {
-      showApiError(err, 'РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё Р°РІР°С‚Р°СЂР°')
+      showApiError(err, 'Ошибка загрузки аватара')
     },
   })
 
@@ -140,7 +140,7 @@ export default function ProfilePage() {
 
   const onPasswordSubmit = (data: PasswordForm) => {
     if (data.newPassword !== data.confirmPassword) {
-      toast.error('РџР°СЂРѕР»Рё РЅРµ СЃРѕРІРїР°РґР°СЋС‚')
+      toast.error('Пароли не совпадают')
       return
     }
     updatePasswordMutation.mutate(data)
@@ -155,26 +155,26 @@ export default function ProfilePage() {
 
   const getRoleLabel = (role?: string) => {
     switch (role) {
-      case 'admin': return 'РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ'
-      case 'dispatcher': return 'Р”РёСЃРїРµС‚С‡РµСЂ'
-      case 'worker': return 'Р Р°Р±РѕС‚РЅРёРє'
+      case 'admin': return 'Администратор'
+      case 'dispatcher': return 'Диспетчер'
+      case 'worker': return 'Работник'
       default: return role
     }
   }
 
   const formatHours = (hours: number | null) => {
-    if (hours === null) return 'вЂ”'
-    if (hours < 1) return `${Math.round(hours * 60)} РјРёРЅ`
-    if (hours < 24) return `${hours.toFixed(1)} С‡`
-    return `${Math.round(hours / 24)} Рґ`
+    if (hours === null) return '—'
+    if (hours < 1) return `${Math.round(hours * 60)} мин`
+    if (hours < 24) return `${hours.toFixed(1)} ч`
+    return `${Math.round(hours / 24)} д`
   }
 
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">РџСЂРѕС„РёР»СЊ</h1>
-        <p className="text-gray-500 dark:text-gray-400">РЈРїСЂР°РІР»РµРЅРёРµ РІР°С€РёРј Р°РєРєР°СѓРЅС‚РѕРј</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Профиль</h1>
+        <p className="text-gray-500 dark:text-gray-400">Управление вашим аккаунтом</p>
       </div>
 
       {/* User Card */}
@@ -208,7 +208,7 @@ export default function ProfilePage() {
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{user?.fullName}</h2>
               <p className="text-gray-500 dark:text-gray-400">@{user?.username}</p>
               <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                JPG, PNG, WEBP РёР»Рё GIF РґРѕ 5 РњР‘
+                JPG, PNG, WEBP или GIF до 5 МБ
               </p>
               <span className="inline-block mt-2 px-3 py-1 text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded-full">
                 {getRoleLabel(user?.role)}
@@ -221,18 +221,18 @@ export default function ProfilePage() {
             <div className="hidden md:flex items-center space-x-6">
               <div className="text-center">
                 <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total_tasks}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Р’СЃРµРіРѕ Р·Р°СЏРІРѕРє</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Всего заявок</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-green-600">{stats.completion_rate}%</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Р’С‹РїРѕР»РЅРµРЅРѕ</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Выполнено</div>
               </div>
               <div className="text-center">
                 <div className="flex items-center justify-center text-2xl font-bold text-orange-500">
                   <Flame size={20} className="mr-1" />
                   {stats.streak_days}
                 </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Р”РЅРµР№ РїРѕРґСЂСЏРґ</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Дней подряд</div>
               </div>
             </div>
           )}
@@ -249,7 +249,7 @@ export default function ProfilePage() {
               : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
           }`}
         >
-          Р›РёС‡РЅС‹Рµ РґР°РЅРЅС‹Рµ
+          Личные данные
         </button>
         <button
           onClick={() => setActiveTab('stats')}
@@ -259,7 +259,7 @@ export default function ProfilePage() {
               : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
           }`}
         >
-          РЎС‚Р°С‚РёСЃС‚РёРєР°
+          Статистика
         </button>
         <button
           onClick={() => setActiveTab('password')}
@@ -269,7 +269,7 @@ export default function ProfilePage() {
               : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
           }`}
         >
-          РџР°СЂРѕР»СЊ
+          Пароль
         </button>
       </div>
 
@@ -278,8 +278,8 @@ export default function ProfilePage() {
         <Card className="p-6">
           <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
             <Input
-              label="РџРѕР»РЅРѕРµ РёРјСЏ"
-              {...profileForm.register('fullName', { required: 'РћР±СЏР·Р°С‚РµР»СЊРЅРѕРµ РїРѕР»Рµ' })}
+              label="Полное имя"
+              {...profileForm.register('fullName', { required: 'Обязательное поле' })}
               error={profileForm.formState.errors.fullName?.message}
             />
             
@@ -290,7 +290,7 @@ export default function ProfilePage() {
             />
             
             <Input
-              label="РўРµР»РµС„РѕРЅ"
+              label="Телефон"
               type="tel"
               {...profileForm.register('phone')}
             />
@@ -301,7 +301,7 @@ export default function ProfilePage() {
               className="w-full"
             >
               <Save size={18} className="mr-2" />
-              РЎРѕС…СЂР°РЅРёС‚СЊ РёР·РјРµРЅРµРЅРёСЏ
+              Сохранить изменения
             </Button>
           </form>
         </Card>
@@ -327,7 +327,7 @@ export default function ProfilePage() {
                     </div>
                     <div className="ml-3">
                       <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total_tasks}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Р’СЃРµРіРѕ Р·Р°СЏРІРѕРє</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Всего заявок</p>
                     </div>
                   </div>
                 </Card>
@@ -339,7 +339,7 @@ export default function ProfilePage() {
                     </div>
                     <div className="ml-3">
                       <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.completed_tasks}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Р’С‹РїРѕР»РЅРµРЅРѕ</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Выполнено</p>
                     </div>
                   </div>
                 </Card>
@@ -351,7 +351,7 @@ export default function ProfilePage() {
                     </div>
                     <div className="ml-3">
                       <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.in_progress_tasks}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Р’ СЂР°Р±РѕС‚Рµ</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">В работе</p>
                     </div>
                   </div>
                 </Card>
@@ -363,7 +363,7 @@ export default function ProfilePage() {
                     </div>
                     <div className="ml-3">
                       <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.completion_rate}%</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">% РІС‹РїРѕР»РЅРµРЅРёСЏ</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">% выполнения</p>
                     </div>
                   </div>
                 </Card>
@@ -371,12 +371,12 @@ export default function ProfilePage() {
 
               {/* Progress Bar */}
               <Card className="p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">РџСЂРѕРіСЂРµСЃСЃ РІС‹РїРѕР»РЅРµРЅРёСЏ</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Прогресс выполнения</h3>
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-600 dark:text-gray-400">Р’С‹РїРѕР»РЅРµРЅРѕ</span>
-                      <span className="font-medium text-gray-900 dark:text-white">{stats.completed_tasks} РёР· {stats.total_tasks}</span>
+                      <span className="text-gray-600 dark:text-gray-400">Выполнено</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{stats.completed_tasks} из {stats.total_tasks}</span>
                     </div>
                     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                       <div 
@@ -393,27 +393,27 @@ export default function ProfilePage() {
                 <Card className="p-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                     <BarChart3 size={20} className="mr-2 text-primary-500" />
-                    РђРєС‚РёРІРЅРѕСЃС‚СЊ
+                    Активность
                   </h3>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                       <div className="flex items-center">
                         <Calendar size={18} className="text-blue-500 mr-3" />
-                        <span className="text-gray-600 dark:text-gray-400">Р—Р° СЌС‚Сѓ РЅРµРґРµР»СЋ</span>
+                        <span className="text-gray-600 dark:text-gray-400">За эту неделю</span>
                       </div>
                       <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.tasks_this_week}</span>
                     </div>
                     <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                       <div className="flex items-center">
                         <Calendar size={18} className="text-purple-500 mr-3" />
-                        <span className="text-gray-600 dark:text-gray-400">Р—Р° СЌС‚РѕС‚ РјРµСЃСЏС†</span>
+                        <span className="text-gray-600 dark:text-gray-400">За этот месяц</span>
                       </div>
                       <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.tasks_this_month}</span>
                     </div>
                     <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                       <div className="flex items-center">
                         <Clock size={18} className="text-orange-500 mr-3" />
-                        <span className="text-gray-600 dark:text-gray-400">РЎСЂРµРґРЅРµРµ РІСЂРµРјСЏ</span>
+                        <span className="text-gray-600 dark:text-gray-400">Среднее время</span>
                       </div>
                       <span className="text-xl font-bold text-gray-900 dark:text-white">{formatHours(stats.avg_completion_hours)}</span>
                     </div>
@@ -423,7 +423,7 @@ export default function ProfilePage() {
                 <Card className="p-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                     <Award size={20} className="mr-2 text-yellow-500" />
-                    Р”РѕСЃС‚РёР¶РµРЅРёСЏ
+                    Достижения
                   </h3>
                   <div className="space-y-3">
                     {/* Streak Achievement */}
@@ -432,8 +432,8 @@ export default function ProfilePage() {
                         <div className="flex items-center">
                           <Flame size={24} className={stats.streak_days > 0 ? 'text-orange-500' : 'text-gray-400'} />
                           <div className="ml-3">
-                            <p className="font-medium text-gray-900 dark:text-white">РЎРµСЂРёСЏ</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Р”РЅРµР№ РїРѕРґСЂСЏРґ СЃ Р·Р°СЏРІРєР°РјРё</p>
+                            <p className="font-medium text-gray-900 dark:text-white">Серия</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Дней подряд с заявками</p>
                           </div>
                         </div>
                         <span className={`text-2xl font-bold ${stats.streak_days > 0 ? 'text-orange-500' : 'text-gray-400'}`}>
@@ -445,16 +445,16 @@ export default function ProfilePage() {
                     {/* Performance Badges */}
                     <div className="grid grid-cols-3 gap-2">
                       <div className={`p-3 text-center rounded-lg ${stats.completion_rate >= 90 ? 'bg-green-100 dark:bg-green-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                        <span className={`text-2xl ${stats.completion_rate >= 90 ? '' : 'grayscale opacity-50'}`}>рџЏ†</span>
+                        <span className={`text-2xl ${stats.completion_rate >= 90 ? '' : 'grayscale opacity-50'}`}>🏆</span>
                         <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">90%+</p>
                       </div>
                       <div className={`p-3 text-center rounded-lg ${stats.completed_tasks >= 50 ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                        <span className={`text-2xl ${stats.completed_tasks >= 50 ? '' : 'grayscale opacity-50'}`}>в­ђ</span>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">50+ РґРµР»</p>
+                        <span className={`text-2xl ${stats.completed_tasks >= 50 ? '' : 'grayscale opacity-50'}`}>⭐</span>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">50+ дел</p>
                       </div>
                       <div className={`p-3 text-center rounded-lg ${stats.streak_days >= 7 ? 'bg-orange-100 dark:bg-orange-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                        <span className={`text-2xl ${stats.streak_days >= 7 ? '' : 'grayscale opacity-50'}`}>рџ”Ґ</span>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">7+ РґРЅРµР№</p>
+                        <span className={`text-2xl ${stats.streak_days >= 7 ? '' : 'grayscale opacity-50'}`}>🔥</span>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">7+ дней</p>
                       </div>
                     </div>
                   </div>
@@ -463,7 +463,7 @@ export default function ProfilePage() {
             </>
           ) : (
             <Card className="p-6">
-              <p className="text-center text-gray-500 dark:text-gray-400">РќРµС‚ РґР°РЅРЅС‹С… Рѕ СЃС‚Р°С‚РёСЃС‚РёРєРµ</p>
+              <p className="text-center text-gray-500 dark:text-gray-400">Нет данных о статистике</p>
             </Card>
           )}
         </div>
@@ -474,26 +474,26 @@ export default function ProfilePage() {
         <Card className="p-6">
           <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
             <Input
-              label="РўРµРєСѓС‰РёР№ РїР°СЂРѕР»СЊ"
+              label="Текущий пароль"
               type="password"
-              {...passwordForm.register('currentPassword', { required: 'РћР±СЏР·Р°С‚РµР»СЊРЅРѕРµ РїРѕР»Рµ' })}
+              {...passwordForm.register('currentPassword', { required: 'Обязательное поле' })}
               error={passwordForm.formState.errors.currentPassword?.message}
             />
             
             <Input
-              label="РќРѕРІС‹Р№ РїР°СЂРѕР»СЊ"
+              label="Новый пароль"
               type="password"
               {...passwordForm.register('newPassword', { 
-                required: 'РћР±СЏР·Р°С‚РµР»СЊРЅРѕРµ РїРѕР»Рµ',
-                minLength: { value: 6, message: 'РњРёРЅРёРјСѓРј 6 СЃРёРјРІРѕР»РѕРІ' }
+                required: 'Обязательное поле',
+                minLength: { value: 6, message: 'Минимум 6 символов' }
               })}
               error={passwordForm.formState.errors.newPassword?.message}
             />
             
             <Input
-              label="РџРѕРґС‚РІРµСЂРґРёС‚Рµ РїР°СЂРѕР»СЊ"
+              label="Подтвердите пароль"
               type="password"
-              {...passwordForm.register('confirmPassword', { required: 'РћР±СЏР·Р°С‚РµР»СЊРЅРѕРµ РїРѕР»Рµ' })}
+              {...passwordForm.register('confirmPassword', { required: 'Обязательное поле' })}
               error={passwordForm.formState.errors.confirmPassword?.message}
             />
             
@@ -503,7 +503,7 @@ export default function ProfilePage() {
               className="w-full"
             >
               <Lock size={18} className="mr-2" />
-              РР·РјРµРЅРёС‚СЊ РїР°СЂРѕР»СЊ
+              Рзменить пароль
             </Button>
           </form>
         </Card>

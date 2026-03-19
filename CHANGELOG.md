@@ -8,7 +8,6 @@
 ## [Unreleased]
 
 
-<<<<<<< HEAD
 ## [2.15.0] - 2026-03-17
 
 ### Добавлено
@@ -46,8 +45,6 @@
 - **SQLAlchemy SAWarning** — заменено `.subquery()` на `.scalar_subquery()` в `chat_service.py`
 
 
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 ## [2.14.2] - 2026-03-16
 
 ### Изменено

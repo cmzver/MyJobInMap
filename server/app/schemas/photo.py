@@ -1,7 +1,7 @@
 """
 Photo Schemas
 =============
-Схемы для фотографий.
+РЎС…РµРјС‹ РґР»СЏ С„РѕС‚РѕРіСЂР°С„РёР№.
 """
 
 from datetime import datetime
@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 
 class PhotoResponse(BaseModel):
-    """Ответ с информацией о фото"""
+    """РћС‚РІРµС‚ СЃ РёРЅС„РѕСЂРјР°С†РёРµР№ Рѕ С„РѕС‚Рѕ"""
     id: int
     task_id: int
     filename: str

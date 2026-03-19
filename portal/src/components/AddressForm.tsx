@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { addressesApi } from '@/api/addresses'
 import Spinner from '@/components/Spinner'
@@ -23,51 +23,51 @@ interface AddressFormProps {
 }
 
 export default function AddressForm({ value, onChange, onAddressFound, errors = {} }: AddressFormProps) {
-  // Р“РѕСЂРѕРґР°
+  // Города
   const [cities, setCities] = useState<string[]>([])
   const [citiesOpen, setCitiesOpen] = useState(false)
   const [citiesLoading, setCitiesLoading] = useState(false)
   const [citiesQuery, setCitiesQuery] = useState('')
 
-  // РЈР»РёС†С‹
+  // Улицы
   const [streets, setStreets] = useState<string[]>([])
   const [streetsOpen, setStreetsOpen] = useState(false)
   const [streetsLoading, setStreetsLoading] = useState(false)
   const [streetsQuery, setStreetsQuery] = useState('')
 
-  // Р”РѕРјР°
+  // Дома
   const [buildings, setBuildings] = useState<string[]>([])
   const [buildingsOpen, setBuildingsOpen] = useState(false)
   const [buildingsLoading, setBuildingsLoading] = useState(false)
   const [buildingsQuery, setBuildingsQuery] = useState('')
 
-  // РљРѕСЂРїСѓСЃС‹ (Р·Р°РіСЂСѓР¶Р°СЋС‚СЃСЏ РїСЂРё РІС‹Р±РѕСЂРµ РґРѕРјР°)
+  // Корпусы (загружаются при выборе дома)
   const [corpuses, setCorpuses] = useState<string[]>([])
   const [corpusesOpen, setCorpusesOpen] = useState(false)
   const [corpusesLoading, setCorpusesLoading] = useState(false)
 
-  // РџРѕРґСЉРµР·РґС‹ (Р·Р°РіСЂСѓР¶Р°СЋС‚СЃСЏ РїСЂРё РІС‹Р±РѕСЂРµ РєРѕСЂРїСѓСЃР°)
+  // Подъезды (загружаются при выборе корпуса)
   const [entrances, setEntrances] = useState<string[]>([])
   const [entrancesOpen, setEntrancesOpen] = useState(false)
   const [entrancesLoading, setEntrancesLoading] = useState(false)
 
-  // Р¤Р»Р°Рі РґР»СЏ РѕС‚СЃР»РµР¶РёРІР°РЅРёСЏ РїРµСЂРІРѕР№ Р·Р°РіСЂСѓР·РєРё (СЂРµР¶РёРј СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ)
+  // Флаг для отслеживания первой загрузки (режим редактирования)
   const initializedRef = useRef(false)
 
-  // РџСЂРё СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРё - Р·Р°РіСЂСѓР¶Р°РµРј РєРѕСЂРїСѓСЃС‹ Рё РїРѕРґСЉРµР·РґС‹ РїСЂРё РЅР°Р»РёС‡РёРё РґР°РЅРЅС‹С…
+  // При редактировании - загружаем корпусы и подъезды при наличии данных
   useEffect(() => {
-    // Р•СЃР»Рё СѓР¶Рµ РёРЅРёС†РёР°Р»РёР·РёСЂРѕРІР°Р»Рё РёР»Рё РЅРµС‚ РїРѕР»РЅРѕРіРѕ Р°РґСЂРµСЃР° - РїСЂРѕРїСѓСЃРєР°РµРј
+    // Если уже инициализировали или нет полного адреса - пропускаем
     if (initializedRef.current) return
     if (!value.city || !value.street || !value.building) return
 
     initializedRef.current = true
 
-    // Р—Р°РіСЂСѓР¶Р°РµРј РєРѕСЂРїСѓСЃС‹
+    // Загружаем корпусы
     addressesApi.autocompleteCorpus(value.city, value.street, value.building)
       .then((result) => {
         setCorpuses(result)
         
-        // Р•СЃР»Рё РµСЃС‚СЊ С‚РµРєСѓС‰РёР№ РєРѕСЂРїСѓСЃ, Р·Р°РіСЂСѓР¶Р°РµРј РґРѕСЃС‚СѓРїРЅС‹Рµ РїРѕРґСЉРµР·РґС‹
+        // Если есть текущий корпус, загружаем доступные подъезды
         const corpusToUse = value.corpus || ''
         if (corpusToUse) {
           addressesApi.autocompleteEntrance(value.city, value.street, value.building, corpusToUse === 'none' ? undefined : corpusToUse)
@@ -80,7 +80,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
       .catch(() => setCorpuses([]))
   }, [value.city, value.street, value.building, value.corpus])
 
-  // ===== Р“РѕСЂРѕРґР° =====
+  // ===== Города =====
   const handleCityChange = useCallback(async (input: string) => {
     setCitiesQuery(input)
     onChange({ ...value, city: input, street: '', building: '', corpus: '', entrance: '', apartment: '' })
@@ -112,7 +112,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
     setCitiesOpen(false)
   }
 
-  // ===== РЈР»РёС†С‹ =====
+  // ===== Улицы =====
   const handleStreetChange = useCallback(
     async (input: string) => {
       setStreetsQuery(input)
@@ -147,7 +147,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
     setStreetsOpen(false)
   }
 
-  // ===== Р”РѕРјР° =====
+  // ===== Дома =====
   const handleBuildingChange = useCallback(
     async (input: string) => {
       setBuildingsQuery(input)
@@ -178,22 +178,22 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
   )
 
   const handleSelectBuilding = (building: string) => {
-    // РЎСЂР°Р·Сѓ РѕР±РЅРѕРІР»СЏРµРј building (СЃРёРЅС…СЂРѕРЅРЅРѕ)
+    // Сразу обновляем building (синхронно)
     onChange({ ...value, building, corpus: '', entrance: '', apartment: '' })
     
-    // Р—Р°РєСЂС‹РІР°РµРј dropdown Рё РѕС‡РёС‰Р°РµРј РїРѕРёСЃРє
+    // Закрываем dropdown и очищаем поиск
     setBuildings([])
     setBuildingsQuery('')
     setBuildingsOpen(false)
     
-    // РЎР±СЂР°СЃС‹РІР°РµРј РїРѕРґСЉРµР·РґС‹
+    // Сбрасываем подъезды
     setEntrances([])
     
-    // Р—Р°РіСЂСѓР¶Р°РµРј РґРѕСЃС‚СѓРїРЅС‹Рµ РєРѕСЂРїСѓСЃС‹ РґР»СЏ РІС‹Р±СЂР°РЅРЅРѕРіРѕ РґРѕРјР°
+    // Загружаем доступные корпусы для выбранного дома
     setCorpusesLoading(true)
     setCorpuses([])
     
-    // РЎРѕС…СЂР°РЅСЏРµРј С‚РµРєСѓС‰РёРµ Р·РЅР°С‡РµРЅРёСЏ РґР»СЏ РёСЃРїРѕР»СЊР·РѕРІР°РЅРёСЏ РІ callback
+    // Сохраняем текущие значения для использования в callback
     const currentCity = value.city
     const currentStreet = value.street
     
@@ -203,15 +203,15 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
         setCorpuses(result)
         
         if (result.length === 0) {
-          // Р”Р»СЏ СЃС‚РѕСЂРѕРЅРЅРµРіРѕ Р°РґСЂРµСЃР° РєРѕСЂРїСѓСЃ РјРѕР¶РµС‚ Р±С‹С‚СЊ РІРІРµРґС‘РЅ РІСЂСѓС‡РЅСѓСЋ
+          // Для стороннего адреса корпус может быть введён вручную
           onChange({ city: currentCity, street: currentStreet, building, corpus: '', entrance: '', apartment: '' })
         } else if (result.length === 1) {
-          // РћРґРёРЅ РєРѕСЂРїСѓСЃ - РІС‹Р±РёСЂР°РµРј Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё
+          // Один корпус - выбираем автоматически
           const singleCorpus = result[0]!
           onChange({ city: currentCity, street: currentStreet, building, corpus: singleCorpus, entrance: '', apartment: '' })
           loadEntrances(currentCity, currentStreet, building, singleCorpus, singleCorpus)
         }
-        // Р•СЃР»Рё РЅРµСЃРєРѕР»СЊРєРѕ РєРѕСЂРїСѓСЃРѕРІ - РѕСЃС‚Р°РІР»СЏРµРј corpus РїСѓСЃС‚С‹Рј, Р¶РґС‘Рј СЂСѓС‡РЅРѕР№ РІС‹Р±РѕСЂ
+        // Если несколько корпусов - оставляем corpus пустым, ждём ручной выбор
       })
       .catch(() => {
         setCorpuses([])
@@ -220,7 +220,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
         setCorpusesLoading(false)
       })
     
-    // РџРѕРїС‹С‚Р°РµРјСЃСЏ РЅР°Р№С‚Рё Р°РґСЂРµСЃ РІ Р‘Р”
+    // Попытаемся найти адрес в БД
     if (onAddressFound) {
       const fullAddress = [value.city, value.street, building].filter(Boolean).join(', ')
       addressesApi
@@ -228,7 +228,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
         .then((results) => {
           if (results.length > 0) {
             const found = results[0]!
-            // РџСЂРµРѕР±СЂР°Р·СѓРµРј AddressSearchResult РІ Address
+            // Преобразуем AddressSearchResult в Address
             const address: Address = {
               id: found.id,
               address: found.address,
@@ -264,12 +264,12 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
     }
   }
 
-  // ===== РљРѕСЂРїСѓСЃС‹ =====
+  // ===== Корпусы =====
   const handleSelectCorpus = (corpus: string) => {
     onChange({ ...value, corpus, entrance: '', apartment: '' })
     setCorpusesOpen(false)
     
-    // Р—Р°РіСЂСѓР¶Р°РµРј РґРѕСЃС‚СѓРїРЅС‹Рµ РїРѕРґСЉРµР·РґС‹ РґР»СЏ РІС‹Р±СЂР°РЅРЅРѕРіРѕ РєРѕСЂРїСѓСЃР°
+    // Загружаем доступные подъезды для выбранного корпуса
     loadEntrances(value.city, value.street, value.building, corpus !== 'none' ? corpus : undefined, corpus)
   }
 
@@ -279,8 +279,8 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
     setEntrances([])
   }
   
-  // Helper С„СѓРЅРєС†РёСЏ РґР»СЏ Р·Р°РіСЂСѓР·РєРё РїРѕРґСЉРµР·РґРѕРІ
-  // РџСЂРёРЅРёРјР°РµС‚ РІСЃРµ Р·РЅР°С‡РµРЅРёСЏ СЏРІРЅРѕ, С‡С‚РѕР±С‹ РёР·Р±РµР¶Р°С‚СЊ РїСЂРѕР±Р»РµРј СЃ Р·Р°РјС‹РєР°РЅРёРµРј
+  // Helper функция для загрузки подъездов
+  // Принимает все значения явно, чтобы избежать проблем с замыканием
   const loadEntrances = (city: string, street: string, building: string, corpusForApi?: string, corpusValue?: string) => {
     setEntrancesLoading(true)
     setEntrances([])
@@ -288,8 +288,8 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
       .autocompleteEntrance(city, street, building, corpusForApi)
       .then((result) => {
         setEntrances(result)
-        // Р•СЃР»Рё РµСЃС‚СЊ С‚РѕР»СЊРєРѕ РѕРґРёРЅ РїРѕРґСЉРµР·Рґ, РІС‹Р±РёСЂР°РµРј РµРіРѕ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё
-        // РСЃРїРѕР»СЊР·СѓРµРј РїРµСЂРµРґР°РЅРЅС‹Рµ Р·РЅР°С‡РµРЅРёСЏ, Р° РЅРµ value РёР· Р·Р°РјС‹РєР°РЅРёСЏ
+        // Если есть только один подъезд, выбираем его автоматически
+        // Рспользуем переданные значения, а не value из замыкания
         if (result.length === 1) {
           onChange({ 
             city, 
@@ -310,24 +310,24 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
       })
   }
 
-  // ===== РџРѕРґСЉРµР·РґС‹ =====
+  // ===== Подъезды =====
   const handleSelectEntrance = (entrance: string) => {
     onChange({ ...value, entrance })
     setEntrancesOpen(false)
   }
 
   return (
-    <Card title="РђРґСЂРµСЃ РѕР±СЉРµРєС‚Р°">
+    <Card title="Адрес объекта">
       <div className="space-y-4">
-        {/* Р“РѕСЂРѕРґ */}
+        {/* Город */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Р“РѕСЂРѕРґ <span className="text-red-500">*</span>
+            Город <span className="text-red-500">*</span>
           </label>
           <div className="relative">
             <input
               type="text"
-              placeholder="РќР°С‡РЅРёС‚Рµ РІРІРѕРґРёС‚СЊ РЅР°Р·РІР°РЅРёРµ РіРѕСЂРѕРґР°..."
+              placeholder="Начните вводить название города..."
               value={citiesQuery || value.city}
               onChange={(e) => handleCityChange(e.target.value)}
               onFocus={() => citiesQuery && setCitiesOpen(true)}
@@ -358,15 +358,15 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
           {errors.city && <p className="mt-1 text-sm text-red-500">{errors.city}</p>}
         </div>
 
-        {/* РЈР»РёС†Р° */}
+        {/* Улица */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            РЈР»РёС†Р° <span className="text-red-500">*</span>
+            Улица <span className="text-red-500">*</span>
           </label>
           <div className="relative">
             <input
               type="text"
-              placeholder={value.city ? 'РќР°С‡РЅРёС‚Рµ РІРІРѕРґРёС‚СЊ РЅР°Р·РІР°РЅРёРµ СѓР»РёС†С‹...' : 'РЎРЅР°С‡Р°Р»Р° РІС‹Р±РµСЂРёС‚Рµ РіРѕСЂРѕРґ'}
+              placeholder={value.city ? 'Начните вводить название улицы...' : 'Сначала выберите город'}
               value={streetsQuery || value.street}
               onChange={(e) => handleStreetChange(e.target.value)}
               onFocus={() => streetsQuery && value.city && setStreetsOpen(true)}
@@ -398,15 +398,15 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
           {errors.street && <p className="mt-1 text-sm text-red-500">{errors.street}</p>}
         </div>
 
-        {/* Р”РѕРј */}
+        {/* Дом */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Р”РѕРј <span className="text-red-500">*</span>
+            Дом <span className="text-red-500">*</span>
           </label>
           <div className="relative">
             <input
               type="text"
-              placeholder={value.street ? 'РќРѕРјРµСЂ РґРѕРјР°...' : 'РЎРЅР°С‡Р°Р»Р° РІС‹Р±РµСЂРёС‚Рµ СѓР»РёС†Сѓ'}
+              placeholder={value.street ? 'Номер дома...' : 'Сначала выберите улицу'}
               value={buildingsQuery || value.building}
               onChange={(e) => handleBuildingChange(e.target.value)}
               onFocus={() => buildingsQuery && value.street && setBuildingsOpen(true)}
@@ -438,14 +438,14 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
           {errors.building && <p className="mt-1 text-sm text-red-500">{errors.building}</p>}
         </div>
 
-        {/* РљРѕСЂРїСѓСЃ - РїРѕРєР°Р·С‹РІР°РµС‚СЃСЏ РїРѕСЃР»Рµ Р·Р°РїРѕР»РЅРµРЅРёСЏ РґРѕРјР° */}
+        {/* Корпус - показывается после заполнения дома */}
         {value.building && (
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              РљРѕСЂРїСѓСЃ
+              Корпус
             </label>
             <Input
-              placeholder="РќР°РїСЂРёРјРµСЂ, 2, Рђ РёР»Рё Р±РµР· РєРѕСЂРїСѓСЃР°"
+              placeholder="Например, 2, А или без корпуса"
               value={value.corpus === 'none' ? '' : value.corpus}
               onChange={(e) => handleCorpusInputChange(e.target.value)}
             />
@@ -460,7 +460,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
                     : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                 }`}
               >
-                Р‘РµР· РєРѕСЂРїСѓСЃР°
+                Без корпуса
               </button>
 
               {corpuses.length > 0 && (
@@ -474,7 +474,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
                       : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
-                  Р’Р°СЂРёР°РЅС‚С‹ РёР· Р±Р°Р·С‹
+                  Варианты из базы
                   {corpusesLoading ? <Spinner size="sm" /> : <ChevronDown className={`h-4 w-4 transition-transform ${corpusesOpen ? 'rotate-180' : ''}`} />}
                 </button>
               )}
@@ -493,23 +493,23 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
                         : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
                     }`}
                   >
-                    РљРѕСЂРїСѓСЃ {corpus}
+                    Корпус {corpus}
                   </button>
                 ))}
               </div>
             )}
 
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              РљРѕСЂРїСѓСЃ РјРѕР¶РЅРѕ РІС‹Р±СЂР°С‚СЊ РёР· Р±Р°Р·С‹ РёР»Рё РІРІРµСЃС‚Рё РІСЂСѓС‡РЅСѓСЋ РґР»СЏ СЃС‚РѕСЂРѕРЅРЅРµРіРѕ Р°РґСЂРµСЃР°.
+              Корпус можно выбрать из базы или ввести вручную для стороннего адреса.
             </p>
           </div>
         )}
 
-        {/* РџРѕРґСЉРµР·Рґ - РїРѕРєР°Р·С‹РІР°РµС‚СЃСЏ РєРѕРіРґР° РµСЃС‚СЊ РїРѕРґСЉРµР·РґС‹ РґР»СЏ РІС‹Р±РѕСЂР° */}
+        {/* Подъезд - показывается когда есть подъезды для выбора */}
         {value.building && entrances.length > 0 && (
           <div className="relative">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              РџРѕРґСЉРµР·Рґ
+              Подъезд
             </label>
             <div className="relative">
               <button
@@ -520,7 +520,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
                   entrancesLoading ? 'cursor-not-allowed' : ''
                 }`}
               >
-                <span>{value.entrance || 'Р’С‹Р±РµСЂРёС‚Рµ РїРѕРґСЉРµР·Рґ'}</span>
+                <span>{value.entrance || 'Выберите подъезд'}</span>
                 {entrancesLoading ? (
                   <Spinner size="sm" />
                 ) : (
@@ -540,7 +540,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
                           : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
                       }`}
                     >
-                      РџРѕРґСЉРµР·Рґ {entrance}
+                      Подъезд {entrance}
                     </button>
                   ))}
                 </div>
@@ -551,8 +551,8 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
 
         {value.building && (
           <Input
-            label="РљРІР°СЂС‚РёСЂР°"
-            placeholder="РќР°РїСЂРёРјРµСЂ, 45"
+            label="Квартира"
+            placeholder="Например, 45"
             value={value.apartment}
             onChange={(e) => onChange({ ...value, apartment: e.target.value })}
           />

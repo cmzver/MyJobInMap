@@ -1,8 +1,8 @@
 """
-Модели адреса и связанных сущностей.
+������ ������ � ��������� ���������.
 
-Включает: базовая модель адреса, системы на обслуживании, 
-оборудование, документы, контакты, история.
+��������: ������� ������ ������, ������� �� ������������, 
+������������, ���������, ��������, �������.
 """
 from enum import Enum
 from sqlalchemy import Column, Integer, String, Float, Text, DateTime, Boolean, ForeignKey, Index
@@ -16,66 +16,66 @@ from app.models.base import Base, utcnow
 # ============================================
 
 class SystemType(str, Enum):
-    """Типы систем на обслуживании"""
-    VIDEO_SURVEILLANCE = "video_surveillance"  # Видеонаблюдение
-    INTERCOM = "intercom"                      # Домофония
-    FIRE_PROTECTION = "fire_protection"        # АППЗ
-    ACCESS_CONTROL = "access_control"          # СКД
-    FIRE_ALARM = "fire_alarm"                  # ОПС
-    OTHER = "other"                            # Другое
+    """���� ������ �� ������������"""
+    VIDEO_SURVEILLANCE = "video_surveillance"  # ���������������
+    INTERCOM = "intercom"                      # ���������
+    FIRE_PROTECTION = "fire_protection"        # ����
+    ACCESS_CONTROL = "access_control"          # ���
+    FIRE_ALARM = "fire_alarm"                  # ���
+    OTHER = "other"                            # ������
 
 
 class SystemStatus(str, Enum):
-    """Статусы систем"""
-    ACTIVE = "active"           # Активна
-    MAINTENANCE = "maintenance" # На ремонте/профилактике
-    DISABLED = "disabled"       # Отключена
+    """������� ������"""
+    ACTIVE = "active"           # �������
+    MAINTENANCE = "maintenance" # �� �������/������������
+    DISABLED = "disabled"       # ���������
 
 
 class EquipmentType(str, Enum):
-    """Типы оборудования"""
-    CAMERA = "camera"                    # Камера
-    DVR = "dvr"                          # Видеорегистратор
-    INTERCOM_PANEL = "intercom_panel"    # Домофонная панель
-    INTERCOM_HANDSET = "intercom_handset"# Трубка домофона
-    SENSOR = "sensor"                    # Датчик
-    CONTROLLER = "controller"            # Контроллер
-    READER = "reader"                    # Считыватель
-    LOCK = "lock"                        # Замок
-    SWITCH = "switch"                    # Коммутатор
-    ROUTER = "router"                    # Роутер
-    UPS = "ups"                          # ИБП
-    OTHER = "other"                      # Другое
+    """���� ������������"""
+    CAMERA = "camera"                    # ������
+    DVR = "dvr"                          # ����������������
+    INTERCOM_PANEL = "intercom_panel"    # ���������� ������
+    INTERCOM_HANDSET = "intercom_handset"# ������ ��������
+    SENSOR = "sensor"                    # ������
+    CONTROLLER = "controller"            # ����������
+    READER = "reader"                    # �����������
+    LOCK = "lock"                        # �����
+    SWITCH = "switch"                    # ����������
+    ROUTER = "router"                    # ������
+    UPS = "ups"                          # ���
+    OTHER = "other"                      # ������
 
 
 class EquipmentStatus(str, Enum):
-    """Статусы оборудования"""
-    WORKING = "working"       # Работает
-    FAULTY = "faulty"         # Неисправно
-    DISMANTLED = "dismantled" # Демонтировано
+    """������� ������������"""
+    WORKING = "working"       # ��������
+    FAULTY = "faulty"         # ����������
+    DISMANTLED = "dismantled" # �������������
 
 
 class DocumentType(str, Enum):
-    """Типы документов"""
-    CONTRACT = "contract"    # Договор
-    ESTIMATE = "estimate"    # Смета
-    ACT = "act"              # Акт
-    SCHEME = "scheme"        # Схема
-    PASSPORT = "passport"    # Паспорт оборудования
-    OTHER = "other"          # Другое
+    """���� ����������"""
+    CONTRACT = "contract"    # �������
+    ESTIMATE = "estimate"    # �����
+    ACT = "act"              # ���
+    SCHEME = "scheme"        # �����
+    PASSPORT = "passport"    # ������� ������������
+    OTHER = "other"          # ������
 
 
 class ContactType(str, Enum):
-    """Типы контактов"""
-    CHAIRMAN = "chairman"    # Председатель
-    ELDER = "elder"          # Старший по дому
-    MANAGEMENT = "management"# УК
-    CONCIERGE = "concierge"  # Консьерж
-    OTHER = "other"          # Другое
+    """���� ���������"""
+    CHAIRMAN = "chairman"    # ������������
+    ELDER = "elder"          # ������� �� ����
+    MANAGEMENT = "management"# ��
+    CONCIERGE = "concierge"  # ��������
+    OTHER = "other"          # ������
 
 
 class AddressHistoryEventType(str, Enum):
-    """Типы событий в истории объекта"""
+    """���� ������� � ������� �������"""
     CREATED = "created"
     UPDATED = "updated"
     DOCUMENT_ADDED = "document_added"
@@ -93,41 +93,41 @@ class AddressHistoryEventType(str, Enum):
 # ============================================
 
 class AddressModel(Base):
-    """Модель адреса в базе данных"""
+    """������ ������ � ���� ������"""
     __tablename__ = "addresses"
 
     id = Column(Integer, primary_key=True, index=True)
     
-    # Основная информация
+    # �������� ����������
     address = Column(String(500), nullable=False, index=True, unique=True)
-    city = Column(String(100), nullable=True, default="")  # Город
-    street = Column(String(200), nullable=True, default="")  # Улица
-    building = Column(String(50), nullable=True, default="")  # Номер дома
-    corpus = Column(String(20), nullable=True, default="")  # Корпус/строение
-    entrance = Column(String(10), nullable=True, default="")  # Подъезд
+    city = Column(String(100), nullable=True, default="")  # �����
+    street = Column(String(200), nullable=True, default="")  # �����
+    building = Column(String(50), nullable=True, default="")  # ����� ����
+    corpus = Column(String(20), nullable=True, default="")  # ������/��������
+    entrance = Column(String(10), nullable=True, default="")  # �������
     
-    # Координаты
+    # ����������
     lat = Column(Float, nullable=True)
     lon = Column(Float, nullable=True)
     
-    # Информация о здании
-    entrance_count = Column(Integer, nullable=True, default=1)  # Количество подъездов
-    floor_count = Column(Integer, nullable=True, default=1)  # Количество этажей
-    apartment_count = Column(Integer, nullable=True)  # Количество квартир
-    has_elevator = Column(Boolean, nullable=True, default=False)  # Есть лифт
-    has_intercom = Column(Boolean, nullable=True, default=False)  # Есть домофон
-    intercom_code = Column(String(50), nullable=True, default="")  # Код домофона
+    # ���������� � ������
+    entrance_count = Column(Integer, nullable=True, default=1)  # ���������� ���������
+    floor_count = Column(Integer, nullable=True, default=1)  # ���������� ������
+    apartment_count = Column(Integer, nullable=True)  # ���������� �������
+    has_elevator = Column(Boolean, nullable=True, default=False)  # ���� ����
+    has_intercom = Column(Boolean, nullable=True, default=False)  # ���� �������
+    intercom_code = Column(String(50), nullable=True, default="")  # ��� ��������
     
-    # Контактная информация
-    management_company = Column(String(200), nullable=True, default="")  # УК
-    management_phone = Column(String(50), nullable=True, default="")  # Телефон УК
+    # ���������� ����������
+    management_company = Column(String(200), nullable=True, default="")  # ��
+    management_phone = Column(String(50), nullable=True, default="")  # ������� ��
     
-    # Дополнительно
-    notes = Column(Text, nullable=True, default="")  # Заметки
-    extra_info = Column(Text, nullable=True, default="")  # Дополнительная информация
-    is_active = Column(Boolean, nullable=False, default=True)  # Активен ли адрес
+    # �������������
+    notes = Column(Text, nullable=True, default="")  # �������
+    extra_info = Column(Text, nullable=True, default="")  # �������������� ����������
+    is_active = Column(Boolean, nullable=False, default=True)  # ������� �� �����
     
-    # Метаданные
+    # ����������
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     
@@ -147,7 +147,7 @@ class AddressModel(Base):
 
 
 class AddressSystemModel(Base):
-    """Система на обслуживании объекта"""
+    """������� �� ������������ �������"""
     __tablename__ = "address_systems"
     __table_args__ = (
         Index("ix_address_systems_address_id", "address_id"),
@@ -161,10 +161,10 @@ class AddressSystemModel(Base):
     name = Column(String(200), nullable=False)
     status = Column(String(20), nullable=False, default=SystemStatus.ACTIVE.value)
     
-    contract_number = Column(String(100), nullable=True)  # Номер договора
-    service_start_date = Column(DateTime, nullable=True)  # Начало обслуживания
-    service_end_date = Column(DateTime, nullable=True)    # Конец обслуживания
-    monthly_cost = Column(Float, nullable=True, default=0)  # Абонентская плата
+    contract_number = Column(String(100), nullable=True)  # ����� ��������
+    service_start_date = Column(DateTime, nullable=True)  # ������ ������������
+    service_end_date = Column(DateTime, nullable=True)    # ����� ������������
+    monthly_cost = Column(Float, nullable=True, default=0)  # ����������� �����
     
     notes = Column(Text, nullable=True)
     
@@ -180,7 +180,7 @@ class AddressSystemModel(Base):
 
 
 class AddressEquipmentModel(Base):
-    """Оборудование на объекте"""
+    """������������ �� �������"""
     __tablename__ = "address_equipment"
     __table_args__ = (
         Index("ix_address_equipment_address_id", "address_id"),
@@ -196,11 +196,11 @@ class AddressEquipmentModel(Base):
     name = Column(String(200), nullable=False)
     model = Column(String(100), nullable=True)
     serial_number = Column(String(100), nullable=True)
-    quantity = Column(Integer, nullable=False, default=1)  # Количество
-    location = Column(String(200), nullable=True)  # Расположение
+    quantity = Column(Integer, nullable=False, default=1)  # ����������
+    location = Column(String(200), nullable=True)  # ������������
     
-    install_date = Column(DateTime, nullable=True)     # Дата установки
-    warranty_until = Column(DateTime, nullable=True)   # Гарантия до
+    install_date = Column(DateTime, nullable=True)     # ���� ���������
+    warranty_until = Column(DateTime, nullable=True)   # �������� ��
     status = Column(String(20), nullable=False, default=EquipmentStatus.WORKING.value)
     
     notes = Column(Text, nullable=True)
@@ -217,7 +217,7 @@ class AddressEquipmentModel(Base):
 
 
 class AddressDocumentModel(Base):
-    """Документ объекта"""
+    """�������� �������"""
     __tablename__ = "address_documents"
     __table_args__ = (
         Index("ix_address_documents_address_id", "address_id"),
@@ -233,8 +233,8 @@ class AddressDocumentModel(Base):
     file_size = Column(Integer, nullable=False, default=0)
     mime_type = Column(String(100), nullable=True, default="application/octet-stream")
     
-    valid_from = Column(DateTime, nullable=True)   # Действует с
-    valid_until = Column(DateTime, nullable=True)  # Действует до
+    valid_from = Column(DateTime, nullable=True)   # ��������� �
+    valid_until = Column(DateTime, nullable=True)  # ��������� ��
     
     notes = Column(Text, nullable=True)
     
@@ -250,7 +250,7 @@ class AddressDocumentModel(Base):
 
 
 class AddressContactModel(Base):
-    """Контакт объекта"""
+    """������� �������"""
     __tablename__ = "address_contacts"
     __table_args__ = (
         Index("ix_address_contacts_address_id", "address_id"),
@@ -261,11 +261,11 @@ class AddressContactModel(Base):
     
     contact_type = Column(String(50), nullable=False, default=ContactType.OTHER.value)
     name = Column(String(200), nullable=False)
-    position = Column(String(200), nullable=True)  # Должность
+    position = Column(String(200), nullable=True)  # ���������
     phone = Column(String(50), nullable=True)
     email = Column(String(200), nullable=True)
     notes = Column(Text, nullable=True)
-    is_primary = Column(Boolean, nullable=False, default=False)  # Основной контакт
+    is_primary = Column(Boolean, nullable=False, default=False)  # �������� �������
     
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
@@ -278,7 +278,7 @@ class AddressContactModel(Base):
 
 
 class AddressHistoryModel(Base):
-    """История изменений объекта"""
+    """������� ��������� �������"""
     __tablename__ = "address_history"
     __table_args__ = (
         Index("ix_address_history_address_id", "address_id"),

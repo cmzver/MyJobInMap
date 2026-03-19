@@ -1,8 +1,8 @@
-﻿"""
+"""
 System Settings API
 ===================
-API РґР»СЏ СѓРїСЂР°РІР»РµРЅРёСЏ СЃРёСЃС‚РµРјРЅС‹РјРё РЅР°СЃС‚СЂРѕР№РєР°РјРё Рё С‚РёРїР°РјРё РґРµС„РµРєС‚РѕРІ.
-Custom Fields, Permissions Рё Backups вЂ” СЃРј. admin.py.
+API для управления системными настройками и типами дефектов.
+Custom Fields, Permissions и Backups — см. admin.py.
 """
 
 from typing import List, Optional, Dict, Any
@@ -24,26 +24,26 @@ public_router = APIRouter(prefix="/api/public", tags=["Public Settings"])
 
 
 # ============================================
-# Pydantic Schemas (С‚РѕР»СЊРєРѕ Р»РѕРєР°Р»СЊРЅС‹Рµ, РЅРµ РґСѓР±Р»РёСЂСѓСЋС‚СЃСЏ РІ schemas/)
+# Pydantic Schemas (только локальные, не дублируются в schemas/)
 # ============================================
 
 class DefectTypeResponse(BaseModel):
-    """РћС‚РІРµС‚ СЃ С‚РёРїРѕРј РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё"""
+    """Ответ с типом неисправности"""
     id: str
     name: str
     description: Optional[str] = None
-    system_types: Optional[List[str]] = None  # РўРёРїС‹ СЃРёСЃС‚РµРј РґР»СЏ РєРѕС‚РѕСЂС‹С… РїСЂРёРјРµРЅРёРј СЌС‚РѕС‚ С‚РёРї РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё
+    system_types: Optional[List[str]] = None  # Типы систем для которых применим этот тип неисправности
 
 
 class DefectTypeCreate(BaseModel):
-    """РЎРѕР·РґР°РЅРёРµ С‚РёРїР° РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё"""
+    """Создание типа неисправности"""
     name: str
     description: Optional[str] = None
-    system_types: Optional[List[str]] = None  # РўРёРїС‹ СЃРёСЃС‚РµРј РґР»СЏ РєРѕС‚РѕСЂС‹С… РїСЂРёРјРµРЅРёРј СЌС‚РѕС‚ С‚РёРї РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё
+    system_types: Optional[List[str]] = None  # Типы систем для которых применим этот тип неисправности
 
 
 class SettingResponse(BaseModel):
-    """РћС‚РІРµС‚ СЃ РЅР°СЃС‚СЂРѕР№РєРѕР№"""
+    """Ответ с настройкой"""
     key: str
     value: Any
     value_type: str
@@ -56,7 +56,7 @@ class SettingResponse(BaseModel):
 
 
 class SettingsGroupResponse(BaseModel):
-    """Р“СЂСѓРїРїР° РЅР°СЃС‚СЂРѕРµРє"""
+    """Группа настроек"""
     group: str
     label: str
     icon: str
@@ -64,13 +64,13 @@ class SettingsGroupResponse(BaseModel):
 
 
 class InterfaceSettingsResponse(BaseModel):
-    """РџСѓР±Р»РёС‡РЅС‹Рµ РЅР°СЃС‚СЂРѕР№РєРё РёРЅС‚РµСЂС„РµР№СЃР°"""
+    """Публичные настройки интерфейса"""
     enable_resizable_columns: bool
     compact_table_view: bool
 
 
 class LoginBrandingResponse(BaseModel):
-    """Публичные настройки брендинга и блока поддержки для экрана входа."""
+    """��������� ��������� ��������� � ����� ��������� ��� ������ �����."""
     appName: str
     productLabel: str
     headline: str
@@ -82,22 +82,22 @@ class LoginBrandingResponse(BaseModel):
 
 
 class LocalSettingUpdate(BaseModel):
-    """РћР±РЅРѕРІР»РµРЅРёРµ РЅР°СЃС‚СЂРѕР№РєРё (Р»РѕРєР°Р»СЊРЅР°СЏ СЃС…РµРјР°)"""
+    """Обновление настройки (локальная схема)"""
     value: Any
 
 
 # ============================================
-# Р“СЂСѓРїРїС‹ РЅР°СЃС‚СЂРѕРµРє СЃ РјРµС‚Р°РґР°РЅРЅС‹РјРё
+# Группы настроек с метаданными
 # ============================================
 
 SETTINGS_GROUPS = {
-    "images": {"label": "РР·РѕР±СЂР°Р¶РµРЅРёСЏ", "icon": "bi-image"},
-    "backup": {"label": "Р РµР·РµСЂРІРЅРѕРµ РєРѕРїРёСЂРѕРІР°РЅРёРµ", "icon": "bi-cloud-arrow-up"},
-    "notifications": {"label": "РЈРІРµРґРѕРјР»РµРЅРёСЏ", "icon": "bi-bell"},
-    "security": {"label": "Р‘РµР·РѕРїР°СЃРЅРѕСЃС‚СЊ", "icon": "bi-shield-lock"},
-    "interface": {"label": "РРЅС‚РµСЂС„РµР№СЃ", "icon": "bi-layout-text-window"},
-    "branding": {"label": "Р‘СЂРµРЅРґРёРЅРі", "icon": "bi-palette"},
-    "server": {"label": "РЎРµСЂРІРµСЂ", "icon": "bi-server"},
+    "images": {"label": "Изображения", "icon": "bi-image"},
+    "backup": {"label": "Резервное копирование", "icon": "bi-cloud-arrow-up"},
+    "notifications": {"label": "Уведомления", "icon": "bi-bell"},
+    "security": {"label": "Безопасность", "icon": "bi-shield-lock"},
+    "interface": {"label": "Интерфейс", "icon": "bi-layout-text-window"},
+    "branding": {"label": "Брендинг", "icon": "bi-palette"},
+    "server": {"label": "Сервер", "icon": "bi-server"},
 }
 
 
@@ -114,19 +114,19 @@ def _build_login_branding_response(db: Session) -> LoginBrandingResponse:
     return LoginBrandingResponse(
         appName=str(get_setting(db, "login_app_name", "FieldWorker") or "FieldWorker").strip(),
         productLabel=str(get_setting(db, "login_product_label", "Field Service Platform") or "Field Service Platform").strip(),
-        headline=str(get_setting(db, "login_headline", "Защищённый вход в рабочее пространство") or "Защищённый вход в рабочее пространство").strip(),
+        headline=str(get_setting(db, "login_headline", "���������� ���� � ������� ������������") or "���������� ���� � ������� ������������").strip(),
         description=str(
             get_setting(
                 db,
                 "login_description",
-                "Единая авторизация для администраторов, диспетчеров и исполнителей с tenant-изоляцией по организациям.",
+                "������ ����������� ��� ���������������, ����������� � ������������ � tenant-��������� �� ������������.",
             )
-            or "Единая авторизация для администраторов, диспетчеров и исполнителей с tenant-изоляцией по организациям."
+            or "������ ����������� ��� ���������������, ����������� � ������������ � tenant-��������� �� ������������."
         ).strip(),
         organizationName=_clean_optional_string(get_setting(db, "login_organization_name", None)),
         supportEmail=_clean_optional_string(get_setting(db, "support_email", None)),
         supportPhone=_clean_optional_string(get_setting(db, "support_phone", None)),
-        supportHours=str(get_setting(db, "support_hours", "Пн-Пт, 09:00-18:00") or "Пн-Пт, 09:00-18:00").strip(),
+        supportHours=str(get_setting(db, "support_hours", "��-��, 09:00-18:00") or "��-��, 09:00-18:00").strip(),
     )
 
 
@@ -139,13 +139,13 @@ async def get_system_settings(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin)
 ):
-    """РџРѕР»СѓС‡РёС‚СЊ РІСЃРµ СЃРёСЃС‚РµРјРЅС‹Рµ РЅР°СЃС‚СЂРѕР№РєРё, СЃРіСЂСѓРїРїРёСЂРѕРІР°РЅРЅС‹Рµ"""
-    # РРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј РЅР°СЃС‚СЂРѕР№РєРё РµСЃР»Рё РЅРµ СЃСѓС‰РµСЃС‚РІСѓСЋС‚
+    """Получить все системные настройки, сгруппированные"""
+    # Инициализируем настройки если не существуют
     init_default_settings(db)
     
     settings = get_all_settings(db)
     
-    # Р“СЂСѓРїРїРёСЂСѓРµРј РїРѕ group
+    # Группируем по group
     groups_dict = {}
     for setting in settings:
         if setting.group not in groups_dict:
@@ -174,7 +174,7 @@ async def get_system_settings(
 
 @router.get("/settings/interface", response_model=InterfaceSettingsResponse)
 async def get_interface_settings(db: Session = Depends(get_db)):
-    """РџРѕР»СѓС‡РёС‚СЊ РїСѓР±Р»РёС‡РЅС‹Рµ РЅР°СЃС‚СЂРѕР№РєРё РёРЅС‚РµСЂС„РµР№СЃР°"""
+    """Получить публичные настройки интерфейса"""
     init_default_settings(db)
     enable_resizable_columns = get_setting(db, "enable_resizable_columns")
     compact_table_view = get_setting(db, "compact_table_view")
@@ -191,7 +191,7 @@ async def get_interface_settings(db: Session = Depends(get_db)):
 
 @public_router.get("/login-branding", response_model=LoginBrandingResponse)
 async def get_login_branding_settings(db: Session = Depends(get_db)):
-    """Получить публичные настройки брендинга и блока поддержки для страницы входа."""
+    """�������� ��������� ��������� ��������� � ����� ��������� ��� �������� �����."""
     return _build_login_branding_response(db)
 
 
@@ -203,10 +203,10 @@ async def get_login_branding_settings(db: Session = Depends(get_db)):
 async def get_defect_types(
     db: Session = Depends(get_db),
 ):
-    """РџРѕР»СѓС‡РёС‚СЊ СЃРїРёСЃРѕРє С‚РёРїРѕРІ РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚РµР№ (РґРѕСЃС‚СѓРїРЅРѕ РІСЃРµРј)"""
+    """Получить список типов неисправностей (доступно всем)"""
     init_default_settings(db)
 
-    # get_setting РІРѕР·РІСЂР°С‰Р°РµС‚ СѓР¶Рµ РїР°СЂСЃРµРЅРЅРѕРµ Р·РЅР°С‡РµРЅРёРµ (list РёР»Рё None)
+    # get_setting возвращает уже парсенное значение (list или None)
     types_data = get_setting(db, "defect_types")
     
     if not types_data:
@@ -224,16 +224,16 @@ async def add_defect_type(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin)
 ):
-    """Р”РѕР±Р°РІРёС‚СЊ РЅРѕРІС‹Р№ С‚РёРї РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё (С‚РѕР»СЊРєРѕ Р°РґРјРёРЅС‹)"""
+    """Добавить новый тип неисправности (только админы)"""
     import json
     import uuid
     
-    # get_setting РІРѕР·РІСЂР°С‰Р°РµС‚ СѓР¶Рµ РїР°СЂСЃРµРЅРЅРѕРµ Р·РЅР°С‡РµРЅРёРµ (list РёР»Рё None)
+    # get_setting возвращает уже парсенное значение (list или None)
     types_data = get_setting(db, "defect_types")
     if not types_data:
         types_data = []
     
-    # РЎРѕР·РґР°С‘Рј РЅРѕРІС‹Р№ С‚РёРї
+    # Создаём новый тип
     new_type = {
         "id": str(uuid.uuid4()),
         "name": data.name.strip(),
@@ -243,7 +243,7 @@ async def add_defect_type(
     
     types_data.append(new_type)
     
-    # РЎРѕС…СЂР°РЅСЏРµРј РѕР±РЅРѕРІР»РµРЅРЅС‹Р№ СЃРїРёСЃРѕРє
+    # Сохраняем обновленный список
     set_setting(db, "defect_types", json.dumps(types_data, ensure_ascii=False))
     
     return DefectTypeResponse(**new_type)
@@ -255,23 +255,23 @@ async def delete_defect_type(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin)
 ):
-    """РЈРґР°Р»РёС‚СЊ С‚РёРї РЅРµРёСЃРїСЂР°РІРЅРѕСЃС‚Рё (С‚РѕР»СЊРєРѕ Р°РґРјРёРЅС‹)"""
+    """Удалить тип неисправности (только админы)"""
     import json
     
-    # get_setting РІРѕР·РІСЂР°С‰Р°РµС‚ СѓР¶Рµ РїР°СЂСЃРµРЅРЅРѕРµ Р·РЅР°С‡РµРЅРёРµ (list РёР»Рё None)
+    # get_setting возвращает уже парсенное значение (list или None)
     types_data = get_setting(db, "defect_types")
     
     if not types_data:
-        raise HTTPException(status_code=404, detail="РўРёРї РЅРµ РЅР°Р№РґРµРЅ")
+        raise HTTPException(status_code=404, detail="Тип не найден")
     
-    # РС‰РµРј Рё СѓРґР°Р»СЏРµРј С‚РёРї
+    # Ищем и удаляем тип
     original_len = len(types_data)
     types_data = [t for t in types_data if t.get("id") != defect_type_id]
     
     if len(types_data) == original_len:
-        raise HTTPException(status_code=404, detail="РўРёРї РЅРµ РЅР°Р№РґРµРЅ")
+        raise HTTPException(status_code=404, detail="Тип не найден")
     
-    # РЎРѕС…СЂР°РЅСЏРµРј РѕР±РЅРѕРІР»РµРЅРЅС‹Р№ СЃРїРёСЃРѕРє
+    # Сохраняем обновленный список
     set_setting(db, "defect_types", json.dumps(types_data, ensure_ascii=False))
     
     return {"status": "deleted"}
@@ -283,11 +283,11 @@ async def get_single_setting(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin)
 ):
-    """РџРѕР»СѓС‡РёС‚СЊ РѕРґРЅСѓ РЅР°СЃС‚СЂРѕР№РєСѓ"""
+    """Получить одну настройку"""
     init_default_settings(db)
     setting = db.query(SystemSettingModel).filter(SystemSettingModel.key == key).first()
     if not setting:
-        raise HTTPException(status_code=404, detail="РќР°СЃС‚СЂРѕР№РєР° РЅРµ РЅР°Р№РґРµРЅР°")
+        raise HTTPException(status_code=404, detail="Настройка не найдена")
     
     return SettingResponse(
         key=setting.key,
@@ -309,14 +309,14 @@ async def update_setting(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin)
 ):
-    """РћР±РЅРѕРІРёС‚СЊ РЅР°СЃС‚СЂРѕР№РєСѓ"""
+    """Обновить настройку"""
     init_default_settings(db)
     setting = db.query(SystemSettingModel).filter(SystemSettingModel.key == key).first()
     if not setting:
-        raise HTTPException(status_code=404, detail="РќР°СЃС‚СЂРѕР№РєР° РЅРµ РЅР°Р№РґРµРЅР°")
+        raise HTTPException(status_code=404, detail="Настройка не найдена")
     
     if setting.is_readonly:
-        raise HTTPException(status_code=400, detail="РќР°СЃС‚СЂРѕР№РєР° С‚РѕР»СЊРєРѕ РґР»СЏ С‡С‚РµРЅРёСЏ")
+        raise HTTPException(status_code=400, detail="Настройка только для чтения")
     
     setting.set_typed_value(data.value)
     setting.updated_by = admin.username
@@ -331,7 +331,7 @@ async def update_settings_bulk(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin)
 ):
-    """РњР°СЃСЃРѕРІРѕРµ РѕР±РЅРѕРІР»РµРЅРёРµ РЅР°СЃС‚СЂРѕРµРє"""
+    """Массовое обновление настроек"""
     init_default_settings(db)
     updated = []
     errors = []
@@ -339,11 +339,11 @@ async def update_settings_bulk(
     for key, value in updates.items():
         setting = db.query(SystemSettingModel).filter(SystemSettingModel.key == key).first()
         if not setting:
-            errors.append(f"РќР°СЃС‚СЂРѕР№РєР° '{key}' РЅРµ РЅР°Р№РґРµРЅР°")
+            errors.append(f"Настройка '{key}' не найдена")
             continue
         
         if setting.is_readonly:
-            errors.append(f"РќР°СЃС‚СЂРѕР№РєР° '{key}' С‚РѕР»СЊРєРѕ РґР»СЏ С‡С‚РµРЅРёСЏ")
+            errors.append(f"Настройка '{key}' только для чтения")
             continue
         
         setting.set_typed_value(value)

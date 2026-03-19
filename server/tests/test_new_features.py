@@ -17,11 +17,7 @@ from app.models.task import TaskModel
 from app.services.auth import get_password_hash
 from app.services.sla_service import get_sla_metrics, _get_sla_hours
 from app.services.excel_export import export_tasks_to_excel
-<<<<<<< HEAD
 from app.services.websocket_manager import ConnectionManager, _event, broadcast_chat_conversation_updated
-=======
-from app.services.websocket_manager import ConnectionManager, _event
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 
 
 def run_async(coro):
@@ -480,7 +476,6 @@ class TestWsEvent:
         # Должен парситься как ISO
         datetime.fromisoformat(evt["timestamp"])
 
-<<<<<<< HEAD
     def test_chat_conversation_updated_payload(self, monkeypatch):
         """Management update event should include action and conversation metadata."""
         sent = {}
@@ -516,8 +511,6 @@ class TestWsEvent:
             "role": "admin",
         }
 
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 
 # ============================================================================
 # WebSocket API — Endpoint Tests

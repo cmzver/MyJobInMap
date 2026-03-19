@@ -36,6 +36,7 @@ from app.config import settings
 from app.models import init_db, engine, get_db
 from app.api import api_router, get_v2_router
 from app.services import init_firebase, create_default_users
+from app.models.base import run_migrations
 from app.services.backup_scheduler import start_scheduler, stop_scheduler, get_scheduler_status
 from app.services.websocket_manager import ws_manager
 from sqlalchemy.orm import Session
@@ -97,7 +98,8 @@ async def lifespan(app: FastAPI):
     logger.info(f"   📁 Base dir: {settings.BASE_DIR}")
     logger.info(f"   🗄️ Database: {settings.DATABASE_URL}")
     
-    # Инициализация БД
+    # Миграции БД (Alembic) + создание новых таблиц
+    run_migrations()
     init_db()
     
     # Создание дефолтных пользователей

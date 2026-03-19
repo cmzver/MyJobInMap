@@ -233,10 +233,36 @@ function Invoke-RemoteCommand {
 
     $result = Invoke-SSH -Command "($Command) 2>&1"
     if ($result.ExitCode -ne 0) {
-        throw "Remote command failed: $Command"
+        $outputText = ($result.Output | Out-String).Trim()
+        if ([string]::IsNullOrWhiteSpace($outputText)) {
+            throw "Remote command failed: $Command"
+        }
+
+        throw "Remote command failed: $Command`n$outputText"
     }
 
     return $result.Output
+}
+
+function Get-RemoteComposeCommand {
+    $checkCommand = "if docker compose version >/dev/null 2>&1; then echo docker compose; elif command -v docker-compose >/dev/null 2>&1; then echo docker-compose; else exit 1; fi"
+    $result = Invoke-SSH -Command $checkCommand
+
+    if ($result.ExitCode -ne 0) {
+        $outputText = ($result.Output | Out-String).Trim()
+        if ([string]::IsNullOrWhiteSpace($outputText)) {
+            throw "Neither 'docker compose' nor 'docker-compose' is available on remote server"
+        }
+
+        throw "Unable to detect docker compose command on remote server`n$outputText"
+    }
+
+    $composeCommand = ($result.Output | Out-String).Trim()
+    if ([string]::IsNullOrWhiteSpace($composeCommand)) {
+        throw "Remote compose command detection returned empty output"
+    }
+
+    return $composeCommand
 }
 
 function Test-RemoteFileExists {
@@ -501,10 +527,11 @@ try {
             throw "Missing remote env files: $($missingRemoteFiles -join ', '). Use -IncludeServiceEnvFiles or create them manually on the server."
         }
 
-        $downCommand = "cd $RemotePath && (docker compose down || docker-compose down)"
+        $remoteComposeCommand = Get-RemoteComposeCommand
+        $downCommand = "cd $RemotePath && $remoteComposeCommand down"
         $cleanupCommand = "docker rm -f fieldworker-api fieldworker-telegram 2>/dev/null || true"
-        $composeCommand = "cd $RemotePath && (docker compose up -d --build || docker-compose up -d --build)"
-        $statusCommand = "cd $RemotePath && (docker compose ps || docker-compose ps)"
+        $composeCommand = "cd $RemotePath && $remoteComposeCommand up -d --build"
+        $statusCommand = "cd $RemotePath && $remoteComposeCommand ps"
 
         Write-Log "Stopping existing containers" "Info"
         Invoke-RemoteCommand $downCommand | Out-Null

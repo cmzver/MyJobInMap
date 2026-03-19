@@ -1,7 +1,7 @@
 """
 Notification Model
 ==================
-Модель уведомлений пользователей.
+РњРѕРґРµР»СЊ СѓРІРµРґРѕРјР»РµРЅРёР№ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№.
 """
 
 import enum
@@ -13,14 +13,14 @@ from app.models.base import Base, utcnow
 
 
 class NotificationType(str, enum.Enum):
-    """Типы уведомлений"""
-    TASK = "task"       # Уведомление о заявке
-    SYSTEM = "system"   # Системное уведомление
-    ALERT = "alert"     # Важное предупреждение
+    """РўРёРїС‹ СѓРІРµРґРѕРјР»РµРЅРёР№"""
+    TASK = "task"       # РЈРІРµРґРѕРјР»РµРЅРёРµ Рѕ Р·Р°СЏРІРєРµ
+    SYSTEM = "system"   # РЎРёСЃС‚РµРјРЅРѕРµ СѓРІРµРґРѕРјР»РµРЅРёРµ
+    ALERT = "alert"     # Р’Р°Р¶РЅРѕРµ РїСЂРµРґСѓРїСЂРµР¶РґРµРЅРёРµ
 
 
 class NotificationModel(Base):
-    """Модель уведомления"""
+    """РњРѕРґРµР»СЊ СѓРІРµРґРѕРјР»РµРЅРёСЏ"""
     __tablename__ = "notifications"
 
     id = Column(Integer, primary_key=True, index=True)

@@ -1,7 +1,7 @@
 """
 Comment Schemas
 ===============
-Схемы для комментариев.
+РЎС…РµРјС‹ РґР»СЏ РєРѕРјРјРµРЅС‚Р°СЂРёРµРІ.
 """
 
 from datetime import datetime
@@ -10,13 +10,13 @@ from pydantic import BaseModel, Field, ConfigDict
 
 
 class CommentCreate(BaseModel):
-    """Создание комментария"""
+    """РЎРѕР·РґР°РЅРёРµ РєРѕРјРјРµРЅС‚Р°СЂРёСЏ"""
     text: str = Field(..., min_length=1, max_length=1000)
-    author: str = Field(default="Сотрудник", max_length=100)
+    author: str = Field(default="РЎРѕС‚СЂСѓРґРЅРёРє", max_length=100)
 
 
 class CommentResponse(BaseModel):
-    """Ответ с комментарием"""
+    """РћС‚РІРµС‚ СЃ РєРѕРјРјРµРЅС‚Р°СЂРёРµРј"""
     model_config = ConfigDict(from_attributes=True)
     
     id: int

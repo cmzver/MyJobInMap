@@ -1,9 +1,9 @@
-﻿import { create } from 'zustand'
+import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import apiClient from '@/api/client'
 import type { UserRole } from '@/types/user'
 
-/** РџРѕРґРјРЅРѕР¶РµСЃС‚РІРѕ User, РґРѕСЃС‚СѓРїРЅРѕРµ РёР· JWT / login-РѕС‚РІРµС‚Р° */
+/** Подмножество User, доступное из JWT / login-ответа */
 export interface AuthUser {
   id: number
   username: string
@@ -83,7 +83,7 @@ export const useAuthStore = create<AuthState>()(
         } catch (error) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const axiosError = error as any
-          const message = axiosError?.response?.data?.detail || axiosError?.message || 'РћС€РёР±РєР° РІС…РѕРґР°'
+          const message = axiosError?.response?.data?.detail || axiosError?.message || 'Ошибка входа'
           throw new Error(message)
         }
       },

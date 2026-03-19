@@ -85,7 +85,6 @@ async def websocket_endpoint(
     
     try:
         while True:
-<<<<<<< HEAD
             # Ожидаем сообщения от клиента (ping/pong keepalive + chat events)
             data = await websocket.receive_json()
             msg_type = data.get("type")
@@ -129,12 +128,6 @@ async def websocket_endpoint(
                         mark_as_read(db, conv_id, user_id, last_message_id)
                     finally:
                         db.close()
-=======
-            # Ожидаем сообщения от клиента (ping/pong keepalive)
-            data = await websocket.receive_json()
-            if data.get("type") == "ping":
-                await websocket.send_json({"type": "pong"})
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
     except WebSocketDisconnect:
         pass
     except Exception as e:
