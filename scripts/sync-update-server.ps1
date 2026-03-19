@@ -312,16 +312,26 @@ function Sync-WithArchive {
     $tarArgs += @("-C", $LocalPath, ".")
 
     try {
-        Write-Log "rsync not found, using tar+scp fallback" "Warning"
+        Write-Log "Creating deployment archive" "Info"
 
         Invoke-Checked -Script {
             tar @tarArgs
         } -ErrorMessage "Failed to create deployment archive"
 
+        $archiveSize = (Get-Item $archivePath).Length
+        $archiveSizeMB = [math]::Round($archiveSize / 1MB, 1)
+        Write-Log "Archive size: ${archiveSizeMB} MB" "Info"
+
+        Write-Log "Uploading archive to server" "Info"
         Invoke-Checked -Script {
             scp @script:SCPArgs $archivePath "$Server`:$remoteArchivePath"
         } -ErrorMessage "Failed to upload deployment archive"
 
+        Write-Log "Cleaning old files on remote" "Info"
+        $cleanCommand = "cd $RemotePath 2>/dev/null && find . -maxdepth 1 -mindepth 1 ! -name server ! -name bot -exec rm -rf {} + 2>/dev/null; find server -maxdepth 1 -mindepth 1 ! -name .env ! -name uploads ! -name backups ! -name logs ! -name '*.db' ! -name '*.db-journal' ! -name '*.db-wal' ! -name '*.db-shm' -exec rm -rf {} + 2>/dev/null; find bot -maxdepth 1 -mindepth 1 ! -name .env -exec rm -rf {} + 2>/dev/null; true"
+        Invoke-RemoteCommand $cleanCommand | Out-Null
+
+        Write-Log "Extracting on remote" "Info"
         $extractCommand = "mkdir -p $RemotePath && tar -xzf $remoteArchivePath -C $RemotePath && rm -f $remoteArchivePath"
         Invoke-RemoteCommand $extractCommand | Out-Null
     }
@@ -358,12 +368,17 @@ function Sync-PortalWithArchive {
     $remoteArchivePath = "/tmp/fieldworker-portal-$timestamp.tar.gz"
 
     try {
-        Write-Log "rsync not found, using tar+scp fallback for portal dist" "Warning"
+        Write-Log "Creating portal archive" "Info"
 
         Invoke-Checked -Script {
             tar -czf $archivePath -C $SourcePath .
         } -ErrorMessage "Failed to create portal deployment archive"
 
+        $archiveSize = (Get-Item $archivePath).Length
+        $archiveSizeMB = [math]::Round($archiveSize / 1MB, 1)
+        Write-Log "Portal archive size: ${archiveSizeMB} MB" "Info"
+
+        Write-Log "Uploading portal archive" "Info"
         Invoke-Checked -Script {
             scp @script:SCPArgs $archivePath "$Server`:$remoteArchivePath"
         } -ErrorMessage "Failed to upload portal deployment archive"
@@ -395,6 +410,8 @@ if (-not $SkipSync -or -not $SkipPortalSync) {
         throw "Neither rsync nor the scp+tar fallback is available"
     }
 }
+
+$deployStart = Get-Date
 
 try {
     Write-Log "Connecting to $Server" "Info"
@@ -455,6 +472,9 @@ try {
             "server/logs"
             "*.apk"
             ".DS_Store"
+            "app/src"
+            "portal/src"
+            "portal/screenshots"
         )
 
         $rsyncExcludeArgs = foreach ($pattern in $excludePatterns) {
@@ -550,7 +570,9 @@ try {
         Write-Log "Skipping container update" "Warning"
     }
 
-    Write-Log "Deployment completed" "Success"
+    $deployDuration = (Get-Date) - $deployStart
+    $durationStr = "{0:mm\:ss}" -f $deployDuration
+    Write-Log "Deployment completed in $durationStr" "Success"
     Write-Log "Check status: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose ps'" "Info"
     Write-Log "View logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose logs -f'" "Info"
 }

@@ -8,6 +8,20 @@
 ## [Unreleased]
 
 
+## [2.16.0] - 2026-03-19
+
+### Исправлено
+- **Merge conflicts cleanup** — разрешены все merge-конфликты в Android-приложении (NetworkModule.kt, Screen.kt, MainScreen.kt — 15 конфликтов)
+- **Server startup** — исправлен краш сервера: добавлена функция `get_v2_router()`, 5 недостающих импортов роутеров, удалён UTF-8 BOM из 12 файлов
+- **Database migrations** — добавлена `run_migrations()` с автоматическим определением состояния БД и вызовом Alembic
+- **Portal encoding** — исправлена двойная кодировка CP1251 в 9 файлах портала
+- **Telegram bot** — устранён конфликт двух запущенных инстансов, добавлен error handler для Conflict-ошибок
+
+### Изменено
+- **Deploy scripts** — добавлен интерактивный выбор режима деплоя (all/portal/server), таймер, оптимизация архива
+- **Nginx config** — исправлен SPA fallback для `/portal/*` (замена `try_files` + `alias` на `rewrite`)
+
+
 ## [2.15.0] - 2026-03-17
 
 ### Добавлено

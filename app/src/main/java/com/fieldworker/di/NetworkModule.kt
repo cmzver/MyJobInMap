@@ -202,7 +202,6 @@ object NetworkModule {
     fun provideAddressesApi(retrofit: Retrofit): AddressesApi {
         return retrofit.create(AddressesApi::class.java)
     }
-<<<<<<< HEAD
 
     @Provides
     @Singleton
@@ -215,6 +214,4 @@ object NetworkModule {
     fun provideUsersApi(retrofit: Retrofit): UsersApi {
         return retrofit.create(UsersApi::class.java)
     }
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 }

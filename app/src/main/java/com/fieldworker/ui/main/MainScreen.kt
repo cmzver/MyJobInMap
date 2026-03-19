@@ -16,10 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-<<<<<<< HEAD
 import androidx.compose.ui.platform.LocalContext
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -30,13 +27,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.fieldworker.ui.components.PhotoUploadConfirmDialog
-<<<<<<< HEAD
 import com.fieldworker.ui.chat.ChatViewModel
 import com.fieldworker.ui.chat.ChatScreen
 import com.fieldworker.ui.chat.ConversationListFilter
 import com.fieldworker.ui.chat.ConversationListScreen
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
 import com.fieldworker.ui.list.TaskListScreen
 import com.fieldworker.ui.map.MapScreen
 import com.fieldworker.ui.map.MapViewModel
@@ -65,43 +59,30 @@ fun MainScreen(
     isCheckingForUpdates: Boolean = false,
     viewModel: MapViewModel = hiltViewModel()
 ) {
-<<<<<<< HEAD
     val context = LocalContext.current
     val navController = rememberNavController()
     val chatViewModel: ChatViewModel = hiltViewModel()
-=======
-    val navController = rememberNavController()
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     
     var showLogoutDialog by remember { mutableStateOf(false) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-<<<<<<< HEAD
     val chatListState by chatViewModel.listState.collectAsStateWithLifecycle()
     val chatState by chatViewModel.chatState.collectAsStateWithLifecycle()
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
     val pagingItems = viewModel.tasksPagingFlow.collectAsLazyPagingItems()
     val snackbarHostState = remember { SnackbarHostState() }
     val connectionStatus by viewModel.connectionStatus.collectAsStateWithLifecycle()
     val currentScreen = when (currentRoute) {
         Screen.TaskList.route -> Screen.TaskList
-<<<<<<< HEAD
         Screen.Chat.route -> Screen.Chat
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
         Screen.Settings.route -> Screen.Settings
         Screen.Developer.route -> Screen.Developer
         Screen.ObjectCard.route -> Screen.ObjectCard
         else -> Screen.Map
     }
-<<<<<<< HEAD
     val unreadChatCount = remember(chatListState.conversations) {
         chatListState.conversations.sumOf { it.unreadCount }
     }
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
     val topTitle = mainTitleFor(currentScreen)
     val topSubtitle = mainSubtitleFor(currentScreen, uiState.newTasksCount, connectionStatus)
     
@@ -186,11 +167,7 @@ fun MainScreen(
         }
     }
     
-<<<<<<< HEAD
     val showMainTopBar = currentScreen != Screen.Map && currentScreen != Screen.TaskList && currentScreen != Screen.Chat && currentScreen != Screen.Developer && currentScreen != Screen.ObjectCard
-=======
-    val showMainTopBar = currentScreen != Screen.Map && currentScreen != Screen.TaskList && currentScreen != Screen.Developer && currentScreen != Screen.ObjectCard
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
     val showBottomBar = currentScreen != Screen.Developer && currentScreen != Screen.ObjectCard
 
     LaunchedEffect(notificationTaskId) {
@@ -272,7 +249,6 @@ fun MainScreen(
                         Screen.bottomNavItems.forEach { screen ->
                             NavigationBarItem(
                                 icon = {
-<<<<<<< HEAD
                                     if (screen == Screen.TaskList || screen == Screen.Chat) {
                                         BadgedBox(
                                             badge = {
@@ -287,17 +263,6 @@ fun MainScreen(
                                                         containerColor = MaterialTheme.colorScheme.error
                                                     ) {
                                                         Text(if (badgeCount > 99) "99+" else "$badgeCount")
-=======
-                                    if (screen == Screen.TaskList) {
-                                        BadgedBox(
-                                            badge = {
-                                                val newCount = uiState.newTasksCount
-                                                if (newCount > 0) {
-                                                    Badge(
-                                                        containerColor = MaterialTheme.colorScheme.error
-                                                    ) {
-                                                        Text("$newCount")
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
                                                     }
                                                 }
                                             }
@@ -414,7 +379,6 @@ fun MainScreen(
                     )
                 }
                 
-<<<<<<< HEAD
                 composable(Screen.Chat.route) {
                     val listState by chatViewModel.listState.collectAsStateWithLifecycle()
                     val currentUserId = viewModel.preferences.getUserId()
@@ -491,8 +455,6 @@ fun MainScreen(
                     }
                 }
                 
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
                 composable(Screen.Settings.route) {
                     SettingsScreen(
                         preferences = viewModel.preferences,
@@ -570,10 +532,7 @@ private fun mainTitleFor(screen: Screen): String {
     return when (screen) {
         Screen.Map -> "Карта выездов"
         Screen.TaskList -> "Мои заявки"
-<<<<<<< HEAD
         Screen.Chat -> "Чаты"
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
         Screen.Settings -> "Настройки и профиль"
         Screen.Developer -> "Режим разработчика"
         Screen.ObjectCard -> "Карточка объекта"
@@ -588,10 +547,7 @@ private fun mainSubtitleFor(
     return when (screen) {
         Screen.Map -> if (newTasksCount > 0) "$newTasksCount новых заявок ждут обработки" else connectionStatusLabel(connectionStatus)
         Screen.TaskList -> if (newTasksCount > 0) "$newTasksCount новых заявок в очереди" else "Список синхронизирован и готов к работе"
-<<<<<<< HEAD
         Screen.Chat -> "Сообщения и обсуждения"
-=======
->>>>>>> 341f81020243ec851430a4081c49f876bdeaeb91
         Screen.Settings -> "Сервер, уведомления, обновления и локальные настройки"
         Screen.Developer -> "Диагностика и служебные параметры приложения"
         Screen.ObjectCard -> "Сведения по адресу, оборудованию и истории объекта"

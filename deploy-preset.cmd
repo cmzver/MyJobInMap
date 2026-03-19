@@ -2,8 +2,13 @@
 setlocal
 
 set SCRIPT_DIR=%~dp0
+set MODE=%~1
 
-powershell -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\sync-update-server-preset.ps1"
+if "%MODE%"=="" (
+    powershell -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\sync-update-server-preset.ps1"
+) else (
+    powershell -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\sync-update-server-preset.ps1" -Mode %MODE%
+)
 
 if errorlevel 1 (
     echo.

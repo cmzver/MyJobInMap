@@ -149,7 +149,7 @@ CANCELLED → терминальный статус
 ### Android
 - ⚠️ **Эмулятор** подключается через `10.0.2.2:8001`
 - ⚠️ **URL фото** через `getFullServerUrl()` (с портом)
-- ⚠️ **Версия Android-приложения** в `app/build.gradle.kts` → `versionCode = 21500`, `versionName = "2.15.0"`
+- ⚠️ **Версия Android-приложения** в `app/build.gradle.kts` → `versionCode = 21600`, `versionName = "2.16.0"`
 
 ---
 
@@ -236,6 +236,6 @@ npm run build            # Сборка в dist/
 
 ---
 
-**Версия:** 2.15.0 (Phase 11 — Многофункциональный чат: Backend + Portal + Android)
+**Версия:** 2.16.0 (Phase 12 — Stability & Deployment Fixes)
 **Статус:** ✅ Production Ready  
-**Последнее обновление:** 12 марта 2026
+**Последнее обновление:** 19 марта 2026

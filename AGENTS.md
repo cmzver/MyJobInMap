@@ -1,6 +1,6 @@
 # FieldWorker - AI Agent Guidelines
 
-> **Версия:** 2.15.0 | **Обновлено:** 17 марта 2026
+> **Версия:** 2.16.0 | **Обновлено:** 19 марта 2026
 
 ## Project Overview
 
@@ -199,7 +199,7 @@ MyJobInMap/
 
 ### Server
 - ✅ **Port 8001** (not 8000)
-- ✅ **Version** stored in `app/config.py` → `API_VERSION = "2.15.0"`
+- ✅ **Version** stored in `app/config.py` → `API_VERSION = "2.16.0"`
 - ✅ **REST standard**: PATCH for partial updates, PUT for full replacements
 - ✅ **Rate Limiting** on `/api/auth/login` (5 attempts / 60 seconds per IP)
 - ✅ **Task Status Transitions** validated:
@@ -223,7 +223,7 @@ MyJobInMap/
 - ✅ **Photo URLs** must use `getFullServerUrl()` (includes port)
 - ✅ **network_security_config**: `cleartextTrafficPermitted="true"` for dev
 - ✅ **APK updates**: `versionName` и `versionCode` извлекаются сервером напрямую из `AndroidManifest.xml` внутри APK
-- ✅ **App version**: `app/build.gradle.kts` → `versionCode = 21500`, `versionName = "2.15.0"`
+- ✅ **App version**: `app/build.gradle.kts` → `versionCode = 21600`, `versionName = "2.16.0"`
 
 ---
 
@@ -305,8 +305,8 @@ npm run build            # Build to dist/
 ## 📝 File Locations
 
 ### Version
-- `server/app/config.py` → `API_VERSION = "2.15.0"`
-- `app/build.gradle.kts` → `versionCode = 21500`, `versionName = "2.15.0"`
+- `server/app/config.py` → `API_VERSION = "2.16.0"`
+- `app/build.gradle.kts` → `versionCode = 21600`, `versionName = "2.16.0"`
 
 ### Changelog
 - `CHANGELOG.md` — Full version history
@@ -373,4 +373,4 @@ npm run build            # Build to dist/
 ---
 
 **Maintained by:** FieldWorker Team  
-**Last updated:** 12 марта 2026
+**Last updated:** 19 марта 2026

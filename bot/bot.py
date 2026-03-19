@@ -12,6 +12,7 @@ import threading
 import requests
 from dotenv import load_dotenv
 from telegram import Update
+from telegram.error import Conflict
 from telegram.ext import (
     ApplicationBuilder,
     ContextTypes,
@@ -328,9 +329,20 @@ def main() -> None:
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
     )
     
-    # Запускаем бота
+    # Обработчик ошибок
+    async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if isinstance(context.error, Conflict):
+            logger.warning("Conflict: другой экземпляр бота уже работает, пропускаю")
+            return
+        logger.error(f"Ошибка: {context.error}")
+    
+    application.add_error_handler(error_handler)
+    
+    # Запускаем бота (обрабатываем накопившиеся сообщения чтобы не потерять заявки)
     logger.info("✅ Бот запущен и готов к работе!")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    application.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+    )
 
 
 if __name__ == "__main__":

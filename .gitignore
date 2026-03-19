@@ -110,3 +110,6 @@ lint/tmp/
 # Other
 *.hprof
 chat_results.txt
+.vscode/
+.idea/
+.github/

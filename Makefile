@@ -1,4 +1,4 @@
-.PHONY: help seed test lint format run-server run-android clean docker-up docker-down docker-logs deploy deploy-preset
+.PHONY: help seed test lint format run-server run-android clean docker-up docker-down docker-logs deploy deploy-preset deploy-portal deploy-server
 
 help:
 	@echo "FieldWorker Development Commands"
@@ -22,7 +22,9 @@ help:
 	@echo ""
 	@echo "Deployment:"
 	@echo "  make deploy            - Deploy to remote server via rsync"
-	@echo "  make deploy-preset     - Deploy to the preset production server"
+	@echo "  make deploy-preset     - Deploy to preset server (interactive mode)"
+	@echo "  make deploy-portal     - Deploy portal only"
+	@echo "  make deploy-server     - Deploy server only"
 
 # Seed database with test data
 seed:
@@ -106,3 +108,11 @@ deploy:
 deploy-preset:
 	@echo "Deploying to preset production server..."
 	@powershell -ExecutionPolicy Bypass -File .\scripts\sync-update-server-preset.ps1
+
+deploy-portal:
+	@echo "Deploying portal only..."
+	@powershell -ExecutionPolicy Bypass -File .\scripts\sync-update-server-preset.ps1 -Mode portal
+
+deploy-server:
+	@echo "Deploying server only..."
+	@powershell -ExecutionPolicy Bypass -File .\scripts\sync-update-server-preset.ps1 -Mode server
