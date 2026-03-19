@@ -1,19 +1,65 @@
 package com.fieldworker.ui.chat
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,12 +67,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.fieldworker.R
 import com.fieldworker.domain.model.Conversation
 import com.fieldworker.domain.model.ConversationType
 import com.fieldworker.domain.model.User
+import com.fieldworker.ui.chat.components.ChatAvatar
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -47,85 +99,116 @@ fun ConversationListScreen(
     onCreateDirectConversation: (Long) -> Unit,
     onCreateGroupConversation: (String, List<Long>) -> Unit,
     onRefresh: () -> Unit,
+    onArchiveConversation: (Long) -> Unit = {},
 ) {
     var showCreateDialog by remember { mutableStateOf(false) }
-    val filteredConversations by remember(conversations, selectedFilter) {
-        androidx.compose.runtime.mutableStateOf(
-            conversations.filter { conversation ->
-                when (selectedFilter) {
-                    ConversationListFilter.ACTIVE -> !conversation.isArchived
-                    ConversationListFilter.ARCHIVED -> conversation.isArchived
-                }
+    var searchMode by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
+
+    val filteredConversations = remember(conversations, selectedFilter, searchQuery) {
+        conversations.filter { conversation ->
+            val matchesFilter = when (selectedFilter) {
+                ConversationListFilter.ACTIVE -> !conversation.isArchived
+                ConversationListFilter.ARCHIVED -> conversation.isArchived
             }
-        )
+            val q = searchQuery.trim()
+            val matchesSearch = if (q.isBlank()) {
+                true
+            } else {
+                val normalized = q.lowercase()
+                val title = (conversation.displayName ?: conversation.name ?: "").lowercase()
+                val message = conversation.lastMessage?.text.orEmpty().lowercase()
+                val sender = conversation.lastMessage?.senderName.orEmpty().lowercase()
+                title.contains(normalized) || message.contains(normalized) || sender.contains(normalized)
+            }
+            matchesFilter && matchesSearch
+        }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Header
-            Surface(color = MaterialTheme.colorScheme.background) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 20.dp, vertical = 16.dp)
-                ) {
-                    Text(
-                        text = "Чаты",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = selectedFilter == ConversationListFilter.ACTIVE,
-                            onClick = { onFilterChange(ConversationListFilter.ACTIVE) },
-                            label = { Text("Активные") },
-                        )
-                        FilterChip(
-                            selected = selectedFilter == ConversationListFilter.ARCHIVED,
-                            onClick = { onFilterChange(ConversationListFilter.ARCHIVED) },
-                            label = { Text("Архив") },
-                        )
-                    }
-                }
-            }
+    val backgroundBrush = Brush.verticalGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.background,
+            MaterialTheme.colorScheme.background,
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.04f),
+            MaterialTheme.colorScheme.secondary.copy(alpha = 0.03f),
+        )
+    )
+    val showFab by remember(listState, filteredConversations) {
+        derivedStateOf {
+            filteredConversations.isNotEmpty() && listState.firstVisibleItemIndex < 2
+        }
+    }
 
-            // Content
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(backgroundBrush),
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            ConversationListHeader(
+                searchMode = searchMode,
+                searchQuery = searchQuery,
+                selectedFilter = selectedFilter,
+                activeCount = conversations.count { !it.isArchived },
+                archivedCount = conversations.count { it.isArchived },
+                unreadCount = conversations.sumOf { it.unreadCount },
+                onSearchModeChange = { searchMode = it },
+                onSearchQueryChange = { searchQuery = it },
+                onFilterChange = onFilterChange,
+                onCreateClick = {
+                    showCreateDialog = true
+                    onLoadUsers(false)
+                },
+            )
+
             PullToRefreshBox(
                 isRefreshing = isLoading,
                 onRefresh = onRefresh,
                 modifier = Modifier.fillMaxSize(),
             ) {
                 if (filteredConversations.isEmpty() && !isLoading) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.Default.Email,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            Text(
-                                if (selectedFilter == ConversationListFilter.ARCHIVED) "Архив пуст" else "Нет чатов",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
+                    EmptyConversationState(
+                        selectedFilter = selectedFilter,
+                        searchQuery = searchQuery,
+                        onCreateClick = {
+                            showCreateDialog = true
+                            onLoadUsers(false)
+                        },
+                        onClearSearch = { searchQuery = "" },
+                    )
                 } else {
                     LazyColumn(
+                        state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 4.dp, horizontal = 0.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         items(filteredConversations, key = { it.id }) { conversation ->
-                            ConversationItem(
-                                conversation = conversation,
-                                onClick = { onConversationClick(conversation.id) },
+                            val dismissState = rememberSwipeToDismissBoxState(
+                                confirmValueChange = { value ->
+                                    if (value == SwipeToDismissBoxValue.EndToStart && !conversation.isArchived) {
+                                        onArchiveConversation(conversation.id)
+                                    }
+                                    false
+                                }
+                            )
+
+                            SwipeToDismissBox(
+                                state = dismissState,
+                                enableDismissFromStartToEnd = false,
+                                backgroundContent = {
+                                    ArchiveSwipeBackground(
+                                        archived = conversation.isArchived,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                },
+                                content = {
+                                    ConversationItem(
+                                        conversation = conversation,
+                                        onClick = { onConversationClick(conversation.id) },
+                                    )
+                                },
                             )
                         }
                     }
@@ -133,18 +216,30 @@ fun ConversationListScreen(
             }
         }
 
-        FloatingActionButton(
-            onClick = {
-                showCreateDialog = true
-                onLoadUsers(false)
-            },
+        AnimatedVisibility(
+            visible = showFab,
+            enter = fadeIn() + scaleIn(initialScale = 0.86f),
+            exit = fadeOut() + scaleOut(targetScale = 0.86f),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
                 .padding(16.dp),
         ) {
-            Icon(Icons.Default.Add, contentDescription = "Новый чат")
+            ExtendedFloatingActionButton(
+            onClick = {
+                showCreateDialog = true
+                onLoadUsers(false)
+            },
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Новый чат")
         }
+    }
+
     }
 
     if (showCreateDialog) {
@@ -168,111 +263,459 @@ fun ConversationListScreen(
 }
 
 @Composable
+private fun ConversationListHeader(
+    searchMode: Boolean,
+    searchQuery: String,
+    selectedFilter: ConversationListFilter,
+    activeCount: Int,
+    archivedCount: Int,
+    unreadCount: Int,
+    onSearchModeChange: (Boolean) -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onFilterChange: (ConversationListFilter) -> Unit,
+    onCreateClick: () -> Unit,
+) {
+    Surface(
+        color = Color.Transparent,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .animateContentSize()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (searchMode) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Поиск чатов и сообщений") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, contentDescription = null)
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { onSearchQueryChange("") }) {
+                                Icon(Icons.Default.Close, contentDescription = "Очистить")
+                            }
+                        } else {
+                            IconButton(onClick = { onSearchModeChange(false) }) {
+                                Icon(Icons.Default.Close, contentDescription = "Закрыть поиск")
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(24.dp),
+                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Чаты",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Диалоги, архив и групповые обсуждения",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    IconButton(onClick = { onSearchModeChange(true) }) {
+                        Icon(Icons.Default.Search, contentDescription = "Поиск")
+                    }
+                    IconButton(onClick = onCreateClick) {
+                        Icon(Icons.Default.Add, contentDescription = "Новый чат")
+                    }
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = selectedFilter == ConversationListFilter.ACTIVE,
+                    onClick = { onFilterChange(ConversationListFilter.ACTIVE) },
+                    label = { Text("Активные") },
+                    leadingIcon = { Text("$activeCount") },
+                )
+                FilterChip(
+                    selected = selectedFilter == ConversationListFilter.ARCHIVED,
+                    onClick = { onFilterChange(ConversationListFilter.ARCHIVED) },
+                    label = { Text("Архив") },
+                    leadingIcon = { Text("$archivedCount") },
+                )
+            }
+
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+                tonalElevation = 2.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    HeaderMetric(
+                        title = "Активные",
+                        value = activeCount.toString(),
+                        modifier = Modifier.weight(1f),
+                    )
+                    HeaderMetric(
+                        title = "Непрочитанные",
+                        value = unreadCount.toString(),
+                        modifier = Modifier.weight(1f),
+                    )
+                    HeaderMetric(
+                        title = "Всего",
+                        value = (activeCount + archivedCount).toString(),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ConversationItem(
     conversation: Conversation,
     onClick: () -> Unit,
 ) {
-    Surface(
+    val isUnread = conversation.unreadCount > 0
+    val title = conversation.displayName ?: conversation.name ?: "Чат"
+    val preview = conversation.lastMessage
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val cardScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.985f else 1f,
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = 520f),
+        label = "conversationCardScale",
+    )
+    val cardOffsetY by animateFloatAsState(
+        targetValue = if (isPressed) 2f else 0f,
+        animationSpec = spring(dampingRatio = 0.85f, stiffness = 650f),
+        label = "conversationCardOffsetY",
+    )
+    val conversationTypeLabel = when (conversation.type) {
+        ConversationType.DIRECT -> "Личный"
+        ConversationType.GROUP -> "Группа"
+        ConversationType.TASK -> "Заявка"
+        ConversationType.ORG_GENERAL -> "Орг"
+    }
+    val conversationTypeColor = when (conversation.type) {
+        ConversationType.DIRECT -> MaterialTheme.colorScheme.primaryContainer
+        ConversationType.GROUP -> MaterialTheme.colorScheme.secondaryContainer
+        ConversationType.TASK -> MaterialTheme.colorScheme.tertiaryContainer
+        ConversationType.ORG_GENERAL -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val conversationTypeContentColor = when (conversation.type) {
+        ConversationType.DIRECT -> MaterialTheme.colorScheme.onPrimaryContainer
+        ConversationType.GROUP -> MaterialTheme.colorScheme.onSecondaryContainer
+        ConversationType.TASK -> MaterialTheme.colorScheme.onTertiaryContainer
+        ConversationType.ORG_GENERAL -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Card(
+        onClick = onClick,
+        interactionSource = interactionSource,
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        ),
+        border = BorderStroke(
+            width = if (isUnread) 1.dp else 0.5.dp,
+            color = if (isUnread) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+            },
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isUnread) 3.dp else 1.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        color = MaterialTheme.colorScheme.background,
+            .animateContentSize()
+            .graphicsLayer {
+                scaleX = cardScale
+                scaleY = cardScale
+                translationY = cardOffsetY
+            },
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Avatar
-            Surface(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape),
-                color = when (conversation.type) {
-                    ConversationType.DIRECT -> MaterialTheme.colorScheme.primaryContainer
-                    ConversationType.GROUP -> MaterialTheme.colorScheme.secondaryContainer
-                    ConversationType.TASK -> MaterialTheme.colorScheme.tertiaryContainer
-                    ConversationType.ORG_GENERAL -> MaterialTheme.colorScheme.surfaceVariant
-                },
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = when (conversation.type) {
-                            ConversationType.DIRECT -> Icons.Default.Person
-                            ConversationType.GROUP -> Icons.Default.AccountCircle
-                            ConversationType.TASK -> Icons.Default.Notifications
-                            ConversationType.ORG_GENERAL -> Icons.Default.AccountCircle
-                        },
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            ChatAvatar(
+                name = title,
+                id = conversation.id,
+                type = conversation.type,
+                size = 48,
+            )
 
             Spacer(Modifier.width(12.dp))
 
-            // Text content
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = conversationTypeColor,
+                    ) {
+                        Text(
+                            text = conversationTypeLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = conversationTypeContentColor,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        text = conversation.displayName ?: conversation.name ?: "Чат",
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontWeight = if (conversation.unreadCount > 0) FontWeight.SemiBold else FontWeight.Normal
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = if (isUnread) FontWeight.SemiBold else FontWeight.Medium,
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    if (conversation.isArchived) {
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "Архив",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+
                     if (conversation.isMuted) {
                         Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "Без звука",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = "Без звука",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp),
                         )
                     }
-                    conversation.lastMessage?.let { msg ->
+
+                    if (preview != null) {
+                        Spacer(Modifier.width(8.dp))
                         Text(
-                            text = formatChatTime(msg.createdAt),
+                            text = formatChatTime(preview.createdAt),
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (conversation.unreadCount > 0)
+                            color = if (isUnread) {
                                 MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant,
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
                         )
                     }
                 }
-                Spacer(Modifier.height(2.dp))
+
+                Spacer(Modifier.height(6.dp))
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val preview = conversation.lastMessage
+                    val previewText = when {
+                        preview == null -> "Нет сообщений"
+                        else -> {
+                            val sender = preview.senderName?.takeIf { conversation.type != ConversationType.DIRECT }?.let { "$it: " }.orEmpty()
+                            val text = preview.text ?: "Вложение"
+                            "$sender$text"
+                        }
+                    }
+
                     Text(
-                        text = if (preview != null) {
-                            val sender = preview.senderName?.let { "$it: " } ?: ""
-                            "$sender${preview.text ?: "Вложение"}"
-                        } else {
-                            "Нет сообщений"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
+                        text = previewText,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    if (conversation.unreadCount > 0) {
-                        Spacer(Modifier.width(8.dp))
-                        Badge(containerColor = MaterialTheme.colorScheme.primary) {
-                            Text("${conversation.unreadCount}")
+
+                    if (isUnread) {
+                        Spacer(Modifier.width(10.dp))
+                        BadgedBox(
+                            badge = {
+                                Badge(
+                                    containerColor = if (conversation.isMuted) {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    } else {
+                                        MaterialTheme.colorScheme.primary
+                                    },
+                                ) {
+                                    Text(
+                                        text = if (conversation.unreadCount > 99) "99+" else conversation.unreadCount.toString(),
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                }
+                            },
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(1.dp)
+                                    .background(Color.Transparent),
+                            )
                         }
                     }
                 }
+
+                if (conversation.isArchived) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "В архиве",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeaderMetric(
+    title: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun EmptyConversationState(
+    selectedFilter: ConversationListFilter,
+    searchQuery: String,
+    onCreateClick: () -> Unit,
+    onClearSearch: () -> Unit,
+) {
+    val isSearching = searchQuery.isNotBlank()
+    val title = when {
+        isSearching -> "Ничего не найдено"
+        selectedFilter == ConversationListFilter.ARCHIVED -> "Архив пуст"
+        else -> "Пока нет чатов"
+    }
+    val description = when {
+        isSearching -> "Попробуйте изменить запрос или очистить поиск."
+        selectedFilter == ConversationListFilter.ARCHIVED -> "Архивированные диалоги появятся здесь."
+        else -> "Создайте первый диалог или начните обсуждение с коллегой."
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Card(
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+            modifier = Modifier.padding(horizontal = 24.dp),
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 22.dp, vertical = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(68.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Email,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(30.dp),
+                    )
+                }
+
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                if (isSearching) {
+                    TextButton(onClick = onClearSearch) {
+                        Text("Очистить поиск")
+                    }
+                } else {
+                    Button(onClick = onCreateClick) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Новый чат")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArchiveSwipeBackground(
+    archived: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val backgroundColor = if (archived) {
+        MaterialTheme.colorScheme.surfaceVariant
+    } else {
+        MaterialTheme.colorScheme.secondaryContainer
+    }
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.CenterEnd,
+    ) {
+        Surface(
+            color = backgroundColor,
+            shape = RoundedCornerShape(22.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_download),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = if (archived) "Архив" else "В архив",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

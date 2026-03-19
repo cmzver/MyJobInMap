@@ -41,6 +41,8 @@ data class ChatScreenState(
     val detail: ConversationDetail? = null,
     val messages: List<ChatMessage> = emptyList(),
     val hasMore: Boolean = false,
+    val pendingUnreadAnchorMessageId: Long? = null,
+    val isPreparingUnreadAnchor: Boolean = false,
     val isLoadingMessages: Boolean = false,
     val isSending: Boolean = false,
     val replyTo: ChatMessage? = null,
@@ -59,6 +61,10 @@ class ChatViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val typingTimeoutJobs = mutableMapOf<Long, Job>()
+    private val locallyReadMessageIds = mutableMapOf<Long, Long>()
+    private var unreadAnchorLoadJob: Job? = null
+    private var shouldResolveInitialUnreadAnchor = false
+    private var unreadAnchorLoadAttempts = 0
     private var localTypingResetJob: Job? = null
     private var sentTypingActive = false
 
@@ -161,8 +167,18 @@ class ChatViewModel @Inject constructor(
 
     fun openConversation(conversationId: Long) {
         clearTypingUsers()
-        _chatState.update { ChatScreenState(conversationId = conversationId, isLoadingMessages = true) }
+        unreadAnchorLoadJob?.cancel()
+        unreadAnchorLoadAttempts = 0
+        shouldResolveInitialUnreadAnchor = unreadCountForConversation(conversationId) > 0
+        _chatState.update {
+            ChatScreenState(
+                conversationId = conversationId,
+                isLoadingMessages = true,
+                isPreparingUnreadAnchor = shouldResolveInitialUnreadAnchor,
+            )
+        }
         viewModelScope.launch {
+            val initialLoadLimit = initialMessageLoadLimit(conversationId)
             // Load detail in parallel with messages
             launch {
                 chatRepository.getConversationDetail(conversationId).fold(
@@ -176,17 +192,25 @@ class ChatViewModel @Inject constructor(
                                 readReceipts = initialReadReceipts,
                             )
                         }
+                        maybeResolveInitialUnreadAnchor(conversationId)
                     },
                     onFailure = { /* ignore detail error */ }
                 )
             }
-            loadMessages(conversationId, initial = true)
+            loadMessages(
+                conversationId = conversationId,
+                initial = true,
+                limit = initialLoadLimit,
+            )
         }
     }
 
     fun closeConversation() {
         clearTypingUsers()
         sendTypingStopped()
+        unreadAnchorLoadJob?.cancel()
+        unreadAnchorLoadAttempts = 0
+        shouldResolveInitialUnreadAnchor = false
         _chatState.update { ChatScreenState() }
         // Refresh list to update unread counts
         loadConversations(showLoading = false)
@@ -196,21 +220,27 @@ class ChatViewModel @Inject constructor(
     // Messages
     // ========================================================================
 
-    private suspend fun loadMessages(conversationId: Long, initial: Boolean, showLoading: Boolean = true) {
-        val beforeId = if (initial) null else _chatState.value.messages.lastOrNull()?.id
+    private suspend fun loadMessages(
+        conversationId: Long,
+        initial: Boolean,
+        showLoading: Boolean = true,
+        limit: Int = DEFAULT_MESSAGE_PAGE_SIZE,
+    ) {
+        val beforeId = if (initial) null else _chatState.value.messages.minOfOrNull { it.id }
         if (showLoading) {
             _chatState.update { it.copy(isLoadingMessages = true) }
         }
-        chatRepository.getMessages(conversationId, beforeId = beforeId).fold(
+        chatRepository.getMessages(conversationId, beforeId = beforeId, limit = limit).fold(
             onSuccess = { (msgs, hasMore) ->
+                val combined = if (initial) {
+                    msgs
+                } else {
+                    (_chatState.value.messages + msgs).distinctBy { it.id }
+                }
                 _chatState.update { state ->
-                    val combined = if (initial) msgs else state.messages + msgs
                     state.copy(messages = combined, hasMore = hasMore, isLoadingMessages = false)
                 }
-                // Mark as read
-                msgs.firstOrNull()?.let { latest ->
-                    chatRepository.markAsRead(conversationId, latest.id)
-                }
+                maybeResolveInitialUnreadAnchor(conversationId)
             },
             onFailure = { e ->
                 _chatState.update { it.copy(error = e.message, isLoadingMessages = false) }
@@ -223,6 +253,24 @@ class ChatViewModel @Inject constructor(
         if (_chatState.value.isLoadingMessages || !_chatState.value.hasMore) return
         viewModelScope.launch {
             loadMessages(convId, initial = false)
+        }
+    }
+
+    fun markVisibleMessagesAsRead(messageId: Long) {
+        val conversationId = _chatState.value.conversationId ?: return
+        if (_chatState.value.isPreparingUnreadAnchor) return
+        markConversationAsRead(conversationId, messageId)
+    }
+
+    fun consumeUnreadAnchor() {
+        unreadAnchorLoadJob?.cancel()
+        unreadAnchorLoadAttempts = 0
+        shouldResolveInitialUnreadAnchor = false
+        _chatState.update {
+            it.copy(
+                pendingUnreadAnchorMessageId = null,
+                isPreparingUnreadAnchor = false,
+            )
         }
     }
 
@@ -365,6 +413,33 @@ class ChatViewModel @Inject constructor(
                 },
                 onFailure = { e ->
                     _chatState.update { it.copy(error = e.message) }
+                }
+            )
+        }
+    }
+
+    fun archiveConversationFromList(conversationId: Long) {
+        val conversation = _listState.value.conversations.firstOrNull { it.id == conversationId } ?: return
+        if (conversation.isArchived) return
+
+        viewModelScope.launch {
+            chatRepository.archiveConversation(conversationId, true).fold(
+                onSuccess = {
+                    _listState.update { state ->
+                        state.copy(
+                            conversations = state.conversations.map { item ->
+                                if (item.id == conversationId) {
+                                    item.copy(isArchived = true)
+                                } else {
+                                    item
+                                }
+                            }
+                        )
+                    }
+                    _notifications.tryEmit("Чат перемещён в архив")
+                },
+                onFailure = { e ->
+                    _listState.update { it.copy(error = e.message) }
                 }
             )
         }
@@ -543,6 +618,7 @@ class ChatViewModel @Inject constructor(
                             error = null,
                         )
                     }
+                    maybeResolveInitialUnreadAnchor(conversationId)
                 },
                 onFailure = {
                     if (_chatState.value.conversationId == conversationId) {
@@ -653,6 +729,153 @@ class ChatViewModel @Inject constructor(
         loadConversations(showLoading = false)
     }
 
+    private fun unreadCountForConversation(conversationId: Long): Int =
+        _listState.value.conversations.firstOrNull { it.id == conversationId }?.unreadCount ?: 0
+
+    private fun initialMessageLoadLimit(conversationId: Long): Int {
+        val unreadCount = unreadCountForConversation(conversationId)
+        if (unreadCount <= 0) return DEFAULT_MESSAGE_PAGE_SIZE
+
+        return (unreadCount + 12)
+            .coerceAtLeast(DEFAULT_MESSAGE_PAGE_SIZE)
+            .coerceAtMost(MAX_INITIAL_MESSAGE_LOAD)
+    }
+
+    private fun isUnreadIncomingMessage(
+        message: ChatMessage,
+        currentUserId: Long,
+        lastReadMessageId: Long?,
+    ): Boolean {
+        if (message.isDeleted || message.senderId == currentUserId) return false
+        return lastReadMessageId == null || message.id > lastReadMessageId
+    }
+
+    private fun maybeResolveInitialUnreadAnchor(conversationId: Long) {
+        if (!shouldResolveInitialUnreadAnchor || _chatState.value.conversationId != conversationId) return
+
+        val unreadCount = unreadCountForConversation(conversationId)
+        if (unreadCount <= 0) {
+            shouldResolveInitialUnreadAnchor = false
+            _chatState.update {
+                it.copy(
+                    pendingUnreadAnchorMessageId = null,
+                    isPreparingUnreadAnchor = false,
+                )
+            }
+            return
+        }
+
+        val detail = _chatState.value.detail ?: return
+        val currentUserId = preferences.getUserId()
+        val lastReadMessageId = detail.members
+            .firstOrNull { it.userId == currentUserId }
+            ?.lastReadMessageId
+            ?: locallyReadMessageIds[conversationId]
+
+        val unreadMessages = _chatState.value.messages
+            .filter { message ->
+                isUnreadIncomingMessage(
+                    message = message,
+                    currentUserId = currentUserId,
+                    lastReadMessageId = lastReadMessageId,
+                )
+            }
+            .sortedBy { it.id }
+
+        if (
+            unreadMessages.size < unreadCount &&
+            _chatState.value.hasMore &&
+            unreadAnchorLoadAttempts < MAX_UNREAD_PREFETCH_REQUESTS
+        ) {
+            if (unreadAnchorLoadJob?.isActive == true) return
+
+            unreadAnchorLoadAttempts += 1
+            unreadAnchorLoadJob = viewModelScope.launch {
+                loadMessages(
+                    conversationId = conversationId,
+                    initial = false,
+                    showLoading = false,
+                    limit = UNREAD_PREFETCH_PAGE_SIZE,
+                )
+            }
+            return
+        }
+
+        shouldResolveInitialUnreadAnchor = false
+        _chatState.update {
+            it.copy(
+                pendingUnreadAnchorMessageId = unreadMessages.firstOrNull()?.id,
+                isPreparingUnreadAnchor = unreadMessages.firstOrNull() != null,
+            )
+        }
+    }
+
+    private fun markConversationAsRead(conversationId: Long, latestMessageId: Long) {
+        val knownReadMessageId = maxOf(
+            locallyReadMessageIds[conversationId] ?: 0L,
+            currentConversationMember()?.lastReadMessageId ?: 0L,
+        )
+        if (latestMessageId <= knownReadMessageId) {
+            syncConversationReadState(conversationId, latestMessageId)
+            return
+        }
+
+        viewModelScope.launch {
+            chatRepository.markAsRead(conversationId, latestMessageId).fold(
+                onSuccess = {
+                    syncConversationReadState(conversationId, latestMessageId)
+                },
+                onFailure = { /* ignore read sync errors */ },
+            )
+        }
+    }
+
+    private fun syncConversationReadState(conversationId: Long, lastReadMessageId: Long) {
+        val effectiveLastReadMessageId = maxOf(
+            locallyReadMessageIds[conversationId] ?: 0L,
+            lastReadMessageId,
+        )
+        locallyReadMessageIds[conversationId] = effectiveLastReadMessageId
+
+        val currentUserId = preferences.getUserId()
+        val remainingUnreadCount = _chatState.value.messages.count { message ->
+            isUnreadIncomingMessage(
+                message = message,
+                currentUserId = currentUserId,
+                lastReadMessageId = effectiveLastReadMessageId,
+            )
+        }
+
+        _listState.update { state ->
+            state.copy(
+                conversations = state.conversations.map { conversation ->
+                    if (conversation.id == conversationId) {
+                        conversation.copy(unreadCount = remainingUnreadCount)
+                    } else {
+                        conversation
+                    }
+                }
+            )
+        }
+
+        _chatState.update { state ->
+            val detail = state.detail ?: return@update state
+            state.copy(
+                detail = detail.copy(
+                    members = detail.members.map { member ->
+                        if (member.userId == currentUserId) {
+                            member.copy(
+                                lastReadMessageId = maxOf(member.lastReadMessageId ?: 0L, effectiveLastReadMessageId)
+                            )
+                        } else {
+                            member
+                        }
+                    }
+                )
+            )
+        }
+    }
+
     private fun handleTypingEvent(userId: Long?, conversationId: Long, isTyping: Boolean) {
         val currentConversationId = _chatState.value.conversationId ?: return
         val currentUserId = preferences.getUserId()
@@ -728,6 +951,10 @@ class ChatViewModel @Inject constructor(
 
     companion object {
         private const val TYPING_TIMEOUT_MS = 3_000L
+        private const val DEFAULT_MESSAGE_PAGE_SIZE = 30
+        private const val UNREAD_PREFETCH_PAGE_SIZE = 80
+        private const val MAX_INITIAL_MESSAGE_LOAD = 160
+        private const val MAX_UNREAD_PREFETCH_REQUESTS = 8
     }
 }
 

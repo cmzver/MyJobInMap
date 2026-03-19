@@ -5,6 +5,12 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -383,7 +389,20 @@ fun MainScreen(
                     val listState by chatViewModel.listState.collectAsStateWithLifecycle()
                     val currentUserId = viewModel.preferences.getUserId()
 
-                    if (chatState.conversationId != null) {
+                    AnimatedContent(
+                        targetState = chatState.conversationId != null,
+                        transitionSpec = {
+                            if (targetState) {
+                                (fadeIn() + slideInHorizontally { it / 10 }) togetherWith
+                                    (fadeOut() + slideOutHorizontally { -it / 14 })
+                            } else {
+                                (fadeIn() + slideInHorizontally { -it / 10 }) togetherWith
+                                    (fadeOut() + slideOutHorizontally { it / 14 })
+                            }
+                        },
+                        label = "chatScreenTransition",
+                    ) { isConversationOpen ->
+                    if (isConversationOpen) {
                         val typingText = remember(chatState.typingUsers) {
                             val names = chatState.typingUsers.values.toList()
                             when (names.size) {
@@ -403,6 +422,11 @@ fun MainScreen(
                             conversationDetail = chatState.detail,
                             messages = chatState.messages,
                             hasMore = chatState.hasMore,
+                            pendingUnreadAnchorMessageId = chatState.pendingUnreadAnchorMessageId,
+                            isPreparingUnreadAnchor = chatState.isPreparingUnreadAnchor,
+                            lastReadMessageId = chatState.detail?.members
+                                ?.firstOrNull { it.userId == currentUserId }
+                                ?.lastReadMessageId,
                             isLoadingMessages = chatState.isLoadingMessages,
                             isSending = chatState.isSending,
                             replyTo = chatState.replyTo,
@@ -435,6 +459,8 @@ fun MainScreen(
                             onToggleReaction = { msgId, emoji -> chatViewModel.toggleReaction(msgId, emoji) },
                             onSetReplyTo = { chatViewModel.setReplyTo(it) },
                             onOpenAttachment = { chatViewModel.openAttachment(it) },
+                            onVisibleMessagesRead = { chatViewModel.markVisibleMessagesAsRead(it) },
+                            onUnreadAnchorConsumed = { chatViewModel.consumeUnreadAnchor() },
                         )
                     } else {
                         ConversationListScreen(
@@ -451,7 +477,9 @@ fun MainScreen(
                             onCreateDirectConversation = { chatViewModel.createDirectConversation(it) },
                             onCreateGroupConversation = { name, userIds -> chatViewModel.createGroupConversation(name, userIds) },
                             onRefresh = { chatViewModel.loadConversations() },
+                            onArchiveConversation = { chatViewModel.archiveConversationFromList(it) },
                         )
+                    }
                     }
                 }
                 

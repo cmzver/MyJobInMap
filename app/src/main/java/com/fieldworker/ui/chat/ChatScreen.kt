@@ -1,7 +1,21 @@
 package com.fieldworker.ui.chat
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -12,23 +26,33 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.fieldworker.ui.chat.components.BubbleShape
+import com.fieldworker.ui.chat.components.ChatAvatar
+import com.fieldworker.ui.chat.components.swipeToReply
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -49,6 +73,8 @@ import com.fieldworker.domain.model.User
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import okhttp3.Headers
 import androidx.compose.ui.window.Dialog
@@ -65,6 +91,9 @@ fun ChatScreen(
     conversationDetail: ConversationDetail?,
     messages: List<ChatMessage>,
     hasMore: Boolean,
+    pendingUnreadAnchorMessageId: Long?,
+    isPreparingUnreadAnchor: Boolean,
+    lastReadMessageId: Long?,
     isLoadingMessages: Boolean,
     isSending: Boolean,
     replyTo: ChatMessage?,
@@ -97,10 +126,57 @@ fun ChatScreen(
     onToggleReaction: (Long, String) -> Unit,
     onSetReplyTo: (ChatMessage?) -> Unit,
     onOpenAttachment: (ChatAttachment) -> Unit,
+    onVisibleMessagesRead: (Long) -> Unit,
+    onUnreadAnchorConsumed: () -> Unit,
 ) {
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
-    val timelineItems = remember(messages) { buildChatTimelineItems(messages) }
+    val timelineItems = remember(messages, currentUserId, lastReadMessageId) {
+        buildChatTimelineItems(
+            messages = messages,
+            currentUserId = currentUserId,
+            lastReadMessageId = lastReadMessageId,
+        )
+    }
+    val conversationType = conversationDetail?.type
+    val headerSubtitle = remember(conversationDetail, recipientCount, isMuted, isArchived) {
+        when (conversationType) {
+            ConversationType.GROUP -> buildString {
+                append("${conversationDetail.members.size} участников")
+                if (isMuted) append(" · без звука")
+                if (isArchived) append(" · архив")
+            }
+            ConversationType.TASK -> buildString {
+                append("Чат по заявке")
+                if (isMuted) append(" · без звука")
+                if (isArchived) append(" · архив")
+            }
+            ConversationType.ORG_GENERAL -> buildString {
+                append("Общий чат организации")
+                if (isMuted) append(" · без звука")
+                if (isArchived) append(" · архив")
+            }
+            else -> buildString {
+                append("Личный чат")
+                if (isMuted) append(" · без звука")
+                if (isArchived) append(" · архив")
+            }
+        }
+    }
+
+    // Для sticky date separator
+    val firstVisibleItemIndex = listState.firstVisibleItemIndex
+    val stickyDate = remember(firstVisibleItemIndex, timelineItems) {
+        timelineItems
+            .drop(firstVisibleItemIndex)
+            .firstNotNullOfOrNull { item ->
+                when (item) {
+                    is ChatTimelineItem.DateSeparator -> item.label
+                    is ChatTimelineItem.MessageEntry -> item.message.createdAt.format(systemMessageFormatter)
+                    is ChatTimelineItem.UnreadSeparator -> null
+                }
+            }
+    }
     val imageAttachments = remember(messages) {
         messages
             .asReversed()
@@ -154,132 +230,340 @@ fun ChatScreen(
         if (shouldLoadMore) onLoadMore()
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = title,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+    LaunchedEffect(pendingUnreadAnchorMessageId, timelineItems) {
+        val targetMessageId = pendingUnreadAnchorMessageId ?: return@LaunchedEffect
+        val targetIndex = timelineItems.indexOfFirst { item ->
+            item is ChatTimelineItem.MessageEntry && item.message.id == targetMessageId
+        }
+        if (targetIndex >= 0) {
+            listState.scrollToItem(targetIndex)
+            onUnreadAnchorConsumed()
+        }
+    }
+
+    LaunchedEffect(timelineItems, currentUserId, lastReadMessageId, isPreparingUnreadAnchor) {
+        snapshotFlow {
+            if (isPreparingUnreadAnchor) {
+                null
+            } else {
+                val effectiveLastReadMessageId = lastReadMessageId ?: 0L
+                listState.layoutInfo.visibleItemsInfo
+                    .mapNotNull { itemInfo ->
+                        (timelineItems.getOrNull(itemInfo.index) as? ChatTimelineItem.MessageEntry)?.message
+                    }
+                    .filter { message ->
+                        !message.isDeleted &&
+                            message.senderId != currentUserId &&
+                            message.id > effectiveLastReadMessageId
+                    }
+                    .maxOfOrNull { it.id }
+            }
+        }
+            .filterNotNull()
+            .distinctUntilChanged()
+            .collect { visibleMessageId ->
+                onVisibleMessagesRead(visibleMessageId)
+            }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.30f),
                     )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
-                    }
-                },
-                actions = {
-                    Box {
-                        IconButton(onClick = { showConversationMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Действия чата")
-                        }
-                        DropdownMenu(
-                            expanded = showConversationMenu,
-                            onDismissRequest = { showConversationMenu = false },
-                        ) {
-                            if (conversationDetail?.type == ConversationType.GROUP) {
-                                DropdownMenuItem(
-                                    text = { Text("Управление группой") },
-                                    onClick = {
-                                        showConversationMenu = false
-                                        showManagementDialog = true
-                                        onLoadUsers(false)
-                                    },
-                                )
-                            }
-                            DropdownMenuItem(
-                                text = { Text(if (isMuted) "Включить уведомления" else "Отключить уведомления") },
-                                onClick = {
-                                    showConversationMenu = false
-                                    onToggleMute()
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(if (isArchived) "Вернуть из архива" else "Архивировать чат") },
-                                onClick = {
-                                    showConversationMenu = false
-                                    onToggleArchive()
-                                },
-                            )
-                        }
-                    }
-                },
+                )
             )
-        },
-        bottomBar = {
-            ChatInputBar(
-                replyTo = replyTo,
-                typingText = typingText,
-                isSending = isSending,
-                onSend = onSendMessage,
-                onAttachFile = onAttachFile,
-                onTextChanged = onMessageInputChanged,
-                onCancelReply = { onSetReplyTo(null) },
-            )
-        },
-    ) { padding ->
-        LazyColumn(
-            state = listState,
+    ) {
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
-            reverseLayout = true,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            items(
-                items = timelineItems,
-                key = {
-                    when (it) {
-                        is ChatTimelineItem.DateSeparator -> it.key
-                        is ChatTimelineItem.MessageEntry -> "message-${it.message.id}"
-                    }
-                },
-            ) { item ->
-                when (item) {
-                    is ChatTimelineItem.DateSeparator -> {
-                        DateSeparatorChip(label = item.label)
-                    }
-
-                    is ChatTimelineItem.MessageEntry -> {
-                        val message = item.message
-                        val readCount = readReceipts.values.count { it >= message.id }
-                        MessageBubble(
-                            message = message,
-                            isHighlighted = highlightedMessageId == message.id,
-                            isOwn = message.senderId == currentUserId,
-                            groupedWithPrevious = item.groupedWithPrevious,
-                            groupedWithNext = item.groupedWithNext,
-                            readCount = readCount,
-                            recipientCount = recipientCount,
-                            currentUserId = currentUserId,
-                            onReply = { onSetReplyTo(message) },
-                            onDelete = { onDeleteMessage(message.id) },
-                            onToggleReaction = { emoji -> onToggleReaction(message.id, emoji) },
-                            baseUrl = baseUrl,
-                            authToken = authToken,
-                            onPreviewAttachment = { previewAttachmentId = it.id },
-                            onOpenAttachment = onOpenAttachment,
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.14f),
+                            Color.Transparent
                         )
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.10f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+
+        Scaffold(
+            containerColor = Color.Transparent,
+        topBar = {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                    tonalElevation = 4.dp,
+                    shadowElevation = 0.dp,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            FilledIconButton(
+                                onClick = onBack,
+                                modifier = Modifier.size(40.dp),
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
+                                    contentColor = MaterialTheme.colorScheme.onSurface,
+                                ),
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                            }
+
+                            ChatAvatar(
+                                name = title,
+                                id = conversationDetail?.id,
+                                type = conversationType ?: ConversationType.DIRECT,
+                                size = 42,
+                            )
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = headerSubtitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+
+                            Box {
+                                IconButton(onClick = { showConversationMenu = true }) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "Действия чата")
+                                }
+                                DropdownMenu(
+                                    expanded = showConversationMenu,
+                                    onDismissRequest = { showConversationMenu = false },
+                                ) {
+                                    if (conversationDetail?.type == ConversationType.GROUP) {
+                                        DropdownMenuItem(
+                                            text = { Text("Управление группой") },
+                                            onClick = {
+                                                showConversationMenu = false
+                                                showManagementDialog = true
+                                                onLoadUsers(false)
+                                            },
+                                        )
+                                    }
+                                    DropdownMenuItem(
+                                        text = { Text(if (isMuted) "Включить уведомления" else "Отключить уведомления") },
+                                        onClick = {
+                                            showConversationMenu = false
+                                            onToggleMute()
+                                        },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(if (isArchived) "Вернуть из архива" else "Архивировать чат") },
+                                        onClick = {
+                                            showConversationMenu = false
+                                            onToggleArchive()
+                                        },
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            HeaderTag(
+                                text = when (conversationType) {
+                                    ConversationType.GROUP -> "Группа"
+                                    ConversationType.TASK -> "Заявка"
+                                    ConversationType.ORG_GENERAL -> "Оргчат"
+                                    else -> "Личный"
+                                },
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                            if (isMuted) {
+                                HeaderTag(
+                                    text = "Без звука",
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            if (isArchived) {
+                                HeaderTag(
+                                    text = "Архив",
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            bottomBar = {
+                ChatInputBar(
+                    replyTo = replyTo,
+                    typingText = typingText,
+                    isSending = isSending,
+                    onSend = onSendMessage,
+                    onAttachFile = onAttachFile,
+                    onTextChanged = onMessageInputChanged,
+                    onCancelReply = { onSetReplyTo(null) },
+                )
+            },
+            floatingActionButton = {
+                val showFab = listState.firstVisibleItemIndex > 3
+                AnimatedVisibility(
+                    visible = showFab,
+                    enter = fadeIn() + scaleIn(initialScale = 0.82f),
+                    exit = fadeOut() + scaleOut(targetScale = 0.82f)
+                ) {
+                    FloatingActionButton(
+                        onClick = {
+                            coroutineScope.launch {
+                                listState.animateScrollToItem(0)
+                            }
+                        },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ) {
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Вниз")
                     }
                 }
             }
-            if (isLoadingMessages) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center,
+        ) { padding ->
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    reverseLayout = true,
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(
+                        items = timelineItems,
+                        key = {
+                            when (it) {
+                                is ChatTimelineItem.DateSeparator -> it.key
+                                is ChatTimelineItem.UnreadSeparator -> it.key
+                                is ChatTimelineItem.MessageEntry -> "message-${it.message.id}"
+                            }
+                        },
+                    ) { item ->
+                        when (item) {
+                            is ChatTimelineItem.DateSeparator -> {
+                                DateSeparatorChip(label = item.label)
+                            }
+
+                            is ChatTimelineItem.UnreadSeparator -> {
+                                UnreadSeparatorChip(count = item.count)
+                            }
+
+                            is ChatTimelineItem.MessageEntry -> {
+                                val message = item.message
+                                val readCount = readReceipts.values.count { it >= message.id }
+                                AnimatedMessageEntry(
+                                    messageId = message.id,
+                                    isOwn = message.senderId == currentUserId,
+                                ) {
+                                    MessageBubble(
+                                        message = message,
+                                        isHighlighted = highlightedMessageId == message.id,
+                                        isOwn = message.senderId == currentUserId,
+                                        conversationType = conversationType,
+                                        groupedWithPrevious = item.groupedWithPrevious,
+                                        groupedWithNext = item.groupedWithNext,
+                                        readCount = readCount,
+                                        recipientCount = recipientCount,
+                                        currentUserId = currentUserId,
+                                        onReply = { onSetReplyTo(message) },
+                                        onDelete = { onDeleteMessage(message.id) },
+                                        onToggleReaction = { emoji -> onToggleReaction(message.id, emoji) },
+                                        baseUrl = baseUrl,
+                                        authToken = authToken,
+                                        onPreviewAttachment = { previewAttachmentId = it.id },
+                                        onOpenAttachment = onOpenAttachment,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (isLoadingMessages) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                            }
+                        }
+                    }
+                }
+                AnimatedVisibility(
+                    visible = stickyDate != null && timelineItems.size > 5,
+                    enter = fadeIn() + scaleIn(initialScale = 0.9f),
+                    exit = fadeOut() + scaleOut(targetScale = 0.9f),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 10.dp),
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                        tonalElevation = 2.dp,
+                        shadowElevation = 1.dp,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.70f)
+                        ),
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        Text(
+                            text = stickyDate.orEmpty(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp)
+                        )
                     }
                 }
             }
         }
     }
-
     if (showManagementDialog && conversationDetail != null && conversationDetail.type == ConversationType.GROUP) {
         GroupManagementDialog(
             conversationDetail = conversationDetail,
@@ -348,29 +632,115 @@ private fun DateSeparatorChip(label: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp, horizontal = 12.dp),
+            .padding(vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            tonalElevation = 2.dp,
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+            ),
         ) {
-            HorizontalDivider(modifier = Modifier.weight(1f))
-            Surface(
-                shape = RoundedCornerShape(999.dp),
-                tonalElevation = 1.dp,
-                color = MaterialTheme.colorScheme.surface,
+            Text(
+                text = label,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun UnreadSeparatorChip(count: Int) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.92f),
+            tonalElevation = 2.dp,
+            shadowElevation = 0.dp,
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+            ),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    text = label,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = "Непрочитанные",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
+                Badge(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ) {
+                    Text(
+                        text = if (count > 99) "99+" else count.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
             }
-            HorizontalDivider(modifier = Modifier.weight(1f))
         }
+    }
+}
+
+@Composable
+private fun HeaderTag(
+    text: String,
+    containerColor: Color,
+    contentColor: Color,
+) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = containerColor,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            contentColor.copy(alpha = 0.14f)
+        ),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = contentColor,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+        )
+    }
+}
+
+@Composable
+private fun AnimatedMessageEntry(
+    messageId: Long,
+    isOwn: Boolean,
+    content: @Composable () -> Unit,
+) {
+    var isVisible by remember(messageId) { mutableStateOf(false) }
+
+    LaunchedEffect(messageId) {
+        isVisible = true
+    }
+
+    AnimatedVisibility(
+        visible = isVisible,
+        enter = fadeIn() +
+            slideInHorizontally(initialOffsetX = { fullWidth ->
+                if (isOwn) fullWidth / 7 else -fullWidth / 7
+            }) +
+            scaleIn(initialScale = 0.94f),
+        exit = fadeOut() + scaleOut(targetScale = 0.96f),
+    ) {
+        content()
     }
 }
 
@@ -384,6 +754,7 @@ private fun MessageBubble(
     message: ChatMessage,
     isHighlighted: Boolean,
     isOwn: Boolean,
+    conversationType: ConversationType?,
     groupedWithPrevious: Boolean,
     groupedWithNext: Boolean,
     readCount: Int,
@@ -459,54 +830,112 @@ private fun MessageBubble(
         return
     }
 
-    Column(
+    var swipeProgress by remember(message.id) { mutableStateOf(0f) }
+    val highlightAlpha by animateFloatAsState(
+        targetValue = if (isHighlighted) 0.45f else 0f,
+        animationSpec = spring(dampingRatio = 0.9f, stiffness = 560f),
+        label = "messageHighlightAlpha",
+    )
+    val replyHintScale by animateFloatAsState(
+        targetValue = 0.86f + (swipeProgress * 0.14f),
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = 650f),
+        label = "replyHintScale",
+    )
+    val replyHintColor by animateColorAsState(
+        targetValue = MaterialTheme.colorScheme.primaryContainer.copy(
+            alpha = 0.30f + (swipeProgress * 0.28f)
+        ),
+        label = "replyHintColor",
+    )
+
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 2.dp, vertical = 1.dp)
             .background(
-                color = if (isHighlighted) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surface.copy(alpha = 0f),
+                color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = highlightAlpha),
                 shape = RoundedCornerShape(20.dp),
             )
-            .padding(horizontal = if (isHighlighted) 6.dp else 0.dp, vertical = if (isHighlighted) 4.dp else 0.dp),
-        horizontalAlignment = if (isOwn) Alignment.End else Alignment.Start,
-    ) {
-        Surface(
-            shape = RoundedCornerShape(
-                topStart = if (groupedWithPrevious) 10.dp else 16.dp,
-                topEnd = if (groupedWithPrevious) 10.dp else 16.dp,
-                bottomStart = if (isOwn) {
-                    if (groupedWithNext) 10.dp else 16.dp
+            .padding(horizontal = if (isHighlighted) 6.dp else 0.dp, vertical = if (isHighlighted) 4.dp else 0.dp)
+            .then(
+                if (!isOwn) {
+                    Modifier.swipeToReply(
+                        enabled = true,
+                        onProgressChanged = { swipeProgress = it },
+                        onReply = onReply,
+                    )
                 } else {
-                    if (groupedWithNext) 16.dp else 4.dp
-                },
-                bottomEnd = if (isOwn) {
-                    if (groupedWithNext) 16.dp else 4.dp
-                } else {
-                    if (groupedWithNext) 10.dp else 16.dp
-                },
+                    Modifier
+                }
             ),
-            color = if (isOwn)
+        verticalAlignment = Alignment.Top,
+    ) {
+        // Аватар отправителя (только для групповых и чужих сообщений)
+        AnimatedVisibility(
+            visible = !isOwn && swipeProgress > 0.02f,
+            enter = fadeIn() + scaleIn(initialScale = 0.82f),
+            exit = fadeOut() + scaleOut(targetScale = 0.82f),
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = replyHintColor,
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                ),
+                modifier = Modifier
+                    .padding(end = 6.dp, top = 4.dp)
+                    .size(28.dp)
+                    .graphicsLayer {
+                        scaleX = replyHintScale
+                        scaleY = replyHintScale
+                    },
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            }
+        }
+
+        if (!isOwn && conversationType == ConversationType.GROUP) {
+            ChatAvatar(
+                name = message.senderName,
+                id = message.senderId,
+                type = ConversationType.DIRECT,
+                size = 24,
+                modifier = Modifier.padding(end = 6.dp)
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = if (isOwn) Alignment.End else Alignment.Start,
+        ) {
+        Surface(
+            shape = BubbleShape(isOwn = isOwn, groupedWithNext = groupedWithNext),
+            color = if (isOwn) {
                 MaterialTheme.colorScheme.primaryContainer
-            else
-                MaterialTheme.colorScheme.surfaceVariant,
+            } else {
+                MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+            },
+            tonalElevation = if (isOwn) 2.dp else 1.dp,
+            shadowElevation = if (isOwn) 1.dp else 0.dp,
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                if (isOwn) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
+            ),
             modifier = Modifier
                 .widthIn(max = 300.dp)
-                .then(
-                    if (isHighlighted) {
-                        Modifier.background(
-                            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f),
-                            shape = RoundedCornerShape(18.dp),
-                        )
-                    } else {
-                        Modifier
-                    }
-                )
                 .combinedClickable(
                     onClick = {},
                     onLongClick = { showMenu = true },
                 ),
         ) {
-            Column(modifier = Modifier.padding(10.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                 // Sender name (for group chats, not own messages)
                 if (!isOwn && !groupedWithPrevious) {
                     Text(
@@ -519,12 +948,20 @@ private fun MessageBubble(
 
                 // Reply preview
                 message.replyTo?.let { reply ->
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                        modifier = Modifier.padding(bottom = 4.dp),
+                    Row(
+                        modifier = Modifier
+                            .padding(bottom = 4.dp)
+                            .fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.padding(6.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .width(4.dp)
+                                .height(32.dp)
+                                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = reply.senderName ?: "",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
@@ -589,18 +1026,29 @@ private fun MessageBubble(
                     )
                     if (isOwn) {
                         val isRead = readCount > 0
-                        val tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (isRead) 0.9f else 0.6f)
-                        Icon(
-                            imageVector = if (isRead) Icons.Default.CheckCircle else Icons.Default.Done,
-                            contentDescription = if (isRead) "Прочитано" else "Отправлено",
-                            tint = tint,
-                            modifier = Modifier.size(14.dp),
-                        )
+                        val checkColor = if (isRead) Color(0xFF4A90E2) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        // ✓✓ Telegram-style
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Done,
+                                contentDescription = "Отправлено",
+                                tint = checkColor,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            if (isRead) {
+                                Icon(
+                                    imageVector = Icons.Default.Done,
+                                    contentDescription = "Прочитано",
+                                    tint = checkColor,
+                                    modifier = Modifier.size(14.dp).offset(x = (-6).dp)
+                                )
+                            }
+                        }
                         if (isRead && recipientCount > 1) {
                             Text(
                                 text = "$readCount",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = tint,
+                                color = checkColor,
                             )
                         }
                     }
@@ -608,11 +1056,10 @@ private fun MessageBubble(
             }
         }
 
-        // Reactions
         if (message.reactions.isNotEmpty()) {
             Row(
-                modifier = Modifier.padding(top = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.padding(top = 6.dp, start = 6.dp, end = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 message.reactions.forEach { reaction ->
                     ReactionChip(
@@ -655,6 +1102,7 @@ private fun MessageBubble(
         }
     }
 }
+}
 
 @Composable
 private fun AttachmentCard(
@@ -681,26 +1129,61 @@ private fun AttachmentCard(
 
     Surface(
         onClick = if (attachment.isImage) onPreview else onOpen,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(20.dp),
         color = containerColor,
-        tonalElevation = if (isOwn) 0.dp else 1.dp,
+        tonalElevation = if (isOwn) 1.dp else 2.dp,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
+        ),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (attachment.isImage) {
-                AsyncImage(
-                    model = previewRequest,
-                    contentDescription = attachment.fileName,
-                    contentScale = ContentScale.Crop,
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(180.dp)
+                        .clip(RoundedCornerShape(16.dp))
                         .clickable(onClick = onPreview),
-                )
+                ) {
+                    AsyncImage(
+                        model = previewRequest,
+                        contentDescription = attachment.fileName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.BottomCenter)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(Color.Transparent, Color(0xAA000000))
+                                )
+                            )
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White,
+                            )
+                            Text(
+                                text = attachment.fileName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
             }
 
             Row(
@@ -708,51 +1191,77 @@ private fun AttachmentCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (isOwn) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary,
-                )
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
                 Text(
                     text = formatAttachmentSize(attachment.fileSize),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Text(
-                text = attachment.fileName,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (isOwn) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isOwn) 0.3f else 0.65f),
-                        shape = RoundedCornerShape(10.dp),
-                    )
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+            if (!attachment.isImage) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                            shape = RoundedCornerShape(14.dp),
+                        )
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Text(
-                        text = if (attachment.isImage) "Нажмите на превью для полного просмотра" else "Нажмите, чтобы открыть файл",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    if (attachment.isImage) {
-                        TextButton(onClick = onOpen) {
-                            Text("Открыть как файл")
-                        }
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.70f),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(10.dp),
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = attachment.fileName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = "Нажмите, чтобы открыть файл",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(onClick = onOpen) {
+                        Text("Открыть")
                     }
                 }
+            } else {
+                Text(
+                    text = "Нажмите на превью для полного просмотра",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                TextButton(onClick = onOpen, modifier = Modifier.align(Alignment.End)) {
+                    Text("Открыть как файл")
+                }
             }
-        }
+            }
     }
 }
 
@@ -1056,21 +1565,24 @@ private fun ReactionChip(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        color = if (isSelected)
-            MaterialTheme.colorScheme.primaryContainer
-        else
-            MaterialTheme.colorScheme.surfaceVariant,
-        border = if (isSelected)
-            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-        else null,
+        shape = RoundedCornerShape(999.dp),
+        color = if (isSelected) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.96f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.86f)
+        },
+        border = if (isSelected) {
+            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.75f))
+        } else {
+            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+        },
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(reaction.emoji, style = MaterialTheme.typography.labelMedium)
+            Text(reaction.emoji, style = MaterialTheme.typography.labelLarge)
             if (reaction.count > 1) {
                 Text(
                     "${reaction.count}",
@@ -1097,28 +1609,77 @@ private fun ChatInputBar(
     onCancelReply: () -> Unit,
 ) {
     var text by remember { mutableStateOf("") }
+    val canSend = remember(text) { text.trim().isNotEmpty() }
+    val sendButtonScale by animateFloatAsState(
+        targetValue = if (canSend && !isSending) 1f else 0.9f,
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = 520f),
+        label = "chatSendButtonScale",
+    )
+    val sendButtonContainerColor by animateColorAsState(
+        targetValue = if (canSend) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+        },
+        label = "chatSendButtonContainer",
+    )
+    val sendButtonContentColor by animateColorAsState(
+        targetValue = if (canSend) {
+            MaterialTheme.colorScheme.onPrimary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        label = "chatSendButtonContent",
+    )
 
     Surface(
-        tonalElevation = 2.dp,
-        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 6.dp,
+        shadowElevation = 2.dp,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
+        ),
     ) {
-        Column(modifier = Modifier.navigationBarsPadding()) {
-            if (!typingText.isNullOrBlank()) {
-                Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)) {
+        Column(
+            modifier = Modifier
+                .animateContentSize()
+                .navigationBarsPadding()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AnimatedVisibility(
+                visible = !typingText.isNullOrBlank(),
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                    ),
+                ) {
                     Text(
-                        text = typingText,
+                        text = typingText.orEmpty(),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontStyle = FontStyle.Italic,
                     )
                 }
             }
 
             // Reply preview
-            if (replyTo != null) {
+            AnimatedVisibility(
+                visible = replyTo != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                replyTo?.let { safeReply ->
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
                     Row(
                         modifier = Modifier
@@ -1135,13 +1696,13 @@ private fun ChatInputBar(
                         Spacer(Modifier.width(8.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = replyTo.senderName ?: "",
+                                text = safeReply.senderName ?: "",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary,
                             )
                             Text(
-                                text = replyTo.text ?: "",
+                                text = safeReply.text ?: "",
                                 style = MaterialTheme.typography.bodySmall,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -1152,9 +1713,18 @@ private fun ChatInputBar(
                         }
                     }
                 }
+                }
             }
 
             // Input row
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+                ),
+            ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1179,17 +1749,35 @@ private fun ChatInputBar(
                     shape = RoundedCornerShape(24.dp),
                     maxLines = 4,
                     singleLine = false,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        disabledBorderColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent,
+                    ),
                 )
                 Spacer(Modifier.width(4.dp))
-                IconButton(
+                FilledIconButton(
                     onClick = {
-                        if (text.isNotBlank()) {
+                        if (canSend) {
                             onSend(text.trim())
                             text = ""
                             onTextChanged("")
                         }
                     },
-                    enabled = text.isNotBlank() && !isSending,
+                    enabled = canSend && !isSending,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = sendButtonContainerColor,
+                        contentColor = sendButtonContentColor,
+                        disabledContainerColor = sendButtonContainerColor,
+                        disabledContentColor = sendButtonContentColor,
+                    ),
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = sendButtonScale
+                        scaleY = sendButtonScale
+                    },
                 ) {
                     if (isSending) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp))
@@ -1197,16 +1785,13 @@ private fun ChatInputBar(
                         Icon(
                             Icons.AutoMirrored.Filled.Send,
                             contentDescription = "Отправить",
-                            tint = if (text.isNotBlank())
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
             }
         }
     }
+}
 }
 
 private val timeOnlyFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")

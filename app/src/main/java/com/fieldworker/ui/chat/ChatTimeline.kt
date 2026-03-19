@@ -7,6 +7,7 @@ import java.util.Locale
 
 internal sealed interface ChatTimelineItem {
     data class DateSeparator(val key: String, val label: String) : ChatTimelineItem
+    data class UnreadSeparator(val key: String, val count: Int) : ChatTimelineItem
     data class MessageEntry(
         val message: ChatMessage,
         val groupedWithPrevious: Boolean,
@@ -14,8 +15,18 @@ internal sealed interface ChatTimelineItem {
     ) : ChatTimelineItem
 }
 
-internal fun buildChatTimelineItems(messages: List<ChatMessage>): List<ChatTimelineItem> {
+internal fun buildChatTimelineItems(
+    messages: List<ChatMessage>,
+    currentUserId: Long,
+    lastReadMessageId: Long?,
+): List<ChatTimelineItem> {
     val sortedMessages = messages.sortedByDescending { it.createdAt }
+    val unreadMessages = sortedMessages.filter { message ->
+        !message.isDeleted &&
+            message.senderId != currentUserId &&
+            (lastReadMessageId == null || message.id > lastReadMessageId)
+    }
+    val oldestUnreadMessageId = unreadMessages.minOfOrNull { it.id }
     val items = mutableListOf<ChatTimelineItem>()
     sortedMessages.forEachIndexed { index, message ->
         items += ChatTimelineItem.MessageEntry(
@@ -23,6 +34,13 @@ internal fun buildChatTimelineItems(messages: List<ChatMessage>): List<ChatTimel
             groupedWithPrevious = canGroupMessages(message, sortedMessages.getOrNull(index + 1)),
             groupedWithNext = canGroupMessages(sortedMessages.getOrNull(index - 1), message),
         )
+
+        if (message.id == oldestUnreadMessageId) {
+            items += ChatTimelineItem.UnreadSeparator(
+                key = "unread-${message.id}",
+                count = unreadMessages.size,
+            )
+        }
 
         val currentDate = message.createdAt.toLocalDate()
         val nextDate = sortedMessages.getOrNull(index + 1)?.createdAt?.toLocalDate()
