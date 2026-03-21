@@ -73,6 +73,7 @@ data class ConversationMember(
     val userId: Long,
     val username: String,
     val fullName: String,
+    val avatarUrl: String?,
     val role: String,
     val lastReadMessageId: Long?,
     val isMuted: Boolean,

@@ -91,6 +91,7 @@ fun MainScreen(
     }
     val topTitle = mainTitleFor(currentScreen)
     val topSubtitle = mainSubtitleFor(currentScreen, uiState.newTasksCount, connectionStatus)
+    val isChatConversationOpen = currentScreen == Screen.Chat && chatState.conversationId != null
     
     // Получаем baseUrl из preferences (полный URL с портом)
     val baseUrl = viewModel.preferences.getFullServerUrl()
@@ -174,7 +175,9 @@ fun MainScreen(
     }
     
     val showMainTopBar = currentScreen != Screen.Map && currentScreen != Screen.TaskList && currentScreen != Screen.Chat && currentScreen != Screen.Developer && currentScreen != Screen.ObjectCard
-    val showBottomBar = currentScreen != Screen.Developer && currentScreen != Screen.ObjectCard
+    val showBottomBar = currentScreen != Screen.Developer &&
+        currentScreen != Screen.ObjectCard &&
+        !isChatConversationOpen
 
     LaunchedEffect(notificationTaskId) {
         val taskId = notificationTaskId ?: return@LaunchedEffect
@@ -470,6 +473,8 @@ fun MainScreen(
                             availableUsers = listState.availableUsers,
                             isLoading = listState.isLoading,
                             isLoadingUsers = listState.isLoadingUsers,
+                            baseUrl = baseUrl,
+                            authToken = authToken,
                             isCreatingConversation = listState.isCreatingConversation,
                             onConversationClick = { chatViewModel.openConversation(it) },
                             onFilterChange = { chatViewModel.setConversationListFilter(it) },

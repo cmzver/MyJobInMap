@@ -27,10 +27,12 @@ import EmptyState from '@/components/EmptyState'
 
 const periodOptions = [
   { value: 'today', label: 'Сегодня' },
-  { value: 'week', label: 'Неделя' },
-  { value: 'month', label: 'Месяц' },
+  { value: 'yesterday', label: 'Вчера' },
+  { value: 'week', label: 'Эта неделя' },
+  { value: 'month', label: 'Этот месяц' },
   { value: 'quarter', label: 'Квартал' },
   { value: 'year', label: 'Год' },
+  { value: 'all', label: 'Всё время' },
 ]
 
 function formatHours(hours: number): string {
@@ -60,7 +62,7 @@ const priorityColors: Record<string, string> = {
   EMERGENCY: 'bg-red-100 text-red-800',
 }
 
-export default function SlaPage() {
+export default function SlaPage({ embedded = false }: { embedded?: boolean }) {
   const [period, setPeriod] = useState<SlaPeriod>('month')
   const { data, isLoading, error } = useSla({ period })
 
@@ -81,7 +83,8 @@ export default function SlaPage() {
   return (
     <div className="space-y-6">
       {/* Заголовок + фильтры */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className={`flex flex-col items-start gap-4 sm:flex-row sm:items-center ${embedded ? 'sm:justify-end' : 'sm:justify-between'}`}>
+        {!embedded && (
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Shield className="h-7 w-7 text-indigo-600" />
@@ -91,7 +94,13 @@ export default function SlaPage() {
             Период: {data.period.days} дней
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        )}
+        <div className={`flex items-center gap-3 ${embedded ? 'sm:ml-auto' : ''}`}>
+          {embedded && (
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              За {data.period.days} дн.
+            </span>
+          )}
           <Select
             value={period}
             onChange={(val) => setPeriod(val as SlaPeriod)}

@@ -46,6 +46,7 @@ fun MemberInfoDto.toDomain(): ConversationMember = ConversationMember(
     userId = userId,
     username = username,
     fullName = fullName,
+    avatarUrl = avatarUrl,
     role = role,
     lastReadMessageId = lastReadMessageId,
     isMuted = isMuted,

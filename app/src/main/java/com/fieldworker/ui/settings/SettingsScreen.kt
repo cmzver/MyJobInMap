@@ -1,11 +1,14 @@
 package com.fieldworker.ui.settings
 
-import android.content.Intent
-import android.provider.Settings
-import androidx.compose.foundation.clickable
+import android.content.Context
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -17,17 +20,27 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.fieldworker.data.notification.TaskPollingWorker
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.AuthRepository
+import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
+
+private val SettingsSectionShape = RoundedCornerShape(28.dp)
+private val SettingsInnerShape = RoundedCornerShape(22.dp)
+private val SettingsRowShape = RoundedCornerShape(20.dp)
 
 /**
  * Экран настроек приложения
@@ -98,11 +111,23 @@ fun SettingsScreen(
     }
     val appVersion = appVersionInfo.first
     val appVersionCode = appVersionInfo.second
+    val userName = preferences.getUserFullName() ?: preferences.getUsername() ?: "Пользователь"
+    val userRole = roleLabel(preferences.getUserRole())
+    val serverPreview = buildServerEndpointPreview(serverUrl, serverPort)
+    val syncSummary = when {
+        usePolling -> "Polling каждые $pollingInterval мин"
+        notificationsEnabled -> "Push-уведомления активны"
+        else -> "Автооповещения отключены"
+    }
     
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Настройки") }
+                title = { Text("Настройки") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -112,39 +137,47 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            SettingsOverviewCard(
+                userName = userName,
+                userRole = userRole,
+                appVersion = appVersion,
+                appVersionCode = appVersionCode,
+                serverPreview = serverPreview,
+                syncSummary = syncSummary,
+                connectionStatus = connectionStatus
+            )
+
             // ==================== Настройки сервера ====================
             SettingsSection(title = "Подключение к серверу", icon = Icons.Default.Settings) {
-                OutlinedTextField(
-                    value = serverUrl,
-                    onValueChange = { serverUrl = it },
-                    label = { Text("URL сервера") },
-                    placeholder = { Text("http://192.168.1.100") },
-                    leadingIcon = { Icon(Icons.Default.Home, contentDescription = null) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                OutlinedTextField(
-                    value = serverPort,
-                    onValueChange = { serverPort = it.filter { c -> c.isDigit() } },
-                    label = { Text("Порт") },
-                    placeholder = { Text("8001") },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
+                SettingsFieldGroup {
+                    OutlinedTextField(
+                        value = serverUrl,
+                        onValueChange = { serverUrl = it },
+                        label = { Text("URL сервера") },
+                        placeholder = { Text("http://192.168.1.100") },
+                        leadingIcon = { Icon(Icons.Default.Home, contentDescription = null) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = serverPort,
+                        onValueChange = { serverPort = it.filter { c -> c.isDigit() } },
+                        label = { Text("Порт") },
+                        placeholder = { Text("8001") },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
                 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Button(
                         onClick = {
@@ -163,85 +196,23 @@ fun SettingsScreen(
                     
                     OutlinedButton(
                         onClick = {
-                            // Убираем trailing slash и добавляем порт
-                            val baseUrl = serverUrl.trimEnd('/')
-                            val port = serverPort.toIntOrNull() ?: 8001
-                            // Проверяем, есть ли уже порт в URL (после хоста)
-                            val urlWithoutScheme = baseUrl.substringAfter("://")
-                            val fullUrl = if (urlWithoutScheme.contains(":")) {
-                                baseUrl
-                            } else {
-                                "$baseUrl:$port"
-                            }
-                            onTestConnection(fullUrl)
+                            onTestConnection(buildServerEndpointPreview(serverUrl, serverPort))
                         },
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Тест")
+                        Text("Проверить")
                     }
                 }
                 
-                // Статус подключения
-                when (connectionStatus) {
-                    ConnectionStatus.IDLE -> {}
-                    ConnectionStatus.TESTING -> {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(top = 8.dp)
-                        ) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Проверка подключения...", style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                    ConnectionStatus.SUCCESS -> {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(top = 8.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.CheckCircle, 
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                "Подключение успешно!", 
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                    is ConnectionStatus.ERROR -> {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(top = 8.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Warning, 
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                connectionStatus.message, 
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-                }
+                SettingsConnectionBanner(connectionStatus = connectionStatus)
             }
-            
-            HorizontalDivider()
             
             // ==================== Отображение задач ====================
             SettingsSection(title = "Отображение", icon = Icons.AutoMirrored.Filled.List) {
                 SettingsSwitch(
+                    icon = Icons.Default.Done,
                     title = "Скрывать выполненные заявки",
                     subtitle = "По умолчанию не показывать заявки со статусом 'Выполнена'",
                     checked = hideDoneTasks,
@@ -250,10 +221,9 @@ fun SettingsScreen(
                         preferences.setHideDoneTasks(it)
                     }
                 )
-                
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                
+
                 SettingsSwitch(
+                    icon = Icons.Default.LocationOn,
                     title = "Моё местоположение",
                     subtitle = "Показывать текущую геопозицию на карте",
                     checked = showMyLocation,
@@ -264,11 +234,10 @@ fun SettingsScreen(
                 )
             }
             
-            HorizontalDivider()
-            
             // ==================== Уведомления ====================
             SettingsSection(title = "Уведомления", icon = Icons.Default.Notifications) {
                 SettingsSwitch(
+                    icon = Icons.Default.Notifications,
                     title = "Push-уведомления",
                     subtitle = "Получать уведомления о задачах",
                     checked = notificationsEnabled,
@@ -279,9 +248,8 @@ fun SettingsScreen(
                 )
                 
                 if (notificationsEnabled) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    
                     SettingsSwitch(
+                        icon = Icons.Default.Add,
                         title = "Новые задачи",
                         subtitle = "Уведомлять о новых назначенных задачах",
                         checked = notifyNewTasks,
@@ -290,10 +258,9 @@ fun SettingsScreen(
                             preferences.setNotifyNewTasks(it)
                         }
                     )
-                    
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    
+
                     SettingsSwitch(
+                        icon = Icons.Default.Refresh,
                         title = "Изменение статуса",
                         subtitle = "Уведомлять об изменении статуса задач",
                         checked = notifyStatusChange,
@@ -302,10 +269,9 @@ fun SettingsScreen(
                             preferences.setNotifyStatusChange(it)
                         }
                     )
-                    
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    
+
                     SettingsSwitch(
+                        icon = Icons.Default.Refresh,
                         title = "Режим polling",
                         subtitle = "Проверять задачи каждые $pollingInterval мин (для устройств без Google)",
                         checked = usePolling,
@@ -314,52 +280,26 @@ fun SettingsScreen(
                             preferences.setPollingEnabled(it)
                             // Запускаем/останавливаем polling
                             if (it) {
-                                val request = androidx.work.PeriodicWorkRequestBuilder<com.fieldworker.data.notification.TaskPollingWorker>(
-                                    pollingInterval.toLong(), java.util.concurrent.TimeUnit.MINUTES
-                                ).build()
-                                androidx.work.WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-                                    com.fieldworker.data.notification.TaskPollingWorker.WORK_NAME,
-                                    androidx.work.ExistingPeriodicWorkPolicy.UPDATE,
-                                    request
-                                )
+                                schedulePollingWork(context, pollingInterval)
                             } else {
-                                androidx.work.WorkManager.getInstance(context)
-                                    .cancelUniqueWork(com.fieldworker.data.notification.TaskPollingWorker.WORK_NAME)
+                                cancelPollingWork(context)
                             }
                         }
                     )
                     
                     if (usePolling) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        // Выбор интервала
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Интервал проверки",
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                                Text(
-                                    text = "Каждые $pollingInterval минут",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                        SettingsItem(
+                            icon = Icons.Default.Info,
+                            title = "Интервал проверки",
+                            subtitle = pollingIntervalLabel(pollingInterval),
+                            onClick = { showPollingIntervalDialog = true },
+                            trailing = {
+                                SettingsActionPill(text = "Изменить")
                             }
-                            OutlinedButton(
-                                onClick = { showPollingIntervalDialog = true }
-                            ) {
-                                Text("Изменить")
-                            }
-                        }
+                        )
                     }
                 }
             }
-            
-            HorizontalDivider()
             
             // ==================== Отчёты о выполнении ====================
             SettingsSection(title = "Отчёты о выполнении", icon = Icons.AutoMirrored.Filled.Send) {
@@ -376,134 +316,127 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
-                    
-                    // Радио-кнопки для выбора получателя
-                    Column {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { reportTarget = "contact" }
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = reportTarget == "contact",
-                                onClick = null
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text("Конкретному контакту", style = MaterialTheme.typography.bodyLarge)
-                                Text(
-                                    "Личные сообщения диспетчеру",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+
+                    ReportTargetCard(
+                        icon = Icons.Default.Notifications,
+                        title = "В рабочую группу",
+                        subtitle = "Стандартный режим: отчёт отправляется в общий рабочий канал.",
+                        selected = reportTarget == "group",
+                        onClick = {
+                            reportTarget = "group"
+                            reportContactPhone = ""
+                            if (authRepository != null) {
+                                scope.launch {
+                                    isSavingReportSettings = true
+                                    authRepository.updateReportSettings("group", null)
+                                        .onSuccess {
+                                            snackbarHostState.showSnackbar("Настройки сохранены")
+                                        }
+                                        .onFailure { e ->
+                                            snackbarHostState.showSnackbar("Ошибка: ${e.message}")
+                                        }
+                                    isSavingReportSettings = false
+                                }
                             }
                         }
-                        
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { 
-                                    reportTarget = "none"
-                                    if (authRepository != null) {
+                    )
+
+                    ReportTargetCard(
+                        icon = Icons.Default.Phone,
+                        title = "Конкретному контакту",
+                        subtitle = "Личные сообщения диспетчеру.",
+                        selected = reportTarget == "contact",
+                        onClick = { reportTarget = "contact" }
+                    )
+
+                    ReportTargetCard(
+                        icon = Icons.Default.Delete,
+                        title = "Не отправлять",
+                        subtitle = "Отключить автоматическую отправку отчётов.",
+                        selected = reportTarget == "none",
+                        onClick = {
+                            reportTarget = "none"
+                            reportContactPhone = ""
+                            if (authRepository != null) {
+                                scope.launch {
+                                    isSavingReportSettings = true
+                                    authRepository.updateReportSettings("none", null)
+                                        .onSuccess {
+                                            snackbarHostState.showSnackbar("Настройки сохранены")
+                                        }
+                                        .onFailure { e ->
+                                            snackbarHostState.showSnackbar("Ошибка: ${e.message}")
+                                        }
+                                    isSavingReportSettings = false
+                                }
+                            }
+                        }
+                    )
+
+                    if (reportTarget == "contact") {
+                        SettingsFieldGroup {
+                            OutlinedTextField(
+                                value = reportContactPhone,
+                                onValueChange = { reportContactPhone = it.filter { c -> c.isDigit() } },
+                                label = { Text("Номер телефона") },
+                                placeholder = { Text("79001234567") },
+                                leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+                            )
+
+                            Text(
+                                text = "Укажите номер в формате 79001234567 без «+» и пробелов.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            Button(
+                                onClick = {
+                                    if (authRepository != null && reportContactPhone.isNotBlank()) {
                                         scope.launch {
                                             isSavingReportSettings = true
-                                            authRepository.updateReportSettings("none", null)
+                                            authRepository.updateReportSettings("contact", reportContactPhone)
+                                                .onSuccess {
+                                                    snackbarHostState.showSnackbar("Настройки сохранены")
+                                                }
+                                                .onFailure { e ->
+                                                    snackbarHostState.showSnackbar("Ошибка: ${e.message}")
+                                                }
                                             isSavingReportSettings = false
                                         }
                                     }
+                                },
+                                enabled = authRepository != null &&
+                                    reportContactPhone.length >= 11 &&
+                                    !isSavingReportSettings,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                if (isSavingReportSettings) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                } else {
+                                    Icon(Icons.Default.Done, contentDescription = null)
                                 }
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = reportTarget == "none",
-                                onClick = null
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text("Не отправлять", style = MaterialTheme.typography.bodyLarge)
-                                Text(
-                                    "Отчёты не отправляются автоматически",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Сохранить контакт")
                             }
-                        }
-                    }
-                    
-                    // Поле ввода номера телефона (если выбран контакт)
-                    if (reportTarget == "contact") {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        OutlinedTextField(
-                            value = reportContactPhone,
-                            onValueChange = { reportContactPhone = it.filter { c -> c.isDigit() } },
-                            label = { Text("Номер телефона") },
-                            placeholder = { Text("79001234567") },
-                            leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
-                        )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Text(
-                            text = "Укажите номер в формате 79001234567 (без + и пробелов)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        Button(
-                            onClick = {
-                                if (authRepository != null && reportContactPhone.isNotBlank()) {
-                                    scope.launch {
-                                        isSavingReportSettings = true
-                                        authRepository.updateReportSettings("contact", reportContactPhone)
-                                            .onSuccess {
-                                                snackbarHostState.showSnackbar("Настройки сохранены")
-                                            }
-                                            .onFailure { e ->
-                                                snackbarHostState.showSnackbar("Ошибка: ${e.message}")
-                                            }
-                                        isSavingReportSettings = false
-                                    }
-                                }
-                            },
-                            enabled = reportContactPhone.length >= 11 && !isSavingReportSettings,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            if (isSavingReportSettings) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                            } else {
-                                Icon(Icons.Default.Done, contentDescription = null)
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Сохранить")
                         }
                     }
                 }
             }
             
-            HorizontalDivider()
-
             // ==================== Обновления ====================
             SettingsSection(title = "Обновления", icon = Icons.Default.Refresh) {
-                Text(
-                    text = "Установлена версия $appVersion (код $appVersionCode)",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                SettingsItem(
+                    icon = Icons.Default.Info,
+                    title = "Текущая версия",
+                    subtitle = "FieldWorker v$appVersion • код $appVersionCode"
                 )
-
-                Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedButton(
                     onClick = onCheckForUpdates,
@@ -523,65 +456,32 @@ fun SettingsScreen(
                 }
             }
 
-            HorizontalDivider()
-            
             // ==================== Сброс ====================
             SettingsSection(title = "Данные", icon = Icons.Default.Info) {
-                OutlinedButton(
+                SettingsItem(
+                    icon = Icons.Default.Delete,
+                    iconBackgroundColor = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                    iconTint = MaterialTheme.colorScheme.error,
+                    title = "Сбросить настройки",
+                    subtitle = "Вернуть локальные параметры приложения к значениям по умолчанию.",
                     onClick = { showResetDialog = true },
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Delete, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Сбросить настройки")
-                }
+                    trailing = {
+                        SettingsActionPill(
+                            text = "Сброс",
+                            containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    }
+                )
             }
-            
-            HorizontalDivider()
             
             // ==================== Аккаунт ====================
             SettingsSection(title = "Аккаунт", icon = Icons.Default.Person) {
-                // Информация о текущем пользователе
-                val userName = preferences.getUserFullName() ?: preferences.getUsername() ?: "Пользователь"
-                val userRole = when(preferences.getUserRole()) {
-                    "admin" -> "Администратор"
-                    "worker" -> "Работник"
-                    else -> ""
-                }
-                
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.AccountCircle,
-                        contentDescription = null,
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = userName,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium
-                        )
-                        if (userRole.isNotEmpty()) {
-                            Text(
-                                text = userRole,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
+                SettingsItem(
+                    icon = Icons.Default.AccountCircle,
+                    title = userName,
+                    subtitle = if (userRole.isNotEmpty()) userRole else "Авторизованный пользователь"
+                )
                 
                 Button(
                     onClick = onLogout,
@@ -597,11 +497,7 @@ fun SettingsScreen(
             }
             
             // Информация о версии (5 тапов = режим разработчика)
-            Spacer(modifier = Modifier.weight(1f))
-            Text(
-                text = "FieldWorker v$appVersion" + if (versionTapCount > 0) " (${5 - versionTapCount})" else "",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Surface(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .clickable {
@@ -610,9 +506,27 @@ fun SettingsScreen(
                             versionTapCount = 0
                             onOpenDeveloperScreen()
                         }
-                    }
-                    .padding(8.dp)
-            )
+                    },
+                shape = RoundedCornerShape(999.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
+                )
+            ) {
+                Text(
+                    text = buildString {
+                        append("FieldWorker v$appVersion")
+                        if (versionTapCount > 0) {
+                            append(" • ещё ${5 - versionTapCount}")
+                        }
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                )
+            }
         }
     }
     
@@ -630,8 +544,22 @@ fun SettingsScreen(
                         serverPort = preferences.getServerPort().toString()
                         hideDoneTasks = preferences.getHideDoneTasks()
                         showMyLocation = preferences.getShowMyLocation()
+                        notificationsEnabled = preferences.getNotificationsEnabled()
+                        notifyNewTasks = preferences.getNotifyNewTasks()
+                        notifyStatusChange = preferences.getNotifyStatusChange()
+                        usePolling = preferences.isPollingEnabled()
                         pollingInterval = preferences.getPollingIntervalMinutes()
+
+                        if (usePolling) {
+                            schedulePollingWork(context, pollingInterval)
+                        } else {
+                            cancelPollingWork(context)
+                        }
+
                         showResetDialog = false
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Настройки сброшены")
+                        }
                     }
                 ) {
                     Text("Сбросить")
@@ -694,18 +622,9 @@ fun SettingsScreen(
                         showPollingIntervalDialog = false
                         // Перезапускаем WorkManager с новым интервалом
                         if (usePolling) {
-                            val pollingRequest = androidx.work.PeriodicWorkRequestBuilder<com.fieldworker.data.notification.TaskPollingWorker>(
-                                pollingInterval.toLong(), java.util.concurrent.TimeUnit.MINUTES
-                            ).build()
-                            
-                            androidx.work.WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-                                com.fieldworker.data.notification.TaskPollingWorker.WORK_NAME,
-                                androidx.work.ExistingPeriodicWorkPolicy.UPDATE,
-                                pollingRequest
-                            )
-                            
+                            schedulePollingWork(context, pollingInterval)
                             scope.launch {
-                                snackbarHostState.showSnackbar("Интервал изменён на $pollingInterval мин")
+                                snackbarHostState.showSnackbar("Интервал изменён: ${pollingIntervalLabel(pollingInterval)}")
                             }
                         }
                     }
@@ -717,185 +636,571 @@ fun SettingsScreen(
     }
 }
 
-/**
- * Заголовок секции в стиле референса
- */
 @Composable
-fun SettingsSectionHeader(
-    title: String
+private fun SettingsOverviewCard(
+    userName: String,
+    userRole: String,
+    appVersion: String,
+    appVersionCode: Int,
+    serverPreview: String,
+    syncSummary: String,
+    connectionStatus: ConnectionStatus
 ) {
-    Text(
-        text = title.uppercase(),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        fontWeight = FontWeight.Medium,
-        modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp)
-    )
-}
-
-/**
- * Секция настроек (карточка с содержимым)
- */
-@Composable
-fun SettingsSection(
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Column {
-        // Заголовок секции
-        Text(
-            text = title.uppercase(),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-        
-        // Карточка с содержимым
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+    Surface(
+        shape = SettingsSectionShape,
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.96f),
+                            MaterialTheme.colorScheme.surface,
+                            MaterialTheme.colorScheme.background
+                        )
+                    ),
+                    shape = SettingsSectionShape
+                )
         ) {
             Column(
-                modifier = Modifier.padding(16.dp)
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                content()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "FIELDWORKER",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Устройство и рабочий профиль",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                        Text(
+                            text = "Подключение, уведомления и версия приложения в одном месте.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    SettingsStatusChip(connectionStatus = connectionStatus)
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                        border = BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                        )
+                    ) {
+                        Box(
+                            modifier = Modifier.size(68.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.AccountCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(40.dp)
+                            )
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = userName,
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                        if (userRole.isNotEmpty()) {
+                            Text(
+                                text = userRole,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text = "Версия $appVersion • код $appVersionCode",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    SettingsOverviewTile(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Default.Settings,
+                        label = "Сервер",
+                        value = serverPreview
+                    )
+                    SettingsOverviewTile(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Default.Refresh,
+                        label = "Синхронизация",
+                        value = syncSummary
+                    )
+                }
             }
         }
     }
 }
 
-/**
- * Элемент настройки с иконкой в круге (как в референсе)
- */
+@Composable
+private fun SettingsOverviewTile(
+    modifier: Modifier = Modifier,
+    icon: ImageVector,
+    label: String,
+    value: String
+) {
+    Surface(
+        modifier = modifier,
+        shape = SettingsInnerShape,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsStatusChip(connectionStatus: ConnectionStatus) {
+    val presentation = connectionStatusPresentation(connectionStatus)
+
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = presentation.containerColor,
+        border = BorderStroke(1.dp, presentation.tint.copy(alpha = 0.22f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (connectionStatus == ConnectionStatus.TESTING) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    strokeWidth = 2.dp,
+                    color = presentation.tint
+                )
+            } else {
+                Icon(
+                    presentation.icon,
+                    contentDescription = null,
+                    tint = presentation.tint,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+            Text(
+                text = presentation.label,
+                style = MaterialTheme.typography.labelLarge,
+                color = presentation.tint
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsConnectionBanner(
+    connectionStatus: ConnectionStatus,
+    modifier: Modifier = Modifier
+) {
+    val presentation = connectionStatusPresentation(connectionStatus)
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = SettingsInnerShape,
+        color = presentation.containerColor,
+        border = BorderStroke(1.dp, presentation.tint.copy(alpha = 0.18f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (connectionStatus == ConnectionStatus.TESTING) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = presentation.tint
+                )
+            } else {
+                Icon(
+                    presentation.icon,
+                    contentDescription = null,
+                    tint = presentation.tint,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = presentation.label,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = presentation.tint
+                )
+                Text(
+                    text = presentation.detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsSection(
+    title: String,
+    icon: ImageVector,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        shape = SettingsSectionShape,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Box(
+                        modifier = Modifier.size(42.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SettingsFieldGroup(
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        shape = SettingsInnerShape,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = content
+        )
+    }
+}
+
 @Composable
 fun SettingsItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    iconBackgroundColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surfaceVariant,
-    iconTint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    icon: ImageVector,
+    iconBackgroundColor: Color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
+    iconTint: Color = MaterialTheme.colorScheme.primary,
     title: String,
     subtitle: String? = null,
     onClick: (() -> Unit)? = null,
     trailing: @Composable (() -> Unit)? = null
 ) {
-    Row(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .then(
-                if (onClick != null) Modifier.clickable { onClick() } else Modifier
-            )
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
+        shape = SettingsRowShape,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
     ) {
-        // Иконка в круге
-        androidx.compose.foundation.layout.Box(
-            modifier = Modifier
-                .size(40.dp)
-                .background(iconBackgroundColor, shape = androidx.compose.foundation.shape.CircleShape),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = iconTint,
-                modifier = Modifier.size(20.dp)
-            )
+            Surface(shape = CircleShape, color = iconBackgroundColor) {
+                Box(
+                    modifier = Modifier.size(40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = iconTint,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            when {
+                trailing != null -> trailing()
+                onClick != null -> Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
-        
-        Spacer(modifier = Modifier.width(12.dp))
-        
-        // Текст
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            if (subtitle != null) {
+    }
+}
+
+@Composable
+fun SettingsSwitch(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val containerColor = if (checked) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f)
+    }
+    val borderColor = if (checked) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+    } else {
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) },
+        shape = SettingsRowShape,
+        color = containerColor,
+        border = BorderStroke(1.dp, borderColor)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = if (checked) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                else MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
+            ) {
+                Box(
+                    modifier = Modifier.size(40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = if (checked) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
-        
-        // Trailing элемент (стрелка, switch и т.д.)
-        if (trailing != null) {
-            trailing()
-        } else if (onClick != null) {
-            Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.surface,
+                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                    uncheckedThumbColor = MaterialTheme.colorScheme.surface,
+                    uncheckedTrackColor = MaterialTheme.colorScheme.outlineVariant
+                )
             )
         }
     }
 }
 
-/**
- * Переключатель в современном стиле
- */
 @Composable
-fun SettingsSwitch(
+private fun ReportTargetCard(
+    icon: ImageVector,
     title: String,
     subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    icon: androidx.compose.ui.graphics.vector.ImageVector? = null
+    selected: Boolean,
+    onClick: () -> Unit
 ) {
-    Row(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .clickable(onClick = onClick),
+        shape = SettingsRowShape,
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f)
+        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f),
+        border = BorderStroke(
+            1.dp,
+            if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
+            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+        )
     ) {
-        // Иконка в круге (опционально)
-        if (icon != null) {
-            androidx.compose.foundation.layout.Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant,
-                        shape = androidx.compose.foundation.shape.CircleShape
-                    ),
-                contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                else MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
             ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
+                Box(
+                    modifier = Modifier.size(40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = if (selected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Spacer(modifier = Modifier.width(12.dp))
-        }
-        
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+
+            RadioButton(
+                selected = selected,
+                onClick = onClick
             )
         }
-        
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = MaterialTheme.colorScheme.surface,
-                checkedTrackColor = MaterialTheme.colorScheme.primary
-            )
+    }
+}
+
+@Composable
+private fun SettingsActionPill(
+    text: String,
+    containerColor: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+    contentColor: Color = MaterialTheme.colorScheme.primary
+) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = containerColor
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            color = contentColor,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
         )
     }
 }
@@ -907,14 +1212,92 @@ sealed class ConnectionStatus {
     data class ERROR(val message: String) : ConnectionStatus()
 }
 
-/**
- * Проверяет, включена ли служба прослушивания уведомлений для этого приложения
- */
-private fun isNotificationServiceEnabled(context: android.content.Context): Boolean {
-    val enabledListeners = Settings.Secure.getString(
-        context.contentResolver,
-        "enabled_notification_listeners"
+private data class ConnectionStatusPresentation(
+    val label: String,
+    val detail: String,
+    val icon: ImageVector,
+    val tint: Color,
+    val containerColor: Color
+)
+
+@Composable
+private fun connectionStatusPresentation(connectionStatus: ConnectionStatus): ConnectionStatusPresentation {
+    return when (connectionStatus) {
+        ConnectionStatus.IDLE -> ConnectionStatusPresentation(
+            label = "Не проверено",
+            detail = "Нажмите «Проверить», чтобы убедиться, что сервер доступен.",
+            icon = Icons.Default.Info,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f)
+        )
+        ConnectionStatus.TESTING -> ConnectionStatusPresentation(
+            label = "Проверяем",
+            detail = "Выполняем сетевой запрос к указанному серверу.",
+            icon = Icons.Default.Refresh,
+            tint = MaterialTheme.colorScheme.primary,
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+        )
+        ConnectionStatus.SUCCESS -> ConnectionStatusPresentation(
+            label = "Подключено",
+            detail = "Сервер отвечает, настройки сети выглядят корректно.",
+            icon = Icons.Default.CheckCircle,
+            tint = MaterialTheme.colorScheme.primary,
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+        )
+        is ConnectionStatus.ERROR -> ConnectionStatusPresentation(
+            label = "Ошибка подключения",
+            detail = connectionStatus.message,
+            icon = Icons.Default.Warning,
+            tint = MaterialTheme.colorScheme.error,
+            containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.10f)
+        )
+    }
+}
+
+private fun roleLabel(role: String?): String {
+    return when (role) {
+        "admin" -> "Администратор"
+        "dispatcher" -> "Диспетчер"
+        "worker" -> "Работник"
+        else -> ""
+    }
+}
+
+private fun pollingIntervalLabel(minutes: Int): String {
+    return when (minutes) {
+        5 -> "Каждые 5 минут"
+        10 -> "Каждые 10 минут"
+        15 -> "Каждые 15 минут"
+        30 -> "Каждые 30 минут"
+        60 -> "Каждый час"
+        else -> "Каждые $minutes минут"
+    }
+}
+
+private fun buildServerEndpointPreview(serverUrl: String, serverPort: String): String {
+    val baseUrl = serverUrl.trim().removeSuffix("/")
+    if (baseUrl.isBlank()) {
+        return "Сервер не задан"
+    }
+
+    val port = serverPort.toIntOrNull() ?: 8001
+    val urlWithoutScheme = baseUrl.substringAfter("://", baseUrl)
+    return if (urlWithoutScheme.contains(":")) baseUrl else "$baseUrl:$port"
+}
+
+private fun schedulePollingWork(context: Context, pollingInterval: Int) {
+    val request = PeriodicWorkRequestBuilder<TaskPollingWorker>(
+        pollingInterval.toLong(),
+        TimeUnit.MINUTES
+    ).build()
+
+    WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+        TaskPollingWorker.WORK_NAME,
+        ExistingPeriodicWorkPolicy.UPDATE,
+        request
     )
-    val packageName = context.packageName
-    return enabledListeners?.contains(packageName) == true
+}
+
+private fun cancelPollingWork(context: Context) {
+    WorkManager.getInstance(context).cancelUniqueWork(TaskPollingWorker.WORK_NAME)
 }

@@ -7,6 +7,9 @@ import pytest
 from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
 
+from app.models import TaskModel, UserModel, UserRole
+from app.services.auth import get_password_hash
+
 
 def test_get_reports_all_period(client_with_auth, sample_tasks_for_reports):
     """Тест получения отчёта за всё время"""
@@ -218,6 +221,13 @@ def test_export_report_custom_period(client_with_auth):
     assert "text/csv" in response.headers["content-type"]
 
 
+def test_export_report_rejects_unsupported_format(client_with_auth):
+    response = client_with_auth.get("/api/reports/export?period=month&format=pdf")
+
+    assert response.status_code == 400
+    assert "csv" in response.json()["detail"]
+
+
 def test_reports_requires_auth(client):
     """Тест что Reports API требует авторизацию"""
     response = client.get("/api/reports?period=month")
@@ -267,3 +277,69 @@ def test_avg_tasks_per_day_calculation(client_with_auth, sample_tasks_for_report
         expected_avg = summary["total_tasks"] / summary["period_days"]
         # Проверяем с погрешностью
         assert abs(summary["avg_tasks_per_day"] - expected_avg) < 0.1
+
+
+def test_reports_use_completed_at_for_completion_stats(client_with_auth, db_session, worker_user):
+    now = datetime.now()
+    db_session.add(
+        TaskModel(
+            title="Edited after completion",
+            description="Test",
+            raw_address="Test address",
+            status="DONE",
+            priority="CURRENT",
+            created_at=now - timedelta(days=10),
+            completed_at=now - timedelta(days=9),
+            updated_at=now - timedelta(days=1),
+            assigned_user_id=worker_user.id,
+        )
+    )
+    db_session.commit()
+
+    response = client_with_auth.get("/api/reports?period=all")
+
+    assert response.status_code == 200
+    data = response.json()
+    completion_days = {item["date"]: item["completed"] for item in data["by_day"]}
+
+    assert completion_days[(now - timedelta(days=9)).strftime("%Y-%m-%d")] == 1
+    assert completion_days.get((now - timedelta(days=1)).strftime("%Y-%m-%d"), 0) == 0
+    assert data["completion_time"]["avg_hours"] == 24.0
+
+
+def test_reports_worker_filter_limits_worker_rows(client_with_auth, db_session, worker_user):
+    extra_worker = UserModel(
+        username="worker-extra",
+        password_hash=get_password_hash("worker-extra"),
+        full_name="Worker Extra",
+        role=UserRole.WORKER.value,
+        is_active=True,
+    )
+    db_session.add(extra_worker)
+    db_session.add(
+        TaskModel(
+            title="Worker task",
+            description="Test",
+            raw_address="Test address",
+            status="NEW",
+            priority="CURRENT",
+            created_at=datetime.now() - timedelta(days=1),
+            updated_at=datetime.now() - timedelta(days=1),
+            assigned_user_id=worker_user.id,
+        )
+    )
+    db_session.commit()
+
+    response = client_with_auth.get(f"/api/reports?period=all&worker_id={worker_user.id}")
+
+    assert response.status_code == 200
+    assert response.json()["by_worker"] == [
+        {
+            "user_id": worker_user.id,
+            "user_name": worker_user.full_name,
+            "total": 1,
+            "completed": 0,
+            "in_progress": 0,
+            "new_tasks": 1,
+        }
+    ]

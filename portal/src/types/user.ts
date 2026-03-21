@@ -12,6 +12,7 @@ export interface User {
   created_at: string
   last_login: string | null
   assigned_tasks_count: number
+  organization_id?: number | null
 }
 
 export interface CreateUserData {

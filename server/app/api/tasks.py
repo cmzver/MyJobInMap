@@ -6,7 +6,7 @@ Tasks API
 
 import logging
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 
@@ -95,9 +95,9 @@ async def create_task(
 async def get_tasks(
     page: int = 1,
     size: int = 20,
-    status: Optional[TaskStatus] = None,
-    priority: Optional[str] = None,
-    assignee_id: Optional[int] = None,
+    status: List[TaskStatus] = Query(default=[]),
+    priority: List[str] = Query(default=[]),
+    assignee_id: List[int] = Query(default=[]),
     search: Optional[str] = None,
     address_id: Optional[int] = None,
     sort: Optional[str] = None,
@@ -120,16 +120,20 @@ async def get_tasks(
     query = tenant.apply(query, TaskModel)
     
     if status:
-        query = query.filter(TaskModel.status == status.value)
+        query = query.filter(TaskModel.status.in_([item.value for item in status]))
 
     if priority:
-        try:
-            normalized_priority = normalize_priority_value(priority, default=None, strict=True)
-        except ValueError:
-            normalized_priority = None
-        if normalized_priority:
-            rank = get_priority_rank(normalized_priority)
-            query = query.filter(TaskModel.priority.in_([normalized_priority, str(rank), rank]))
+        priority_values = []
+        for raw_priority in priority:
+            try:
+                normalized_priority = normalize_priority_value(raw_priority, default=None, strict=True)
+            except ValueError:
+                normalized_priority = None
+            if normalized_priority:
+                rank = get_priority_rank(normalized_priority)
+                priority_values.extend([normalized_priority, str(rank), rank])
+        if priority_values:
+            query = query.filter(TaskModel.priority.in_(priority_values))
 
     if search:
         base = search.strip()
@@ -155,8 +159,8 @@ async def get_tasks(
     # Dispatchers and Admins can see all (optionally filter by assignee_id)
     if user.role == UserRole.WORKER.value:
         query = query.filter(TaskModel.assigned_user_id == user.id)
-    elif assignee_id is not None:
-        query = query.filter(TaskModel.assigned_user_id == assignee_id)
+    elif assignee_id:
+        query = query.filter(TaskModel.assigned_user_id.in_(assignee_id))
     # else: admin/dispatcher without filter - show all
     
     # Считаем общее количество

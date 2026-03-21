@@ -4,18 +4,18 @@ Reports API
 Эндпоинты для отчётов и аналитики.
 """
 
-from datetime import datetime, timedelta, timezone, date
+from datetime import datetime, date
 from typing import List, Optional
 from collections import defaultdict
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
 
 from app.models import TaskModel, UserModel, UserRole, get_db
 from app.utils import normalize_priority_value
 from app.services import get_current_dispatcher_or_admin
+from app.services.analytics_periods import resolve_analytics_period
 from app.services.tenant_filter import TenantFilter
 
 
@@ -104,55 +104,22 @@ PRIORITY_LABELS = {
 
 # Маппинг int приоритетов в строки (TaskPriority enum values)
 
-def get_date_range(period: str, custom_from: Optional[date], custom_to: Optional[date]):
+def get_date_range(period: str, custom_from: Optional[date | str], custom_to: Optional[date | str]):
     """Получить диапазон дат для периода"""
-    now = datetime.now(timezone.utc)
-    today = now.date()
-    
-    if period == "custom" and custom_from and custom_to:
-        return (
-            datetime.combine(custom_from, datetime.min.time()).replace(tzinfo=timezone.utc),
-            datetime.combine(custom_to, datetime.max.time()).replace(tzinfo=timezone.utc),
-            (custom_to - custom_from).days + 1
-        )
-    
-    if period == "today":
-        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        return start, now, 1
-    
-    if period == "yesterday":
-        yesterday = today - timedelta(days=1)
-        start = datetime.combine(yesterday, datetime.min.time()).replace(tzinfo=timezone.utc)
-        end = datetime.combine(yesterday, datetime.max.time()).replace(tzinfo=timezone.utc)
-        return start, end, 1
-    
-    if period == "week":
-        days_since_monday = now.weekday()
-        start = (now - timedelta(days=days_since_monday)).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-        return start, now, days_since_monday + 1
-    
-    if period == "month":
-        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        return start, now, today.day
-    
-    if period == "quarter":
-        quarter_start_month = ((now.month - 1) // 3) * 3 + 1
-        start = now.replace(month=quarter_start_month, day=1, hour=0, minute=0, second=0, microsecond=0)
-        return start, now, (now - start).days + 1
-    
-    if period == "year":
-        start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-        return start, now, (now - start).days + 1
-    
-    # "all" - все время
-    return None, None, None
+    return resolve_analytics_period(period, custom_from, custom_to)
 
 
 # ============================================================================
 # Endpoints
 # ============================================================================
+
+
+def _require_export_format(requested: str, expected: str) -> None:
+    if requested.lower() != expected:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported export format '{requested}'. Use '{expected}'.",
+        )
 
 @router.get("", response_model=ReportsResponse)
 async def get_reports(
@@ -184,7 +151,6 @@ async def get_reports(
             UserModel.is_active == True,
         ).first()
         if not worker:
-            from fastapi import HTTPException
             raise HTTPException(status_code=404, detail="Исполнитель не найден")
 
     query = tenant.apply(db.query(TaskModel), TaskModel)
@@ -193,7 +159,7 @@ async def get_reports(
         query = query.filter(TaskModel.created_at >= start_date)
     if end_date:
         query = query.filter(TaskModel.created_at <= end_date)
-    if worker_id:
+    if worker_id is not None:
         query = query.filter(TaskModel.assigned_user_id == worker_id)
     
     tasks = query.all()
@@ -269,8 +235,8 @@ async def get_reports(
         day_key = t.created_at.strftime("%Y-%m-%d")
         created_by_day[day_key] += 1
         
-        if t.status == "DONE" and t.updated_at:
-            completed_day = t.updated_at.strftime("%Y-%m-%d")
+        if t.status == "DONE" and t.completed_at:
+            completed_day = t.completed_at.strftime("%Y-%m-%d")
             completed_by_day[completed_day] += 1
     
     # Объединяем все дни
@@ -290,10 +256,13 @@ async def get_reports(
     ]
     
     # === By Worker ===
-    workers = tenant.apply(db.query(UserModel), UserModel).filter(
+    workers_query = tenant.apply(db.query(UserModel), UserModel).filter(
         UserModel.role.in_([UserRole.WORKER.value, UserRole.DISPATCHER.value]),
         UserModel.is_active == True
-    ).all()
+    )
+    if worker_id is not None:
+        workers_query = workers_query.filter(UserModel.id == worker_id)
+    workers = workers_query.all()
     
     worker_stats = []
     for worker in workers:
@@ -322,13 +291,13 @@ async def get_reports(
     completion_time = None
     completed_with_times = [
         t for t in tasks 
-        if t.status == "DONE" and t.created_at and t.updated_at
+        if t.status == "DONE" and t.created_at and t.completed_at
     ]
     
     if completed_with_times:
         durations_hours = []
         for t in completed_with_times:
-            duration = (t.updated_at - t.created_at).total_seconds() / 3600
+            duration = (t.completed_at - t.created_at).total_seconds() / 3600
             if duration >= 0:  # Игнорируем отрицательные значения
                 durations_hours.append(duration)
         
@@ -364,6 +333,8 @@ async def export_report(
     """
     from fastapi.responses import StreamingResponse
     import io
+
+    _require_export_format(format, "csv")
     
     start_date, end_date, _ = get_date_range(period, date_from, date_to)
     

@@ -22,12 +22,11 @@ const AddressesPage = lazy(() => import('@/pages/AddressesPage'))
 const AddressDetailPage = lazy(() => import('@/pages/AddressDetailPage'))
 const UsersPage = lazy(() => import('@/pages/UsersPage'))
 const FinancePage = lazy(() => import('@/pages/FinancePage'))
-const ReportsPage = lazy(() => import('@/pages/ReportsPage'))
+const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'))
 const ProfilePage = lazy(() => import('@/pages/ProfilePage'))
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
 const AdminSettingsPage = lazy(() => import('@/pages/AdminSettingsPage'))
-const SlaPage = lazy(() => import('@/pages/SlaPage'))
 const OrganizationsPage = lazy(() => import('@/pages/OrganizationsPage'))
 const OrganizationDetailPage = lazy(() => import('@/pages/OrganizationDetailPage'))
 const UpdatesPage = lazy(() => import('@/pages/UpdatesPage'))
@@ -232,22 +231,32 @@ function App() {
                         element={<Navigate to="/settings" replace />}
                       />
                       
-                      {/* Reports - Admin & Dispatcher */}
+                      {/* Analytics - Admin & Dispatcher */}
                       <Route 
-                        path="reports" 
+                        path="analytics" 
                         element={
                           <ProtectedRoute allowedRoles={['admin', 'dispatcher']}>
-                            <ReportsPage />
+                            <AnalyticsPage />
                           </ProtectedRoute>
                         } 
                       />
                       
-                      {/* SLA Dashboard - Admin & Dispatcher */}
+                      {/* Reports - compatibility redirect */}
+                      <Route 
+                        path="reports" 
+                        element={
+                          <ProtectedRoute allowedRoles={['admin', 'dispatcher']}>
+                            <Navigate to="/analytics" replace />
+                          </ProtectedRoute>
+                        } 
+                      />
+                      
+                      {/* SLA - compatibility redirect */}
                       <Route 
                         path="sla" 
                         element={
                           <ProtectedRoute allowedRoles={['admin', 'dispatcher']}>
-                            <SlaPage />
+                            <Navigate to="/analytics" replace />
                           </ProtectedRoute>
                         } 
                       />

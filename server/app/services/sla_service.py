@@ -11,13 +11,14 @@ SLA Service
 """
 
 import logging
-from datetime import datetime, timedelta, timezone, date
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import func, case, and_, extract
 from sqlalchemy.orm import Session
 
 from app.models import TaskModel, TaskStatus, UserModel
+from app.services.analytics_periods import resolve_analytics_period
 from app.services.tenant_filter import TenantFilter
 
 logger = logging.getLogger(__name__)
@@ -42,40 +43,12 @@ def _get_sla_hours(priority: Optional[str]) -> int:
     return DEFAULT_SLA_HOURS.get(str(priority).upper(), 48)
 
 
-def _get_date_range(period: str, date_from: Optional[str], date_to: Optional[str]):
-    """Получить диапазон дат для периода."""
-    now = datetime.now(timezone.utc)
-    
-    if period == "today":
-        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        end = now
-    elif period == "week":
-        start = now - timedelta(days=7)
-        end = now
-    elif period == "month":
-        start = now - timedelta(days=30)
-        end = now
-    elif period == "quarter":
-        start = now - timedelta(days=90)
-        end = now
-    elif period == "year":
-        start = now - timedelta(days=365)
-        end = now
-    elif period == "custom" and date_from and date_to:
-        start = datetime.fromisoformat(date_from).replace(tzinfo=timezone.utc)
-        end = datetime.fromisoformat(date_to).replace(tzinfo=timezone.utc)
-    else:
-        start = now - timedelta(days=30)
-        end = now
-    
-    return start, end
-
-
 def get_sla_metrics(
     db: Session,
     period: str = "month",
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    worker_id: Optional[int] = None,
     tenant_user: Optional[UserModel] = None,
 ) -> dict:
     """
@@ -102,14 +75,17 @@ def get_sla_metrics(
             "trends": [...],
         }
     """
-    start, end = _get_date_range(period, date_from, date_to)
+    start, end, period_days = resolve_analytics_period(period, date_from, date_to)
     tenant = TenantFilter(tenant_user) if tenant_user is not None else None
     
     # === Основные метрики ===
-    base_query = db.query(TaskModel).filter(
-        TaskModel.created_at >= start,
-        TaskModel.created_at <= end,
-    )
+    base_query = db.query(TaskModel)
+    if start is not None:
+        base_query = base_query.filter(TaskModel.created_at >= start)
+    if end is not None:
+        base_query = base_query.filter(TaskModel.created_at <= end)
+    if worker_id is not None:
+        base_query = base_query.filter(TaskModel.assigned_user_id == worker_id)
     if tenant is not None:
         base_query = tenant.apply(base_query, TaskModel)
     
@@ -233,17 +209,64 @@ def get_sla_metrics(
         })
     
     # === Тренды (по дням/неделям) ===
-    period_days = (end - start).days or 1
-    trends = _compute_trends(db, start, end, period_days, tenant_user=tenant_user)
+    period_start = start
+    period_end = end
+    resolved_period_days = period_days or 0
+    has_period_window = period_start is not None and period_end is not None
+
+    if not has_period_window:
+        dated_points = []
+        for task in base_query.order_by(TaskModel.created_at.asc()).all():
+            if task.created_at:
+                dated_points.append(task.created_at)
+            if task.completed_at:
+                dated_points.append(task.completed_at)
+        if dated_points:
+            period_start = min(dated_points)
+            period_end = max(dated_points)
+            if period_start.tzinfo is None:
+                period_start = period_start.replace(tzinfo=timezone.utc)
+            if period_end.tzinfo is None:
+                period_end = period_end.replace(tzinfo=timezone.utc)
+            resolved_period_days = (period_end.date() - period_start.date()).days + 1
+            has_period_window = True
+        else:
+            fallback_now = datetime.now(timezone.utc)
+            period_start = fallback_now
+            period_end = fallback_now
+
+    trends = (
+        _compute_trends(
+            db,
+            period_start,
+            period_end,
+            resolved_period_days,
+            worker_id=worker_id,
+            tenant_user=tenant_user,
+        )
+        if has_period_window and resolved_period_days > 0
+        else []
+    )
     
     # === По исполнителям ===
-    by_worker = _compute_worker_sla(db, start, end, completed, tenant_user=tenant_user)
+    by_worker = (
+        _compute_worker_sla(
+            db,
+            period_start,
+            period_end,
+            completed,
+            worker_id=worker_id,
+            tenant_user=tenant_user,
+        )
+        if has_period_window and resolved_period_days > 0
+        else []
+    )
     
     return {
         "period": {
-            "start": start.isoformat(),
-            "end": end.isoformat(),
-            "days": period_days,
+            "start": period_start.isoformat(),
+            "end": period_end.isoformat(),
+            "days": resolved_period_days,
             "label": period,
         },
         "overview": {
@@ -274,6 +297,7 @@ def _compute_trends(
     start: datetime,
     end: datetime,
     period_days: int,
+    worker_id: Optional[int] = None,
     tenant_user: Optional[UserModel] = None,
 ) -> list:
     """Вычислить тренды по дням или неделям."""
@@ -291,6 +315,8 @@ def _compute_trends(
                 TaskModel.created_at >= day_start,
                 TaskModel.created_at < day_end,
             )
+            if worker_id is not None:
+                created_query = created_query.filter(TaskModel.assigned_user_id == worker_id)
             if tenant is not None:
                 created_query = tenant.apply(created_query, TaskModel)
             created = created_query.count()
@@ -300,6 +326,8 @@ def _compute_trends(
                 TaskModel.completed_at < day_end,
                 TaskModel.status == TaskStatus.DONE.value,
             )
+            if worker_id is not None:
+                completed_query = completed_query.filter(TaskModel.assigned_user_id == worker_id)
             if tenant is not None:
                 completed_query = tenant.apply(completed_query, TaskModel)
             completed_count = completed_query.count()
@@ -321,6 +349,8 @@ def _compute_trends(
                 TaskModel.created_at >= current,
                 TaskModel.created_at < week_end,
             )
+            if worker_id is not None:
+                created_query = created_query.filter(TaskModel.assigned_user_id == worker_id)
             if tenant is not None:
                 created_query = tenant.apply(created_query, TaskModel)
             created = created_query.count()
@@ -330,6 +360,8 @@ def _compute_trends(
                 TaskModel.completed_at < week_end,
                 TaskModel.status == TaskStatus.DONE.value,
             )
+            if worker_id is not None:
+                completed_query = completed_query.filter(TaskModel.assigned_user_id == worker_id)
             if tenant is not None:
                 completed_query = tenant.apply(completed_query, TaskModel)
             completed_count = completed_query.count()
@@ -350,6 +382,7 @@ def _compute_worker_sla(
     start: datetime,
     end: datetime,
     completed_tasks: list,
+    worker_id: Optional[int] = None,
     tenant_user: Optional[UserModel] = None,
 ) -> list:
     """Вычислить SLA метрики по исполнителям."""
@@ -357,6 +390,8 @@ def _compute_worker_sla(
     workers_query = db.query(UserModel).filter(
         UserModel.is_active == True
     )
+    if worker_id is not None:
+        workers_query = workers_query.filter(UserModel.id == worker_id)
     if tenant is not None:
         workers_query = tenant.apply(workers_query, UserModel)
     workers = workers_query.all()

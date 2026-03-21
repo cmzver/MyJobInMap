@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useState } from 'react'
+import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useTheme } from '@/hooks/useTheme'
@@ -19,6 +19,7 @@ import {
   Palette,
   ChevronDown,
   Building2,
+  Clock,
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -48,6 +49,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
+  const [currentTime, setCurrentTime] = useState(() => new Date())
+
+  useEffect(() => {
+    const updateClock = () => {
+      setCurrentTime(new Date())
+    }
+
+    const getNextDelay = () => 60000 - (Date.now() % 60000)
+
+    let timerId = window.setTimeout(function tick() {
+      updateClock()
+      timerId = window.setTimeout(tick, getNextDelay())
+    }, getNextDelay())
+
+    return () => window.clearTimeout(timerId)
+  }, [])
 
   const handleLogout = () => {
     logout()
@@ -84,6 +101,20 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       default: return role
     }
   }
+
+  const formattedTime = useMemo(
+    () => currentTime.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+    [currentTime],
+  )
+
+  const formattedDate = useMemo(
+    () => currentTime.toLocaleDateString('ru-RU', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    }),
+    [currentTime],
+  )
 
   const renderMenuItem = (item: MenuItem, closeSidebar?: () => void) => {
     const Icon = item.icon
@@ -162,6 +193,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
             {/* Right side controls */}
             <div className="flex items-center space-x-2 sm:space-x-3">
+              <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-2 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 sm:px-3">
+                <Clock size={16} className="text-primary-500 dark:text-primary-400" />
+                <div className="leading-tight">
+                  <div className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white">{formattedTime}</div>
+                  <div className="hidden md:block text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    {formattedDate}
+                  </div>
+                </div>
+              </div>
+
               {/* Theme toggle */}
               <div className="relative">
                 <button

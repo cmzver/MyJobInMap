@@ -696,14 +696,14 @@ export default function ChatPage() {
                           <UserAvatar
                             fullName={member.full_name}
                             avatarUrl={member.avatar_url}
-                            sizeClassName="h-6 w-6"
+                            sizeClassName="h-7 w-7"
                             textClassName="text-[10px]"
                             className="border-2 border-white dark:border-gray-800"
                           />
                         </div>
                       ))}
                       {headerParticipants.length > 4 && (
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-primary-100 text-[10px] font-bold text-primary-700 dark:border-gray-800 dark:bg-primary-900/40 dark:text-primary-200">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-primary-100 text-[10px] font-bold text-primary-700 dark:border-gray-800 dark:bg-primary-900/40 dark:text-primary-200">
                           +{headerParticipants.length - 4}
                         </div>
                       )}

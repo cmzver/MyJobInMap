@@ -50,8 +50,8 @@ function ConversationList({ conversations, activeId, onSelect }: Props) {
               <UserAvatar
                 fullName={displayName}
                 avatarUrl={conv.avatar_url}
-                sizeClassName="h-9 w-9"
-                textClassName="text-xs"
+                sizeClassName="h-10 w-10"
+                textClassName="text-sm"
                 className={cn(
                   'rounded-xl',
                   isActive
@@ -61,12 +61,12 @@ function ConversationList({ conversations, activeId, onSelect }: Props) {
               />
             ) : (
               <div className={cn(
-                'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl shadow-sm',
+                'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl shadow-sm',
                 isActive
                   ? 'bg-primary-100 text-primary-600 dark:bg-primary-800/80 dark:text-primary-300'
                   : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400',
               )}>
-                <Icon className="h-4.5 w-4.5" />
+                <Icon className="h-5 w-5" />
               </div>
             )}
 

@@ -121,6 +121,24 @@ class TestTaskRetrieval:
         titles = [item["title"] for item in items[:2]]
         assert titles == ["First task", "Second task"]
 
+    def test_get_tasks_with_multiple_filters(self, client, admin_token, sample_tasks_for_reports, worker_user):
+        """Test getting tasks with repeated status, priority and assignee filters."""
+        response = client.get(
+            f"/api/tasks?status=NEW&status=IN_PROGRESS&priority=CURRENT&priority=URGENT&assignee_id={worker_user.id}",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        assert response.status_code == 200
+        items = response.json()["items"]
+        statuses = {item["status"] for item in items}
+        priorities = {item["priority"] for item in items}
+        assignees = {item["assigned_user_id"] for item in items}
+
+        assert len(items) == 2
+        assert statuses == {"NEW", "IN_PROGRESS"}
+        assert priorities == {"CURRENT", "URGENT"}
+        assert assignees == {worker_user.id}
+
 
 class TestAdminUpdate:
     """Test PATCH /api/admin/tasks/{id} endpoint."""

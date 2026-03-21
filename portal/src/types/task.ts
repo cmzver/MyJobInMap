@@ -62,8 +62,11 @@ export interface PaginatedResponse<T> {
 
 export interface TaskFilters {
   status?: TaskStatus
+  statuses?: TaskStatus[]
   priority?: TaskPriority
+  priorities?: TaskPriority[]
   assignee_id?: number
+  assignee_ids?: number[]
   search?: string
   address_id?: number
   sort?: TaskSort

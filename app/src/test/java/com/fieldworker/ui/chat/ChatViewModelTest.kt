@@ -174,6 +174,7 @@ class ChatViewModelTest {
             ConversationMember(
                 userId = CURRENT_USER_ID,
                 username = "worker",
+                avatarUrl = null,
                 fullName = "Текущий Пользователь",
                 role = "member",
                 lastReadMessageId = null,
@@ -183,6 +184,7 @@ class ChatViewModelTest {
             ConversationMember(
                 userId = 2L,
                 username = "ivan",
+                avatarUrl = null,
                 fullName = "Иван Петров",
                 role = "member",
                 lastReadMessageId = null,

@@ -8,7 +8,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTasks } from '@/hooks/useTasks'
 import { useUsers } from '@/hooks/useUsers'
 import { tasksApi } from '@/api/tasks'
-import type { CreateTaskData } from '@/api/tasks'
 import apiClient from '@/api/client'
 import type { TaskStatus, TaskPriority, TaskFilters, Task, TaskSort } from '@/types/task'
 import { formatDateTime, getSla } from '@/utils/dateFormat'
@@ -20,16 +19,15 @@ import {
   getStatusLabel as getStatusLabelFn,
   getStatusCommentCopy,
   isStatusTransitionAllowed,
-  parsePriorityFromImport,
 } from '@/config/taskConstants'
 import Button from '@/components/Button'
+import MultiSelectFilter from '@/components/MultiSelectFilter'
 import Select from '@/components/Select'
 import { SkeletonTaskList } from '@/components/Skeleton'
 import Pagination from '@/components/Pagination'
 import EmptyState from '@/components/EmptyState'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
-import Badge from '@/components/Badge'
 import Modal from '@/components/Modal'
 import Textarea from '@/components/Textarea'
 
@@ -112,77 +110,28 @@ const sortOptions = [
   { value: 'created_at_asc', label: 'Дата заявки: старые сверху' },
 ]
 
-const importHeaderMap: Record<string, string> = {
-  title: 'title',
-  название: 'title',
-  description: 'description',
-  описание: 'description',
-  address: 'address',
-  адрес: 'address',
-  priority: 'priority',
-  приоритет: 'priority',
-  planned_date: 'planned_date',
-  'плановая дата': 'planned_date',
-  customer_name: 'customer_name',
-  клиент: 'customer_name',
-  customer_phone: 'customer_phone',
-  телефон: 'customer_phone',
+const TASK_STATUS_VALUES: TaskStatus[] = ['NEW', 'IN_PROGRESS', 'DONE', 'CANCELLED']
+const TASK_PRIORITY_VALUES: TaskPriority[] = ['EMERGENCY', 'URGENT', 'CURRENT', 'PLANNED']
+
+const sanitizeTaskStatuses = (values: string[]): TaskStatus[] =>
+  Array.from(new Set(values.filter((value): value is TaskStatus => TASK_STATUS_VALUES.includes(value as TaskStatus))))
+
+const sanitizeTaskPriorities = (values: string[]): TaskPriority[] =>
+  Array.from(new Set(values.filter((value): value is TaskPriority => TASK_PRIORITY_VALUES.includes(value as TaskPriority))))
+
+const sanitizeAssigneeFilters = (values: string[]): string[] =>
+  Array.from(new Set(values.filter((value) => /^\d+$/.test(value))))
+
+const areStringArraysEqual = (left: readonly string[], right: readonly string[]) =>
+  left.length === right.length && left.every((value, index) => value === right[index])
+
+interface ActiveFilterChip {
+  id: string
+  type: 'search' | 'status' | 'priority' | 'assignee' | 'address'
+  label: string
+  value: string
+  rawValue?: string
 }
-
-const parseCsv = (text: string) => {
-  const rows: string[][] = []
-  let current = ''
-  let row: string[] = []
-  let inQuotes = false
-
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i]
-    const nextChar = text[i + 1]
-
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        current += '"'
-        i += 1
-      } else {
-        inQuotes = !inQuotes
-      }
-      continue
-    }
-
-    if (!inQuotes && (char === '\n' || char === '\r')) {
-      if (char === '\r' && nextChar === '\n') {
-        i += 1
-      }
-      row.push(current)
-      if (row.some((cell) => cell.trim() !== '')) {
-        rows.push(row)
-      }
-      row = []
-      current = ''
-      continue
-    }
-
-    if (!inQuotes && char === ',') {
-      row.push(current)
-      current = ''
-      continue
-    }
-
-    current += char
-  }
-
-  if (current.length > 0 || row.length > 0) {
-    row.push(current)
-    if (row.some((cell) => cell.trim() !== '')) {
-      rows.push(row)
-    }
-  }
-
-  return rows
-}
-
-// Используем parsePriorityFromImport из taskConstants
-const parsePriorityValue = parsePriorityFromImport
 
 export default function TasksPage() {
   const navigate = useNavigate()
@@ -201,9 +150,9 @@ export default function TasksPage() {
   const [pageSize, setPageSize] = useState(() => (PAGE_SIZE_OPTIONS.includes(initialSize) ? initialSize : PAGE_SIZE))
   const [searchInput, setSearchInput] = useState(() => searchParams.get('search') || '')
   const [search, setSearch] = useState(() => searchParams.get('search') || '')
-  const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get('status') || '')
-  const [priorityFilter, setPriorityFilter] = useState<string>(() => searchParams.get('priority') || '')
-  const [assigneeFilter, setAssigneeFilter] = useState<string>(() => searchParams.get('assignee') || '')
+  const [statusFilter, setStatusFilter] = useState<TaskStatus[]>(() => sanitizeTaskStatuses(searchParams.getAll('status')))
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriority[]>(() => sanitizeTaskPriorities(searchParams.getAll('priority')))
+  const [assigneeFilter, setAssigneeFilter] = useState<string[]>(() => sanitizeAssigneeFilters(searchParams.getAll('assignee')))
   const [addressIdFilter, setAddressIdFilter] = useState<string>(() => searchParams.get('address_id') || '')
   const [addressTitleFilter, setAddressTitleFilter] = useState<string>(() => searchParams.get('address_title') || '')
   const [sortBy, setSortBy] = useState<TaskSort>(() => {
@@ -223,8 +172,6 @@ export default function TasksPage() {
   const [bulkAssignee, setBulkAssignee] = useState('')
   const [bulkPriority, setBulkPriority] = useState('')
   const [bulkPlannedDate, setBulkPlannedDate] = useState('')
-  const [isImporting, setIsImporting] = useState(false)
-  const importInputRef = useRef<HTMLInputElement>(null)
 
   // Build filters object
   const filters: TaskFilters = useMemo(() => ({
@@ -233,9 +180,9 @@ export default function TasksPage() {
     sort: sortBy,
     ...(addressIdFilter ? { address_id: Number(addressIdFilter) || undefined } : {}),
     ...(search && { search }),
-    ...(statusFilter && { status: statusFilter as TaskStatus }),
-    ...(priorityFilter && { priority: priorityFilter as TaskPriority }),
-    ...(assigneeFilter && { assignee_id: Number(assigneeFilter) }),
+    ...(statusFilter.length > 0 && { statuses: statusFilter }),
+    ...(priorityFilter.length > 0 && { priorities: priorityFilter }),
+    ...(assigneeFilter.length > 0 && { assignee_ids: assigneeFilter.map(Number).filter((value) => Number.isFinite(value)) }),
   }), [page, pageSize, sortBy, search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter])
 
   const { data, isLoading, isError, error, refetch, isFetching } = useTasks(filters)
@@ -261,18 +208,18 @@ export default function TasksPage() {
     setSearchInput(value)
   }
 
-  const handleStatusFilterChange = (value: string) => {
-    setStatusFilter(value)
+  const handleStatusFilterChange = (values: string[]) => {
+    setStatusFilter(sanitizeTaskStatuses(values))
     setPage(1)
   }
 
-  const handlePriorityFilterChange = (value: string) => {
-    setPriorityFilter(value)
+  const handlePriorityFilterChange = (values: string[]) => {
+    setPriorityFilter(sanitizeTaskPriorities(values))
     setPage(1)
   }
 
-  const handleAssigneeFilterChange = (value: string) => {
-    setAssigneeFilter(value)
+  const handleAssigneeFilterChange = (values: string[]) => {
+    setAssigneeFilter(sanitizeAssigneeFilters(values))
     setPage(1)
   }
 
@@ -375,174 +322,6 @@ export default function TasksPage() {
     setBulkPlannedDate('')
   }, [])
 
-  const exportSelected = () => {
-    if (!data?.items.length || selectedIds.size === 0) {
-      toast.error('Выберите заявки для экспорта')
-      return
-    }
-
-    const selectedTasks = data.items.filter((task) => selectedIds.has(task.id))
-    const headers = [
-      'ID',
-      'Номер',
-      'Название',
-      'Клиент',
-      'Телефон',
-      'Статус',
-      'Приоритет',
-      'Исполнитель',
-      'Адрес',
-      'Создана',
-    ]
-    const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`
-    const rows = selectedTasks.map((task) => [
-      task.id,
-      task.task_number || `#${task.id}`,
-      task.title,
-      task.customer_name || '',
-      task.customer_phone || '',
-      task.status,
-      task.priority,
-      task.assigned_user_name || '',
-      task.raw_address || '',
-      task.created_at,
-    ])
-
-    const csv = [headers, ...rows].map((row) => row.map((cell) => escapeCsv(String(cell))).join(','))
-    const blob = new Blob([`\uFEFF${csv.join('\n')}`], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `tasks-${new Date().toISOString().slice(0, 10)}.csv`
-    link.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const downloadImportTemplate = () => {
-    const headers = [
-      'title',
-      'description',
-      'address',
-      'priority',
-      'planned_date',
-      'customer_name',
-      'customer_phone',
-    ]
-    const sample = [
-      'Замена счетчика',
-      'Проверить состояние, при необходимости заменить',
-      'Москва, Тверская, 1',
-      'URGENT',
-      '2025-01-10T12:00',
-      'Иван Иванов',
-      '+79991234567',
-    ]
-    const csv = [headers, sample].map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(','))
-    const blob = new Blob([`\uFEFF${csv.join('\n')}`], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'tasks-import-template.csv'
-    link.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const handleImportFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    setIsImporting(true)
-    try {
-      const text = await file.text()
-      const rows = parseCsv(text)
-      if (rows.length < 2) {
-        toast.error('CSV файл пустой или без данных')
-        return
-      }
-
-      const headers = rows[0]!.map((header) => header.trim().toLowerCase())
-      const fieldByIndex = headers.map((header) => importHeaderMap[header] ?? '')
-
-      const tasksToCreate: CreateTaskData[] = []
-      let skipped = 0
-
-      for (let i = 1; i < rows.length; i += 1) {
-        const row = rows[i]!
-        const payload: CreateTaskData = {
-          title: '',
-          description: '',
-          address: '',
-        }
-
-        row.forEach((cell, index) => {
-          const field = fieldByIndex[index] ?? ''
-          const value = cell?.trim?.() ?? ''
-          if (!field || !value) return
-
-          if (field === 'priority') {
-            const parsed = parsePriorityValue(value)
-            if (parsed) {
-              payload.priority = parsed
-            }
-            return
-          }
-
-          if (field === 'planned_date') {
-            payload.planned_date = value
-            return
-          }
-
-          if (field === 'customer_name') {
-            payload.customer_name = value
-            return
-          }
-
-          if (field === 'customer_phone') {
-            payload.customer_phone = value
-            return
-          }
-
-          if (field === 'title') payload.title = value
-          if (field === 'description') payload.description = value
-          if (field === 'address') payload.address = value
-        })
-
-        if (!payload.title || !payload.address) {
-          skipped += 1
-          continue
-        }
-
-        tasksToCreate.push(payload)
-      }
-
-      if (tasksToCreate.length === 0) {
-        toast.error('Не удалось найти строки с обязательными полями')
-        return
-      }
-
-      let success = 0
-      let failed = 0
-      for (const task of tasksToCreate) {
-        try {
-          await tasksApi.createTask(task)
-          success += 1
-        } catch {
-          failed += 1
-        }
-      }
-
-      queryClient.invalidateQueries({ queryKey: ['tasks'] })
-      toast.success(`Импорт завершён: ${success} успешно, ${failed + skipped} ошибок`)
-    } catch (err) {
-      showApiError(err, 'Ошибка импорта CSV')
-    } finally {
-      setIsImporting(false)
-      if (importInputRef.current) {
-        importInputRef.current.value = ''
-      }
-    }
-  }
-
   // Используем функции из taskConstants
   const getPriorityKey = useCallback((value?: TaskPriority | number | string) => {
     if (value === undefined || value === null || value === '') return ''
@@ -644,8 +423,44 @@ export default function TasksPage() {
     })
   }
 
-  const activeFilters = useMemo(() => {
-    const items: { key: 'search' | 'status' | 'priority' | 'assignee' | 'address'; label: string; value: string }[] = []
+  const activeFilters = useMemo<ActiveFilterChip[]>(() => {
+    return [
+      ...(search
+        ? [{ id: 'search', type: 'search' as const, label: 'Поиск', value: search }]
+        : []),
+      ...statusFilter.map((status) => ({
+        id: `status:${status}`,
+        type: 'status' as const,
+        label: 'Статус',
+        value: getStatusLabel(status),
+        rawValue: status,
+      })),
+      ...priorityFilter.map((priority) => ({
+        id: `priority:${priority}`,
+        type: 'priority' as const,
+        label: 'Приоритет',
+        value: getPriorityLabel(priority),
+        rawValue: priority,
+      })),
+      ...assigneeFilter.map((assigneeId) => ({
+        id: `assignee:${assigneeId}`,
+        type: 'assignee' as const,
+        label: 'Исполнитель',
+        value: assignableUsers.find((user) => String(user.id) === assigneeId)?.full_name || assigneeId,
+        rawValue: assigneeId,
+      })),
+      ...(addressIdFilter
+        ? [{
+            id: 'address',
+            type: 'address' as const,
+            label: 'Адрес',
+            value: addressTitleFilter || `ID ${addressIdFilter}`,
+          }]
+        : []),
+    ]
+
+    const items: Array<{ [key: string]: unknown }> = []
+    /*
     if (search) items.push({ key: 'search', label: 'Поиск', value: search })
     if (statusFilter) items.push({ key: 'status', label: 'Статус', value: getStatusLabel(statusFilter as TaskStatus) })
     if (priorityFilter) items.push({ key: 'priority', label: 'Приоритет', value: getPriorityLabel(priorityFilter as TaskPriority) })
@@ -653,6 +468,7 @@ export default function TasksPage() {
       const name = assignableUsers.find((u) => String(u.id) === assigneeFilter)?.full_name || assigneeFilter
       items.push({ key: 'assignee', label: 'Исполнитель', value: name })
     }
+    */
     if (addressIdFilter) {
       items.push({
         key: 'address',
@@ -660,7 +476,7 @@ export default function TasksPage() {
         value: addressTitleFilter || `ID ${addressIdFilter}`,
       })
     }
-    return items
+    return items as unknown as ActiveFilterChip[]
   }, [search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter, addressTitleFilter, assignableUsers, getPriorityLabel, getStatusLabel])
 
   const hasActiveFilters = activeFilters.length > 0
@@ -668,28 +484,34 @@ export default function TasksPage() {
   const clearFilters = () => {
     setSearch('')
     setSearchInput('')
-    setStatusFilter('')
-    setPriorityFilter('')
-    setAssigneeFilter('')
+    setStatusFilter([])
+    setPriorityFilter([])
+    setAssigneeFilter([])
     setAddressIdFilter('')
     setAddressTitleFilter('')
     setPage(1)
   }
 
-  const clearSingleFilter = (key: 'search' | 'status' | 'priority' | 'assignee' | 'address') => {
-    switch (key) {
+  const clearSingleFilter = (filter: (typeof activeFilters)[number]) => {
+    switch (filter.type) {
       case 'search':
         setSearch('')
         setSearchInput('')
         break
       case 'status':
-        setStatusFilter('')
+        if (filter.rawValue) {
+          setStatusFilter((prev) => prev.filter((value) => value !== filter.rawValue))
+        }
         break
       case 'priority':
-        setPriorityFilter('')
+        if (filter.rawValue) {
+          setPriorityFilter((prev) => prev.filter((value) => value !== filter.rawValue))
+        }
         break
       case 'assignee':
-        setAssigneeFilter('')
+        if (filter.rawValue) {
+          setAssigneeFilter((prev) => prev.filter((value) => value !== filter.rawValue))
+        }
         break
       case 'address':
         setAddressIdFilter('')
@@ -964,9 +786,9 @@ export default function TasksPage() {
   useEffect(() => {
     const nextParams = new URLSearchParams()
     if (search) nextParams.set('search', search)
-    if (statusFilter) nextParams.set('status', statusFilter)
-    if (priorityFilter) nextParams.set('priority', priorityFilter)
-    if (assigneeFilter) nextParams.set('assignee', assigneeFilter)
+    statusFilter.forEach((value) => nextParams.append('status', value))
+    priorityFilter.forEach((value) => nextParams.append('priority', value))
+    assigneeFilter.forEach((value) => nextParams.append('assignee', value))
     if (addressIdFilter) nextParams.set('address_id', addressIdFilter)
     if (addressTitleFilter) nextParams.set('address_title', addressTitleFilter)
     if (sortBy !== 'created_at_desc') nextParams.set('sort', sortBy)
@@ -982,9 +804,9 @@ export default function TasksPage() {
 
   useEffect(() => {
     const urlSearch = searchParams.get('search') || ''
-    const urlStatus = searchParams.get('status') || ''
-    const urlPriority = searchParams.get('priority') || ''
-    const urlAssignee = searchParams.get('assignee') || ''
+    const urlStatuses = sanitizeTaskStatuses(searchParams.getAll('status'))
+    const urlPriorities = sanitizeTaskPriorities(searchParams.getAll('priority'))
+    const urlAssignees = sanitizeAssigneeFilters(searchParams.getAll('assignee'))
     const urlAddressId = searchParams.get('address_id') || ''
     const urlAddressTitle = searchParams.get('address_title') || ''
     const urlSort = searchParams.get('sort') === 'created_at_asc' ? 'created_at_asc' : 'created_at_desc'
@@ -995,9 +817,9 @@ export default function TasksPage() {
 
     setSearch((prev) => (prev === urlSearch ? prev : urlSearch))
     setSearchInput((prev) => (prev === urlSearch ? prev : urlSearch))
-    setStatusFilter((prev) => (prev === urlStatus ? prev : urlStatus))
-    setPriorityFilter((prev) => (prev === urlPriority ? prev : urlPriority))
-    setAssigneeFilter((prev) => (prev === urlAssignee ? prev : urlAssignee))
+    setStatusFilter((prev) => (areStringArraysEqual(prev, urlStatuses) ? prev : urlStatuses))
+    setPriorityFilter((prev) => (areStringArraysEqual(prev, urlPriorities) ? prev : urlPriorities))
+    setAssigneeFilter((prev) => (areStringArraysEqual(prev, urlAssignees) ? prev : urlAssignees))
     setAddressIdFilter((prev) => (prev === urlAddressId ? prev : urlAddressId))
     setAddressTitleFilter((prev) => (prev === urlAddressTitle ? prev : urlAddressTitle))
     setSortBy((prev) => (prev === urlSort ? prev : urlSort))
@@ -1027,153 +849,307 @@ export default function TasksPage() {
             <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
             Обновить
           </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={downloadImportTemplate}
-          >
-            Шаблон CSV
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => importInputRef.current?.click()}
-            isLoading={isImporting}
-          >
-            Импорт CSV
-          </Button>
           <Button size="sm" onClick={() => navigate('/tasks/new')}>
             <Plus className="h-4 w-4 mr-2" />
             Новая заявка
           </Button>
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={handleImportFileChange}
-          />
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6 transition-colors">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
-            <input
-              type="text"
-              placeholder="Поиск"
-              value={searchInput}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  commitSearch(searchInput)
-                }
+      <div className="mb-5 rounded-xl border border-gray-200 bg-white p-3 shadow-sm transition-colors dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
+          <div className="xl:w-[320px]">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Search className="h-4 w-4 text-primary-500 dark:text-primary-400" />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
+                  Фильтры и поиск
+                </span>
+              </div>
+              <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                {hasActiveFilters ? `Активно: ${activeFilters.length}` : 'Все заявки'}
+              </span>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
+              <input
+                type="text"
+                placeholder="Номер, адрес, клиент"
+                value={searchInput}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    commitSearch(searchInput)
+                  }
+                }}
+                className="h-9 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid flex-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <Select
+              label="Сортировка"
+              options={sortOptions}
+              value={sortBy}
+              onChange={handleSortChange}
+              placeholder="Сортировка"
+              className="h-9 text-sm"
+            />
+            <Select
+              label="Группировка"
+              options={groupOptions}
+              value={groupBy}
+              onChange={(value) => {
+                setGroupBy(value)
+                setCollapsedGroups(new Set())
               }}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              placeholder="Без группировки"
+              className="h-9 text-sm"
+            />
+            <MultiSelectFilter
+              label="Статусы"
+              options={statusOptions}
+              selectedValues={statusFilter}
+              onChange={handleStatusFilterChange}
+              placeholder="Все статусы"
+            />
+            <MultiSelectFilter
+              label="Приоритеты"
+              options={priorityOptions}
+              selectedValues={priorityFilter}
+              onChange={handlePriorityFilterChange}
+              placeholder="Все приоритеты"
+            />
+            <MultiSelectFilter
+              label="Исполнители"
+              options={assignableUsers.map((user) => ({
+                value: String(user.id),
+                label: user.full_name || user.username,
+              }))}
+              selectedValues={assigneeFilter}
+              onChange={handleAssigneeFilterChange}
+              placeholder="Все исполнители"
             />
           </div>
 
-          {/* Status filter */}
-          <Select
-            options={statusOptions}
-            value={statusFilter}
-            onChange={handleStatusFilterChange}
-            placeholder="Все статусы"
-          />
-
-          {/* Priority filter */}
-          <Select
-            options={priorityOptions}
-            value={priorityFilter}
-            onChange={handlePriorityFilterChange}
-            placeholder="Все приоритеты"
-          />
-
-          {/* Assignee filter */}
-          <Select
-            options={[
-              { value: '', label: 'Все исполнители' },
-              ...assignableUsers.map((user) => ({
-                value: String(user.id),
-                label: user.full_name || user.username,
-              })),
-            ]}
-            value={assigneeFilter}
-            onChange={handleAssigneeFilterChange}
-            placeholder="Все исполнители"
-          />
-
-          <Select
-            options={sortOptions}
-            value={sortBy}
-            onChange={handleSortChange}
-            placeholder="Сортировка"
-          />
-
-          {/* Grouping */}
-          <Select
-            options={groupOptions}
-            value={groupBy}
-            onChange={(value) => {
-              setGroupBy(value)
-              setCollapsedGroups(new Set())
-            }}
-            placeholder="Группировка"
-          />
-
-          {/* Clear filters */}
-          {hasActiveFilters && (
-            <div className="flex items-center justify-end">
-              <Button variant="ghost" size="sm" onClick={clearFilters} className="self-center">
-                Сбросить фильтры
-              </Button>
-            </div>
-          )}
+          <div className="flex items-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              disabled={!hasActiveFilters}
+              className="h-9 px-3"
+            >
+              Сбросить
+            </Button>
+          </div>
         </div>
 
         {hasActiveFilters && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              Активные фильтры: {activeFilters.length}
-            </span>
             {activeFilters.map((filter) => (
               <button
-                key={filter.key}
-                onClick={() => clearSingleFilter(filter.key)}
-                className="flex items-center gap-1 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 px-3 py-1 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-600 transition"
+                key={filter.id}
+                onClick={() => clearSingleFilter(filter)}
+                className="flex h-7 items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-3 text-xs font-medium text-gray-700 transition hover:border-primary-200 hover:bg-primary-50 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-200 dark:hover:border-primary-800 dark:hover:bg-primary-900/20"
               >
-                <span className="text-gray-500 dark:text-gray-300">{filter.label}:</span>
-                <span className="text-gray-800 dark:text-gray-100">{filter.value}</span>
+                <span className="text-gray-500 dark:text-gray-400">{filter.label}:</span>
+                <span className="max-w-[180px] truncate text-gray-900 dark:text-white">{filter.value}</span>
                 <X size={12} className="text-gray-400" />
               </button>
             ))}
-            <Button variant="ghost" size="sm" onClick={clearFilters}>
-              Очистить все
-            </Button>
           </div>
         )}
 
         {data && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Badge variant="info" className="dark:bg-blue-900/40 dark:text-blue-200">
-              Без исполнителя: {summary.unassigned}
-            </Badge>
-            <Badge variant="danger" className="dark:bg-red-900/40 dark:text-red-200">
-              Просроченные: {summary.overdue}
-            </Badge>
-            <Badge variant="warning" className="dark:bg-orange-900/40 dark:text-orange-200">
-              Срок &lt; 24ч: {summary.dueSoon}
-            </Badge>
-            <Badge variant="primary" className="dark:bg-primary-900/40 dark:text-primary-200">
-              Срочные: {summary.urgent}
-            </Badge>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            <span className="font-medium text-gray-600 dark:text-gray-300">Сводка:</span>
+            <span>
+              Без исполнителя <span className="font-semibold text-blue-700 dark:text-blue-300">{summary.unassigned}</span>
+            </span>
+            <span>
+              Просроченные <span className="font-semibold text-red-700 dark:text-red-300">{summary.overdue}</span>
+            </span>
+            <span>
+              Срок &lt; 24ч <span className="font-semibold text-orange-700 dark:text-orange-300">{summary.dueSoon}</span>
+            </span>
+            <span>
+              Срочные <span className="font-semibold text-primary-700 dark:text-primary-300">{summary.urgent}</span>
+            </span>
           </div>
         )}
       </div>
+      {false && (
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm transition-colors dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-4 dark:border-gray-700 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Search className="h-4 w-4 text-primary-500 dark:text-primary-400" />
+              <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-700 dark:text-gray-200">
+                Фильтры и поиск
+              </h2>
+            </div>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Уточните список по поиску, статусу, приоритету, исполнителю и способу отображения.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {hasActiveFilters ? (
+              <span className="rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+                Активно: {activeFilters.length}
+              </span>
+            ) : (
+              <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+                Все заявки
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              disabled={!hasActiveFilters}
+              className="h-9 px-3"
+            >
+              Сбросить
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-4 p-4">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]">
+            <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-700 dark:bg-gray-900/30">
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
+                Поиск по заявкам
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
+                <input
+                  type="text"
+                  placeholder="Номер, адрес, клиент или название"
+                  value={searchInput}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      commitSearch(searchInput)
+                    }
+                  }}
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-500"
+                />
+              </div>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                Ищет по номеру, названию, адресу и клиенту. Нажмите Enter, чтобы применить сразу.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Select
+                label="Сортировка"
+                options={sortOptions}
+                value={sortBy}
+                onChange={handleSortChange}
+                placeholder="Сортировка"
+                className="h-11"
+              />
+              <Select
+                label="Группировка"
+                options={groupOptions}
+                value={groupBy}
+                onChange={(value) => {
+                  setGroupBy(value)
+                  setCollapsedGroups(new Set())
+                }}
+                placeholder="Без группировки"
+                className="h-11"
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <Select
+              label="Статус"
+              options={statusOptions}
+              value={statusFilter[0] ?? ''}
+              onChange={(value) => handleStatusFilterChange(value ? [value] : [])}
+              placeholder="Все статусы"
+              className="h-11"
+            />
+            <Select
+              label="Приоритет"
+              options={priorityOptions}
+              value={priorityFilter[0] ?? ''}
+              onChange={(value) => handlePriorityFilterChange(value ? [value] : [])}
+              placeholder="Все приоритеты"
+              className="h-11"
+            />
+            <Select
+              label="Исполнитель"
+              options={[
+                { value: '', label: 'Все исполнители' },
+                ...assignableUsers.map((user) => ({
+                  value: String(user.id),
+                  label: user.full_name || user.username,
+                })),
+              ]}
+              value={assigneeFilter[0] ?? ''}
+              onChange={(value) => handleAssigneeFilterChange(value ? [value] : [])}
+              placeholder="Все исполнители"
+              className="h-11"
+            />
+          </div>
+
+          {hasActiveFilters && (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50/80 px-4 py-3 dark:border-gray-600 dark:bg-gray-900/20">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Активные фильтры
+                  </span>
+                  {activeFilters.map((filter) => (
+                    <button
+                      key={filter.id}
+                      onClick={() => clearSingleFilter(filter)}
+                      className="flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-700 transition hover:border-primary-200 hover:bg-primary-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-primary-800 dark:hover:bg-primary-900/20"
+                    >
+                      <span className="text-gray-500 dark:text-gray-400">{filter.label}:</span>
+                      <span className="text-gray-900 dark:text-white">{filter.value}</span>
+                      <X size={12} className="text-gray-400" />
+                    </button>
+                  ))}
+                </div>
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 self-start lg:self-auto">
+                  Очистить все
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {data && (
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-3 dark:border-blue-900/40 dark:bg-blue-950/20">
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-blue-700 dark:text-blue-300">Без исполнителя</p>
+                <p className="mt-2 text-2xl font-bold text-blue-700 dark:text-blue-200">{summary.unassigned}</p>
+              </div>
+              <div className="rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 dark:border-red-900/40 dark:bg-red-950/20">
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-red-700 dark:text-red-300">Просроченные</p>
+                <p className="mt-2 text-2xl font-bold text-red-700 dark:text-red-200">{summary.overdue}</p>
+              </div>
+              <div className="rounded-xl border border-orange-200 bg-orange-50/80 px-4 py-3 dark:border-orange-900/40 dark:bg-orange-950/20">
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-orange-700 dark:text-orange-300">Срок &lt; 24ч</p>
+                <p className="mt-2 text-2xl font-bold text-orange-700 dark:text-orange-200">{summary.dueSoon}</p>
+              </div>
+              <div className="rounded-xl border border-primary-200 bg-primary-50/80 px-4 py-3 dark:border-primary-900/40 dark:bg-primary-950/20">
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-primary-700 dark:text-primary-300">Срочные</p>
+                <p className="mt-2 text-2xl font-bold text-primary-700 dark:text-primary-200">{summary.urgent}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      )}
 
       {/* Content */}
       {isLoading ? (
@@ -1307,9 +1283,6 @@ export default function TasksPage() {
                     isLoading={bulkDeleteMutation.isPending}
                   >
                     Удалить
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={exportSelected}>
-                    Экспорт CSV
                   </Button>
                   <Button variant="ghost" size="sm" onClick={clearSelection}>
                     Очистить

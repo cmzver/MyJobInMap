@@ -4,7 +4,9 @@
  * Типы для SLA дашборда.
  */
 
-export type SlaPeriod = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
+import type { ReportPeriod } from './reports'
+
+export type SlaPeriod = ReportPeriod
 
 export interface SlaFilters {
   period: SlaPeriod

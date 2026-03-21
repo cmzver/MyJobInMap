@@ -206,6 +206,7 @@ def sample_tasks_for_reports(db_session, admin_user, worker_user):
         status="DONE",
         priority="PLANNED",
         created_at=now - timedelta(days=10),
+        completed_at=now - timedelta(days=1),
         updated_at=now - timedelta(days=1),
         assigned_user_id=worker_user.id
     ))
@@ -250,6 +251,7 @@ def sample_completed_tasks(db_session, admin_user, worker_user):
         status="DONE",
         priority="URGENT",
         created_at=now - timedelta(hours=2),
+        completed_at=now - timedelta(hours=1),
         updated_at=now - timedelta(hours=1),
         assigned_user_id=worker_user.id
     ))
@@ -262,6 +264,7 @@ def sample_completed_tasks(db_session, admin_user, worker_user):
         status="DONE",
         priority="PLANNED",
         created_at=now - timedelta(days=5),
+        completed_at=now - timedelta(days=1),
         updated_at=now - timedelta(days=1),
         assigned_user_id=worker_user.id
     ))

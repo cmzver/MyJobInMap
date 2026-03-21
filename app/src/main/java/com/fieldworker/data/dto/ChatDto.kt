@@ -45,6 +45,7 @@ data class MemberInfoDto(
     @SerializedName("user_id") val userId: Long,
     @SerializedName("username") val username: String,
     @SerializedName("full_name") val fullName: String,
+    @SerializedName("avatar_url") val avatarUrl: String?,
     @SerializedName("role") val role: String,
     @SerializedName("last_read_message_id") val lastReadMessageId: Long?,
     @SerializedName("is_muted") val isMuted: Boolean,

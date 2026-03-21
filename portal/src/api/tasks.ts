@@ -37,10 +37,18 @@ export const tasksApi = {
   // Get paginated list of tasks
   async getTasks(filters?: TaskFilters): Promise<PaginatedResponse<Task>> {
     const params = new URLSearchParams()
-    
-    if (filters?.status) params.append('status', filters.status)
-    if (filters?.priority) params.append('priority', filters.priority)
-    if (filters?.assignee_id) params.append('assignee_id', String(filters.assignee_id))
+
+    const statuses = filters?.statuses?.length ? filters.statuses : filters?.status ? [filters.status] : []
+    const priorities = filters?.priorities?.length ? filters.priorities : filters?.priority ? [filters.priority] : []
+    const assigneeIds = filters?.assignee_ids?.length
+      ? filters.assignee_ids
+      : typeof filters?.assignee_id === 'number'
+        ? [filters.assignee_id]
+        : []
+
+    statuses.forEach((status) => params.append('status', status))
+    priorities.forEach((priority) => params.append('priority', priority))
+    assigneeIds.forEach((assigneeId) => params.append('assignee_id', String(assigneeId)))
     if (filters?.address_id) params.append('address_id', String(filters.address_id))
     if (filters?.search) params.append('search', filters.search)
     if (filters?.sort) params.append('sort', filters.sort)

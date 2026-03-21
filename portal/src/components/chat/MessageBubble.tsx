@@ -633,13 +633,13 @@ function MessageBubble({
     >
       {!isOwn && (
         groupedWithPrevious ? (
-          <div className="w-10 flex-shrink-0" aria-hidden="true" />
+          <div className="w-11 flex-shrink-0" aria-hidden="true" />
         ) : (
-          <div className="w-10 flex-shrink-0 self-end pb-1">
+          <div className="w-11 flex-shrink-0 self-end pb-1">
             <UserAvatar
               fullName={message.sender_name}
               avatarUrl={senderAvatarUrl}
-              sizeClassName="h-8 w-8"
+              sizeClassName="h-9 w-9"
               textClassName="text-xs"
               className="ring-1 ring-gray-200 dark:ring-gray-700"
             />

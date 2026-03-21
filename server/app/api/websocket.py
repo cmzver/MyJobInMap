@@ -9,18 +9,20 @@ WebSocket API
 
 import logging
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from jose import jwt, JWTError
+from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import SessionLocal, UserModel, UserRole
+from app.models import UserModel, UserRole
+from app.models.base import get_db
 from app.services.websocket_manager import ws_manager
 
 router = APIRouter(tags=["WebSocket"])
 logger = logging.getLogger(__name__)
 
 
-def _authenticate_websocket_user(token: str) -> tuple[int, int | None, bool] | None:
+def _authenticate_websocket_user(token: str, db: Session) -> tuple[int, int | None, bool] | None:
     """Проверить JWT и пользователя в БД. Возвращает user_id, organization_id, is_superadmin."""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
@@ -33,25 +35,22 @@ def _authenticate_websocket_user(token: str) -> tuple[int, int | None, bool] | N
     except JWTError:
         return None
 
-    db = SessionLocal()
-    try:
-        user = db.query(UserModel).filter(UserModel.id == user_id).first()
-        if user is None or not user.is_active:
-            return None
-        if username and user.username != username:
-            return None
-        if user.organization_id and user.organization and not user.organization.is_active:
-            return None
-        is_superadmin = user.organization_id is None and user.role == UserRole.ADMIN.value
-        return user.id, user.organization_id, is_superadmin
-    finally:
-        db.close()
+    user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if user is None or not user.is_active:
+        return None
+    if username and user.username != username:
+        return None
+    if user.organization_id and user.organization and not user.organization.is_active:
+        return None
+    is_superadmin = user.organization_id is None and user.role == UserRole.ADMIN.value
+    return user.id, user.organization_id, is_superadmin
 
 
 @router.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,
     token: str = Query(default=""),
+    db: Session = Depends(get_db),
 ):
     """
     WebSocket endpoint для реал-тайм уведомлений.
@@ -74,7 +73,7 @@ async def websocket_endpoint(
     ```
     """
     # Аутентификация по JWT
-    auth_context = _authenticate_websocket_user(token)
+    auth_context = _authenticate_websocket_user(token, db)
     if auth_context is None:
         await websocket.close(code=4001, reason="Invalid or missing token")
         return
@@ -94,40 +93,32 @@ async def websocket_endpoint(
                 # Рассылка typing indicator участникам чата
                 conv_id = data.get("conversation_id")
                 if conv_id:
-                    db = SessionLocal()
-                    try:
-                        from app.services.chat_service import _ensure_membership
-                        _ensure_membership(db, conv_id, user_id)
-                        from app.models.chat import ConversationMemberModel
-                        members = db.query(ConversationMemberModel.user_id).filter(
-                            ConversationMemberModel.conversation_id == conv_id,
-                        ).all()
-                        member_ids = [m[0] for m in members]
-                        await ws_manager.send_to_conversation(
-                            member_ids,
-                            {
-                                "type": "chat_typing",
-                                "data": {
-                                    "conversation_id": conv_id,
-                                    "user_id": user_id,
-                                    "is_typing": data.get("is_typing", True),
-                                },
+                    from app.services.chat_service import _ensure_membership
+                    _ensure_membership(db, conv_id, user_id)
+                    from app.models.chat import ConversationMemberModel
+                    members = db.query(ConversationMemberModel.user_id).filter(
+                        ConversationMemberModel.conversation_id == conv_id,
+                    ).all()
+                    member_ids = [m[0] for m in members]
+                    await ws_manager.send_to_conversation(
+                        member_ids,
+                        {
+                            "type": "chat_typing",
+                            "data": {
+                                "conversation_id": conv_id,
+                                "user_id": user_id,
+                                "is_typing": data.get("is_typing", True),
                             },
-                            exclude_user_id=user_id,
-                        )
-                    finally:
-                        db.close()
+                        },
+                        exclude_user_id=user_id,
+                    )
             elif msg_type == "chat_read":
                 # Mark as read через WebSocket
                 conv_id = data.get("conversation_id")
                 last_message_id = data.get("last_message_id")
                 if conv_id and last_message_id:
-                    db = SessionLocal()
-                    try:
-                        from app.services.chat_service import mark_as_read
-                        mark_as_read(db, conv_id, user_id, last_message_id)
-                    finally:
-                        db.close()
+                    from app.services.chat_service import mark_as_read
+                    mark_as_read(db, conv_id, user_id, last_message_id)
     except WebSocketDisconnect:
         pass
     except Exception as e:

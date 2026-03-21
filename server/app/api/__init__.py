@@ -24,6 +24,7 @@ from app.api.address_extended import router as address_extended_router
 from app.api.dashboard import router as dashboard_router
 from app.api.finance import router as finance_router
 from app.api.users import router as users_router
+from app.api.analytics import router as analytics_router
 from app.api.reports import router as reports_router
 from app.api.sla import router as sla_router
 from app.api.websocket import router as websocket_router
@@ -51,6 +52,7 @@ api_router.include_router(address_extended_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(finance_router)
 api_router.include_router(users_router)
+api_router.include_router(analytics_router)
 api_router.include_router(reports_router)
 api_router.include_router(sla_router)
 api_router.include_router(websocket_router)

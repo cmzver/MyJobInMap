@@ -104,6 +104,8 @@ def run_migrations():
         
         alembic_cfg = Config(str(alembic_ini))
         alembic_cfg.set_main_option("script_location", str(alembic_dir))
+        # Не даём Alembic перезаписывать logging приложения при старте сервера.
+        alembic_cfg.attributes["configure_logger"] = False
         
         # Проверяем текущую ревизию
         with engine.connect() as conn:

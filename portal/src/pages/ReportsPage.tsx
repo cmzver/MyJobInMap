@@ -50,7 +50,7 @@ const priorityColors: Record<string, string> = {
   PLANNED: '#22C55E',
 }
 
-export default function ReportsPage() {
+export default function ReportsPage({ embedded = false }: { embedded?: boolean }) {
   const [period, setPeriod] = useState<ReportPeriod>('month')
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>('')
 
@@ -94,13 +94,15 @@ export default function ReportsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className={`flex flex-col gap-4 sm:flex-row sm:items-center ${embedded ? 'sm:justify-end' : 'sm:justify-between'}`}>
+        {!embedded && (
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Отчёты и аналитика</h1>
           <p className="text-gray-500 dark:text-gray-400">Статистика и данные по заявкам</p>
         </div>
+        )}
         
-        <div className="flex items-center gap-3">
+        <div className={`flex items-center gap-3 ${embedded ? 'sm:ml-auto' : ''}`}>
           <Button
             variant="secondary"
             onClick={() => refetch()}

@@ -10,7 +10,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -44,9 +44,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButtonDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -92,6 +90,8 @@ fun ConversationListScreen(
     availableUsers: List<User>,
     isLoading: Boolean,
     isLoadingUsers: Boolean,
+    baseUrl: String,
+    authToken: String?,
     isCreatingConversation: Boolean,
     onConversationClick: (Long) -> Unit,
     onFilterChange: (ConversationListFilter) -> Unit,
@@ -136,7 +136,7 @@ fun ConversationListScreen(
     )
     val showFab by remember(listState, filteredConversations) {
         derivedStateOf {
-            filteredConversations.isNotEmpty() && listState.firstVisibleItemIndex < 2
+            filteredConversations.isNotEmpty() && listState.firstVisibleItemIndex > 1
         }
     }
 
@@ -206,6 +206,8 @@ fun ConversationListScreen(
                                 content = {
                                     ConversationItem(
                                         conversation = conversation,
+                                        baseUrl = baseUrl,
+                                        authToken = authToken,
                                         onClick = { onConversationClick(conversation.id) },
                                     )
                                 },
@@ -275,113 +277,261 @@ private fun ConversationListHeader(
     onFilterChange: (ConversationListFilter) -> Unit,
     onCreateClick: () -> Unit,
 ) {
-    Surface(
-        color = Color.Transparent,
-        modifier = Modifier.fillMaxWidth(),
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .animateContentSize()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .animateContentSize()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+            tonalElevation = 1.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            if (searchMode) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = onSearchQueryChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Поиск чатов и сообщений") },
-                    leadingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = null)
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotBlank()) {
-                            IconButton(onClick = { onSearchQueryChange("") }) {
-                                Icon(Icons.Default.Close, contentDescription = "Очистить")
-                            }
-                        } else {
-                            IconButton(onClick = { onSearchModeChange(false) }) {
-                                Icon(Icons.Default.Close, contentDescription = "Закрыть поиск")
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(24.dp),
-                )
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Чаты",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onBackground,
+            Box(
+                modifier = Modifier.background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
                         )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "Диалоги, архив и групповые обсуждения",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    IconButton(onClick = { onSearchModeChange(true) }) {
-                        Icon(Icons.Default.Search, contentDescription = "Поиск")
-                    }
-                    IconButton(onClick = onCreateClick) {
-                        Icon(Icons.Default.Add, contentDescription = "Новый чат")
-                    }
-                }
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = selectedFilter == ConversationListFilter.ACTIVE,
-                    onClick = { onFilterChange(ConversationListFilter.ACTIVE) },
-                    label = { Text("Активные") },
-                    leadingIcon = { Text("$activeCount") },
+                    )
                 )
-                FilterChip(
-                    selected = selectedFilter == ConversationListFilter.ARCHIVED,
-                    onClick = { onFilterChange(ConversationListFilter.ARCHIVED) },
-                    label = { Text("Архив") },
-                    leadingIcon = { Text("$archivedCount") },
-                )
-            }
-
-            Surface(
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
-                tonalElevation = 2.dp,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    HeaderMetric(
-                        title = "Активные",
-                        value = activeCount.toString(),
-                        modifier = Modifier.weight(1f),
-                    )
-                    HeaderMetric(
-                        title = "Непрочитанные",
-                        value = unreadCount.toString(),
-                        modifier = Modifier.weight(1f),
-                    )
-                    HeaderMetric(
-                        title = "Всего",
-                        value = (activeCount + archivedCount).toString(),
-                        modifier = Modifier.weight(1f),
-                    )
+                    if (searchMode) {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = onSearchQueryChange,
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Поиск чатов и сообщений") },
+                            leadingIcon = {
+                                Icon(Icons.Default.Search, contentDescription = null)
+                            },
+                            trailingIcon = {
+                                if (searchQuery.isNotBlank()) {
+                                    IconButton(onClick = { onSearchQueryChange("") }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Очистить")
+                                    }
+                                } else {
+                                    IconButton(onClick = { onSearchModeChange(false) }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Закрыть поиск")
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(24.dp),
+                        )
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(999.dp),
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                                ) {
+                                    Text(
+                                        text = if (unreadCount > 0) {
+                                            "$unreadCount непрочитанных"
+                                        } else {
+                                            "Все диалоги под рукой"
+                                        },
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    )
+                                }
+
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        text = "Чаты",
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onBackground,
+                                    )
+                                    Text(
+                                        text = "Личные диалоги, рабочие группы и переписка по заявкам.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                ConversationHeaderAction(
+                                    onClick = { onSearchModeChange(true) },
+                                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                                    contentColor = MaterialTheme.colorScheme.onSurface,
+                                    borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                                ) {
+                                    Icon(Icons.Default.Search, contentDescription = "Поиск")
+                                }
+                                ConversationHeaderAction(
+                                    onClick = onCreateClick,
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Новый чат")
+                                }
+                            }
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.26f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            ConversationFilterToggle(
+                                title = "Активные",
+                                count = activeCount,
+                                selected = selectedFilter == ConversationListFilter.ACTIVE,
+                                onClick = { onFilterChange(ConversationListFilter.ACTIVE) },
+                                modifier = Modifier.weight(1f),
+                            )
+                            ConversationFilterToggle(
+                                title = "Архив",
+                                count = archivedCount,
+                                selected = selectedFilter == ConversationListFilter.ARCHIVED,
+                                onClick = { onFilterChange(ConversationListFilter.ARCHIVED) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
                 }
+            }
+        }
+
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+            tonalElevation = 0.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                HeaderMetric(
+                    title = "Активные",
+                    value = activeCount.toString(),
+                    modifier = Modifier.weight(1f),
+                )
+                HeaderMetric(
+                    title = "Непрочитанные",
+                    value = unreadCount.toString(),
+                    modifier = Modifier.weight(1f),
+                )
+                HeaderMetric(
+                    title = "Всего",
+                    value = (activeCount + archivedCount).toString(),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConversationHeaderAction(
+    onClick: () -> Unit,
+    containerColor: Color,
+    contentColor: Color,
+    borderColor: Color = Color.Transparent,
+    content: @Composable () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = containerColor,
+        contentColor = contentColor,
+        border = BorderStroke(1.dp, borderColor),
+    ) {
+        Box(
+            modifier = Modifier.size(42.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun ConversationFilterToggle(
+    title: String,
+    count: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        color = if (selected) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            Color.Transparent
+        },
+        modifier = modifier,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.onPrimary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            )
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = if (selected) {
+                    MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.18f)
+                } else {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                },
+            ) {
+                Text(
+                    text = count.toString(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                )
             }
         }
     }
@@ -390,6 +540,8 @@ private fun ConversationListHeader(
 @Composable
 private fun ConversationItem(
     conversation: Conversation,
+    baseUrl: String,
+    authToken: String?,
     onClick: () -> Unit,
 ) {
     val isUnread = conversation.unreadCount > 0
@@ -425,13 +577,44 @@ private fun ConversationItem(
         ConversationType.TASK -> MaterialTheme.colorScheme.onTertiaryContainer
         ConversationType.ORG_GENERAL -> MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val cardBrush = when {
+        conversation.isArchived -> Brush.linearGradient(
+            listOf(
+                MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f),
+            )
+        )
+        isUnread -> Brush.linearGradient(
+            listOf(
+                MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f),
+            )
+        )
+        else -> Brush.linearGradient(
+            listOf(
+                MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+                MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+            )
+        )
+    }
+    val previewText = when {
+        preview == null -> "Начните разговор"
+        else -> {
+            val sender = preview.senderName
+                ?.takeIf { conversation.type != ConversationType.DIRECT }
+                ?.let { "$it: " }
+                .orEmpty()
+            val text = preview.text ?: "Вложение"
+            "$sender$text"
+        }
+    }
 
     Card(
         onClick = onClick,
         interactionSource = interactionSource,
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
         ),
         border = BorderStroke(
             width = if (isUnread) 1.dp else 0.5.dp,
@@ -451,122 +634,162 @@ private fun ConversationItem(
                 translationY = cardOffsetY
             },
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(cardBrush)
         ) {
-            ChatAvatar(
-                name = title,
-                id = conversation.id,
-                type = conversation.type,
-                size = 48,
-            )
-
-            Spacer(Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        shape = RoundedCornerShape(999.dp),
-                        color = conversationTypeColor,
-                    ) {
-                        Text(
-                            text = conversationTypeLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = conversationTypeContentColor,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleSmall.copy(
-                            fontWeight = if (isUnread) FontWeight.SemiBold else FontWeight.Medium,
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.80f),
+                    border = BorderStroke(
+                        width = if (isUnread) 1.5.dp else 1.dp,
+                        color = if (isUnread) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
+                        } else {
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                        },
+                    ),
+                ) {
+                    ChatAvatar(
+                        name = title,
+                        id = conversation.id,
+                        type = conversation.type,
+                        avatarUrl = conversation.avatarUrl,
+                        baseUrl = baseUrl,
+                        authToken = authToken,
+                        size = 50,
                     )
-
-                    if (conversation.isMuted) {
-                        Spacer(Modifier.width(6.dp))
-                        Icon(
-                            imageVector = Icons.Default.Notifications,
-                            contentDescription = "Без звука",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
-
-                    if (preview != null) {
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = formatChatTime(preview.createdAt),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isUnread) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    }
                 }
 
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.width(12.dp))
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val previewText = when {
-                        preview == null -> "Нет сообщений"
-                        else -> {
-                            val sender = preview.senderName?.takeIf { conversation.type != ConversationType.DIRECT }?.let { "$it: " }.orEmpty()
-                            val text = preview.text ?: "Вложение"
-                            "$sender$text"
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = conversationTypeColor,
+                        ) {
+                            Text(
+                                text = conversationTypeLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = conversationTypeContentColor,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                        }
+                        if (conversation.taskId != null) {
+                            Spacer(Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(999.dp),
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+                            ) {
+                                Text(
+                                    text = "#${conversation.taskId}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                )
+                            }
                         }
                     }
 
-                    Text(
-                        text = previewText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
+                    Spacer(Modifier.height(8.dp))
 
-                    if (isUnread) {
-                        Spacer(Modifier.width(10.dp))
-                        BadgedBox(
-                            badge = {
-                                Badge(
-                                    containerColor = if (conversation.isMuted) {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    } else {
-                                        MaterialTheme.colorScheme.primary
-                                    },
-                                ) {
-                                    Text(
-                                        text = if (conversation.unreadCount > 99) "99+" else conversation.unreadCount.toString(),
-                                        style = MaterialTheme.typography.labelSmall,
-                                    )
-                                }
-                            },
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(1.dp)
-                                    .background(Color.Transparent),
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = if (isUnread) FontWeight.SemiBold else FontWeight.Medium,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+
+                        if (conversation.isMuted) {
+                            Spacer(Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Без звука",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+
+                        if (preview != null) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = formatChatTime(preview.createdAt),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isUnread) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
                             )
                         }
                     }
-                }
 
-                if (conversation.isArchived) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "В архиве",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Spacer(Modifier.height(6.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = previewText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+
+                        if (isUnread) {
+                            Spacer(Modifier.width(10.dp))
+                            BadgedBox(
+                                badge = {
+                                    Badge(
+                                        containerColor = if (conversation.isMuted) {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        } else {
+                                            MaterialTheme.colorScheme.primary
+                                        },
+                                    ) {
+                                        Text(
+                                            text = if (conversation.unreadCount > 99) "99+" else conversation.unreadCount.toString(),
+                                            style = MaterialTheme.typography.labelSmall,
+                                        )
+                                    }
+                                },
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(1.dp)
+                                        .background(Color.Transparent),
+                                )
+                            }
+                        }
+                    }
+
+                    if (conversation.isArchived) {
+                        Spacer(Modifier.height(10.dp))
+                        Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.70f),
+                        ) {
+                            Text(
+                                text = "В архиве",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -621,56 +844,68 @@ private fun EmptyConversationState(
         contentAlignment = Alignment.Center,
     ) {
         Card(
-            shape = RoundedCornerShape(28.dp),
+            shape = RoundedCornerShape(30.dp),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
             ),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
             modifier = Modifier.padding(horizontal = 24.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 22.dp, vertical = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(68.dp)
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Email,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(30.dp),
+            Box(
+                modifier = Modifier.background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
+                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.06f),
+                        )
                     )
-                }
-
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
                 )
-
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                if (isSearching) {
-                    TextButton(onClick = onClearSearch) {
-                        Text("Очистить поиск")
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 22.dp, vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(68.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Email,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(30.dp),
+                        )
                     }
-                } else {
-                    Button(onClick = onCreateClick) {
-                        Icon(Icons.Default.Add, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Новый чат")
+
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                    if (isSearching) {
+                        TextButton(onClick = onClearSearch) {
+                            Text("Очистить поиск")
+                        }
+                    } else {
+                        Button(onClick = onCreateClick) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Новый чат")
+                        }
                     }
                 }
             }

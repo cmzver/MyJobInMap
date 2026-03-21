@@ -11,10 +11,11 @@ export const orgKeys = {
   users: (id: number) => [...orgKeys.all, 'users', id] as const,
 }
 
-export function useOrganizations(includeInactive = false) {
+export function useOrganizations(includeInactive = false, enabled = true) {
   return useQuery({
     queryKey: orgKeys.list(includeInactive),
     queryFn: () => organizationsApi.getOrganizations(includeInactive),
+    enabled,
   })
 }
 

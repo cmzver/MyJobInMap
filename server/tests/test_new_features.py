@@ -300,10 +300,12 @@ class TestExcelExport:
         output = export_tasks_to_excel(db_session)
         wb = load_workbook(output)
         
-        # Два листа: Заявки + Сводка
-        assert len(wb.sheetnames) == 2
+        # Документ содержит титульный лист, сводку и реестр заявок
+        assert len(wb.sheetnames) == 3
+        assert "Отчет" in wb.sheetnames
         assert "Заявки" in wb.sheetnames
         assert "Сводка" in wb.sheetnames
+        assert wb["Отчет"].cell(1, 1).value is not None
         
         ws = wb["Заявки"]
         # Заголовки в первой строке
