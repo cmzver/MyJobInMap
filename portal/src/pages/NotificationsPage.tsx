@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { 
   Bell, 
   Check, 
@@ -11,17 +12,8 @@ import Card from '@/components/Card'
 import Spinner from '@/components/Spinner'
 import Button from '@/components/Button'
 import apiClient from '@/api/client'
+import { type Notification } from '@/hooks/useNotifications'
 import { formatDateRelative as formatDate } from '@/utils/dateFormat'
-
-interface Notification {
-  id: number
-  title: string
-  message: string
-  type: 'task' | 'system' | 'alert'
-  is_read: boolean
-  created_at: string
-  task_id?: number
-}
 
 export default function NotificationsPage() {
   const queryClient = useQueryClient()
@@ -75,6 +67,10 @@ export default function NotificationsPage() {
       case 'alert':
         return <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
           <Bell className="w-5 h-5 text-red-600 dark:text-red-400" />
+        </div>
+      case 'support':
+        return <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+          <Bell className="w-5 h-5 text-amber-600 dark:text-amber-400" />
         </div>
       default:
         return <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
@@ -181,6 +177,22 @@ export default function NotificationsPage() {
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         {notification.message}
                       </p>
+                      {notification.task_id && (
+                        <Link
+                          to={`/tasks/${notification.task_id}`}
+                          className="mt-2 inline-flex text-xs font-medium text-primary-600 hover:text-primary-700"
+                        >
+                          Открыть заявку #{notification.task_id}
+                        </Link>
+                      )}
+                      {notification.type === 'support' && notification.support_ticket_id && (
+                        <Link
+                          to={`/support/${notification.support_ticket_id}`}
+                          className="mt-2 inline-flex text-xs font-medium text-primary-600 hover:text-primary-700"
+                        >
+                          Открыть тикет #{notification.support_ticket_id}
+                        </Link>
+                      )}
                     </div>
                     
                     <div className="flex items-center space-x-2 ml-4">

@@ -16,6 +16,7 @@ import type { AddressSystem } from '@/types/address'
 import SystemSelector from '@/components/SystemSelector'
 import DefectTypeSelector from '@/components/DefectTypeSelector'
 import type { TaskPriority } from '@/types/task'
+import { isAssignableRole } from '@/types/user'
 import { PRIORITY_OPTIONS_FOR_FORM, normalizePriority } from '@/config/taskConstants'
 
 
@@ -199,7 +200,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
   const { data: users = [] } = useUsers()
   
   // Filter only workers and dispatchers for assignment
-  const assignableUsers = users.filter(u => u.is_active && (u.role === 'worker' || u.role === 'dispatcher'))
+  const assignableUsers = users.filter((u) => u.is_active && isAssignableRole(u.role))
   
   // Mutations
   const createMutation = useCreateTask()

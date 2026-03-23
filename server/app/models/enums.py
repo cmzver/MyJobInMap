@@ -52,6 +52,8 @@ class TaskPriority(str, Enum):
 
 class UserRole(str, Enum):
     """Роли пользователей"""
+    SUPERADMIN = "superadmin"
     ADMIN = "admin"
+    MANAGER = "manager"
     DISPATCHER = "dispatcher"
     WORKER = "worker"

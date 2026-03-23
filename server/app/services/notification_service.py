@@ -4,11 +4,13 @@ Notification Service
 Сервис для работы с уведомлениями.
 """
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models import NotificationModel, UserModel, TaskModel
+from app.services.websocket_manager import _event, ws_manager
 from app.utils import get_priority_rank
 
 
@@ -18,7 +20,8 @@ def create_notification(
     title: str,
     message: str,
     notification_type: str = "system",
-    task_id: Optional[int] = None
+    task_id: Optional[int] = None,
+    support_ticket_id: Optional[int] = None,
 ) -> NotificationModel:
     """
     Создать уведомление для пользователя
@@ -40,6 +43,7 @@ def create_notification(
         message=message,
         type=notification_type,
         task_id=task_id,
+        support_ticket_id=support_ticket_id,
         is_read=False,
         created_at=datetime.now(timezone.utc)
     )
@@ -47,6 +51,28 @@ def create_notification(
     db.add(notification)
     db.commit()
     db.refresh(notification)
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop is not None and not loop.is_closed():
+        loop.create_task(
+            ws_manager.send_to_user(
+                user_id,
+                _event(
+                    "notification_created",
+                    {
+                        "notification_id": notification.id,
+                        "type": notification.type,
+                        "title": notification.title,
+                        "task_id": notification.task_id,
+                        "support_ticket_id": notification.support_ticket_id,
+                    },
+                ),
+            )
+        )
     
     return notification
 
@@ -99,8 +125,8 @@ def create_task_status_notification(
             task_id=task.id
         )
     
-    # Если статус изменён на NEW или IN_PROGRESS, уведомляем админов/диспетчеров
-    if new_status in ["NEW", "IN_PROGRESS"] and changed_by.role not in ["admin", "dispatcher"]:
+    # Если статус изменён на NEW, IN_PROGRESS или DONE, уведомляем админов/диспетчеров
+    if new_status in ["NEW", "IN_PROGRESS", "DONE"] and changed_by.role not in ["admin", "dispatcher"]:
         # Получаем всех админов/диспетчеров
         admins = db.query(UserModel).filter(
             UserModel.role.in_(["admin", "dispatcher"]),

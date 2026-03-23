@@ -16,6 +16,7 @@ from typing import Dict, Any, List, Optional
 from sqlalchemy import case
 
 from app.models import TaskModel, UserModel, TaskPriority
+from app.services.role_utils import public_role_value
 
 from app.schemas import TaskResponse, TaskListResponse, CommentResponse, UserResponse
 
@@ -360,7 +361,7 @@ def user_to_response(user: UserModel) -> UserResponse:
 
         avatar_url=build_user_avatar_url(user),
 
-        role=user.role,
+        role=public_role_value(user.role, user.organization_id),
 
         is_active=user.is_active,
 

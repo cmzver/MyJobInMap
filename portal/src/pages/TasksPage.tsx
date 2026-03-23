@@ -2,9 +2,9 @@ import { useState, useMemo, useEffect, useCallback, useRef, Fragment } from 'rea
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { showApiError } from '@/utils/apiError'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { Search, Plus, RefreshCw, MapPin, Calendar, User, AlertTriangle, Clock, ChevronDown, X } from 'lucide-react'
+import { Search, Plus, RefreshCw, MapPin, Calendar, User, AlertTriangle, Clock, ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useUnreadTaskNotifications } from '@/hooks/useNotifications'
 import { useTasks } from '@/hooks/useTasks'
 import { useUsers } from '@/hooks/useUsers'
 import { tasksApi } from '@/api/tasks'
@@ -30,19 +30,17 @@ import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
 import Modal from '@/components/Modal'
 import Textarea from '@/components/Textarea'
+import { useAuthStore } from '@/store/authStore'
+import { isAssignableRole } from '@/types/user'
 
 const PAGE_SIZE = 20
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
-const VIRTUALIZE_THRESHOLD = 40
-const ROW_HEIGHT_NORMAL = 56
-const ROW_HEIGHT_COMPACT = 44
-const GROUP_HEADER_HEIGHT = 40
-const TABLE_MAX_HEIGHT = 720
 const SEARCH_DEBOUNCE_MS = 700
-const TABLE_COLUMN_COUNT = 9
 const COLUMN_STORAGE_KEY = 'tasks-table-column-widths'
+const COLUMN_VISIBILITY_STORAGE_KEY = 'tasks-table-visible-columns'
 
 type ColumnKey = 'select' | 'number' | 'title' | 'address' | 'status' | 'priority' | 'assignee' | 'date' | 'sla'
+type ToggleableColumnKey = Exclude<ColumnKey, 'select'>
 
 interface InterfaceSettings {
   enable_resizable_columns: boolean
@@ -73,6 +71,28 @@ const columnMinWidths: Record<ColumnKey, number> = {
   sla: 110,
 }
 
+const toggleableColumns: Array<{ key: ToggleableColumnKey; label: string }> = [
+  { key: 'number', label: 'Номер' },
+  { key: 'title', label: 'Заявка' },
+  { key: 'address', label: 'Адрес' },
+  { key: 'status', label: 'Статус' },
+  { key: 'priority', label: 'Приоритет' },
+  { key: 'assignee', label: 'Исполнитель' },
+  { key: 'date', label: 'Дата' },
+  { key: 'sla', label: 'Срок' },
+]
+
+const defaultVisibleColumns: Record<ToggleableColumnKey, boolean> = {
+  number: true,
+  title: true,
+  address: true,
+  status: true,
+  priority: true,
+  assignee: true,
+  date: true,
+  sla: true,
+}
+
 const loadColumnWidths = (): Record<ColumnKey, number> => {
   if (typeof window === 'undefined') return defaultColumnWidths
 
@@ -91,6 +111,28 @@ const loadColumnWidths = (): Record<ColumnKey, number> => {
     return next
   } catch {
     return defaultColumnWidths
+  }
+}
+
+const loadVisibleColumns = (): Record<ToggleableColumnKey, boolean> => {
+  if (typeof window === 'undefined') return defaultVisibleColumns
+
+  try {
+    const stored = localStorage.getItem(COLUMN_VISIBILITY_STORAGE_KEY)
+    if (!stored) return defaultVisibleColumns
+    const parsed = JSON.parse(stored) as Partial<Record<ToggleableColumnKey, boolean>>
+    const next = { ...defaultVisibleColumns }
+
+    Object.keys(next).forEach((key) => {
+      const typedKey = key as ToggleableColumnKey
+      if (typeof parsed[typedKey] === 'boolean') {
+        next[typedKey] = parsed[typedKey]
+      }
+    })
+
+    return next
+  } catch {
+    return defaultVisibleColumns
   }
 }
 
@@ -137,13 +179,16 @@ export default function TasksPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
-  // auth store is available via useAuthStore if needed
+  const { user } = useAuthStore()
   const [columnWidths, setColumnWidths] = useState<Record<ColumnKey, number>>(loadColumnWidths)
+  const [visibleColumns, setVisibleColumns] = useState<Record<ToggleableColumnKey, boolean>>(loadVisibleColumns)
+  const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false)
   const resizeState = useRef<{
     key: ColumnKey
     startX: number
     startWidth: number
   } | null>(null)
+  const columnMenuRef = useRef<HTMLDivElement | null>(null)
   const initialPage = Number(searchParams.get('page') || 1)
   const [page, setPage] = useState(() => (Number.isFinite(initialPage) && initialPage > 0 ? initialPage : 1))
   const initialSize = Number(searchParams.get('size') || PAGE_SIZE)
@@ -186,6 +231,7 @@ export default function TasksPage() {
   }), [page, pageSize, sortBy, search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter])
 
   const { data, isLoading, isError, error, refetch, isFetching } = useTasks(filters)
+  const { data: unreadTaskNotifications = [] } = useUnreadTaskNotifications({ enabled: Boolean(user) })
   const { data: interfaceSettings } = useQuery({
     queryKey: ['interface-settings'],
     queryFn: async () => {
@@ -200,8 +246,23 @@ export default function TasksPage() {
   const cellPadding = isCompactView ? 'px-4 py-2' : 'px-4 py-3'
   const { data: users = [] } = useUsers()
   const assignableUsers = users.filter(
-    (user) => user.is_active && (user.role === 'worker' || user.role === 'dispatcher')
+    (user) => user.is_active && isAssignableRole(user.role)
   )
+  const unreadByTaskId = useMemo(() => {
+    const map: Record<number, number> = {}
+
+    for (const notification of unreadTaskNotifications) {
+      if (notification.task_id == null) continue
+      map[notification.task_id] = (map[notification.task_id] ?? 0) + 1
+    }
+
+    return map
+  }, [unreadTaskNotifications])
+  const visibleDataColumnCount = useMemo(
+    () => toggleableColumns.filter((column) => visibleColumns[column.key]).length,
+    [visibleColumns]
+  )
+  const visibleColumnCount = visibleDataColumnCount + 1
 
   // Handle search with debounce effect (reset page on search)
   const handleSearchChange = (value: string) => {
@@ -269,7 +330,35 @@ export default function TasksPage() {
     localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnWidths))
   }, [columnWidths, isResizableEnabled])
 
+  useEffect(() => {
+    localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(visibleColumns))
+  }, [visibleColumns])
+
   useEffect(() => () => stopResize(), [stopResize])
+
+  useEffect(() => {
+    if (!isColumnMenuOpen) return
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (columnMenuRef.current && !columnMenuRef.current.contains(event.target as Node)) {
+        setIsColumnMenuOpen(false)
+      }
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsColumnMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleEscape)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [isColumnMenuOpen])
 
   const renderResizeHandle = (key: ColumnKey) => {
     if (!isResizableEnabled) return null
@@ -280,6 +369,19 @@ export default function TasksPage() {
         className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-primary-200/70"
       />
     )
+  }
+
+  const toggleColumnVisibility = (key: ToggleableColumnKey) => {
+    setVisibleColumns((prev) => {
+      if (prev[key] && Object.values(prev).filter(Boolean).length === 1) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        [key]: !prev[key],
+      }
+    })
   }
 
   const handleRowClick = (taskId: number) => {
@@ -751,38 +853,6 @@ export default function TasksPage() {
   const allSelectedOnPage =
     data?.items.length ? data.items.every((task) => selectedIds.has(task.id)) : false
 
-  // Flatten grouped tasks into a row-list for virtualizer
-  const flatRows = useMemo(() => {
-    const rows: Array<{ type: 'group'; key: string; label: string; count: number } | { type: 'task'; task: Task }> = []
-    for (const group of groupedTasks) {
-      const isCollapsed = groupBy ? collapsedGroups.has(group.key) : false
-      if (groupBy) {
-        rows.push({ type: 'group', key: group.key, label: group.label, count: group.items.length })
-      }
-      if (!isCollapsed) {
-        for (const task of group.items) {
-          rows.push({ type: 'task', task })
-        }
-      }
-    }
-    return rows
-  }, [groupedTasks, groupBy, collapsedGroups])
-
-  const shouldVirtualize = flatRows.length > VIRTUALIZE_THRESHOLD
-  const tableContainerRef = useRef<HTMLDivElement>(null)
-  const rowHeight = isCompactView ? ROW_HEIGHT_COMPACT : ROW_HEIGHT_NORMAL
-
-  const virtualizer = useVirtualizer({
-    count: flatRows.length,
-    getScrollElement: () => tableContainerRef.current,
-    estimateSize: (index) => {
-      const row = flatRows[index]
-      return row?.type === 'group' ? GROUP_HEADER_HEIGHT : rowHeight
-    },
-    overscan: 10,
-    enabled: shouldVirtualize,
-  })
-
   useEffect(() => {
     const nextParams = new URLSearchParams()
     if (search) nextParams.set('search', search)
@@ -962,7 +1032,7 @@ export default function TasksPage() {
               </button>
             ))}
           </div>
-        )}
+      )}
 
         {data && (
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
@@ -1333,28 +1403,82 @@ export default function TasksPage() {
 
           {/* Tasks Table */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden transition-colors">
-            <div
-              ref={tableContainerRef}
-              className="overflow-x-auto"
-              style={shouldVirtualize ? { maxHeight: TABLE_MAX_HEIGHT, overflowY: 'auto' } : undefined}
-            >
+            <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-2.5 dark:border-gray-700">
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                Колонки: {visibleDataColumnCount}/{toggleableColumns.length}
+              </div>
+              <div ref={columnMenuRef} className="relative">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsColumnMenuOpen((prev) => !prev)}
+                  className="h-8 px-2.5"
+                >
+                  <SlidersHorizontal className="mr-2 h-4 w-4" />
+                  Колонки
+                </Button>
+                {isColumnMenuOpen && (
+                  <div className="absolute right-0 top-full z-20 mt-2 w-60 rounded-xl border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
+                        Видимость колонок
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setVisibleColumns(defaultVisibleColumns)}
+                        className="text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                      >
+                        Все
+                      </button>
+                    </div>
+                    <div className="space-y-1">
+                      {toggleableColumns.map((column) => {
+                        const isLastVisibleColumn = visibleColumns[column.key] && visibleDataColumnCount === 1
+
+                        return (
+                          <label
+                            key={column.key}
+                            className={`flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm transition ${
+                              isLastVisibleColumn
+                                ? 'text-gray-400 dark:text-gray-500'
+                                : 'cursor-pointer text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/50'
+                            }`}
+                          >
+                            <span>{column.label}</span>
+                            <input
+                              type="checkbox"
+                              checked={visibleColumns[column.key]}
+                              onChange={() => toggleColumnVisibility(column.key)}
+                              disabled={isLastVisibleColumn}
+                              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 disabled:cursor-not-allowed"
+                            />
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="overflow-x-auto">
               <table className={`min-w-full divide-y divide-gray-200 dark:divide-gray-700 ${isResizableEnabled ? 'table-fixed' : ''}`}>
                 {isResizableEnabled && (
                   <colgroup>
                     <col style={{ width: columnWidths.select }} />
-                    <col style={{ width: columnWidths.number }} />
-                    <col style={{ width: columnWidths.title }} />
-                    <col style={{ width: columnWidths.address }} />
-                    <col style={{ width: columnWidths.status }} />
-                    <col style={{ width: columnWidths.priority }} />
-                    <col style={{ width: columnWidths.assignee }} />
-                    <col style={{ width: columnWidths.date }} />
-                    <col style={{ width: columnWidths.sla }} />
+                    {visibleColumns.number && <col style={{ width: columnWidths.number }} />}
+                    {visibleColumns.title && <col style={{ width: columnWidths.title }} />}
+                    {visibleColumns.address && <col style={{ width: columnWidths.address }} />}
+                    {visibleColumns.status && <col style={{ width: columnWidths.status }} />}
+                    {visibleColumns.priority && <col style={{ width: columnWidths.priority }} />}
+                    {visibleColumns.assignee && <col style={{ width: columnWidths.assignee }} />}
+                    {visibleColumns.date && <col style={{ width: columnWidths.date }} />}
+                    {visibleColumns.sla && <col style={{ width: columnWidths.sla }} />}
                   </colgroup>
                 )}
-                <thead className="bg-gray-50 dark:bg-gray-900/50 sticky top-0 z-10">
+                <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900/50">
                   <tr>
-                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                    <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
                       <input
                         type="checkbox"
                         checked={allSelectedOnPage}
@@ -1364,175 +1488,64 @@ export default function TasksPage() {
                       />
                       {renderResizeHandle('select')}
                     </th>
-                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
-                      №
-                      {renderResizeHandle('number')}
-                    </th>
-                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
-                      Заявка
-                      {renderResizeHandle('title')}
-                    </th>
-                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
-                      Адрес
-                      {renderResizeHandle('address')}
-                    </th>
-                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
-                      Статус
-                      {renderResizeHandle('status')}
-                    </th>
-                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
-                      Приоритет
-                      {renderResizeHandle('priority')}
-                    </th>
-                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
-                      Исполнитель
-                      {renderResizeHandle('assignee')}
-                    </th>
-                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
-                      Дата
-                      {renderResizeHandle('date')}
-                    </th>
-                    <th className={`relative ${cellPadding} text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
-                      Срок
-                      {renderResizeHandle('sla')}
-                    </th>
+                    {visibleColumns.number && (
+                      <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                        №
+                        {renderResizeHandle('number')}
+                      </th>
+                    )}
+                    {visibleColumns.title && (
+                      <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                        Заявка
+                        {renderResizeHandle('title')}
+                      </th>
+                    )}
+                    {visibleColumns.address && (
+                      <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                        Адрес
+                        {renderResizeHandle('address')}
+                      </th>
+                    )}
+                    {visibleColumns.status && (
+                      <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                        Статус
+                        {renderResizeHandle('status')}
+                      </th>
+                    )}
+                    {visibleColumns.priority && (
+                      <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                        Приоритет
+                        {renderResizeHandle('priority')}
+                      </th>
+                    )}
+                    {visibleColumns.assignee && (
+                      <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                        Исполнитель
+                        {renderResizeHandle('assignee')}
+                      </th>
+                    )}
+                    {visibleColumns.date && (
+                      <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                        Дата
+                        {renderResizeHandle('date')}
+                      </th>
+                    )}
+                    {visibleColumns.sla && (
+                      <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                        Срок
+                        {renderResizeHandle('sla')}
+                      </th>
+                    )}
                   </tr>
                 </thead>
-                {shouldVirtualize ? (
-                  <tbody
-                    className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
-                    style={{ height: virtualizer.getTotalSize(), position: 'relative' }}
-                  >
-                    {virtualizer.getVirtualItems().map((virtualRow) => {
-                      const row = flatRows[virtualRow.index]
-                      if (!row) return null
-
-                      if (row.type === 'group') {
-                        return (
-                          <tr
-                            key={`group-${row.key}`}
-                            data-index={virtualRow.index}
-                            ref={virtualizer.measureElement}
-                            className="bg-gray-50 dark:bg-gray-900/40"
-                            style={{
-                              position: 'absolute',
-                              top: 0,
-                              left: 0,
-                              width: '100%',
-                              transform: `translateY(${virtualRow.start}px)`,
-                            }}
-                          >
-                            <td colSpan={TABLE_COLUMN_COUNT} className={cellPadding}>
-                              <button
-                                type="button"
-                                className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
-                                onClick={() => toggleGroup(row.key)}
-                              >
-                                <ChevronDown
-                                  className={`h-4 w-4 text-gray-400 transition-transform ${collapsedGroups.has(row.key) ? '-rotate-90' : 'rotate-0'}`}
-                                />
-                                <span className="font-medium">{row.label}</span>
-                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                  ({row.count})
-                                </span>
-                              </button>
-                            </td>
-                          </tr>
-                        )
-                      }
-
-                      const task = row.task
-                      const sla = getSla(task.planned_date, task.status)
-                      return (
-                        <tr
-                          key={task.id}
-                          data-index={virtualRow.index}
-                          ref={virtualizer.measureElement}
-                          onClick={() => handleRowClick(task.id)}
-                          className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            transform: `translateY(${virtualRow.start}px)`,
-                          }}
-                        >
-                          <td className={`${cellPadding} whitespace-nowrap`} onClick={(event) => event.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={selectedIds.has(task.id)}
-                              onChange={() => toggleSelection(task.id)}
-                              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                              aria-label={`Выбрать заявку ${task.task_number || `#${task.id}`}`}
-                            />
-                          </td>
-                          <td className={`${cellPadding} whitespace-nowrap`}>
-                            <span className="text-sm font-mono text-gray-900 dark:text-gray-100">
-                              {task.task_number || `#${task.id}`}
-                            </span>
-                          </td>
-                          <td className={cellPadding}>
-                            <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-1">
-                              {task.defect_type || task.title || 'Без описания'}
-                            </div>
-                            {(task.defect_type ? task.title : task.description) && (
-                              <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 mt-0.5">
-                                {task.defect_type ? task.title : task.description}
-                              </div>
-                            )}
-                          </td>
-                          <td className={cellPadding}>
-                            <div className="flex items-start gap-1.5">
-                              <MapPin className="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0 mt-0.5" />
-                              <span className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
-                                {task.raw_address || '-'}
-                              </span>
-                            </div>
-                          </td>
-                          <td className={`${cellPadding} whitespace-nowrap`}>
-                            <StatusBadge status={task.status} />
-                          </td>
-                          <td className={`${cellPadding} whitespace-nowrap`}>
-                            <PriorityBadge priority={task.priority} />
-                          </td>
-                          <td className={`${cellPadding} whitespace-nowrap`}>
-                            <div className="flex items-center gap-1.5">
-                              <User className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                              <span className="text-sm text-gray-600 dark:text-gray-300">
-                                {task.assigned_user_name || '-'}
-                              </span>
-                            </div>
-                          </td>
-                          <td className={`${cellPadding} whitespace-nowrap`}>
-                            <div className="flex items-center gap-1.5">
-                              <Calendar className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                              <span className="text-sm text-gray-500 dark:text-gray-400">
-                                {formatDateTime(task.created_at)}
-                              </span>
-                            </div>
-                          </td>
-                          <td className={`${cellPadding} whitespace-nowrap`}>
-                            <div className="flex items-center gap-1.5">
-                              <Clock className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                              <span className={`text-sm ${sla.tone}`}>
-                                {sla.label}
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                ) : (
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
                   {groupedTasks.map((group) => {
                     const isCollapsed = groupBy && collapsedGroups.has(group.key)
                     return (
                       <Fragment key={group.key}>
                         {groupBy && (
                           <tr className="bg-gray-50 dark:bg-gray-900/40">
-                            <td colSpan={TABLE_COLUMN_COUNT} className={cellPadding}>
+                            <td colSpan={visibleColumnCount} className={cellPadding}>
                               <button
                                 type="button"
                                 className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
@@ -1551,12 +1564,18 @@ export default function TasksPage() {
                         )}
                         {!isCollapsed && group.items.map((task) => {
                           const sla = getSla(task.planned_date, task.status)
+                          const unreadCount = unreadByTaskId[task.id] ?? 0
+                          const hasUnreadTaskUpdates = unreadCount > 0
 
                           return (
                             <tr
                               key={task.id}
                               onClick={() => handleRowClick(task.id)}
-                              className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                              className={`cursor-pointer transition-colors ${
+                                hasUnreadTaskUpdates
+                                  ? 'bg-primary-50/40 hover:bg-primary-50/70 dark:bg-primary-900/10 dark:hover:bg-primary-900/20'
+                                  : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                              }`}
                             >
                               <td
                                 className={`${cellPadding} whitespace-nowrap`}
@@ -1570,59 +1589,78 @@ export default function TasksPage() {
                                   aria-label={`Выбрать заявку ${task.task_number || `#${task.id}`}`}
                                 />
                               </td>
-                              <td className={`${cellPadding} whitespace-nowrap`}>
-                                <span className="text-sm font-mono text-gray-900 dark:text-gray-100">
-                                  {task.task_number || `#${task.id}`}
-                                </span>
-                              </td>
-                              <td className={cellPadding}>
-                                <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-1">
-                                  {task.defect_type || task.title || 'Без описания'}
-                                </div>
-                                {(task.defect_type ? task.title : task.description) && (
-                                  <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 mt-0.5">
-                                    {task.defect_type ? task.title : task.description}
+                              {visibleColumns.number && (
+                                <td className={`${cellPadding} whitespace-nowrap`}>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-mono text-gray-900 dark:text-gray-100">
+                                      {task.task_number || `#${task.id}`}
+                                    </span>
+                                    {hasUnreadTaskUpdates && <TaskNotificationBubble count={unreadCount} />}
                                   </div>
-                                )}
-                              </td>
-                              <td className={cellPadding}>
-                                <div className="flex items-start gap-1.5">
-                                  <MapPin className="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0 mt-0.5" />
-                                  <span className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
-                                    {task.raw_address || '-'}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className={`${cellPadding} whitespace-nowrap`}>
-                                <StatusBadge status={task.status} />
-                              </td>
-                              <td className={`${cellPadding} whitespace-nowrap`}>
-                                <PriorityBadge priority={task.priority} />
-                              </td>
-                              <td className={`${cellPadding} whitespace-nowrap`}>
-                                <div className="flex items-center gap-1.5">
-                                  <User className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                                  <span className="text-sm text-gray-600 dark:text-gray-300">
-                                    {task.assigned_user_name || '-'}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className={`${cellPadding} whitespace-nowrap`}>
-                                <div className="flex items-center gap-1.5">
-                                  <Calendar className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                                    {formatDateTime(task.created_at)}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className={`${cellPadding} whitespace-nowrap`}>
-                                <div className="flex items-center gap-1.5">
-                                  <Clock className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                                  <span className={`text-sm ${sla.tone}`}>
-                                    {sla.label}
-                                  </span>
-                                </div>
-                              </td>
+                                </td>
+                              )}
+                              {visibleColumns.title && (
+                                <td className={cellPadding}>
+                                  <div className="line-clamp-1 text-sm font-medium text-gray-900 dark:text-white">
+                                    {task.defect_type || task.title || 'Без описания'}
+                                  </div>
+                                  {(task.defect_type ? task.title : task.description) && (
+                                    <div className="mt-0.5 line-clamp-1 text-xs text-gray-500 dark:text-gray-400">
+                                      {task.defect_type ? task.title : task.description}
+                                    </div>
+                                  )}
+                                </td>
+                              )}
+                              {visibleColumns.address && (
+                                <td className={cellPadding}>
+                                  <div className="flex items-start gap-1.5">
+                                    <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                                    <span className="line-clamp-2 text-sm text-gray-600 dark:text-gray-300">
+                                      {task.raw_address || '-'}
+                                    </span>
+                                  </div>
+                                </td>
+                              )}
+                              {visibleColumns.status && (
+                                <td className={`${cellPadding} whitespace-nowrap`}>
+                                  <StatusBadge status={task.status} />
+                                </td>
+                              )}
+                              {visibleColumns.priority && (
+                                <td className={`${cellPadding} whitespace-nowrap`}>
+                                  <PriorityBadge priority={task.priority} />
+                                </td>
+                              )}
+                              {visibleColumns.assignee && (
+                                <td className={`${cellPadding} whitespace-nowrap`}>
+                                  <div className="flex items-center gap-1.5">
+                                    <User className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                                    <span className="text-sm text-gray-600 dark:text-gray-300">
+                                      {task.assigned_user_name || '-'}
+                                    </span>
+                                  </div>
+                                </td>
+                              )}
+                              {visibleColumns.date && (
+                                <td className={`${cellPadding} whitespace-nowrap`}>
+                                  <div className="flex items-center gap-1.5">
+                                    <Calendar className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                                      {formatDateTime(task.created_at)}
+                                    </span>
+                                  </div>
+                                </td>
+                              )}
+                              {visibleColumns.sla && (
+                                <td className={`${cellPadding} whitespace-nowrap`}>
+                                  <div className="flex items-center gap-1.5">
+                                    <Clock className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                                    <span className={`text-sm ${sla.tone}`}>
+                                      {sla.label}
+                                    </span>
+                                  </div>
+                                </td>
+                              )}
                             </tr>
                           )
                         })}
@@ -1630,11 +1668,9 @@ export default function TasksPage() {
                     )
                   })}
                 </tbody>
-                )}
               </table>
             </div>
           </div>
-
           {/* Pagination */}
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
@@ -1665,12 +1701,17 @@ export default function TasksPage() {
           {/* Page info */}
           <div className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
             Показано {((data.page - 1) * data.size) + 1}–{Math.min(data.page * data.size, data.total)} из {data.total}
-            {shouldVirtualize && (
-              <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">(виртуализация вкл.)</span>
-            )}
           </div>
         </>
       )}
     </div>
+  )
+}
+
+function TaskNotificationBubble({ count }: { count: number }) {
+  return (
+    <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+      {count > 9 ? '9+' : count}
+    </span>
   )
 }

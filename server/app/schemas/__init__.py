@@ -24,6 +24,15 @@ from app.schemas.notification import (
     PushNotificationRequest,
     NotificationCreate, NotificationResponse
 )
+from app.schemas.support import (
+    SupportTicketCommentCreate,
+    SupportTicketCommentResponse,
+    SupportTicketCreate,
+    SupportTicketDetailResponse,
+    SupportTicketReporter,
+    SupportTicketResponse,
+    SupportTicketUpdate,
+)
 from app.schemas.settings import (
     SystemSettingSchema, SettingsGroupSchema, SettingUpdate,
     CustomFieldCreate, CustomFieldUpdate, CustomFieldResponse,
@@ -64,6 +73,9 @@ __all__ = [
     # Notification
     "PushNotificationRequest",
     "NotificationCreate", "NotificationResponse",
+    # Support
+    "SupportTicketCommentCreate", "SupportTicketCommentResponse", "SupportTicketCreate",
+    "SupportTicketDetailResponse", "SupportTicketReporter", "SupportTicketResponse", "SupportTicketUpdate",
     # Settings
     "SystemSettingSchema", "SettingsGroupSchema", "SettingUpdate",
     "CustomFieldCreate", "CustomFieldUpdate", "CustomFieldResponse",

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, Query
 from app.models import UserModel, TaskModel, get_db
 from app.models.address import AddressModel
 from app.config import settings
+from app.services.role_utils import is_superadmin_user
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class TenantFilter:
             self.is_superadmin = False
         else:
             self.org_id = user.organization_id
-            self.is_superadmin = self.org_id is None and user.role == "admin"
+            self.is_superadmin = is_superadmin_user(user)
     
     def apply(self, query: Query, model=None) -> Query:
         """

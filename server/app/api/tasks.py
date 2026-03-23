@@ -8,10 +8,10 @@ import logging
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, func
+from sqlalchemy import or_, func, case
 
 from app.models import (
-    UserModel, TaskModel, CommentModel,
+    UserModel, TaskModel, CommentModel, NotificationModel,
     TaskStatus, TaskPriority, UserRole, get_db
 )
 from app.models.address import AddressModel
@@ -167,12 +167,27 @@ async def get_tasks(
     total = query.count()
 
     sort_value = (sort or '').strip().lower()
+    prioritize_unread_notifications = user.role in {UserRole.ADMIN.value, UserRole.DISPATCHER.value}
+    has_unread_task_notification = (
+        db.query(NotificationModel.id)
+        .filter(
+            NotificationModel.user_id == user.id,
+            NotificationModel.task_id == TaskModel.id,
+            NotificationModel.is_read.is_(False),
+        )
+        .exists()
+    )
+
     if sort_value == 'created_at_asc':
         order_by = [TaskModel.created_at.asc()]
     elif sort_value == 'created_at_desc':
-        order_by = [TaskModel.created_at.desc()]
+        order_by = [
+            *( [case((has_unread_task_notification, 0), else_=1)] if prioritize_unread_notifications else [] ),
+            TaskModel.created_at.desc(),
+        ]
     else:
         order_by = [
+            *( [case((has_unread_task_notification, 0), else_=1)] if prioritize_unread_notifications else [] ),
             priority_rank_expr(TaskModel.priority).desc(),
             TaskModel.created_at.desc(),
         ]

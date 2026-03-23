@@ -52,6 +52,61 @@ class TestNotificationsApiSecurity:
         assert response.status_code == 200
         assert send_mock.call_args.kwargs["organization_id"] == org.id
 
+    def test_task_notifications_can_be_marked_read_per_task(
+        self,
+        client: TestClient,
+        db_session: Session,
+        auth_headers: dict[str, str],
+        admin_user: UserModel,
+    ):
+        task = TaskModel(
+            title="Unread task notifications",
+            raw_address="Some address",
+            status="NEW",
+            priority="CURRENT",
+        )
+        db_session.add(task)
+        db_session.commit()
+        db_session.refresh(task)
+
+        db_session.add_all(
+            [
+                NotificationModel(
+                    user_id=admin_user.id,
+                    title="Task updated",
+                    message="A task event happened.",
+                    type="task",
+                    task_id=task.id,
+                    is_read=False,
+                ),
+                NotificationModel(
+                    user_id=admin_user.id,
+                    title="Task alert",
+                    message="An alert happened on the same task.",
+                    type="alert",
+                    task_id=task.id,
+                    is_read=False,
+                ),
+            ]
+        )
+        db_session.commit()
+
+        response = client.patch(f"/api/notifications/task/{task.id}/read", headers=auth_headers)
+
+        assert response.status_code == 200
+        assert response.json()["updated"] == 2
+
+        unread_count = (
+            db_session.query(NotificationModel)
+            .filter(
+                NotificationModel.user_id == admin_user.id,
+                NotificationModel.task_id == task.id,
+                NotificationModel.is_read == False,  # noqa: E712
+            )
+            .count()
+        )
+        assert unread_count == 0
+
 
 class TestNotificationServiceTenantIsolation:
     def test_status_notifications_do_not_include_foreign_dispatchers(self, db_session: Session):
@@ -113,3 +168,62 @@ class TestNotificationServiceTenantIsolation:
 
         assert same_org_notification is not None
         assert other_org_notification is None
+
+    def test_done_status_notifications_include_same_org_admin_and_dispatcher(self, db_session: Session):
+        org = OrganizationModel(name="Org Done", slug="org-done", is_active=True)
+        worker = UserModel(
+            username="worker_done_notify",
+            password_hash=get_password_hash("pass123"),
+            full_name="Worker Done",
+            role=UserRole.WORKER.value,
+            is_active=True,
+            organization=org,
+        )
+        dispatcher = UserModel(
+            username="dispatcher_done_notify",
+            password_hash=get_password_hash("pass123"),
+            full_name="Dispatcher Done",
+            role=UserRole.DISPATCHER.value,
+            is_active=True,
+            organization=org,
+        )
+        admin = UserModel(
+            username="admin_done_notify",
+            password_hash=get_password_hash("pass123"),
+            full_name="Admin Done",
+            role=UserRole.ADMIN.value,
+            is_active=True,
+            organization=org,
+        )
+        task = TaskModel(
+            title="Done Task",
+            raw_address="Done Address",
+            status="DONE",
+            priority="CURRENT",
+            organization=org,
+            assigned_user=worker,
+        )
+        db_session.add_all([org, worker, dispatcher, admin, task])
+        db_session.commit()
+        db_session.refresh(task)
+        db_session.refresh(worker)
+
+        create_task_status_notification(
+            db=db_session,
+            task=task,
+            old_status="IN_PROGRESS",
+            new_status="DONE",
+            changed_by=worker,
+        )
+
+        dispatcher_notification = db_session.query(NotificationModel).filter(
+            NotificationModel.user_id == dispatcher.id,
+            NotificationModel.task_id == task.id,
+        ).first()
+        admin_notification = db_session.query(NotificationModel).filter(
+            NotificationModel.user_id == admin.id,
+            NotificationModel.task_id == task.id,
+        ).first()
+
+        assert dispatcher_notification is not None
+        assert admin_notification is not None

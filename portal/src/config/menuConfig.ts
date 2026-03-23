@@ -12,9 +12,11 @@ import {
   DollarSign,
   Building2,
   MessageSquare,
+  LifeBuoy,
   type LucideIcon,
 } from 'lucide-react'
-import type { UserRole } from '@/types/user'
+import type { AccessRole, UserRole } from '@/types/user'
+import { normalizeRoleForAccess } from '@/types/user'
 
 export type { UserRole }
 
@@ -23,7 +25,7 @@ export interface MenuItem {
   path: string
   label: string
   icon: LucideIcon
-  roles: UserRole[]
+  roles: AccessRole[]
   badge?: string
   children?: MenuItem[]
 }
@@ -136,6 +138,13 @@ export const menuConfig: MenuSection[] = [
         roles: ['admin', 'dispatcher', 'worker'],
       },
       {
+        id: 'support',
+        path: '/support',
+        label: 'Поддержка',
+        icon: LifeBuoy,
+        roles: ['admin', 'dispatcher', 'worker'],
+      },
+      {
         id: 'settings',
         path: '/settings',
         label: 'Настройки',
@@ -173,17 +182,18 @@ const HIDDEN_FOR_ORG_ADMIN = new Set([
 ])
 
 export function isOrgAdmin(role: UserRole, organizationId?: number | null): boolean {
-  return role === 'admin' && organizationId != null
+  return normalizeRoleForAccess(role) === 'admin' && organizationId != null && role !== 'superadmin'
 }
 
 export function getMenuForRole(role: UserRole, organizationId?: number | null): MenuSection[] {
+  const normalizedRole = normalizeRoleForAccess(role)
   const orgAdmin = isOrgAdmin(role, organizationId)
 
   return menuConfig
     .map((section) => ({
       ...section,
       items: section.items.filter((item) => {
-        if (!item.roles.includes(role)) return false
+        if (!item.roles.includes(normalizedRole)) return false
         if (orgAdmin && HIDDEN_FOR_ORG_ADMIN.has(item.id)) return false
         return true
       }),
@@ -192,7 +202,7 @@ export function getMenuForRole(role: UserRole, organizationId?: number | null): 
 }
 
 export function getHomePathForRole(role: UserRole): string {
-  switch (role) {
+  switch (normalizeRoleForAccess(role)) {
     case 'admin':
     case 'dispatcher':
       return '/dashboard'
@@ -204,10 +214,11 @@ export function getHomePathForRole(role: UserRole): string {
 }
 
 export function canAccessPath(path: string, role: UserRole, organizationId?: number | null): boolean {
+  const normalizedRole = normalizeRoleForAccess(role)
   const allItems = menuConfig.flatMap((section) => section.items)
   const item = allItems.find((menuItem) => path.startsWith(menuItem.path))
   if (!item) return false
-  if (!item.roles.includes(role)) return false
+  if (!item.roles.includes(normalizedRole)) return false
   if (isOrgAdmin(role, organizationId) && HIDDEN_FOR_ORG_ADMIN.has(item.id)) return false
   return true
 }

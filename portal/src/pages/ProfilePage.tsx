@@ -22,6 +22,7 @@ import Input from '@/components/Input'
 import UserAvatar from '@/components/UserAvatar'
 import { useAuthStore } from '@/store/authStore'
 import apiClient from '@/api/client'
+import { getRoleLabel } from '@/types/user'
 
 interface ProfileForm {
   fullName: string
@@ -151,15 +152,6 @@ export default function ProfilePage() {
     if (!file) return
     uploadAvatarMutation.mutate(file)
     event.target.value = ''
-  }
-
-  const getRoleLabel = (role?: string) => {
-    switch (role) {
-      case 'admin': return 'Администратор'
-      case 'dispatcher': return 'Диспетчер'
-      case 'worker': return 'Работник'
-      default: return role
-    }
   }
 
   const formatHours = (hours: number | null) => {

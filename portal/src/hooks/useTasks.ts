@@ -1,6 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, QueryClient } from '@tanstack/react-query'
 import { tasksApi } from '@/api/tasks'
-import type { Task, TaskFilters } from '@/types/task'
+import type { PaginatedResponse, Task, TaskFilters } from '@/types/task'
 
 // Query keys
 export const taskKeys = {
@@ -9,6 +9,62 @@ export const taskKeys = {
   list: (filters?: TaskFilters) => [...taskKeys.lists(), filters] as const,
   details: () => [...taskKeys.all, 'detail'] as const,
   detail: (id: number) => [...taskKeys.details(), id] as const,
+}
+
+export const myTaskKeys = {
+  all: ['my-tasks'] as const,
+  list: (userId?: number | null) => [...myTaskKeys.all, userId ?? null] as const,
+}
+
+function syncTaskInPaginatedLists(queryClient: QueryClient, task: Task) {
+  queryClient.setQueriesData<PaginatedResponse<Task>>({ queryKey: taskKeys.lists() }, (current) => {
+    if (!current) return current
+
+    const hasTask = current.items.some((item) => item.id === task.id)
+    if (!hasTask) return current
+
+    return {
+      ...current,
+      items: current.items.map((item) => (item.id === task.id ? task : item)),
+    }
+  })
+}
+
+function syncTaskInMyTaskLists(queryClient: QueryClient, task: Task) {
+  const cachedLists = queryClient.getQueriesData<Task[]>({ queryKey: myTaskKeys.all })
+
+  cachedLists.forEach(([queryKey, cachedTasks]) => {
+    if (!cachedTasks) return
+
+    const [, rawUserId] = queryKey as ReturnType<typeof myTaskKeys.list>
+    const userId = typeof rawUserId === 'number' ? rawUserId : null
+    const shouldBeVisible = userId != null && task.assigned_user_id === userId
+    const existingIndex = cachedTasks.findIndex((item) => item.id === task.id)
+
+    if (shouldBeVisible) {
+      const nextTasks =
+        existingIndex >= 0
+          ? cachedTasks.map((item) => (item.id === task.id ? task : item))
+          : [task, ...cachedTasks]
+
+      queryClient.setQueryData(queryKey, nextTasks)
+      return
+    }
+
+    if (existingIndex >= 0) {
+      queryClient.setQueryData(
+        queryKey,
+        cachedTasks.filter((item) => item.id !== task.id),
+      )
+    }
+  })
+}
+
+function removeTaskFromMyTaskLists(queryClient: QueryClient, taskId: number) {
+  queryClient.setQueriesData<Task[]>({ queryKey: myTaskKeys.all }, (current) => {
+    if (!current) return current
+    return current.filter((item) => item.id !== taskId)
+  })
 }
 
 // Get paginated tasks list
@@ -35,9 +91,10 @@ export function useCreateTask() {
 
   return useMutation({
     mutationFn: tasksApi.createTask,
-    onSuccess: () => {
-      // Invalidate tasks list to refetch
+    onSuccess: (task) => {
+      syncTaskInMyTaskLists(queryClient, task)
       queryClient.invalidateQueries({ queryKey: taskKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
     },
   })
 }
@@ -49,10 +106,13 @@ export function useUpdateTask() {
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: Parameters<typeof tasksApi.updateTask>[1] }) =>
       tasksApi.updateTask(id, data),
-    onSuccess: (_, { id }) => {
-      // Invalidate specific task and lists
+    onSuccess: (task, { id }) => {
+      queryClient.setQueryData(taskKeys.detail(id), task)
+      syncTaskInPaginatedLists(queryClient, task)
+      syncTaskInMyTaskLists(queryClient, task)
       queryClient.invalidateQueries({ queryKey: taskKeys.detail(id) })
       queryClient.invalidateQueries({ queryKey: taskKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
     },
   })
 }
@@ -69,9 +129,11 @@ export function useUpdateTaskStatus() {
     onMutate: async ({ id, status }) => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: taskKeys.detail(id) })
+      await queryClient.cancelQueries({ queryKey: myTaskKeys.all })
       
       // Snapshot previous value
       const previousTask = queryClient.getQueryData<Task>(taskKeys.detail(id))
+      const previousMyTasks = queryClient.getQueriesData<Task[]>({ queryKey: myTaskKeys.all })
       
       // Optimistically update the cache
       if (previousTask) {
@@ -81,8 +143,22 @@ export function useUpdateTaskStatus() {
           updated_at: new Date().toISOString(),
         })
       }
+
+      queryClient.setQueriesData<Task[]>({ queryKey: myTaskKeys.all }, (current) => {
+        if (!current) return current
+
+        return current.map((task) =>
+          task.id === id
+            ? {
+                ...task,
+                status: status as Task['status'],
+                updated_at: new Date().toISOString(),
+              }
+            : task,
+        )
+      })
       
-      return { previousTask }
+      return { previousTask, previousMyTasks }
     },
     
     // Rollback on error
@@ -90,12 +166,22 @@ export function useUpdateTaskStatus() {
       if (context?.previousTask) {
         queryClient.setQueryData(taskKeys.detail(id), context.previousTask)
       }
+      context?.previousMyTasks?.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data)
+      })
+    },
+
+    onSuccess: (task, { id }) => {
+      queryClient.setQueryData(taskKeys.detail(id), task)
+      syncTaskInPaginatedLists(queryClient, task)
+      syncTaskInMyTaskLists(queryClient, task)
     },
     
     // Always refetch after error or success
     onSettled: (_, __, { id }) => {
       queryClient.invalidateQueries({ queryKey: taskKeys.detail(id) })
       queryClient.invalidateQueries({ queryKey: taskKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
     },
   })
 }
@@ -110,15 +196,18 @@ export function useDeleteTask() {
     // Optimistic update - remove from cache immediately
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: taskKeys.lists() })
+      await queryClient.cancelQueries({ queryKey: myTaskKeys.all })
       
       // Remove the task detail from cache
       queryClient.removeQueries({ queryKey: taskKeys.detail(id) })
+      removeTaskFromMyTaskLists(queryClient, id)
       
       return { id }
     },
     
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: taskKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
     },
   })
 }
@@ -130,9 +219,13 @@ export function useAssignTask() {
   return useMutation({
     mutationFn: ({ id, assignedUserId }: { id: number; assignedUserId: number | null }) =>
       tasksApi.assignTask(id, assignedUserId),
-    onSuccess: (_, { id }) => {
+    onSuccess: (task, { id }) => {
+      queryClient.setQueryData(taskKeys.detail(id), task)
+      syncTaskInPaginatedLists(queryClient, task)
+      syncTaskInMyTaskLists(queryClient, task)
       queryClient.invalidateQueries({ queryKey: taskKeys.detail(id) })
       queryClient.invalidateQueries({ queryKey: taskKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
     },
   })
 }

@@ -43,6 +43,18 @@ class UserModel(Base):
     
     # Уведомления пользователя
     notifications = relationship("NotificationModel", back_populates="user", cascade="all, delete-orphan")
+    support_tickets_created = relationship(
+        "SupportTicketModel",
+        back_populates="created_by",
+        foreign_keys="SupportTicketModel.created_by_id",
+        cascade="all, delete-orphan",
+    )
+    support_comments_authored = relationship(
+        "SupportTicketCommentModel",
+        back_populates="author",
+        foreign_keys="SupportTicketCommentModel.author_id",
+        cascade="all, delete-orphan",
+    )
     
     # Организация
     organization = relationship("OrganizationModel", back_populates="users")

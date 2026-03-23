@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import UserModel, UserRole, TaskModel, get_db
+from app.services.role_utils import canonical_role_value, is_admin_user, is_dispatcher_or_admin_user, is_superadmin_user
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
@@ -126,7 +127,7 @@ async def get_current_admin(
     user: UserModel = Depends(get_current_user_required)
 ) -> UserModel:
     """Требует администратора"""
-    if user.role != UserRole.ADMIN.value:
+    if not is_admin_user(user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
@@ -138,7 +139,7 @@ async def get_current_superadmin(
     user: UserModel = Depends(get_current_admin)
 ) -> UserModel:
     """Требует суперадмина (admin без organization_id)"""
-    if user.organization_id is not None:
+    if not is_superadmin_user(user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Superadmin access required"
@@ -150,7 +151,7 @@ async def get_current_dispatcher_or_admin(
     user: UserModel = Depends(get_current_user_required)
 ) -> UserModel:
     """Требует диспетчера или администратора"""
-    if user.role not in (UserRole.ADMIN.value, UserRole.DISPATCHER.value):
+    if not is_dispatcher_or_admin_user(user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Dispatcher or admin access required"
@@ -172,12 +173,12 @@ def check_permission(db: Session, user: UserModel, permission: str) -> bool:
     from app.models import RolePermissionModel
     
     # Админ имеет все права
-    if user.role == UserRole.ADMIN.value:
+    if is_admin_user(user):
         return True
     
     # Проверяем в таблице прав
     perm = db.query(RolePermissionModel).filter(
-        RolePermissionModel.role == user.role,
+        RolePermissionModel.role == canonical_role_value(user.role),
         RolePermissionModel.permission == permission
     ).first()
     

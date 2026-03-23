@@ -94,6 +94,43 @@ class TestAdminUsers:
         data = response.json()
         assert data["full_name"] == "Updated Name"
 
+    def test_update_user_password_allows_login_with_new_password(
+        self, client: TestClient, auth_headers: dict, db_session: Session
+    ):
+        """Updating a user's password allows login with the new password."""
+        from app.services.auth import get_password_hash
+
+        user = UserModel(
+            username="dispatcherpwd",
+            password_hash=get_password_hash("oldpass123"),
+            full_name="Dispatcher Password",
+            role=UserRole.DISPATCHER.value,
+        )
+        db_session.add(user)
+        db_session.commit()
+        db_session.refresh(user)
+
+        response = client.patch(
+            f"/api/admin/users/{user.id}",
+            json={"password": "12345678"},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+
+        old_login = client.post(
+            "/api/auth/login",
+            data={"username": "dispatcherpwd", "password": "oldpass123"},
+        )
+        assert old_login.status_code == 401
+
+        new_login = client.post(
+            "/api/auth/login",
+            data={"username": "dispatcherpwd", "password": "12345678"},
+        )
+        assert new_login.status_code == 200
+        assert new_login.json()["username"] == "dispatcherpwd"
+
     def test_delete_user(self, client: TestClient, auth_headers: dict, db_session: Session):
         """Test deleting user."""
         from app.services.auth import get_password_hash

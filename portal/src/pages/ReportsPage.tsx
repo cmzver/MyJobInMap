@@ -20,6 +20,7 @@ import toast from 'react-hot-toast'
 import { useReports, downloadReport } from '@/hooks/useReports'
 import { useUsers } from '@/hooks/useUsers'
 import type { ReportPeriod } from '@/types/reports'
+import { isAssignableRole } from '@/types/user'
 import Card from '@/components/Card'
 import Button from '@/components/Button'
 import Select from '@/components/Select'
@@ -55,7 +56,7 @@ export default function ReportsPage({ embedded = false }: { embedded?: boolean }
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>('')
 
   const { data: users = [] } = useUsers()
-  const workers = users.filter(u => u.role === 'worker' || u.role === 'dispatcher')
+  const workers = users.filter((u) => isAssignableRole(u.role))
 
   const { data, isLoading, refetch, isFetching } = useReports({
     period,

@@ -26,6 +26,7 @@ from app.services import (
     authenticate_user, create_access_token, create_refresh_token, verify_refresh_token,
     get_current_user_required, get_password_hash, verify_password
 )
+from app.services.role_utils import canonical_role_value, public_role_value
 from app.services.rate_limiter import login_rate_limiter
 from app.utils import build_user_avatar_url, user_to_response
 
@@ -122,7 +123,7 @@ async def login(
         token_type="bearer",
         user_id=user.id,
         username=user.username,
-        role=user.role,
+        role=public_role_value(user.role, user.organization_id),
         full_name=user.full_name or user.username,
         avatar_url=build_user_avatar_url(user),
         organization_id=org_id,
@@ -234,7 +235,7 @@ async def refresh_token(
         token_type="bearer",
         user_id=user.id,
         username=user.username,
-        role=user.role,
+        role=public_role_value(user.role, user.organization_id),
         full_name=user.full_name or user.username,
         avatar_url=build_user_avatar_url(user),
         organization_id=refresh_org_id,
@@ -344,9 +345,14 @@ async def get_my_permissions(
 ):
     """Получить разрешения текущего пользователя"""
     init_default_settings(db)
-    perms = db.query(RolePermissionModel).filter(RolePermissionModel.role == user.role).all()
+    perms = db.query(RolePermissionModel).filter(
+        RolePermissionModel.role == canonical_role_value(user.role)
+    ).all()
     permissions = {perm.permission: perm.is_allowed for perm in perms}
-    return PermissionsResponse(role=user.role, permissions=permissions)
+    return PermissionsResponse(
+        role=public_role_value(user.role, user.organization_id),
+        permissions=permissions,
+    )
 
 
 @router.patch("/report-settings", response_model=ReportSettingsResponse)

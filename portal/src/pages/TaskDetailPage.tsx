@@ -24,6 +24,7 @@ import {
 import { useTask, useUpdateTaskStatus, useDeleteTask, useAssignTask } from '@/hooks/useTasks'
 import { useUsers } from '@/hooks/useUsers'
 import { useComments, useAddComment } from '@/hooks/useComments'
+import { useMarkTaskNotificationsRead, useUnreadTaskNotifications } from '@/hooks/useNotifications'
 import { usePhotos, useUploadPhoto, useDeletePhoto } from '@/hooks/usePhotos'
 import { photosApi } from '@/api/photos'
 import { usePermissions } from '@/hooks/usePermissions'
@@ -36,6 +37,7 @@ import Card from '@/components/Card'
 import Modal from '@/components/Modal'
 import Textarea from '@/components/Textarea'
 import type { TaskStatus } from '@/types/task'
+import { isAssignableRole, normalizeRoleForAccess } from '@/types/user'
 import { cn } from '@/utils/cn'
 import { getAvailableStatusTransitions, getStatusCommentCopy, requiresStatusComment } from '@/config/taskConstants'
 
@@ -110,10 +112,12 @@ export default function TaskDetailPage() {
   const { data: photos = [], isLoading: photosLoading } = usePhotos(taskId)
   const { data: users = [] } = useUsers()
   const { user } = useAuthStore()
+  const { data: unreadTaskNotifications = [] } = useUnreadTaskNotifications({ enabled: Boolean(user) })
   const { data: permissions } = usePermissions()
   
   // Filter only workers and dispatchers for assignment
-  const assignableUsers = users.filter(u => u.is_active && (u.role === 'worker' || u.role === 'dispatcher'))
+  const assignableUsers = users.filter((u) => u.is_active && isAssignableRole(u.role))
+  const backToListPath = normalizeRoleForAccess(user?.role) === 'worker' ? '/my-tasks' : '/tasks'
 
   // Mutations
   const updateStatusMutation = useUpdateTaskStatus()
@@ -122,6 +126,10 @@ export default function TaskDetailPage() {
   const uploadPhotoMutation = useUploadPhoto()
   const deletePhotoMutation = useDeletePhoto()
   const assignMutation = useAssignTask()
+  const {
+    mutate: markTaskNotificationsRead,
+    isPending: isMarkingTaskNotificationsRead,
+  } = useMarkTaskNotificationsRead()
 
   useEffect(() => {
     let cancelled = false
@@ -178,6 +186,17 @@ export default function TaskDetailPage() {
     setSelectedPhoto(null)
   }, [photos])
 
+  useEffect(() => {
+    if (!Number.isFinite(taskId) || isMarkingTaskNotificationsRead) {
+      return
+    }
+
+    const hasUnreadForCurrentTask = unreadTaskNotifications.some((notification) => notification.task_id === taskId)
+    if (hasUnreadForCurrentTask) {
+      markTaskNotificationsRead(taskId)
+    }
+  }, [isMarkingTaskNotificationsRead, markTaskNotificationsRead, taskId, unreadTaskNotifications])
+
   const formatStatusLabel = (value?: string | null) => {
     if (!value) return 'Не указан'
     return statusLabels[value as TaskStatus] || value
@@ -230,7 +249,7 @@ export default function TaskDetailPage() {
     deleteMutation.mutate(taskId, mutationToast({
       success: 'Заявка удалена',
       error: 'Ошибка удаления',
-      onSuccess: () => navigate('/tasks'),
+      onSuccess: () => navigate(backToListPath),
     }))
   }
 
@@ -289,7 +308,7 @@ export default function TaskDetailPage() {
   if (isError || !task) {
     return (
       <div className="max-w-2xl mx-auto">
-        <Button variant="ghost" onClick={() => navigate('/tasks')} className="mb-4">
+        <Button variant="ghost" onClick={() => navigate(backToListPath)} className="mb-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Назад к списку
         </Button>
@@ -306,8 +325,8 @@ export default function TaskDetailPage() {
 
   const availableTransitions = getAvailableStatusTransitions(task.status)
   const sla = getSla(task.planned_date, task.status)
-  const canEdit = permissions?.permissions?.edit_tasks ?? user?.role === 'admin'
-  const canDelete = permissions?.permissions?.delete_tasks ?? user?.role === 'admin'
+  const canEdit = permissions?.permissions?.edit_tasks ?? normalizeRoleForAccess(user?.role) === 'admin'
+  const canDelete = permissions?.permissions?.delete_tasks ?? normalizeRoleForAccess(user?.role) === 'admin'
   const historyEvents = [
     {
       id: `created-${task.id}`,
@@ -353,7 +372,7 @@ export default function TaskDetailPage() {
   return (
     <div className="max-w-5xl mx-auto w-full min-w-0 overflow-x-hidden">
       <div className="mb-5">
-        <Button variant="ghost" onClick={() => navigate('/tasks')} className="mb-4">
+        <Button variant="ghost" onClick={() => navigate(backToListPath)} className="mb-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Назад к списку
         </Button>

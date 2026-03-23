@@ -24,6 +24,7 @@ import Spinner from '@/components/Spinner'
 import { downloadAnalyticsReport, useAnalytics } from '@/hooks/useAnalytics'
 import { useUsers } from '@/hooks/useUsers'
 import type { ReportPeriod } from '@/types/reports'
+import { isAssignableRole } from '@/types/user'
 
 const periodOptions = [
   { value: 'today', label: 'Сегодня' },
@@ -40,7 +41,7 @@ export default function AnalyticsPage() {
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>('')
 
   const { data: users = [] } = useUsers()
-  const workers = users.filter((user) => user.role === 'worker' || user.role === 'dispatcher')
+  const workers = users.filter((user) => isAssignableRole(user.role))
   const selectedWorker = workers.find((worker) => String(worker.id) === selectedWorkerId)
   const workerFilterLabel = selectedWorker ? selectedWorker.full_name || selectedWorker.username : 'Все исполнители'
   const filters = {

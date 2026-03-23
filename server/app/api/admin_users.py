@@ -24,6 +24,7 @@ from app.services import (
     get_current_dispatcher_or_admin,
 )
 from app.services.audit_log import audit_user_created, audit_user_updated, audit_user_deleted
+from app.services.role_utils import canonical_role_value
 from app.services.tenant_filter import TenantFilter
 from app.utils import user_to_response
 
@@ -152,8 +153,9 @@ async def create_user(
     tenant = TenantFilter(admin)
     
     # Org-admin может создавать только worker/dispatcher
+    requested_role = canonical_role_value(user_data.role)
     if not tenant.is_superadmin:
-        if user_data.role == UserRole.ADMIN:
+        if requested_role == UserRole.ADMIN.value:
             raise HTTPException(
                 status_code=403,
                 detail="Org-admin cannot create admin users"
@@ -175,12 +177,14 @@ async def create_user(
         full_name=user_data.full_name,
         email=user_data.email,
         phone=user_data.phone,
-        role=user_data.role.value
+        role=requested_role
     )
     # Привязка к организации:
     # - Суперадмин может указать organization_id явно
     # - Org-admin автоматически привязывает к своей организации
-    if tenant.is_superadmin and user_data.organization_id:
+    if requested_role == UserRole.ADMIN.value and user_data.role == UserRole.SUPERADMIN:
+        user.organization_id = None
+    elif tenant.is_superadmin and user_data.organization_id:
         user.organization_id = user_data.organization_id
     else:
         tenant.set_org_id(user)
@@ -208,12 +212,30 @@ async def update_user(
     
     tenant = TenantFilter(admin)
     # Org-admin может редактировать только пользователей своей организации
+    requested_role = canonical_role_value(user_data.role) if user_data.role is not None else None
     if not tenant.is_superadmin:
         tenant.enforce_access(user)
         # Org-admin не может назначать роль admin
-        if user_data.role == UserRole.ADMIN:
+        if requested_role == UserRole.ADMIN.value:
             raise HTTPException(status_code=403, detail="Org-admin cannot assign admin role")
     
+    if user_data.username is not None:
+        new_username = user_data.username.strip()
+        if not new_username:
+            raise HTTPException(status_code=400, detail="Username cannot be empty")
+        existing_user = db.query(UserModel).filter(
+            UserModel.username == new_username,
+            UserModel.id != user.id,
+        ).first()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Username already exists")
+        user.username = new_username
+
+    if user_data.password is not None:
+        if not user_data.password:
+            raise HTTPException(status_code=400, detail="Password cannot be empty")
+        user.password_hash = get_password_hash(user_data.password)
+
     if user_data.full_name is not None:
         user.full_name = user_data.full_name
     if user_data.email is not None:
@@ -221,7 +243,9 @@ async def update_user(
     if user_data.phone is not None:
         user.phone = user_data.phone
     if user_data.role is not None:
-        user.role = user_data.role.value
+        user.role = requested_role
+        if user_data.role == UserRole.SUPERADMIN:
+            user.organization_id = None
     if user_data.is_active is not None:
         user.is_active = user_data.is_active
     

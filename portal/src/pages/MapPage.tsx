@@ -21,6 +21,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useTheme } from '@/hooks/useTheme'
 import apiClient from '@/api/client'
 import { Task } from '@/types/task'
+import { normalizeRoleForAccess } from '@/types/user'
 import { formatDatePretty } from '@/utils/dateFormat'
 
 // Import Leaflet CSS
@@ -203,7 +204,7 @@ export default function MapPage() {
   const allStatusesSelected = statusFilter.length === statusDefs.length
 
   // Filter by assignee for workers
-  const isWorker = user?.role === 'worker'
+  const isWorker = normalizeRoleForAccess(user?.role) === 'worker'
 
   const { data, isLoading } = useQuery({
     queryKey: ['map-tasks', statusQuery, isWorker ? user?.id : null],

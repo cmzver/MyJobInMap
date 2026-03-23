@@ -62,8 +62,8 @@ export const useAuthStore = create<AuthState>()(
 
           const data = response.data
 
-          const role =
-            data.role === 'admin' || data.role === 'dispatcher' || data.role === 'worker'
+          const role: UserRole =
+            data.role === 'superadmin' || data.role === 'admin' || data.role === 'manager' || data.role === 'dispatcher' || data.role === 'worker'
               ? data.role
               : 'worker'
 

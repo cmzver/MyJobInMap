@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.models import UserModel, TaskModel, get_db
 from app.schemas import UserCreate, UserUpdate, UserResponse
 from app.services import get_password_hash, get_current_user_required, get_current_admin
+from app.services.role_utils import canonical_role_value
 from app.services.tenant_filter import TenantFilter
 from app.utils import user_to_response
 
@@ -158,6 +159,7 @@ async def create_user(
         raise HTTPException(status_code=400, detail="Username already exists")
     
     tenant = TenantFilter(admin)
+    requested_role = canonical_role_value(data.role)
 
     user = UserModel(
         username=data.username,
@@ -165,7 +167,7 @@ async def create_user(
         full_name=data.full_name,
         email=data.email,
         phone=data.phone,
-        role=data.role.value,
+        role=requested_role,
         is_active=True,
     )
 
@@ -194,7 +196,23 @@ async def update_user(
         raise HTTPException(status_code=404, detail="User not found")
 
     TenantFilter(admin).enforce_access(user)
+    requested_role = canonical_role_value(data.role) if data.role is not None else None
     
+    if data.username is not None:
+        new_username = data.username.strip()
+        if not new_username:
+            raise HTTPException(status_code=400, detail="Username cannot be empty")
+        existing_user = db.query(UserModel).filter(
+            UserModel.username == new_username,
+            UserModel.id != user.id,
+        ).first()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Username already exists")
+        user.username = new_username
+    if data.password is not None:
+        if not data.password:
+            raise HTTPException(status_code=400, detail="Password cannot be empty")
+        user.password_hash = get_password_hash(data.password)
     if data.full_name is not None:
         user.full_name = data.full_name
     if data.email is not None:
@@ -202,7 +220,7 @@ async def update_user(
     if data.phone is not None:
         user.phone = data.phone
     if data.role is not None:
-        user.role = data.role.value
+        user.role = requested_role
     if data.is_active is not None:
         user.is_active = data.is_active
     

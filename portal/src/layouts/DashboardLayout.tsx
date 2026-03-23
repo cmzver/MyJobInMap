@@ -3,8 +3,10 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useTheme } from '@/hooks/useTheme'
 import { useConversations } from '@/hooks/useChat'
+import { useUnreadNotifications } from '@/hooks/useNotifications'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { getMenuForRole, type MenuSection, type MenuItem } from '@/config/menuConfig'
+import { getRoleLabel, normalizeRoleForAccess } from '@/types/user'
 import UserAvatar from '@/components/UserAvatar'
 import { 
   LayoutDashboard, 
@@ -32,6 +34,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, logout } = useAuthStore()
   const { theme, setTheme, isDark } = useTheme()
   const { data: conversations = [] } = useConversations()
+  const { data: unreadNotifications = [] } = useUnreadNotifications({ enabled: Boolean(user) })
 
   // WebSocket — реал-тайм уведомления (инвалидация React Query кэша)
   useWebSocket()
@@ -43,6 +46,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const mentionChatCount = useMemo(
     () => conversations.reduce((sum, conversation) => sum + conversation.unread_mention_count, 0),
     [conversations],
+  )
+  const unreadNotificationCount = unreadNotifications.length
+  const unreadTaskCount = useMemo(
+    () => unreadNotifications.filter((notification) => notification.task_id != null).length,
+    [unreadNotifications],
+  )
+  const unreadSupportCount = useMemo(
+    () => unreadNotifications.filter((notification) => notification.type === 'support').length,
+    [unreadNotifications],
   )
 
   const isModern = theme === 'modern' || theme === 'mac' || theme === 'aurora'
@@ -93,15 +105,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           ? Moon
           : Sun
 
-  const getRoleLabel = (role: string) => {
-    switch (role) {
-      case 'admin': return 'Администратор'
-      case 'dispatcher': return 'Диспетчер'
-      case 'worker': return 'Работник'
-      default: return role
-    }
-  }
-
   const formattedTime = useMemo(
     () => currentTime.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
     [currentTime],
@@ -120,10 +123,23 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const Icon = item.icon
     const isActive = location.pathname === item.path || 
                      (item.path !== '/' && location.pathname.startsWith(item.path))
+    const isTaskMenuItem = item.id === 'tasks' || item.id === 'my-tasks'
     const badge = item.id === 'chat' && unreadChatCount > 0
       ? unreadChatCount > 99
         ? '99+'
         : String(unreadChatCount)
+      : isTaskMenuItem && unreadTaskCount > 0
+        ? unreadTaskCount > 99
+          ? '99+'
+          : String(unreadTaskCount)
+      : item.id === 'notifications' && unreadNotificationCount > 0
+        ? unreadNotificationCount > 99
+          ? '99+'
+          : String(unreadNotificationCount)
+      : item.id === 'support' && unreadSupportCount > 0
+        ? unreadSupportCount > 99
+          ? '99+'
+          : String(unreadSupportCount)
       : item.badge
     const showMentionBadge = item.id === 'chat' && mentionChatCount > 0
     
@@ -181,7 +197,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               >
                 {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
               </button>
-              <Link to={user?.role === 'worker' ? '/my-tasks' : '/dashboard'} className="flex items-center ml-2 lg:ml-0">
+              <Link to={normalizeRoleForAccess(user?.role) === 'worker' ? '/my-tasks' : '/dashboard'} className="flex items-center ml-2 lg:ml-0">
                 <div className="w-9 h-9 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/30">
                   <LayoutDashboard size={20} className="text-white" />
                 </div>

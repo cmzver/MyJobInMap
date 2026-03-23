@@ -36,6 +36,13 @@ from app.models.address import (
     AddressHistoryModel,
 )
 from app.models.notification import NotificationModel, NotificationType
+from app.models.support import (
+    SupportTicketCategory,
+    SupportTicketCommentModel,
+    SupportTicketCommentType,
+    SupportTicketModel,
+    SupportTicketStatus,
+)
 from app.models.chat import (
     ConversationType,
     ConversationMemberRole,
@@ -71,6 +78,11 @@ __all__ = [
     "TaskPriority", 
     "UserRole",
     "NotificationType",
+    "SupportTicketCategory",
+    "SupportTicketCommentModel",
+    "SupportTicketCommentType",
+    "SupportTicketModel",
+    "SupportTicketStatus",
     # Address Enums
     "SystemType",
     "SystemStatus",

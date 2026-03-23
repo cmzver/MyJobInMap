@@ -18,7 +18,13 @@ import {
 import { useCreateUser, useDeleteUser, useUpdateUser, useUsers } from '@/hooks/useUsers'
 import { useOrganizations } from '@/hooks/useOrganizations'
 import { useAuthStore } from '@/store/authStore'
-import type { CreateUserData, UpdateUserData, User as UserType, UserRole } from '@/types/user'
+import {
+  isSuperadminRole,
+  type CreateUserData,
+  type UpdateUserData,
+  type User as UserType,
+  type UserRole,
+} from '@/types/user'
 import { mutationToast } from '@/utils/apiError'
 import { formatDateOnly as formatDate } from '@/utils/dateFormat'
 import Badge from '@/components/Badge'
@@ -29,15 +35,19 @@ import Select from '@/components/Select'
 import { SkeletonTable } from '@/components/Skeleton'
 
 const roleOptions = [
-  { value: 'worker', label: 'Работник' },
-  { value: 'dispatcher', label: 'Диспетчер' },
+  { value: 'superadmin', label: 'Супер-админ' },
   { value: 'admin', label: 'Администратор' },
+  { value: 'manager', label: 'Менеджер' },
+  { value: 'dispatcher', label: 'Диспетчер' },
+  { value: 'worker', label: 'Работник' },
 ]
 
 const roleConfig: Record<UserRole, { label: string; variant: 'info' | 'warning' | 'danger'; icon: typeof User }> = {
-  worker: { label: 'Работник', variant: 'info', icon: Briefcase },
-  dispatcher: { label: 'Диспетчер', variant: 'warning', icon: UsersIcon },
+  superadmin: { label: 'Супер-админ', variant: 'danger', icon: Shield },
   admin: { label: 'Администратор', variant: 'danger', icon: Shield },
+  manager: { label: 'Менеджер', variant: 'warning', icon: UsersIcon },
+  dispatcher: { label: 'Диспетчер', variant: 'warning', icon: UsersIcon },
+  worker: { label: 'Работник', variant: 'info', icon: Briefcase },
 }
 
 interface UserFormData {
@@ -78,7 +88,7 @@ export default function UsersPage() {
   const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<string[]>([])
 
   const currentUser = useAuthStore((state) => state.user)
-  const isSuperadmin = currentUser?.role === 'admin' && currentUser.organizationId == null
+  const isSuperadmin = isSuperadminRole(currentUser?.role, currentUser?.organizationId)
 
   const { data: users, isLoading, refetch, isFetching } = useUsers()
   const {
@@ -151,6 +161,18 @@ export default function UsersPage() {
   const collapsedCount = groupedUsers.filter((group) => collapsedGroupKeys.includes(group.key)).length
   const isRefreshing = isFetching || isFetchingOrganizations
   const isSubmitting = createMutation.isPending || updateMutation.isPending
+  const availableRoleOptions = useMemo(() => {
+    const baseOptions = roleOptions.filter(
+      (option) => isSuperadmin || (option.value !== 'superadmin' && option.value !== 'admin'),
+    )
+
+    if (baseOptions.some((option) => option.value === formData.role)) {
+      return baseOptions
+    }
+
+    const currentRoleOption = roleOptions.find((option) => option.value === formData.role)
+    return currentRoleOption ? [currentRoleOption, ...baseOptions] : baseOptions
+  }, [formData.role, isSuperadmin])
 
   const handleOpenCreate = () => {
     setEditingUser(null)
@@ -562,7 +584,7 @@ export default function UsersPage() {
                 />
                 <Select
                   label="Роль"
-                  options={roleOptions}
+                  options={availableRoleOptions}
                   value={formData.role}
                   onChange={(value) => setFormData({ ...formData, role: value as UserRole })}
                 />

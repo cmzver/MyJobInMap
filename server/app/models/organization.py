@@ -38,3 +38,4 @@ class OrganizationModel(Base):
     tasks = relationship("TaskModel", back_populates="organization")
     addresses = relationship("AddressModel", back_populates="organization")
     conversations = relationship("ConversationModel", back_populates="organization")
+    support_tickets = relationship("SupportTicketModel", back_populates="organization")

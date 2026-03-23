@@ -15,6 +15,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
+import { myTaskKeys } from '@/hooks/useTasks'
 import toast from 'react-hot-toast'
 
 export interface WsEvent {
@@ -73,12 +74,14 @@ export function useWebSocket() {
         switch (data.type) {
           case 'task_created':
             queryClient.invalidateQueries({ queryKey: ['tasks'] })
+            queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
             queryClient.invalidateQueries({ queryKey: ['dashboard'] })
             toast('📋 Новая заявка: ' + (data.data.task_number ?? ''), { icon: '🆕' })
             break
 
           case 'task_status_changed':
             queryClient.invalidateQueries({ queryKey: ['tasks'] })
+            queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
             queryClient.invalidateQueries({ queryKey: ['dashboard'] })
             queryClient.invalidateQueries({ queryKey: ['sla'] })
             if (data.data.task_id) {
@@ -88,6 +91,7 @@ export function useWebSocket() {
 
           case 'task_updated':
             queryClient.invalidateQueries({ queryKey: ['tasks'] })
+            queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
             if (data.data.task_id) {
               queryClient.invalidateQueries({ queryKey: ['task', data.data.task_id] })
             }
@@ -95,15 +99,18 @@ export function useWebSocket() {
 
           case 'task_assigned':
             queryClient.invalidateQueries({ queryKey: ['tasks'] })
+            queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
             break
 
           case 'task_assigned_to_me':
             queryClient.invalidateQueries({ queryKey: ['tasks'] })
+            queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
             toast('📌 Вам назначена заявка: ' + (data.data.task_number ?? ''), { icon: '👤' })
             break
 
           case 'task_deleted':
             queryClient.invalidateQueries({ queryKey: ['tasks'] })
+            queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
             queryClient.invalidateQueries({ queryKey: ['dashboard'] })
             break
 
@@ -179,6 +186,14 @@ export function useWebSocket() {
             }
             break
           }
+
+          case 'notification_created':
+            queryClient.invalidateQueries({ queryKey: ['notifications'] })
+            queryClient.invalidateQueries({ queryKey: ['support'] })
+            if (data.data.type === 'support') {
+              toast('Обновление по тикету поддержки', { icon: '🛟', duration: 2000 })
+            }
+            break
 
           default:
             // Для неизвестных типов — общая инвалидация

@@ -30,7 +30,8 @@ import {
 import { useCreateUser } from '@/hooks/useUsers'
 import type { UpdateOrganizationData } from '@/types/organization'
 import type { OrgUser } from '@/api/organizations'
-import type { UserRole } from '@/types/user'
+import { getRoleLabel, isSuperadminRole, type UserRole } from '@/types/user'
+import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
 import Select from '@/components/Select'
@@ -62,6 +63,8 @@ export default function OrganizationDetailPage() {
     role: 'worker' as UserRole,
   })
   const [unassignConfirm, setUnassignConfirm] = useState<number | null>(null)
+  const currentUser = useAuthStore((state) => state.user)
+  const canCreateAdminRole = isSuperadminRole(currentUser?.role, currentUser?.organizationId)
 
   const { data: org, isLoading: orgLoading, refetch: refetchOrg } = useOrganization(orgId)
   const { data: users, isLoading: usersLoading, refetch: refetchUsers } = useOrganizationUsers(orgId)
@@ -454,8 +457,8 @@ export default function OrganizationDetailPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <Badge variant={u.role === 'admin' ? 'info' : u.role === 'dispatcher' ? 'warning' : 'gray'}>
-                          {u.role === 'admin' ? 'Админ' : u.role === 'dispatcher' ? 'Диспетчер' : 'Работник'}
+                        <Badge variant={u.role === 'manager' || u.role === 'dispatcher' ? 'warning' : u.role === 'worker' ? 'gray' : 'info'}>
+                          {getRoleLabel(u.role)}
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-center text-sm text-gray-700 dark:text-gray-300">
@@ -639,7 +642,9 @@ export default function OrganizationDetailPage() {
               value={newUserData.role}
               onChange={(value) => setNewUserData({ ...newUserData, role: value as UserRole })}
               options={[
+                ...(canCreateAdminRole ? [{ value: 'admin', label: 'Администратор' }] : []),
                 { value: 'worker', label: 'Исполнитель' },
+                { value: 'manager', label: 'Менеджер' },
                 { value: 'dispatcher', label: 'Диспетчер' },
               ]}
             />

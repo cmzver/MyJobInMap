@@ -5,6 +5,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import { getHomePathForRole, isOrgAdmin } from '@/config/menuConfig'
 import { APP_BASENAME } from '@/config/appConfig'
+import type { AccessRole } from '@/types/user'
+import { normalizeRoleForAccess } from '@/types/user'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import Spinner from '@/components/Spinner'
 import LoginPage from '@/pages/LoginPage'
@@ -25,6 +27,8 @@ const FinancePage = lazy(() => import('@/pages/FinancePage'))
 const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'))
 const ProfilePage = lazy(() => import('@/pages/ProfilePage'))
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'))
+const SupportPage = lazy(() => import('@/pages/SupportPage'))
+const SupportTicketDetailPage = lazy(() => import('@/pages/SupportTicketDetailPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
 const AdminSettingsPage = lazy(() => import('@/pages/AdminSettingsPage'))
 const OrganizationsPage = lazy(() => import('@/pages/OrganizationsPage'))
@@ -49,7 +53,7 @@ function ProtectedRoute({
   requireSuperadmin = false,
 }: { 
   children: React.ReactNode
-  allowedRoles?: ('admin' | 'dispatcher' | 'worker')[] 
+  allowedRoles?: AccessRole[]
   requireSuperadmin?: boolean
 }) {
   const { isAuthenticated, user } = useAuthStore()
@@ -58,7 +62,7 @@ function ProtectedRoute({
     return <Navigate to="/login" replace />
   }
   
-  if (allowedRoles && user?.role && !allowedRoles.includes(user.role)) {
+  if (allowedRoles && user?.role && !allowedRoles.includes(normalizeRoleForAccess(user.role))) {
     return <Navigate to={getHomePathForRole(user.role)} replace />
   }
 
@@ -269,6 +273,10 @@ function App() {
                       
                       {/* Notifications - All roles */}
                       <Route path="notifications" element={<NotificationsPage />} />
+
+                      {/* Support - All roles */}
+                      <Route path="support" element={<SupportPage />} />
+                      <Route path="support/:ticketId" element={<SupportTicketDetailPage />} />
                       
                       {/* Personal Settings - All roles */}
                       <Route path="settings" element={<SettingsPage />} />

@@ -22,8 +22,9 @@ class NotificationBase(BaseModel):
     """Р‘Р°Р·РѕРІР°СЏ СЃС…РµРјР° СѓРІРµРґРѕРјР»РµРЅРёСЏ"""
     title: str
     message: str
-    type: str = "system"  # task, system, alert
+    type: str = "system"  # task, system, alert, support
     task_id: Optional[int] = None
+    support_ticket_id: Optional[int] = None
 
 
 class NotificationCreate(NotificationBase):

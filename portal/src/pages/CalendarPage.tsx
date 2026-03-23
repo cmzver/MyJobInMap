@@ -14,6 +14,7 @@ import PriorityBadge from '@/components/PriorityBadge'
 import { useAuthStore } from '@/store/authStore'
 import apiClient from '@/api/client'
 import { Task } from '@/types/task'
+import { normalizeRoleForAccess } from '@/types/user'
 import { 
   format, 
   startOfMonth, 
@@ -33,7 +34,7 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
 
-  const isWorker = user?.role === 'worker'
+  const isWorker = normalizeRoleForAccess(user?.role) === 'worker'
 
   const { data, isLoading } = useQuery({
     queryKey: ['calendar-tasks', format(currentDate, 'yyyy-MM'), isWorker ? user?.id : null],

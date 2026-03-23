@@ -1,6 +1,6 @@
 """Tests for task API endpoints."""
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 class TestTaskCreation:
@@ -120,6 +120,105 @@ class TestTaskRetrieval:
         items = response.json()["items"]
         titles = [item["title"] for item in items[:2]]
         assert titles == ["First task", "Second task"]
+
+    def test_get_tasks_prioritizes_unread_notifications_for_admin(self, client, admin_token, admin_user, db_session):
+        """Admin sees tasks with unread notifications first in default newest-first mode."""
+        from app.models import NotificationModel, TaskModel
+
+        now = datetime.now(timezone.utc)
+        older_notified = TaskModel(
+            title="Older task with notification",
+            description="Test",
+            raw_address="Old St",
+            status="NEW",
+            priority="CURRENT",
+            created_at=now - timedelta(days=2),
+            updated_at=now - timedelta(days=2),
+        )
+        newer_regular = TaskModel(
+            title="Newer task without notification",
+            description="Test",
+            raw_address="New St",
+            status="NEW",
+            priority="CURRENT",
+            created_at=now - timedelta(hours=1),
+            updated_at=now - timedelta(hours=1),
+        )
+        db_session.add_all([older_notified, newer_regular])
+        db_session.commit()
+        db_session.refresh(older_notified)
+        db_session.refresh(newer_regular)
+
+        db_session.add(
+            NotificationModel(
+                user_id=admin_user.id,
+                title="Unread update",
+                message="Task changed",
+                type="task",
+                task_id=older_notified.id,
+                is_read=False,
+                created_at=now,
+            )
+        )
+        db_session.commit()
+
+        response = client.get(
+            "/api/tasks?sort=created_at_desc",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        assert response.status_code == 200
+        items = response.json()["items"]
+        assert [item["id"] for item in items[:2]] == [older_notified.id, newer_regular.id]
+
+    def test_get_tasks_prioritizes_unread_notifications_for_dispatcher(self, client_with_dispatcher, dispatcher_user, db_session):
+        """Dispatcher sees tasks with unread notifications first in default newest-first mode."""
+        from app.models import NotificationModel, TaskModel, init_default_settings
+
+        init_default_settings(db_session)
+
+        now = datetime.now(timezone.utc)
+        older_notified = TaskModel(
+            title="Dispatcher notified task",
+            description="Test",
+            raw_address="Old St",
+            status="NEW",
+            priority="CURRENT",
+            created_at=now - timedelta(days=1),
+            updated_at=now - timedelta(days=1),
+        )
+        newer_regular = TaskModel(
+            title="Dispatcher regular task",
+            description="Test",
+            raw_address="New St",
+            status="NEW",
+            priority="CURRENT",
+            created_at=now - timedelta(minutes=30),
+            updated_at=now - timedelta(minutes=30),
+        )
+        db_session.add_all([older_notified, newer_regular])
+        db_session.commit()
+        db_session.refresh(older_notified)
+        db_session.refresh(newer_regular)
+
+        db_session.add(
+            NotificationModel(
+                user_id=dispatcher_user.id,
+                title="Unread update",
+                message="Task changed",
+                type="task",
+                task_id=older_notified.id,
+                is_read=False,
+                created_at=now,
+            )
+        )
+        db_session.commit()
+
+        response = client_with_dispatcher.get("/api/tasks?sort=created_at_desc")
+
+        assert response.status_code == 200
+        items = response.json()["items"]
+        assert [item["id"] for item in items[:2]] == [older_notified.id, newer_regular.id]
 
     def test_get_tasks_with_multiple_filters(self, client, admin_token, sample_tasks_for_reports, worker_user):
         """Test getting tasks with repeated status, priority and assignee filters."""

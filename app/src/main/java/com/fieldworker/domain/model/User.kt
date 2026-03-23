@@ -21,12 +21,12 @@ data class User(
     /**
      * Проверяет, является ли пользователь администратором
      */
-    fun isAdmin(): Boolean = role == UserRole.ADMIN
+    fun isAdmin(): Boolean = role == UserRole.ADMIN || role == UserRole.SUPERADMIN
     
     /**
      * Проверяет, является ли пользователь диспетчером
      */
-    fun isDispatcher(): Boolean = role == UserRole.DISPATCHER
+    fun isDispatcher(): Boolean = role == UserRole.DISPATCHER || role == UserRole.MANAGER
     
     /**
      * Проверяет, является ли пользователь работником
@@ -37,7 +37,12 @@ data class User(
      * Проверяет, может ли пользователь управлять заявками
      * (создавать, назначать, редактировать все)
      */
-    fun canManageTasks(): Boolean = role in listOf(UserRole.ADMIN, UserRole.DISPATCHER)
+    fun canManageTasks(): Boolean = role in listOf(
+        UserRole.SUPERADMIN,
+        UserRole.ADMIN,
+        UserRole.MANAGER,
+        UserRole.DISPATCHER,
+    )
 }
 
 /**
@@ -45,7 +50,9 @@ data class User(
  * Соответствуют ролям на сервере.
  */
 enum class UserRole(val value: String, val displayName: String) {
+    SUPERADMIN("superadmin", "Супер-админ"),
     ADMIN("admin", "Администратор"),
+    MANAGER("manager", "Менеджер"),
     DISPATCHER("dispatcher", "Диспетчер"),
     WORKER("worker", "Работник"),
     UNKNOWN("unknown", "Неизвестно");

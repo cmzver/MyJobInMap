@@ -50,6 +50,8 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     """Обновление пользователя"""
+    username: Optional[str] = None
+    password: Optional[str] = None
     full_name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None

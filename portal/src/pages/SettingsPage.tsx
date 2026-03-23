@@ -14,6 +14,7 @@ import apiClient from '@/api/client'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
 import Card from '@/components/Card'
+import { getRoleLabel } from '@/types/user'
 
 export default function SettingsPage() {
   const { user } = useAuthStore()
@@ -107,7 +108,7 @@ export default function SettingsPage() {
               />
               <Input
                 label="Роль"
-                value={user?.role === 'admin' ? 'Администратор' : user?.role === 'dispatcher' ? 'Диспетчер' : 'Работник'}
+                value={user?.role ? getRoleLabel(user.role) : ''}
                 disabled
                 className="bg-gray-50 dark:bg-gray-900"
               />
