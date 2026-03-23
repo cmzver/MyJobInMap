@@ -1,6 +1,8 @@
 """Tests for task API endpoints."""
-import pytest
+
 from datetime import datetime, timedelta, timezone
+
+import pytest
 
 
 class TestTaskCreation:
@@ -10,7 +12,11 @@ class TestTaskCreation:
         """Test basic task creation."""
         response = client.post(
             "/api/tasks",
-            json={"title": "Fix leak", "address": "Main St, 10", "description": "Water leak"},
+            json={
+                "title": "Fix leak",
+                "address": "Main St, 10",
+                "description": "Water leak",
+            },
             headers={"Authorization": f"Bearer {admin_token}"},
         )
         assert response.status_code == 200
@@ -107,7 +113,11 @@ class TestTaskRetrieval:
         )
         client.post(
             "/api/tasks",
-            json={"title": "Second task", "address": "Second St", "priority": "CURRENT"},
+            json={
+                "title": "Second task",
+                "address": "Second St",
+                "priority": "CURRENT",
+            },
             headers={"Authorization": f"Bearer {admin_token}"},
         )
 
@@ -121,7 +131,9 @@ class TestTaskRetrieval:
         titles = [item["title"] for item in items[:2]]
         assert titles == ["First task", "Second task"]
 
-    def test_get_tasks_prioritizes_unread_notifications_for_admin(self, client, admin_token, admin_user, db_session):
+    def test_get_tasks_prioritizes_unread_notifications_for_admin(
+        self, client, admin_token, admin_user, db_session
+    ):
         """Admin sees tasks with unread notifications first in default newest-first mode."""
         from app.models import NotificationModel, TaskModel
 
@@ -169,11 +181,17 @@ class TestTaskRetrieval:
 
         assert response.status_code == 200
         items = response.json()["items"]
-        assert [item["id"] for item in items[:2]] == [older_notified.id, newer_regular.id]
+        assert [item["id"] for item in items[:2]] == [
+            older_notified.id,
+            newer_regular.id,
+        ]
 
-    def test_get_tasks_prioritizes_unread_notifications_for_dispatcher(self, client_with_dispatcher, dispatcher_user, db_session):
+    def test_get_tasks_prioritizes_unread_notifications_for_dispatcher(
+        self, client_with_dispatcher, dispatcher_user, db_session
+    ):
         """Dispatcher sees tasks with unread notifications first in default newest-first mode."""
-        from app.models import NotificationModel, TaskModel, init_default_settings
+        from app.models import (NotificationModel, TaskModel,
+                                init_default_settings)
 
         init_default_settings(db_session)
 
@@ -218,9 +236,14 @@ class TestTaskRetrieval:
 
         assert response.status_code == 200
         items = response.json()["items"]
-        assert [item["id"] for item in items[:2]] == [older_notified.id, newer_regular.id]
+        assert [item["id"] for item in items[:2]] == [
+            older_notified.id,
+            newer_regular.id,
+        ]
 
-    def test_get_tasks_with_multiple_filters(self, client, admin_token, sample_tasks_for_reports, worker_user):
+    def test_get_tasks_with_multiple_filters(
+        self, client, admin_token, sample_tasks_for_reports, worker_user
+    ):
         """Test getting tasks with repeated status, priority and assignee filters."""
         response = client.get(
             f"/api/tasks?status=NEW&status=IN_PROGRESS&priority=CURRENT&priority=URGENT&assignee_id={worker_user.id}",

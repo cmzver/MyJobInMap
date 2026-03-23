@@ -3,17 +3,17 @@ Tests for /api/admin/backups & /api/admin/db endpoints.
 =======================================================
 Покрытие: backup CRUD, path traversal, settings, DB tools.
 """
+
 import gzip
 import os
-import pytest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models import TaskModel, UserModel
-
 
 # ──────────────────────────────────────────────────────────────────────
 # Helpers
@@ -40,6 +40,7 @@ def _cleanup_backup(filename: str) -> None:
 # ──────────────────────────────────────────────────────────────────────
 # Backup CRUD
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestBackupList:
     """GET /api/admin/backups"""
@@ -77,8 +78,7 @@ class TestBackupDownload:
         fname = _create_fake_backup()
         try:
             response = client.get(
-                f"/api/admin/backups/{fname}/download",
-                headers=auth_headers
+                f"/api/admin/backups/{fname}/download", headers=auth_headers
             )
             assert response.status_code == 200
             assert len(response.content) > 0
@@ -87,8 +87,7 @@ class TestBackupDownload:
 
     def test_download_backup_not_found(self, client: TestClient, auth_headers: dict):
         response = client.get(
-            "/api/admin/backups/nonexistent.sqlite.gz/download",
-            headers=auth_headers
+            "/api/admin/backups/nonexistent.sqlite.gz/download", headers=auth_headers
         )
         assert response.status_code == 404
 
@@ -98,17 +97,13 @@ class TestBackupDelete:
 
     def test_delete_backup(self, client: TestClient, auth_headers: dict):
         fname = _create_fake_backup("to_delete.sqlite.gz")
-        response = client.delete(
-            f"/api/admin/backups/{fname}",
-            headers=auth_headers
-        )
+        response = client.delete(f"/api/admin/backups/{fname}", headers=auth_headers)
         assert response.status_code == 200
         assert not os.path.exists(os.path.join(BACKUP_DIR, fname))
 
     def test_delete_backup_not_found(self, client: TestClient, auth_headers: dict):
         response = client.delete(
-            "/api/admin/backups/nope.sqlite.gz",
-            headers=auth_headers
+            "/api/admin/backups/nope.sqlite.gz", headers=auth_headers
         )
         assert response.status_code == 404
 
@@ -117,42 +112,51 @@ class TestBackupDelete:
 # Path traversal protection
 # ──────────────────────────────────────────────────────────────────────
 
+
 class TestBackupPathTraversal:
     """Security: _validate_backup_filename blocks dangerous names."""
 
-    @pytest.mark.parametrize("bad_name", [
-        "..%2F..%2Fetc%2Fpasswd.sqlite.gz",
-        "..%5Csecret.sqlite.gz",
-    ])
-    def test_path_traversal_blocked_encoded(self, client: TestClient, auth_headers: dict, bad_name: str):
+    @pytest.mark.parametrize(
+        "bad_name",
+        [
+            "..%2F..%2Fetc%2Fpasswd.sqlite.gz",
+            "..%5Csecret.sqlite.gz",
+        ],
+    )
+    def test_path_traversal_blocked_encoded(
+        self, client: TestClient, auth_headers: dict, bad_name: str
+    ):
         """Path traversal via URL-encoded separators."""
         response = client.get(
-            f"/api/admin/backups/{bad_name}/download",
-            headers=auth_headers
+            f"/api/admin/backups/{bad_name}/download", headers=auth_headers
         )
         # FastAPI may decode and match or return 400/404
         assert response.status_code in [400, 404, 422]
 
     def test_invalid_extension_blocked(self, client: TestClient, auth_headers: dict):
         response = client.delete(
-            "/api/admin/backups/malicious.txt",
-            headers=auth_headers
+            "/api/admin/backups/malicious.txt", headers=auth_headers
         )
         assert response.status_code == 400
 
     def test_dotdot_in_filename_blocked(self, client: TestClient, auth_headers: dict):
         """Direct call to _validate_backup_filename catches '..'."""
         from app.api.admin_backups import _validate_backup_filename
+
         with pytest.raises(Exception):
             _validate_backup_filename("../../etc/passwd.sqlite.gz")
 
     def test_slash_in_filename_blocked(self, client: TestClient, auth_headers: dict):
         from app.api.admin_backups import _validate_backup_filename
+
         with pytest.raises(Exception):
             _validate_backup_filename("foo/bar.sqlite.gz")
 
-    def test_backslash_in_filename_blocked(self, client: TestClient, auth_headers: dict):
+    def test_backslash_in_filename_blocked(
+        self, client: TestClient, auth_headers: dict
+    ):
         from app.api.admin_backups import _validate_backup_filename
+
         with pytest.raises(Exception):
             _validate_backup_filename("foo\\bar.sqlite.gz")
 
@@ -160,6 +164,7 @@ class TestBackupPathTraversal:
 # ──────────────────────────────────────────────────────────────────────
 # Backup settings
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestBackupSettings:
     """GET/PATCH /api/admin/backups/settings"""
@@ -176,7 +181,7 @@ class TestBackupSettings:
         response = client.patch(
             "/api/admin/backups/settings",
             json={"auto_backup": False, "schedule": "weekly", "retention_days": 7},
-            headers=auth_headers
+            headers=auth_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -189,7 +194,7 @@ class TestBackupSettings:
         client.patch(
             "/api/admin/backups/settings",
             json={"auto_backup": True, "schedule": "daily", "retention_days": 14},
-            headers=auth_headers
+            headers=auth_headers,
         )
         # Re-read
         response = client.get("/api/admin/backups/settings", headers=auth_headers)
@@ -201,6 +206,7 @@ class TestBackupSettings:
 # ──────────────────────────────────────────────────────────────────────
 # DB tools
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestDbStats:
     """GET /api/admin/db/stats"""

@@ -5,39 +5,33 @@ Tasks API
 """
 
 import logging
-from typing import Optional, List
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, func, case
 
-from app.models import (
-    UserModel, TaskModel, CommentModel, NotificationModel,
-    TaskStatus, TaskPriority, UserRole, get_db
-)
-from app.models.address import AddressModel
 from app.api.address_extended import build_task_filters_for_address
-from app.schemas import (
-    TaskCreate, TaskStatusUpdate, TaskAssignRequest, PlannedDateUpdate,
-    TaskResponse, TaskListResponse,
-    PaginatedResponse,
-    CommentCreate, CommentResponse
-)
-from app.services import (
-    geocoding_service,
-    require_permission,
-    check_permission,
-    TaskServiceError,
-    get_task_service
-)
+from app.api.deps import TaskAccess, require_task_access
+from app.models import (CommentModel, NotificationModel, TaskModel,
+                        TaskPriority, TaskStatus, UserModel, UserRole, get_db)
+from app.models.address import AddressModel
+from app.schemas import (CommentCreate, CommentResponse, PaginatedResponse,
+                         PlannedDateUpdate, TaskAssignRequest, TaskCreate,
+                         TaskListResponse, TaskResponse, TaskStatusUpdate)
+from app.services import (TaskServiceError, check_permission,
+                          geocoding_service, get_task_service,
+                          require_permission)
 from app.services.task_parser import parse_dispatcher_message
-from app.services.websocket_manager import (
-    broadcast_task_created, broadcast_task_status_changed,
-    broadcast_task_assigned, broadcast_task_deleted, broadcast_task_updated
-)
-from app.api.deps import require_task_access, TaskAccess
 from app.services.tenant_filter import TenantFilter
-from app.utils import task_to_response, task_to_list_response, normalize_priority_value, get_priority_rank, priority_rank_expr
-
+from app.services.websocket_manager import (broadcast_task_assigned,
+                                            broadcast_task_created,
+                                            broadcast_task_deleted,
+                                            broadcast_task_status_changed,
+                                            broadcast_task_updated)
+from app.utils import (get_priority_rank, normalize_priority_value,
+                       priority_rank_expr, task_to_list_response,
+                       task_to_response)
 
 router = APIRouter(prefix="/api/tasks", tags=["Tasks"])
 logger = logging.getLogger(__name__)
@@ -48,23 +42,26 @@ async def create_task(
     task: TaskCreate,
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("create_tasks")),
-    task_service=Depends(get_task_service)
+    task_service=Depends(get_task_service),
 ):
     """Создать новую заявку"""
-    if task.assigned_user_id and not check_permission(db, user, 'assign_tasks'):
+    if task.assigned_user_id and not check_permission(db, user, "assign_tasks"):
         raise HTTPException(status_code=403, detail="Нет прав на назначение задач")
 
     # Multi-tenant: проверка лимита заявок организации
     if user.organization_id and user.organization:
         org = user.organization
         if org.max_tasks:
-            current_count = db.query(func.count(TaskModel.id)).filter(
-                TaskModel.organization_id == user.organization_id
-            ).scalar() or 0
+            current_count = (
+                db.query(func.count(TaskModel.id))
+                .filter(TaskModel.organization_id == user.organization_id)
+                .scalar()
+                or 0
+            )
             if current_count >= org.max_tasks:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Достигнут лимит заявок организации ({org.max_tasks})"
+                    detail=f"Достигнут лимит заявок организации ({org.max_tasks})",
                 )
 
     try:
@@ -80,13 +77,16 @@ async def create_task(
 
     # WebSocket broadcast
     import asyncio
-    asyncio.ensure_future(broadcast_task_created(
-        task_id=db_task.id,
-        task_number=db_task.task_number or "",
-        title=db_task.title or "",
-        user_id=user.id,
-        organization_id=db_task.organization_id,
-    ))
+
+    asyncio.ensure_future(
+        broadcast_task_created(
+            task_id=db_task.id,
+            task_number=db_task.task_number or "",
+            title=db_task.title or "",
+            user_id=user.id,
+            organization_id=db_task.organization_id,
+        )
+    )
 
     return task_to_response(db_task)
 
@@ -102,23 +102,23 @@ async def get_tasks(
     address_id: Optional[int] = None,
     sort: Optional[str] = None,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(require_permission("view_tasks"))
+    user: UserModel = Depends(require_permission("view_tasks")),
 ):
     """Получить список заявок с пагинацией
-    
+
     Требует авторизации. Возвращает 401 если пользователь не авторизован или удалён.
-    
+
     - Workers: видят только свои заявки
     - Dispatchers/Admins: видят все заявки (можно фильтровать по assignee_id)
     """
     # Проверка права на просмотр заявок
-    
+
     query = db.query(TaskModel)
-    
+
     # Multi-tenant: фильтрация по организации
     tenant = TenantFilter(user)
     query = tenant.apply(query, TaskModel)
-    
+
     if status:
         query = query.filter(TaskModel.status.in_([item.value for item in status]))
 
@@ -126,7 +126,9 @@ async def get_tasks(
         priority_values = []
         for raw_priority in priority:
             try:
-                normalized_priority = normalize_priority_value(raw_priority, default=None, strict=True)
+                normalized_priority = normalize_priority_value(
+                    raw_priority, default=None, strict=True
+                )
             except ValueError:
                 normalized_priority = None
             if normalized_priority:
@@ -147,14 +149,18 @@ async def get_tasks(
             TaskModel.customer_phone.ilike(like_pat),
         ]
         query = query.filter(or_(*like_clauses))
-    
+
     if address_id:
-        address = tenant.apply(db.query(AddressModel), AddressModel).filter(AddressModel.id == address_id).first()
+        address = (
+            tenant.apply(db.query(AddressModel), AddressModel)
+            .filter(AddressModel.id == address_id)
+            .first()
+        )
         if address:
             filters = build_task_filters_for_address(address)
             if filters:
                 query = query.filter(or_(*filters))
-    
+
     # Workers see only their tasks
     # Dispatchers and Admins can see all (optionally filter by assignee_id)
     if user.role == UserRole.WORKER.value:
@@ -162,12 +168,15 @@ async def get_tasks(
     elif assignee_id:
         query = query.filter(TaskModel.assigned_user_id.in_(assignee_id))
     # else: admin/dispatcher without filter - show all
-    
+
     # Считаем общее количество
     total = query.count()
 
-    sort_value = (sort or '').strip().lower()
-    prioritize_unread_notifications = user.role in {UserRole.ADMIN.value, UserRole.DISPATCHER.value}
+    sort_value = (sort or "").strip().lower()
+    prioritize_unread_notifications = user.role in {
+        UserRole.ADMIN.value,
+        UserRole.DISPATCHER.value,
+    }
     has_unread_task_notification = (
         db.query(NotificationModel.id)
         .filter(
@@ -178,40 +187,49 @@ async def get_tasks(
         .exists()
     )
 
-    if sort_value == 'created_at_asc':
+    if sort_value == "created_at_asc":
         order_by = [TaskModel.created_at.asc()]
-    elif sort_value == 'created_at_desc':
+    elif sort_value == "created_at_desc":
         order_by = [
-            *( [case((has_unread_task_notification, 0), else_=1)] if prioritize_unread_notifications else [] ),
+            *(
+                [case((has_unread_task_notification, 0), else_=1)]
+                if prioritize_unread_notifications
+                else []
+            ),
             TaskModel.created_at.desc(),
         ]
     else:
         order_by = [
-            *( [case((has_unread_task_notification, 0), else_=1)] if prioritize_unread_notifications else [] ),
+            *(
+                [case((has_unread_task_notification, 0), else_=1)]
+                if prioritize_unread_notifications
+                else []
+            ),
             priority_rank_expr(TaskModel.priority).desc(),
             TaskModel.created_at.desc(),
         ]
-    
+
     # Применяем пагинацию
     tasks = query.order_by(*order_by).offset((page - 1) * size).limit(size).all()
-    
+
     return PaginatedResponse(
         items=[task_to_list_response(t) for t in tasks],
         total=total,
         page=page,
         size=size,
-        pages=(total + size - 1) // size
+        pages=(total + size - 1) // size,
     )
 
 
 @router.get("/{task_id}", response_model=TaskResponse)
 async def get_task(
     task_id: int,
-    access: TaskAccess = Depends(require_task_access("view_tasks", worker_detail="Нет доступа к этой заявке"))
+    access: TaskAccess = Depends(
+        require_task_access("view_tasks", worker_detail="Нет доступа к этой заявке")
+    ),
 ):
     """Получить заявку по ID"""
-    
-    
+
     return task_to_response(access.task)
 
 
@@ -219,11 +237,14 @@ async def get_task(
 async def update_task_status(
     task_id: int,
     status_update: TaskStatusUpdate,
-    access: TaskAccess = Depends(require_task_access("change_task_status", worker_detail="Нет доступа к этой заявке")),
-    task_service=Depends(get_task_service)
+    access: TaskAccess = Depends(
+        require_task_access(
+            "change_task_status", worker_detail="Нет доступа к этой заявке"
+        )
+    ),
+    task_service=Depends(get_task_service),
 ):
     """Изменить статус заявки."""
-
 
     old_status = access.task.status
     try:
@@ -231,21 +252,24 @@ async def update_task_status(
             task_id=task_id,
             new_status=status_update.status.value,
             comment_text=status_update.comment,
-            user=access.user
+            user=access.user,
         )
     except TaskServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
     # WebSocket broadcast
     import asyncio
-    asyncio.ensure_future(broadcast_task_status_changed(
-        task_id=task_id,
-        task_number=updated_task.task_number or "",
-        old_status=old_status,
-        new_status=status_update.status.value,
-        user_id=access.user.id,
-        organization_id=updated_task.organization_id,
-    ))
+
+    asyncio.ensure_future(
+        broadcast_task_status_changed(
+            task_id=task_id,
+            task_number=updated_task.task_number or "",
+            old_status=old_status,
+            new_status=status_update.status.value,
+            user_id=access.user.id,
+            organization_id=updated_task.organization_id,
+        )
+    )
 
     return task_to_response(updated_task)
 
@@ -255,7 +279,7 @@ async def delete_task(
     task_id: int,
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("delete_tasks")),
-    task_service=Depends(get_task_service)
+    task_service=Depends(get_task_service),
 ):
     """Удалить заявку"""
     tenant = TenantFilter(user)
@@ -272,12 +296,15 @@ async def delete_task(
 
     # WebSocket broadcast
     import asyncio
-    asyncio.ensure_future(broadcast_task_deleted(
-        task_id=task_id,
-        task_number=task_number,
-        user_id=user.id,
-        organization_id=task_obj.organization_id if task_obj else None,
-    ))
+
+    asyncio.ensure_future(
+        broadcast_task_deleted(
+            task_id=task_id,
+            task_number=task_number,
+            user_id=user.id,
+            organization_id=task_obj.organization_id if task_obj else None,
+        )
+    )
 
     return {"message": "Task deleted", "id": task_id}
 
@@ -286,17 +313,18 @@ async def delete_task(
 async def update_planned_date(
     task_id: int,
     planned_date_update: PlannedDateUpdate,
-    access: TaskAccess = Depends(require_task_access("edit_tasks", worker_detail="Нет доступа к этой заявке")),
-    task_service=Depends(get_task_service)
+    access: TaskAccess = Depends(
+        require_task_access("edit_tasks", worker_detail="Нет доступа к этой заявке")
+    ),
+    task_service=Depends(get_task_service),
 ):
     """Изменить плановую дату заявки."""
-
 
     try:
         updated_task = task_service.update_planned_date(
             task_id=task_id,
             planned_date=planned_date_update.planned_date,
-            user=access.user
+            user=access.user,
         )
     except TaskServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
@@ -308,51 +336,55 @@ async def update_planned_date(
 # Comments
 # ============================================================================
 
+
 @router.post("/{task_id}/comments", response_model=CommentResponse)
 async def add_comment(
     task_id: int,
     comment: CommentCreate,
-    access: TaskAccess = Depends(require_task_access("add_comments", worker_detail="Нет доступа к этой заявке")),
-    db: Session = Depends(get_db)
+    access: TaskAccess = Depends(
+        require_task_access("add_comments", worker_detail="Нет доступа к этой заявке")
+    ),
+    db: Session = Depends(get_db),
 ):
     """Добавить комментарий"""
     task = access.task
     user = access.user
-    
+
     # Use full_name or fallback to username
     author = user.full_name or user.username
-    
+
     db_comment = CommentModel(
-        task_id=task_id,
-        text=comment.text,
-        author=author,
-        author_id=user.id
+        task_id=task_id, text=comment.text, author=author, author_id=user.id
     )
     db.add(db_comment)
     db.commit()
     db.refresh(db_comment)
-    
+
     # Send push notification to assigned user (if not the author)
     from app.utils import send_comment_notification
+
     send_comment_notification(task, comment.text, user.id)
-    
+
     return db_comment
 
 
 @router.get("/{task_id}/comments", response_model=List[CommentResponse])
 async def get_comments(
     task_id: int,
-    access: TaskAccess = Depends(require_task_access("view_comments", worker_detail="Нет доступа к этой заявке")),
-    db: Session = Depends(get_db)
+    access: TaskAccess = Depends(
+        require_task_access("view_comments", worker_detail="Нет доступа к этой заявке")
+    ),
+    db: Session = Depends(get_db),
 ):
     """Получить комментарии"""
     # Проверка права на просмотр комментариев
-    
-    
-    
-    return db.query(CommentModel).filter(
-        CommentModel.task_id == task_id
-    ).order_by(CommentModel.created_at.desc()).all()
+
+    return (
+        db.query(CommentModel)
+        .filter(CommentModel.task_id == task_id)
+        .order_by(CommentModel.created_at.desc())
+        .all()
+    )
 
 
 @router.patch("/{task_id}/assign", response_model=TaskResponse)
@@ -361,7 +393,7 @@ async def assign_task(
     assignee_data: TaskAssignRequest,
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("assign_tasks")),
-    task_service=Depends(get_task_service)
+    task_service=Depends(get_task_service),
 ):
     """Назначить заявку исполнителю."""
     tenant = TenantFilter(user)
@@ -371,10 +403,16 @@ async def assign_task(
     tenant.enforce_access(task_obj, detail="Нет доступа к этой заявке")
 
     if assignee_data.assigned_user_id is not None:
-        assignee = db.query(UserModel).filter(UserModel.id == assignee_data.assigned_user_id).first()
+        assignee = (
+            db.query(UserModel)
+            .filter(UserModel.id == assignee_data.assigned_user_id)
+            .first()
+        )
         if not assignee:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
-        tenant.enforce_access(assignee, detail="Нельзя назначить пользователя из другой организации")
+        tenant.enforce_access(
+            assignee, detail="Нельзя назначить пользователя из другой организации"
+        )
 
     try:
         task = task_service.assign(task_id, assignee_data.assigned_user_id, user)
@@ -384,16 +422,23 @@ async def assign_task(
     # WebSocket broadcast
     if assignee_data.assigned_user_id:
         import asyncio
-        assignee = db.query(UserModel).filter(UserModel.id == assignee_data.assigned_user_id).first()
+
+        assignee = (
+            db.query(UserModel)
+            .filter(UserModel.id == assignee_data.assigned_user_id)
+            .first()
+        )
         assignee_name = (assignee.full_name or assignee.username) if assignee else ""
-        asyncio.ensure_future(broadcast_task_assigned(
-            task_id=task_id,
-            task_number=task.task_number or "",
-            assigned_user_id=assignee_data.assigned_user_id,
-            assigned_user_name=assignee_name,
-            user_id=user.id,
-            organization_id=task.organization_id,
-        ))
+        asyncio.ensure_future(
+            broadcast_task_assigned(
+                task_id=task_id,
+                task_number=task.task_number or "",
+                assigned_user_id=assignee_data.assigned_user_id,
+                assigned_user_name=assignee_name,
+                user_id=user.id,
+                organization_id=task.organization_id,
+            )
+        )
 
     return task_to_response(task)
 
@@ -402,38 +447,33 @@ async def assign_task(
 # Task Parser (из сообщений диспетчерской)
 # ============================================================================
 
-from app.schemas import (
-    ParseTaskRequest, ParsedTaskResponse,
-    CreateTaskFromTextRequest, CreateTaskFromTextResponse,
-)
+from app.schemas import (CreateTaskFromTextRequest, CreateTaskFromTextResponse,
+                         ParsedTaskResponse, ParseTaskRequest)
 
 
 @router.post("/parse", response_model=ParsedTaskResponse)
 async def parse_task_text(
     request: ParseTaskRequest,
-    user: UserModel = Depends(require_permission("create_tasks"))
+    user: UserModel = Depends(require_permission("create_tasks")),
 ):
     """
     Парсинг текста сообщения диспетчерской в структуру заявки.
-    
+
     Поддерживаемые форматы:
     - Диспетчерский: №1173544 Текущая. Адрес, подъезд 1. Категория. Описание. кв.45 +79110000000
     - Стандартный: Адрес\\nОписание
-    
+
     Возвращает распарсенные данные для предварительного просмотра перед созданием.
     """
     if not request.text or len(request.text.strip()) < 5:
         return ParsedTaskResponse(
-            success=False,
-            error="Текст сообщения слишком короткий"
+            success=False, error="Текст сообщения слишком короткий"
         )
-    
+
     result = parse_dispatcher_message(request.text)
-    
+
     return ParsedTaskResponse(
-        success=result["success"],
-        data=result.get("data"),
-        error=result.get("error")
+        success=result["success"], data=result.get("data"), error=result.get("error")
     )
 
 
@@ -441,45 +481,44 @@ async def parse_task_text(
 async def create_task_from_text(
     request: CreateTaskFromTextRequest,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(require_permission("create_tasks"))
+    user: UserModel = Depends(require_permission("create_tasks")),
 ):
     """
     Создание заявки из текстового сообщения (для ботов и импорта).
-    
+
     Парсит текст, извлекает данные и создаёт заявку одним запросом.
-    
+
     Поддерживаемые форматы:
     - Диспетчерский: №1173544 Текущая. Адрес, подъезд 1. Категория. Описание. кв.45 +79110000000
     - Стандартный: Адрес\\nОписание
-    
+
     Args:
         text: Текст сообщения
         source: Источник (telegram, web)
         sender: Отправитель (для логирования)
         assigned_user_id: ID исполнителя для назначения
-    
+
     Returns:
         Созданная заявка или ошибка парсинга
     """
     if not request.text or len(request.text.strip()) < 5:
         return CreateTaskFromTextResponse(
-            success=False,
-            error="Текст сообщения слишком короткий"
+            success=False, error="Текст сообщения слишком короткий"
         )
-    if request.assigned_user_id and not check_permission(db, user, 'assign_tasks'):
+    if request.assigned_user_id and not check_permission(db, user, "assign_tasks"):
         raise HTTPException(status_code=403, detail="Нет прав на назначение задач")
-    
+
     # Парсим текст
     parse_result = parse_dispatcher_message(request.text)
-    
+
     if not parse_result["success"]:
         return CreateTaskFromTextResponse(
             success=False,
-            error=parse_result.get("error", "Не удалось распознать формат сообщения")
+            error=parse_result.get("error", "Не удалось распознать формат сообщения"),
         )
-    
+
     parsed = parse_result["data"]
-    
+
     # Добавляем информацию об источнике в описание
     description = parsed.get("description", "")
     if request.source or request.sender:
@@ -489,15 +528,15 @@ async def create_task_from_text(
         if request.sender:
             source_info.append(f"От: {request.sender}")
         description = f"{description}\n---\n{' | '.join(source_info)}"
-    
+
     # Геокодируем адрес
     address = parsed.get("address", "")
     lat, lon = geocoding_service.geocode(address)
-    
+
     # Определяем номер заявки
     external_id = parsed.get("external_id")
     task_number = external_id  # Используем номер из диспетчерской если есть
-    
+
     # Проверяем исполнителя
     assigned_id = request.assigned_user_id
     tenant = TenantFilter(user)
@@ -506,8 +545,11 @@ async def create_task_from_text(
         if not assigned_user:
             assigned_id = None
         else:
-            tenant.enforce_access(assigned_user, detail="Нельзя назначить пользователя из другой организации")
-    
+            tenant.enforce_access(
+                assigned_user,
+                detail="Нельзя назначить пользователя из другой организации",
+            )
+
     # Создаём заявку
     db_task = TaskModel(
         title=parsed.get("title", "Новая заявка"),
@@ -519,7 +561,7 @@ async def create_task_from_text(
         priority=parsed.get("priority", TaskPriority.CURRENT.value),
         assigned_user_id=assigned_id,
     )
-    
+
     db.add(db_task)
     db.commit()
     db.refresh(db_task)
@@ -527,18 +569,15 @@ async def create_task_from_text(
     tenant.set_org_id(db_task)
     db.commit()
     db.refresh(db_task)
-    
+
     # Генерируем номер заявки
     db_task.task_number = task_number if task_number else f"Z-{db_task.id:05d}"
     db.commit()
     db.refresh(db_task)
-    
+
     source_log = f" [{request.source}]" if request.source else ""
     logger.info(f"✅ Заявка №{db_task.task_number} создана из текста{source_log}")
-    
-    return CreateTaskFromTextResponse(
-        success=True,
-        task=task_to_response(db_task),
-        parsed_data=parsed
-    )
 
+    return CreateTaskFromTextResponse(
+        success=True, task=task_to_response(db_task), parsed_data=parsed
+    )

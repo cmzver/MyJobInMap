@@ -1,6 +1,9 @@
 """Tests for rate limiter service."""
+
 import time
+
 import pytest
+
 from app.services.rate_limiter import RateLimiter
 
 
@@ -16,7 +19,7 @@ class TestRateLimiter:
     def test_first_attempts_allowed(self):
         """Test that initial attempts are allowed."""
         limiter = RateLimiter(max_attempts=3, window_seconds=60)
-        
+
         # First 3 attempts should be allowed
         for i in range(3):
             is_allowed, remaining = limiter.is_allowed("192.168.1.1")
@@ -27,12 +30,12 @@ class TestRateLimiter:
     def test_limit_exceeded(self):
         """Test that attempts are blocked after limit exceeded."""
         limiter = RateLimiter(max_attempts=2, window_seconds=60)
-        
+
         # First 2 attempts allowed
         for _ in range(2):
             is_allowed, _ = limiter.is_allowed("192.168.1.1")
             assert is_allowed is True
-        
+
         # 3rd attempt blocked
         is_allowed, remaining = limiter.is_allowed("192.168.1.1")
         assert is_allowed is False
@@ -41,18 +44,18 @@ class TestRateLimiter:
     def test_window_reset(self):
         """Test that window resets after time passes."""
         limiter = RateLimiter(max_attempts=1, window_seconds=1)
-        
+
         # First attempt allowed
         is_allowed, _ = limiter.is_allowed("192.168.1.1")
         assert is_allowed is True
-        
+
         # Second attempt immediately - blocked
         is_allowed, _ = limiter.is_allowed("192.168.1.1")
         assert is_allowed is False
-        
+
         # Wait for window to pass
         time.sleep(1.1)
-        
+
         # Next attempt should be allowed
         is_allowed, _ = limiter.is_allowed("192.168.1.1")
         assert is_allowed is True
@@ -60,19 +63,19 @@ class TestRateLimiter:
     def test_different_ips_independent(self):
         """Test that different IPs have independent limits."""
         limiter = RateLimiter(max_attempts=1, window_seconds=60)
-        
+
         # IP 1 - uses first attempt
         is_allowed, _ = limiter.is_allowed("192.168.1.1")
         assert is_allowed is True
-        
+
         # IP 1 - second attempt blocked
         is_allowed, _ = limiter.is_allowed("192.168.1.1")
         assert is_allowed is False
-        
+
         # IP 2 - should have fresh attempt
         is_allowed, _ = limiter.is_allowed("192.168.1.2")
         assert is_allowed is True
-        
+
         # IP 2 - second attempt blocked
         is_allowed, _ = limiter.is_allowed("192.168.1.2")
         assert is_allowed is False
@@ -80,12 +83,12 @@ class TestRateLimiter:
     def test_reset(self):
         """Test resetting attempts for an IP."""
         limiter = RateLimiter(max_attempts=1, window_seconds=60)
-        
+
         # Use up the attempt
         limiter.is_allowed("192.168.1.1")
         is_allowed, _ = limiter.is_allowed("192.168.1.1")
         assert is_allowed is False
-        
+
         # Reset and try again
         limiter.reset("192.168.1.1")
         is_allowed, _ = limiter.is_allowed("192.168.1.1")
@@ -94,10 +97,10 @@ class TestRateLimiter:
     def test_get_retry_after(self):
         """Test getting retry-after time."""
         limiter = RateLimiter(max_attempts=1, window_seconds=2)
-        
+
         # Use up the attempt
         limiter.is_allowed("192.168.1.1")
-        
+
         # Get retry_after
         retry_after = limiter.get_retry_after("192.168.1.1")
         assert 0 < retry_after <= 2
@@ -105,12 +108,12 @@ class TestRateLimiter:
     def test_get_stats(self):
         """Test getting statistics."""
         limiter = RateLimiter(max_attempts=2, window_seconds=60)
-        
+
         # Make some attempts
         limiter.is_allowed("192.168.1.1")
         limiter.is_allowed("192.168.1.1")
         limiter.is_allowed("192.168.1.2")
-        
+
         stats = limiter.get_stats()
         assert "tracked_ips" in stats
         assert "active_windows" in stats
@@ -121,14 +124,14 @@ class TestRateLimiter:
     def test_clear_all(self):
         """Test clearing all attempts."""
         limiter = RateLimiter(max_attempts=1, window_seconds=60)
-        
+
         # Make attempts for multiple IPs
         limiter.is_allowed("192.168.1.1")
         limiter.is_allowed("192.168.1.2")
-        
+
         stats = limiter.get_stats()
         assert stats["tracked_ips"] == 2
-        
+
         # Clear all
         limiter.clear_all()
         stats = limiter.get_stats()
@@ -141,6 +144,7 @@ class TestRateLimiterThreadSafety:
     def test_concurrent_access_same_ip(self):
         """Multiple threads accessing same IP — total allowed <= max_attempts."""
         import threading
+
         limiter = RateLimiter(max_attempts=5, window_seconds=60)
         allowed_count = 0
         lock = threading.Lock()
@@ -163,6 +167,7 @@ class TestRateLimiterThreadSafety:
     def test_concurrent_different_ips(self):
         """Each thread uses its own IP — all first attempts allowed."""
         import threading
+
         limiter = RateLimiter(max_attempts=1, window_seconds=60)
         results = {}
         lock = threading.Lock()
@@ -172,7 +177,9 @@ class TestRateLimiterThreadSafety:
             with lock:
                 results[ip] = is_ok
 
-        threads = [threading.Thread(target=worker, args=(f"10.0.0.{i}",)) for i in range(20)]
+        threads = [
+            threading.Thread(target=worker, args=(f"10.0.0.{i}",)) for i in range(20)
+        ]
         for t in threads:
             t.start()
         for t in threads:
@@ -191,6 +198,7 @@ class TestRateLimiterOverflow:
 
         # Fill with expired entries
         import time
+
         for i in range(60):
             limiter.is_allowed(f"10.0.{i // 256}.{i % 256}")
 
@@ -242,4 +250,3 @@ class TestRateLimiterEdgeCases:
         is_ok2, _ = limiter.is_allowed("ip")
         # Both should pass since window is 0 (all attempts are expired immediately)
         assert is_ok1 is True
-

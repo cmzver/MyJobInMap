@@ -2,12 +2,15 @@
 
 from fastapi.testclient import TestClient
 
-from app.models import NotificationModel, OrganizationModel, SupportTicketModel, UserModel, UserRole
+from app.models import (NotificationModel, OrganizationModel,
+                        SupportTicketModel, UserModel, UserRole)
 from app.services.auth import get_password_hash
 
 
 def _login_headers(client: TestClient, username: str, password: str) -> dict[str, str]:
-    response = client.post("/api/auth/login", data={"username": username, "password": password})
+    response = client.post(
+        "/api/auth/login", data={"username": username, "password": password}
+    )
     assert response.status_code == 200
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
@@ -36,13 +39,17 @@ def _create_org_user(
 
 
 def test_login_exposes_default_admin_as_superadmin(client: TestClient, admin_user):
-    response = client.post("/api/auth/login", data={"username": "admin", "password": "admin"})
+    response = client.post(
+        "/api/auth/login", data={"username": "admin", "password": "admin"}
+    )
 
     assert response.status_code == 200
     assert response.json()["role"] == "superadmin"
 
 
-def test_user_can_create_list_and_view_own_support_ticket(client_with_worker, worker_user):
+def test_user_can_create_list_and_view_own_support_ticket(
+    client_with_worker, worker_user
+):
     response = client_with_worker.post(
         "/api/support/tickets",
         json={
@@ -70,7 +77,9 @@ def test_user_can_create_list_and_view_own_support_ticket(client_with_worker, wo
     assert detail_response.json()["comments"] == []
 
 
-def test_superadmin_can_view_all_update_status_and_comment(client: TestClient, db_session, admin_user):
+def test_superadmin_can_view_all_update_status_and_comment(
+    client: TestClient, db_session, admin_user
+):
     worker = _create_org_user(
         db_session,
         username="support_worker",
@@ -96,7 +105,10 @@ def test_superadmin_can_view_all_update_status_and_comment(client: TestClient, d
 
     update_response = client.patch(
         f"/api/support/tickets/{ticket.id}",
-        json={"status": "resolved", "admin_response": "Fix will be included in the next release."},
+        json={
+            "status": "resolved",
+            "admin_response": "Fix will be included in the next release.",
+        },
         headers=headers,
     )
     assert update_response.status_code == 200
@@ -133,7 +145,10 @@ def test_superadmin_can_view_all_update_status_and_comment(client: TestClient, d
     )
     assert len(worker_notifications) == 2
     assert all(notification.type == "support" for notification in worker_notifications)
-    assert all(notification.support_ticket_id == ticket.id for notification in worker_notifications)
+    assert all(
+        notification.support_ticket_id == ticket.id
+        for notification in worker_notifications
+    )
 
 
 def test_user_can_comment_own_ticket_but_cannot_manage_other_tickets(
@@ -184,7 +199,10 @@ def test_user_can_comment_own_ticket_but_cannot_manage_other_tickets(
 
     detail_response = client.get(f"/api/support/tickets/{ticket.id}", headers=headers)
     assert detail_response.status_code == 200
-    assert detail_response.json()["comments"][-1]["body"] == "Added exact reproduction steps."
+    assert (
+        detail_response.json()["comments"][-1]["body"]
+        == "Added exact reproduction steps."
+    )
 
     admin_notifications = (
         db_session.query(NotificationModel)
@@ -196,7 +214,9 @@ def test_user_can_comment_own_ticket_but_cannot_manage_other_tickets(
     assert admin_notifications[0].type == "support"
     assert admin_notifications[0].support_ticket_id == ticket.id
 
-    mark_read_response = client.patch(f"/api/notifications/support-ticket/{ticket.id}/read", headers=headers)
+    mark_read_response = client.patch(
+        f"/api/notifications/support-ticket/{ticket.id}/read", headers=headers
+    )
     assert mark_read_response.status_code == 200
     assert mark_read_response.json()["updated"] == 0
 
@@ -204,7 +224,9 @@ def test_user_can_comment_own_ticket_but_cannot_manage_other_tickets(
     assert list_response.status_code == 200
     assert [item["id"] for item in list_response.json()] == [ticket.id]
 
-    foreign_detail = client.get(f"/api/support/tickets/{foreign_ticket.id}", headers=headers)
+    foreign_detail = client.get(
+        f"/api/support/tickets/{foreign_ticket.id}", headers=headers
+    )
     assert foreign_detail.status_code == 404
 
     update_response = client.patch(
@@ -215,7 +237,9 @@ def test_user_can_comment_own_ticket_but_cannot_manage_other_tickets(
     assert update_response.status_code == 403
 
 
-def test_support_ticket_creator_role_is_normalized_for_public_api(client: TestClient, db_session, admin_user):
+def test_support_ticket_creator_role_is_normalized_for_public_api(
+    client: TestClient, db_session, admin_user
+):
     org = OrganizationModel(name="Support Org", slug="support-org")
     db_session.add(org)
     db_session.commit()
@@ -247,7 +271,9 @@ def test_support_ticket_creator_role_is_normalized_for_public_api(client: TestCl
     assert response.json()["created_by"]["role"] == "dispatcher"
 
 
-def test_support_notifications_can_be_marked_read_per_ticket(client: TestClient, db_session, admin_user):
+def test_support_notifications_can_be_marked_read_per_ticket(
+    client: TestClient, db_session, admin_user
+):
     worker = _create_org_user(
         db_session,
         username="support_reader",
@@ -286,7 +312,9 @@ def test_support_notifications_can_be_marked_read_per_ticket(client: TestClient,
     )
     assert unread_before == 1
 
-    mark_read_response = client.patch(f"/api/notifications/support-ticket/{ticket.id}/read", headers=admin_headers)
+    mark_read_response = client.patch(
+        f"/api/notifications/support-ticket/{ticket.id}/read", headers=admin_headers
+    )
     assert mark_read_response.status_code == 200
     assert mark_read_response.json()["updated"] == 1
 
@@ -303,7 +331,9 @@ def test_support_notifications_can_be_marked_read_per_ticket(client: TestClient,
     assert unread_after == 0
 
 
-def test_legacy_support_notifications_are_inferred_and_marked_read(client: TestClient, db_session):
+def test_legacy_support_notifications_are_inferred_and_marked_read(
+    client: TestClient, db_session
+):
     worker = _create_org_user(
         db_session,
         username="support_legacy_worker",
@@ -334,13 +364,17 @@ def test_legacy_support_notifications_are_inferred_and_marked_read(client: TestC
 
     headers = _login_headers(client, worker.username, "pass123")
 
-    notifications_response = client.get("/api/notifications?is_read=false", headers=headers)
+    notifications_response = client.get(
+        "/api/notifications?is_read=false", headers=headers
+    )
     assert notifications_response.status_code == 200
     notifications = notifications_response.json()
     assert len(notifications) == 1
     assert notifications[0]["support_ticket_id"] == ticket.id
 
-    mark_read_response = client.patch(f"/api/notifications/support-ticket/{ticket.id}/read", headers=headers)
+    mark_read_response = client.patch(
+        f"/api/notifications/support-ticket/{ticket.id}/read", headers=headers
+    )
     assert mark_read_response.status_code == 200
     assert mark_read_response.json()["updated"] == 1
 

@@ -3,10 +3,12 @@ Tests for Push Notification Service.
 =====================================
 All Firebase interactions are mocked.
 """
+
 import threading
 import time
+from unittest.mock import MagicMock, PropertyMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, PropertyMock
 
 import app.services.push as push_module
 
@@ -27,12 +29,17 @@ class TestInitFirebase:
     def test_init_firebase_success(self):
         """Returns True when credentials are valid."""
         mock_app = MagicMock()
-        with patch("os.path.exists", return_value=True), \
-             patch.dict("sys.modules", {
-                 "firebase_admin": MagicMock(initialize_app=MagicMock(return_value=mock_app)),
-                 "firebase_admin.credentials": MagicMock(),
-             }):
+        with patch("os.path.exists", return_value=True), patch.dict(
+            "sys.modules",
+            {
+                "firebase_admin": MagicMock(
+                    initialize_app=MagicMock(return_value=mock_app)
+                ),
+                "firebase_admin.credentials": MagicMock(),
+            },
+        ):
             import importlib
+
             # Need to reload to pick up mocked modules
             result = push_module.init_firebase()
             # After successful call, firebase_app should be set
@@ -42,12 +49,17 @@ class TestInitFirebase:
         """Returns False when Firebase SDK raises exception."""
         with patch("os.path.exists", return_value=True):
             # Mock the import to raise
-            orig_import = __builtins__.__import__ if hasattr(__builtins__, '__import__') else __import__
+            orig_import = (
+                __builtins__.__import__
+                if hasattr(__builtins__, "__import__")
+                else __import__
+            )
+
             def mock_import(name, *args, **kwargs):
                 if name == "firebase_admin":
                     raise ImportError("No firebase")
                 return orig_import(name, *args, **kwargs)
-            
+
             with patch("builtins.__import__", side_effect=mock_import):
                 result = push_module.init_firebase()
                 # Should return False or handle gracefully
@@ -113,7 +125,9 @@ class TestSendPushBackground:
 
     def test_background_non_blocking(self):
         """send_push_background returns immediately."""
-        with patch.object(push_module, "_send_push_sync", side_effect=lambda *a, **kw: time.sleep(0.5)):
+        with patch.object(
+            push_module, "_send_push_sync", side_effect=lambda *a, **kw: time.sleep(0.5)
+        ):
             start = time.time()
             push_module.send_push_background("T", "B")
             elapsed = time.time() - start

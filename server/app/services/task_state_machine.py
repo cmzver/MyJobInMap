@@ -1,4 +1,5 @@
 """Task status transitions validator."""
+
 import json
 from pathlib import Path
 from typing import Dict, Set
@@ -11,7 +12,11 @@ def _get_transitions_path() -> Path:
     current_path = Path(__file__).resolve()
     candidate_paths = [
         current_path.parents[1] / "config" / "taskStatusTransitions.json",
-        current_path.parents[3] / "portal" / "src" / "config" / "taskStatusTransitions.json",
+        current_path.parents[3]
+        / "portal"
+        / "src"
+        / "config"
+        / "taskStatusTransitions.json",
     ]
 
     for candidate_path in candidate_paths:

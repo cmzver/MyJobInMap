@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 """Скрипт для проверки подъездов в базе данных"""
-import sys
+
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app.models import SessionLocal, AddressModel
+from app.models import AddressModel, SessionLocal
 
 db = SessionLocal()
 
@@ -28,7 +30,11 @@ else:
 
 print()
 print(f"Total addresses: {db.query(AddressModel).count()}")
-print(f"With corpus: {db.query(AddressModel).filter(AddressModel.corpus.isnot(None), AddressModel.corpus != '').count()}")
-print(f"With entrance: {db.query(AddressModel).filter(AddressModel.entrance.isnot(None), AddressModel.entrance != '').count()}")
+print(
+    f"With corpus: {db.query(AddressModel).filter(AddressModel.corpus.isnot(None), AddressModel.corpus != '').count()}"
+)
+print(
+    f"With entrance: {db.query(AddressModel).filter(AddressModel.entrance.isnot(None), AddressModel.entrance != '').count()}"
+)
 
 db.close()

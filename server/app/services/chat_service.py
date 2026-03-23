@@ -6,37 +6,22 @@ Chat Service
 
 import logging
 import re
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func, and_
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import UserModel
-from app.models.chat import (
-    ConversationType,
-    ConversationMemberRole,
-    MessageType,
-    ConversationModel,
-    ConversationMemberModel,
-    MessageModel,
-    MessageAttachmentModel,
-    MessageReactionModel,
-    MessageMentionModel,
-)
-from app.schemas.chat import (
-    ConversationListItem,
-    ConversationDetailResponse,
-    LastMessagePreview,
-    MemberInfo,
-    MessageResponse,
-    MessageListResponse,
-    AttachmentResponse,
-    ReactionInfo,
-    MentionInfo,
-    ReplyPreview,
-)
+from app.models.chat import (ConversationMemberModel, ConversationMemberRole,
+                             ConversationModel, ConversationType,
+                             MessageAttachmentModel, MessageMentionModel,
+                             MessageModel, MessageReactionModel, MessageType)
+from app.schemas.chat import (AttachmentResponse, ConversationDetailResponse,
+                              ConversationListItem, LastMessagePreview,
+                              MemberInfo, MentionInfo, MessageListResponse,
+                              MessageResponse, ReactionInfo, ReplyPreview)
 from app.utils import build_user_avatar_url
 
 logger = logging.getLogger(__name__)
@@ -67,7 +52,11 @@ def create_conversation(
         if other_id == creator_id:
             raise HTTPException(400, "Нельзя создать чат с самим собой")
         # Проверка: пользователи в одной организации
-        other = db.query(UserModel).filter(UserModel.id == other_id, UserModel.is_active == True).first()  # noqa: E712
+        other = (
+            db.query(UserModel)
+            .filter(UserModel.id == other_id, UserModel.is_active == True)
+            .first()
+        )  # noqa: E712
         if not other:
             raise HTTPException(404, "Пользователь не найден")
         # Idempotent: проверяем существующий direct-чат
@@ -78,20 +67,28 @@ def create_conversation(
     elif conv_type == ConversationType.TASK.value:
         if not task_id:
             raise HTTPException(400, "task_id обязателен для чата по заявке")
-        existing = db.query(ConversationModel).filter(
-            ConversationModel.type == ConversationType.TASK.value,
-            ConversationModel.task_id == task_id,
-        ).first()
+        existing = (
+            db.query(ConversationModel)
+            .filter(
+                ConversationModel.type == ConversationType.TASK.value,
+                ConversationModel.task_id == task_id,
+            )
+            .first()
+        )
         if existing:
             return existing
 
     elif conv_type == ConversationType.ORG_GENERAL.value:
         if not organization_id:
             raise HTTPException(400, "organization_id обязателен для общего чата")
-        existing = db.query(ConversationModel).filter(
-            ConversationModel.type == ConversationType.ORG_GENERAL.value,
-            ConversationModel.organization_id == organization_id,
-        ).first()
+        existing = (
+            db.query(ConversationModel)
+            .filter(
+                ConversationModel.type == ConversationType.ORG_GENERAL.value,
+                ConversationModel.organization_id == organization_id,
+            )
+            .first()
+        )
         if existing:
             return existing
 
@@ -112,23 +109,31 @@ def create_conversation(
     db.flush()
 
     # Добавляем создателя как owner
-    db.add(ConversationMemberModel(
-        conversation_id=conv.id,
-        user_id=creator_id,
-        role=ConversationMemberRole.OWNER.value,
-    ))
+    db.add(
+        ConversationMemberModel(
+            conversation_id=conv.id,
+            user_id=creator_id,
+            role=ConversationMemberRole.OWNER.value,
+        )
+    )
 
     # Добавляем участников
     for uid in member_user_ids:
         if uid == creator_id:
             continue
-        user = db.query(UserModel).filter(UserModel.id == uid, UserModel.is_active == True).first()  # noqa: E712
+        user = (
+            db.query(UserModel)
+            .filter(UserModel.id == uid, UserModel.is_active == True)
+            .first()
+        )  # noqa: E712
         if user:
-            db.add(ConversationMemberModel(
-                conversation_id=conv.id,
-                user_id=uid,
-                role=ConversationMemberRole.MEMBER.value,
-            ))
+            db.add(
+                ConversationMemberModel(
+                    conversation_id=conv.id,
+                    user_id=uid,
+                    role=ConversationMemberRole.MEMBER.value,
+                )
+            )
 
     db.commit()
     db.refresh(conv)
@@ -136,21 +141,35 @@ def create_conversation(
 
 
 def _find_direct_conversation(
-    db: Session, user1_id: int, user2_id: int,
+    db: Session,
+    user1_id: int,
+    user2_id: int,
 ) -> Optional[ConversationModel]:
     """Найти существующий direct-чат между двумя пользователями."""
-    conv_ids_1 = db.query(ConversationMemberModel.conversation_id).filter(
-        ConversationMemberModel.user_id == user1_id,
-    ).scalar_subquery()
-    conv_ids_2 = db.query(ConversationMemberModel.conversation_id).filter(
-        ConversationMemberModel.user_id == user2_id,
-    ).scalar_subquery()
+    conv_ids_1 = (
+        db.query(ConversationMemberModel.conversation_id)
+        .filter(
+            ConversationMemberModel.user_id == user1_id,
+        )
+        .scalar_subquery()
+    )
+    conv_ids_2 = (
+        db.query(ConversationMemberModel.conversation_id)
+        .filter(
+            ConversationMemberModel.user_id == user2_id,
+        )
+        .scalar_subquery()
+    )
 
-    return db.query(ConversationModel).filter(
-        ConversationModel.type == ConversationType.DIRECT.value,
-        ConversationModel.id.in_(conv_ids_1),
-        ConversationModel.id.in_(conv_ids_2),
-    ).first()
+    return (
+        db.query(ConversationModel)
+        .filter(
+            ConversationModel.type == ConversationType.DIRECT.value,
+            ConversationModel.id.in_(conv_ids_1),
+            ConversationModel.id.in_(conv_ids_2),
+        )
+        .first()
+    )
 
 
 def get_user_conversations(
@@ -166,7 +185,9 @@ def get_user_conversations(
         ConversationMemberModel.user_id == user_id,
     )
     if not include_archived:
-        member_q = member_q.filter(ConversationMemberModel.is_archived == False)  # noqa: E712
+        member_q = member_q.filter(
+            ConversationMemberModel.is_archived == False
+        )  # noqa: E712
     members = member_q.all()
 
     member_map = {m.conversation_id: m for m in members}
@@ -175,9 +196,14 @@ def get_user_conversations(
     if not conv_ids:
         return []
 
-    conversations = db.query(ConversationModel).filter(
-        ConversationModel.id.in_(conv_ids),
-    ).order_by(ConversationModel.last_message_at.desc().nullslast()).all()
+    conversations = (
+        db.query(ConversationModel)
+        .filter(
+            ConversationModel.id.in_(conv_ids),
+        )
+        .order_by(ConversationModel.last_message_at.desc().nullslast())
+        .all()
+    )
 
     result: list[ConversationListItem] = []
     for conv in conversations:
@@ -185,14 +211,21 @@ def get_user_conversations(
         conversation_avatar_url = conv.avatar_url
 
         # Last message
-        last_msg = db.query(MessageModel).filter(
-            MessageModel.conversation_id == conv.id,
-            MessageModel.is_deleted == False,  # noqa: E712
-        ).order_by(MessageModel.created_at.desc()).first()
+        last_msg = (
+            db.query(MessageModel)
+            .filter(
+                MessageModel.conversation_id == conv.id,
+                MessageModel.is_deleted == False,  # noqa: E712
+            )
+            .order_by(MessageModel.created_at.desc())
+            .first()
+        )
 
         last_message_preview = None
         if last_msg:
-            sender = db.query(UserModel).filter(UserModel.id == last_msg.sender_id).first()
+            sender = (
+                db.query(UserModel).filter(UserModel.id == last_msg.sender_id).first()
+            )
             text_preview = last_msg.text
             if text_preview and len(text_preview) > 100:
                 text_preview = text_preview[:100] + "…"
@@ -214,51 +247,69 @@ def get_user_conversations(
             unread_q = unread_q.filter(MessageModel.id > member.last_read_message_id)
         unread_count = unread_q.scalar() or 0
 
-        unread_mentions_q = db.query(func.count(MessageMentionModel.id)).join(
-            MessageModel,
-            MessageModel.id == MessageMentionModel.message_id,
-        ).filter(
-            MessageModel.conversation_id == conv.id,
-            MessageModel.is_deleted == False,  # noqa: E712
-            MessageModel.sender_id != user_id,
-            MessageMentionModel.user_id == user_id,
+        unread_mentions_q = (
+            db.query(func.count(MessageMentionModel.id))
+            .join(
+                MessageModel,
+                MessageModel.id == MessageMentionModel.message_id,
+            )
+            .filter(
+                MessageModel.conversation_id == conv.id,
+                MessageModel.is_deleted == False,  # noqa: E712
+                MessageModel.sender_id != user_id,
+                MessageMentionModel.user_id == user_id,
+            )
         )
         if member.last_read_message_id:
-            unread_mentions_q = unread_mentions_q.filter(MessageModel.id > member.last_read_message_id)
+            unread_mentions_q = unread_mentions_q.filter(
+                MessageModel.id > member.last_read_message_id
+            )
         unread_mention_count = unread_mentions_q.scalar() or 0
 
         # Название для direct-чатов — имя собеседника
         display_name = conv.name
         if conv.type == ConversationType.DIRECT.value:
-            other_member = db.query(ConversationMemberModel).filter(
-                ConversationMemberModel.conversation_id == conv.id,
-                ConversationMemberModel.user_id != user_id,
-            ).first()
+            other_member = (
+                db.query(ConversationMemberModel)
+                .filter(
+                    ConversationMemberModel.conversation_id == conv.id,
+                    ConversationMemberModel.user_id != user_id,
+                )
+                .first()
+            )
             if other_member:
-                other_user = db.query(UserModel).filter(UserModel.id == other_member.user_id).first()
+                other_user = (
+                    db.query(UserModel)
+                    .filter(UserModel.id == other_member.user_id)
+                    .first()
+                )
                 if other_user:
                     display_name = other_user.full_name or other_user.username
                     conversation_avatar_url = build_user_avatar_url(other_user)
 
-        result.append(ConversationListItem(
-            id=conv.id,
-            type=conv.type,
-            name=display_name,
-            avatar_url=conversation_avatar_url,
-            task_id=conv.task_id,
-            last_message=last_message_preview,
-            unread_count=unread_count,
-            unread_mention_count=unread_mention_count,
-            is_muted=member.is_muted,
-            is_archived=member.is_archived,
-            updated_at=conv.last_message_at or conv.created_at,
-        ))
+        result.append(
+            ConversationListItem(
+                id=conv.id,
+                type=conv.type,
+                name=display_name,
+                avatar_url=conversation_avatar_url,
+                task_id=conv.task_id,
+                last_message=last_message_preview,
+                unread_count=unread_count,
+                unread_mention_count=unread_mention_count,
+                is_muted=member.is_muted,
+                is_archived=member.is_archived,
+                updated_at=conv.last_message_at or conv.created_at,
+            )
+        )
 
     return result
 
 
 def get_conversation_detail(
-    db: Session, conv_id: int, user_id: int,
+    db: Session,
+    conv_id: int,
+    user_id: int,
 ) -> ConversationDetailResponse:
     """Получить детали чата с участниками. Проверяет membership."""
     conv = _get_conversation_or_404(db, conv_id)
@@ -281,8 +332,11 @@ def get_conversation_detail(
 
 
 def update_conversation(
-    db: Session, conv_id: int, user_id: int,
-    name: Optional[str] = None, avatar_url: Optional[str] = None,
+    db: Session,
+    conv_id: int,
+    user_id: int,
+    name: Optional[str] = None,
+    avatar_url: Optional[str] = None,
 ) -> ConversationModel:
     """Обновить название / аватар чата."""
     conv = _get_conversation_or_404(db, conv_id)
@@ -297,7 +351,7 @@ def update_conversation(
             db,
             conv_id,
             user_id,
-            f"переименовал(а) чат в \"{name}\"",
+            f'переименовал(а) чат в "{name}"',
         )
     if avatar_url is not None:
         conv.avatar_url = avatar_url
@@ -308,7 +362,10 @@ def update_conversation(
 
 
 def add_members(
-    db: Session, conv_id: int, user_ids: list[int], added_by: int,
+    db: Session,
+    conv_id: int,
+    user_ids: list[int],
+    added_by: int,
 ) -> list[MemberInfo]:
     """Добавить участников в groupовой или org_general чат."""
     conv = _get_conversation_or_404(db, conv_id)
@@ -318,22 +375,34 @@ def add_members(
         raise HTTPException(400, "Нельзя добавлять участников в direct-чат")
 
     for uid in user_ids:
-        existing = db.query(ConversationMemberModel).filter(
-            ConversationMemberModel.conversation_id == conv_id,
-            ConversationMemberModel.user_id == uid,
-        ).first()
+        existing = (
+            db.query(ConversationMemberModel)
+            .filter(
+                ConversationMemberModel.conversation_id == conv_id,
+                ConversationMemberModel.user_id == uid,
+            )
+            .first()
+        )
         if existing:
             continue
-        user = db.query(UserModel).filter(UserModel.id == uid, UserModel.is_active == True).first()  # noqa: E712
+        user = (
+            db.query(UserModel)
+            .filter(UserModel.id == uid, UserModel.is_active == True)
+            .first()
+        )  # noqa: E712
         if user:
-            db.add(ConversationMemberModel(
-                conversation_id=conv_id,
-                user_id=uid,
-                role=ConversationMemberRole.MEMBER.value,
-            ))
+            db.add(
+                ConversationMemberModel(
+                    conversation_id=conv_id,
+                    user_id=uid,
+                    role=ConversationMemberRole.MEMBER.value,
+                )
+            )
             # Системное сообщение
             _create_system_message(
-                db, conv_id, added_by,
+                db,
+                conv_id,
+                added_by,
                 f"добавил(а) {user.full_name or user.username} в чат",
             )
 
@@ -342,7 +411,10 @@ def add_members(
 
 
 def remove_member(
-    db: Session, conv_id: int, target_user_id: int, removed_by: int,
+    db: Session,
+    conv_id: int,
+    target_user_id: int,
+    removed_by: int,
 ) -> None:
     """Удалить участника из чата."""
     conv = _get_conversation_or_404(db, conv_id)
@@ -351,10 +423,14 @@ def remove_member(
         raise HTTPException(400, "Нельзя удалять участников из direct-чата")
 
     remover = _ensure_membership(db, conv_id, removed_by)
-    target = db.query(ConversationMemberModel).filter(
-        ConversationMemberModel.conversation_id == conv_id,
-        ConversationMemberModel.user_id == target_user_id,
-    ).first()
+    target = (
+        db.query(ConversationMemberModel)
+        .filter(
+            ConversationMemberModel.conversation_id == conv_id,
+            ConversationMemberModel.user_id == target_user_id,
+        )
+        .first()
+    )
     if not target:
         raise HTTPException(404, "Участник не найден в чате")
     if target.role == ConversationMemberRole.OWNER.value:
@@ -371,7 +447,9 @@ def remove_member(
     db.delete(target)
 
     _create_system_message(
-        db, conv_id, removed_by,
+        db,
+        conv_id,
+        removed_by,
         f"{'вышел(а) из чата' if target_user_id == removed_by else f'удалил(а) {user.full_name or user.username if user else target_user_id} из чата'}",
     )
     db.commit()
@@ -393,16 +471,23 @@ def update_member_role(
     if actor.role != ConversationMemberRole.OWNER.value:
         raise HTTPException(403, "Только owner может менять роли участников")
 
-    if new_role not in (ConversationMemberRole.ADMIN.value, ConversationMemberRole.MEMBER.value):
+    if new_role not in (
+        ConversationMemberRole.ADMIN.value,
+        ConversationMemberRole.MEMBER.value,
+    ):
         raise HTTPException(400, "Допустимы только роли admin и member")
 
     if target_user_id == changed_by:
         raise HTTPException(400, "Нельзя менять собственную роль")
 
-    target = db.query(ConversationMemberModel).filter(
-        ConversationMemberModel.conversation_id == conv_id,
-        ConversationMemberModel.user_id == target_user_id,
-    ).first()
+    target = (
+        db.query(ConversationMemberModel)
+        .filter(
+            ConversationMemberModel.conversation_id == conv_id,
+            ConversationMemberModel.user_id == target_user_id,
+        )
+        .first()
+    )
     if not target:
         raise HTTPException(404, "Участник не найден в чате")
 
@@ -441,10 +526,14 @@ def transfer_ownership(
     if target_user_id == changed_by:
         raise HTTPException(400, "Нельзя передать ownership самому себе")
 
-    target = db.query(ConversationMemberModel).filter(
-        ConversationMemberModel.conversation_id == conv_id,
-        ConversationMemberModel.user_id == target_user_id,
-    ).first()
+    target = (
+        db.query(ConversationMemberModel)
+        .filter(
+            ConversationMemberModel.conversation_id == conv_id,
+            ConversationMemberModel.user_id == target_user_id,
+        )
+        .first()
+    )
     if not target:
         raise HTTPException(404, "Участник не найден в чате")
     if target.role == ConversationMemberRole.OWNER.value:
@@ -465,7 +554,10 @@ def transfer_ownership(
 
 
 def mute_conversation(
-    db: Session, conv_id: int, user_id: int, is_muted: bool,
+    db: Session,
+    conv_id: int,
+    user_id: int,
+    is_muted: bool,
 ) -> None:
     """Mute / unmute чата для пользователя."""
     member = _ensure_membership(db, conv_id, user_id)
@@ -474,7 +566,10 @@ def mute_conversation(
 
 
 def archive_conversation(
-    db: Session, conv_id: int, user_id: int, is_archived: bool,
+    db: Session,
+    conv_id: int,
+    user_id: int,
+    is_archived: bool,
 ) -> None:
     """Archive / unarchive чата для пользователя."""
     member = _ensure_membership(db, conv_id, user_id)
@@ -483,44 +578,63 @@ def archive_conversation(
 
 
 def get_or_create_task_conversation(
-    db: Session, task_id: int, user_id: int, organization_id: Optional[int],
+    db: Session,
+    task_id: int,
+    user_id: int,
+    organization_id: Optional[int],
 ) -> ConversationModel:
     """Получить или создать чат заявки."""
     # Validate task exists
     from app.models.task import TaskModel
+
     task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    
+
     # Validate organization_id matches task's organization if provided
     if organization_id is not None and task.organization_id != organization_id:
-        raise HTTPException(status_code=400, detail="Organization ID does not match task's organization")
-    
+        raise HTTPException(
+            status_code=400, detail="Organization ID does not match task's organization"
+        )
+
     # Use task's organization_id if not provided
     if organization_id is None:
         organization_id = task.organization_id
-    
-    existing = db.query(ConversationModel).filter(
-        ConversationModel.type == ConversationType.TASK.value,
-        ConversationModel.task_id == task_id,
-    ).first()
+
+    existing = (
+        db.query(ConversationModel)
+        .filter(
+            ConversationModel.type == ConversationType.TASK.value,
+            ConversationModel.task_id == task_id,
+        )
+        .first()
+    )
     if existing:
         # Убедимся что пользователь участник
-        member = db.query(ConversationMemberModel).filter(
-            ConversationMemberModel.conversation_id == existing.id,
-            ConversationMemberModel.user_id == user_id,
-        ).first()
+        member = (
+            db.query(ConversationMemberModel)
+            .filter(
+                ConversationMemberModel.conversation_id == existing.id,
+                ConversationMemberModel.user_id == user_id,
+            )
+            .first()
+        )
         if not member:
-            db.add(ConversationMemberModel(
-                conversation_id=existing.id,
-                user_id=user_id,
-                role=ConversationMemberRole.MEMBER.value,
-            ))
+            db.add(
+                ConversationMemberModel(
+                    conversation_id=existing.id,
+                    user_id=user_id,
+                    role=ConversationMemberRole.MEMBER.value,
+                )
+            )
             db.commit()
         return existing
 
     return create_conversation(
-        db, ConversationType.TASK.value, user_id, organization_id,
+        db,
+        ConversationType.TASK.value,
+        user_id,
+        organization_id,
         task_id=task_id,
     )
 
@@ -545,10 +659,14 @@ def send_message(
         raise HTTPException(400, "Текст сообщения обязателен")
 
     if reply_to_id:
-        reply = db.query(MessageModel).filter(
-            MessageModel.id == reply_to_id,
-            MessageModel.conversation_id == conv_id,
-        ).first()
+        reply = (
+            db.query(MessageModel)
+            .filter(
+                MessageModel.id == reply_to_id,
+                MessageModel.conversation_id == conv_id,
+            )
+            .first()
+        )
         if not reply:
             raise HTTPException(404, "Сообщение для ответа не найдено")
 
@@ -607,7 +725,10 @@ def get_messages(
 
 
 def edit_message(
-    db: Session, message_id: int, user_id: int, new_text: str,
+    db: Session,
+    message_id: int,
+    user_id: int,
+    new_text: str,
 ) -> MessageResponse:
     """Редактировать своё сообщение (до 24 часов)."""
     msg = db.query(MessageModel).filter(MessageModel.id == message_id).first()
@@ -627,7 +748,9 @@ def edit_message(
     msg.edited_at = datetime.now(timezone.utc)
 
     # Пересоздать mentions
-    db.query(MessageMentionModel).filter(MessageMentionModel.message_id == message_id).delete()
+    db.query(MessageMentionModel).filter(
+        MessageMentionModel.message_id == message_id
+    ).delete()
     _parse_and_create_mentions(db, message_id, msg.conversation_id, new_text)
 
     db.commit()
@@ -636,7 +759,9 @@ def edit_message(
 
 
 def delete_message(
-    db: Session, message_id: int, user_id: int,
+    db: Session,
+    message_id: int,
+    user_id: int,
 ) -> None:
     """Soft delete сообщения."""
     msg = db.query(MessageModel).filter(MessageModel.id == message_id).first()
@@ -645,10 +770,14 @@ def delete_message(
 
     # Свои сообщения или admin/owner чата
     if msg.sender_id != user_id:
-        member = db.query(ConversationMemberModel).filter(
-            ConversationMemberModel.conversation_id == msg.conversation_id,
-            ConversationMemberModel.user_id == user_id,
-        ).first()
+        member = (
+            db.query(ConversationMemberModel)
+            .filter(
+                ConversationMemberModel.conversation_id == msg.conversation_id,
+                ConversationMemberModel.user_id == user_id,
+            )
+            .first()
+        )
         if not member or member.role not in (
             ConversationMemberRole.OWNER.value,
             ConversationMemberRole.ADMIN.value,
@@ -671,11 +800,17 @@ def search_messages(
     _ensure_membership(db, conv_id, user_id)
 
     pattern = f"%{query_text}%"
-    messages = db.query(MessageModel).filter(
-        MessageModel.conversation_id == conv_id,
-        MessageModel.is_deleted == False,  # noqa: E712
-        MessageModel.text.ilike(pattern),
-    ).order_by(MessageModel.created_at.desc()).limit(limit).all()
+    messages = (
+        db.query(MessageModel)
+        .filter(
+            MessageModel.conversation_id == conv_id,
+            MessageModel.is_deleted == False,  # noqa: E712
+            MessageModel.text.ilike(pattern),
+        )
+        .order_by(MessageModel.created_at.desc())
+        .limit(limit)
+        .all()
+    )
 
     return [_build_message_response(db, m) for m in messages]
 
@@ -686,7 +821,10 @@ def search_messages(
 
 
 def toggle_reaction(
-    db: Session, message_id: int, user_id: int, emoji: str,
+    db: Session,
+    message_id: int,
+    user_id: int,
+    emoji: str,
 ) -> list[ReactionInfo]:
     """Add/remove реакцию. Возвращает обновлённый список реакций."""
     msg = db.query(MessageModel).filter(MessageModel.id == message_id).first()
@@ -694,20 +832,26 @@ def toggle_reaction(
         raise HTTPException(404, "Сообщение не найдено")
     _ensure_membership(db, msg.conversation_id, user_id)
 
-    existing = db.query(MessageReactionModel).filter(
-        MessageReactionModel.message_id == message_id,
-        MessageReactionModel.user_id == user_id,
-        MessageReactionModel.emoji == emoji,
-    ).first()
+    existing = (
+        db.query(MessageReactionModel)
+        .filter(
+            MessageReactionModel.message_id == message_id,
+            MessageReactionModel.user_id == user_id,
+            MessageReactionModel.emoji == emoji,
+        )
+        .first()
+    )
 
     if existing:
         db.delete(existing)
     else:
-        db.add(MessageReactionModel(
-            message_id=message_id,
-            user_id=user_id,
-            emoji=emoji,
-        ))
+        db.add(
+            MessageReactionModel(
+                message_id=message_id,
+                user_id=user_id,
+                emoji=emoji,
+            )
+        )
 
     db.commit()
     return _get_reactions(db, message_id)
@@ -719,25 +863,36 @@ def toggle_reaction(
 
 
 def mark_as_read(
-    db: Session, conv_id: int, user_id: int, last_message_id: int,
+    db: Session,
+    conv_id: int,
+    user_id: int,
+    last_message_id: int,
 ) -> None:
     """Отметить сообщения как прочитанные до указанного ID."""
     member = _ensure_membership(db, conv_id, user_id)
 
     # Только increment — нельзя уменьшить прочитанное
-    if member.last_read_message_id is None or last_message_id > member.last_read_message_id:
+    if (
+        member.last_read_message_id is None
+        or last_message_id > member.last_read_message_id
+    ):
         member.last_read_message_id = last_message_id
         db.commit()
 
 
 def get_unread_counts(
-    db: Session, user_id: int,
+    db: Session,
+    user_id: int,
 ) -> dict[int, int]:
     """Получить количество непрочитанных для всех чатов пользователя."""
-    members = db.query(ConversationMemberModel).filter(
-        ConversationMemberModel.user_id == user_id,
-        ConversationMemberModel.is_archived == False,  # noqa: E712
-    ).all()
+    members = (
+        db.query(ConversationMemberModel)
+        .filter(
+            ConversationMemberModel.user_id == user_id,
+            ConversationMemberModel.is_archived == False,  # noqa: E712
+        )
+        .all()
+    )
 
     result: dict[int, int] = {}
     for m in members:
@@ -760,9 +915,13 @@ def get_unread_counts(
 
 def get_conversation_member_ids(db: Session, conv_id: int) -> list[int]:
     """Получить список user_id всех участников чата."""
-    rows = db.query(ConversationMemberModel.user_id).filter(
-        ConversationMemberModel.conversation_id == conv_id,
-    ).all()
+    rows = (
+        db.query(ConversationMemberModel.user_id)
+        .filter(
+            ConversationMemberModel.conversation_id == conv_id,
+        )
+        .all()
+    )
     return [r[0] for r in rows]
 
 
@@ -774,43 +933,58 @@ def _get_conversation_or_404(db: Session, conv_id: int) -> ConversationModel:
 
 
 def _ensure_membership(
-    db: Session, conv_id: int, user_id: int,
+    db: Session,
+    conv_id: int,
+    user_id: int,
 ) -> ConversationMemberModel:
     """Проверить что пользователь — участник чата."""
-    member = db.query(ConversationMemberModel).filter(
-        ConversationMemberModel.conversation_id == conv_id,
-        ConversationMemberModel.user_id == user_id,
-    ).first()
+    member = (
+        db.query(ConversationMemberModel)
+        .filter(
+            ConversationMemberModel.conversation_id == conv_id,
+            ConversationMemberModel.user_id == user_id,
+        )
+        .first()
+    )
     if not member:
         raise HTTPException(403, "Вы не участник этого чата")
     return member
 
 
 def _get_members_info(db: Session, conv_id: int) -> list[MemberInfo]:
-    members = db.query(ConversationMemberModel).filter(
-        ConversationMemberModel.conversation_id == conv_id,
-    ).all()
+    members = (
+        db.query(ConversationMemberModel)
+        .filter(
+            ConversationMemberModel.conversation_id == conv_id,
+        )
+        .all()
+    )
 
     result = []
     for m in members:
         user = db.query(UserModel).filter(UserModel.id == m.user_id).first()
         if user:
-            result.append(MemberInfo(
-                user_id=user.id,
-                username=user.username,
-                full_name=user.full_name or user.username,
-                avatar_url=build_user_avatar_url(user),
-                role=m.role,
-                last_read_message_id=m.last_read_message_id,
-                is_muted=m.is_muted,
-                is_archived=m.is_archived,
-                joined_at=m.joined_at,
-            ))
+            result.append(
+                MemberInfo(
+                    user_id=user.id,
+                    username=user.username,
+                    full_name=user.full_name or user.username,
+                    avatar_url=build_user_avatar_url(user),
+                    role=m.role,
+                    last_read_message_id=m.last_read_message_id,
+                    is_muted=m.is_muted,
+                    is_archived=m.is_archived,
+                    joined_at=m.joined_at,
+                )
+            )
     return result
 
 
 def _create_system_message(
-    db: Session, conv_id: int, sender_id: int, text: str,
+    db: Session,
+    conv_id: int,
+    sender_id: int,
+    text: str,
 ) -> MessageModel:
     """Создать системное сообщение."""
     msg = MessageModel(
@@ -830,7 +1004,10 @@ def _create_system_message(
 
 
 def _parse_and_create_mentions(
-    db: Session, message_id: int, conv_id: int, text: str,
+    db: Session,
+    message_id: int,
+    conv_id: int,
+    text: str,
 ) -> None:
     """Распарсить @username из текста и создать MentionModel записи."""
     # Формат: @username
@@ -840,29 +1017,41 @@ def _parse_and_create_mentions(
         user = db.query(UserModel).filter(UserModel.username == username).first()
         if user:
             # Проверить что пользователь — участник чата
-            is_member = db.query(ConversationMemberModel).filter(
-                ConversationMemberModel.conversation_id == conv_id,
-                ConversationMemberModel.user_id == user.id,
-            ).first()
+            is_member = (
+                db.query(ConversationMemberModel)
+                .filter(
+                    ConversationMemberModel.conversation_id == conv_id,
+                    ConversationMemberModel.user_id == user.id,
+                )
+                .first()
+            )
             if is_member:
-                db.add(MessageMentionModel(
-                    message_id=message_id,
-                    user_id=user.id,
-                    offset=match.start(),
-                    length=len(match.group(0)),
-                ))
+                db.add(
+                    MessageMentionModel(
+                        message_id=message_id,
+                        user_id=user.id,
+                        offset=match.start(),
+                        length=len(match.group(0)),
+                    )
+                )
 
 
 def _get_reactions(db: Session, message_id: int) -> list[ReactionInfo]:
     """Получить сгруппированные реакции."""
-    reactions = db.query(MessageReactionModel).filter(
-        MessageReactionModel.message_id == message_id,
-    ).all()
+    reactions = (
+        db.query(MessageReactionModel)
+        .filter(
+            MessageReactionModel.message_id == message_id,
+        )
+        .all()
+    )
 
     grouped: dict[str, ReactionInfo] = {}
     for r in reactions:
         if r.emoji not in grouped:
-            grouped[r.emoji] = ReactionInfo(emoji=r.emoji, count=0, user_ids=[], user_names=[])
+            grouped[r.emoji] = ReactionInfo(
+                emoji=r.emoji, count=0, user_ids=[], user_names=[]
+            )
         info = grouped[r.emoji]
         info.count += 1
         info.user_ids.append(r.user_id)
@@ -880,9 +1069,13 @@ def _build_message_response(db: Session, msg: MessageModel) -> MessageResponse:
     # Reply preview
     reply_preview = None
     if msg.reply_to_id and not msg.is_deleted:
-        reply_msg = db.query(MessageModel).filter(MessageModel.id == msg.reply_to_id).first()
+        reply_msg = (
+            db.query(MessageModel).filter(MessageModel.id == msg.reply_to_id).first()
+        )
         if reply_msg:
-            reply_sender = db.query(UserModel).filter(UserModel.id == reply_msg.sender_id).first()
+            reply_sender = (
+                db.query(UserModel).filter(UserModel.id == reply_msg.sender_id).first()
+            )
             reply_text = reply_msg.text
             if reply_text and len(reply_text) > 100:
                 reply_text = reply_text[:100] + "…"
@@ -890,15 +1083,23 @@ def _build_message_response(db: Session, msg: MessageModel) -> MessageResponse:
                 id=reply_msg.id,
                 text=reply_text if not reply_msg.is_deleted else None,
                 sender_id=reply_msg.sender_id,
-                sender_name=reply_sender.full_name or reply_sender.username if reply_sender else "?",
+                sender_name=(
+                    reply_sender.full_name or reply_sender.username
+                    if reply_sender
+                    else "?"
+                ),
             )
 
     # Attachments
     attachments = []
     if not msg.is_deleted:
-        atts = db.query(MessageAttachmentModel).filter(
-            MessageAttachmentModel.message_id == msg.id,
-        ).all()
+        atts = (
+            db.query(MessageAttachmentModel)
+            .filter(
+                MessageAttachmentModel.message_id == msg.id,
+            )
+            .all()
+        )
         attachments = [
             AttachmentResponse(
                 id=a.id,
@@ -907,7 +1108,8 @@ def _build_message_response(db: Session, msg: MessageModel) -> MessageResponse:
                 file_size=a.file_size,
                 mime_type=a.mime_type,
                 thumbnail_path=a.thumbnail_path,
-            ) for a in atts
+            )
+            for a in atts
         ]
 
     # Reactions
@@ -916,18 +1118,24 @@ def _build_message_response(db: Session, msg: MessageModel) -> MessageResponse:
     # Mentions
     mentions = []
     if not msg.is_deleted:
-        mention_models = db.query(MessageMentionModel).filter(
-            MessageMentionModel.message_id == msg.id,
-        ).all()
+        mention_models = (
+            db.query(MessageMentionModel)
+            .filter(
+                MessageMentionModel.message_id == msg.id,
+            )
+            .all()
+        )
         for mm in mention_models:
             user = db.query(UserModel).filter(UserModel.id == mm.user_id).first()
             if user:
-                mentions.append(MentionInfo(
-                    user_id=user.id,
-                    username=user.username,
-                    offset=mm.offset,
-                    length=mm.length,
-                ))
+                mentions.append(
+                    MentionInfo(
+                        user_id=user.id,
+                        username=user.username,
+                        offset=mm.offset,
+                        length=mm.length,
+                    )
+                )
 
     return MessageResponse(
         id=msg.id,

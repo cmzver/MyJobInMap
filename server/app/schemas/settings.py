@@ -4,16 +4,17 @@ Settings Schemas
 РЎС…РµРјС‹ РґР»СЏ СЃРёСЃС‚РµРјРЅС‹С… РЅР°СЃС‚СЂРѕРµРє, РєР°СЃС‚РѕРјРЅС‹С… РїРѕР»РµР№ Рё РїСЂР°РІ РґРѕСЃС‚СѓРїР°.
 """
 
-from typing import Optional, List, Dict, Any, Union
-from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
 
+from pydantic import BaseModel, ConfigDict, Field
 
 # --- System Settings ---
 
+
 class SystemSettingSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     key: str
     value: Union[str, int, float, bool, List, Dict]
     value_type: str  # 'string', 'int', 'bool', 'json', 'select'
@@ -36,6 +37,7 @@ class SettingUpdate(BaseModel):
 
 
 # --- Custom Fields ---
+
 
 class CustomFieldCreate(BaseModel):
     name: str = Field(..., pattern="^[a-z_][a-z0-9_]*$")
@@ -63,7 +65,7 @@ class CustomFieldUpdate(BaseModel):
 
 class CustomFieldResponse(CustomFieldCreate):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: int
     is_active: bool
     created_at: datetime
@@ -71,8 +73,10 @@ class CustomFieldResponse(CustomFieldCreate):
 
 # --- Permissions ---
 
+
 class RolePermissionsResponse(BaseModel):
     """РЎР»РѕРІР°СЂСЊ {role: {permission: bool}}"""
+
     # Dynamic dict structure due to variable roles/perms
     admin: Dict[str, bool] = {}
     dispatcher: Dict[str, bool] = {}
@@ -84,6 +88,7 @@ class UpdateRolePermissionRequest(BaseModel):
 
 
 # --- Backups ---
+
 
 class BackupFile(BaseModel):
     name: str
@@ -97,6 +102,7 @@ class BackupListResponse(BaseModel):
 
 class BackupSettingsSchema(BaseModel):
     """РќР°СЃС‚СЂРѕР№РєРё СЂРµР·РµСЂРІРЅРѕРіРѕ РєРѕРїРёСЂРѕРІР°РЅРёСЏ"""
+
     auto_backup: bool = True
     schedule: str = "daily"  # daily, weekly, manual
     retention_days: int = 30
@@ -104,4 +110,5 @@ class BackupSettingsSchema(BaseModel):
 
 class BackupSettingsResponse(BackupSettingsSchema):
     """РћС‚РІРµС‚ СЃ РЅР°СЃС‚СЂРѕР№РєР°РјРё Р±СЌРєР°РїР°"""
+
     pass

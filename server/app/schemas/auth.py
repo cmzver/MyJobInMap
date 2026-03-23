@@ -6,6 +6,7 @@ Auth Schemas
 
 from datetime import datetime
 from typing import Optional
+
 from pydantic import BaseModel, ConfigDict
 
 from app.models.enums import UserRole
@@ -13,6 +14,7 @@ from app.models.enums import UserRole
 
 class Token(BaseModel):
     """JWT токен с refresh token"""
+
     access_token: str
     refresh_token: str
     token_type: str
@@ -27,11 +29,13 @@ class Token(BaseModel):
 
 class RefreshRequest(BaseModel):
     """Запрос обновления токена"""
+
     refresh_token: str
 
 
 class TokenData(BaseModel):
     """Данные из токена"""
+
     username: Optional[str] = None
     user_id: Optional[int] = None
     role: Optional[str] = None
@@ -39,6 +43,7 @@ class TokenData(BaseModel):
 
 class UserCreate(BaseModel):
     """Создание пользователя"""
+
     username: str
     password: str
     full_name: str = ""
@@ -50,6 +55,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     """Обновление пользователя"""
+
     username: Optional[str] = None
     password: Optional[str] = None
     full_name: Optional[str] = None
@@ -61,8 +67,9 @@ class UserUpdate(BaseModel):
 
 class UserResponse(BaseModel):
     """Ответ с данными пользователя"""
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: int
     username: str
     full_name: str
@@ -79,12 +86,14 @@ class UserResponse(BaseModel):
 
 class PasswordChange(BaseModel):
     """Смена пароля"""
+
     old_password: str
     new_password: str
 
 
 class UserStatsResponse(BaseModel):
     """Статистика пользователя"""
+
     user_id: int
     username: str
     full_name: str
@@ -106,11 +115,13 @@ class UserStatsResponse(BaseModel):
 
 class ReportSettingsUpdate(BaseModel):
     """Настройки отправки отчётов"""
+
     report_target: str  # 'group', 'contact', 'none'
     report_contact_phone: Optional[str] = None
 
 
 class ReportSettingsResponse(BaseModel):
     """Ответ с настройками отчётов"""
+
     report_target: str
     report_contact_phone: Optional[str]

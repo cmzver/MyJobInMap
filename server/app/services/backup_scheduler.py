@@ -33,8 +33,10 @@ def _resolve_sqlite_db_path() -> str:
     """Извлечь реальный путь к файлу SQLite из DATABASE_URL."""
     db_url = settings.DATABASE_URL
     if not db_url.startswith("sqlite"):
-        raise RuntimeError("Scheduled backup поддерживает только SQLite. "
-                           "Для PostgreSQL используйте pg_dump cron.")
+        raise RuntimeError(
+            "Scheduled backup поддерживает только SQLite. "
+            "Для PostgreSQL используйте pg_dump cron."
+        )
 
     db_path = db_url.replace("sqlite:///", "")
     if db_path.startswith("./"):
@@ -108,7 +110,7 @@ def start_scheduler() -> bool:
     if not settings.is_sqlite:
         logger.warning(
             "📦 Backup scheduler не поддерживает %s — используйте pg_dump cron",
-            "PostgreSQL" if settings.is_postgres else "unknown DB"
+            "PostgreSQL" if settings.is_postgres else "unknown DB",
         )
         return False
 

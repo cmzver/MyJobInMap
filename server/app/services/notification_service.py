@@ -7,9 +7,10 @@ Notification Service
 import asyncio
 from datetime import datetime, timezone
 from typing import Optional
+
 from sqlalchemy.orm import Session
 
-from app.models import NotificationModel, UserModel, TaskModel
+from app.models import NotificationModel, TaskModel, UserModel
 from app.services.websocket_manager import _event, ws_manager
 from app.utils import get_priority_rank
 
@@ -25,7 +26,7 @@ def create_notification(
 ) -> NotificationModel:
     """
     Создать уведомление для пользователя
-    
+
     Args:
         db: Database session
         user_id: ID пользователя
@@ -33,7 +34,7 @@ def create_notification(
         message: Текст уведомления
         notification_type: Тип (task, system, alert)
         task_id: ID связанной заявки (опционально)
-    
+
     Returns:
         NotificationModel: Созданное уведомление
     """
@@ -45,9 +46,9 @@ def create_notification(
         task_id=task_id,
         support_ticket_id=support_ticket_id,
         is_read=False,
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
-    
+
     db.add(notification)
     db.commit()
     db.refresh(notification)
@@ -73,7 +74,7 @@ def create_notification(
                 ),
             )
         )
-    
+
     return notification
 
 
@@ -82,18 +83,18 @@ def create_task_status_notification(
     task: TaskModel,
     old_status: str,
     new_status: str,
-    changed_by: UserModel
+    changed_by: UserModel,
 ) -> None:
     """
     Создать уведомление при изменении статуса заявки
-    
+
     Уведомляет:
     - Назначенного исполнителя (если есть)
     - Автора изменения (если он не исполнитель)
     """
     # Определяем тип и текст уведомления
     notification_type = "task"
-    
+
     if new_status == "DONE":
         title = "✅ Заявка выполнена"
         message = f"Заявка №{task.task_number or task.id} - {task.title} выполнена"
@@ -109,11 +110,11 @@ def create_task_status_notification(
     else:
         title = "🔔 Статус заявки изменён"
         message = f"Заявка №{task.task_number or task.id}: {old_status} → {new_status}"
-    
+
     # Добавляем информацию об исполнителе
     if changed_by:
         message += f"\nИзменил: {changed_by.full_name or changed_by.username}"
-    
+
     # Создаём уведомление для назначенного исполнителя
     if task.assigned_user_id and task.assigned_user_id != changed_by.id:
         create_notification(
@@ -122,19 +123,26 @@ def create_task_status_notification(
             title=title,
             message=message,
             notification_type=notification_type,
-            task_id=task.id
+            task_id=task.id,
         )
-    
+
     # Если статус изменён на NEW, IN_PROGRESS или DONE, уведомляем админов/диспетчеров
-    if new_status in ["NEW", "IN_PROGRESS", "DONE"] and changed_by.role not in ["admin", "dispatcher"]:
+    if new_status in ["NEW", "IN_PROGRESS", "DONE"] and changed_by.role not in [
+        "admin",
+        "dispatcher",
+    ]:
         # Получаем всех админов/диспетчеров
-        admins = db.query(UserModel).filter(
-            UserModel.role.in_(["admin", "dispatcher"]),
-            UserModel.is_active == True,  # noqa: E712
-            UserModel.id != changed_by.id,
-            UserModel.organization_id == task.organization_id,
-        ).all()
-        
+        admins = (
+            db.query(UserModel)
+            .filter(
+                UserModel.role.in_(["admin", "dispatcher"]),
+                UserModel.is_active == True,  # noqa: E712
+                UserModel.id != changed_by.id,
+                UserModel.organization_id == task.organization_id,
+            )
+            .all()
+        )
+
         for admin in admins:
             create_notification(
                 db=db,
@@ -142,38 +150,35 @@ def create_task_status_notification(
                 title=title,
                 message=message,
                 notification_type=notification_type,
-                task_id=task.id
+                task_id=task.id,
             )
 
 
 def create_task_assignment_notification(
-    db: Session,
-    task: TaskModel,
-    assigned_to: UserModel,
-    assigned_by: UserModel
+    db: Session, task: TaskModel, assigned_to: UserModel, assigned_by: UserModel
 ) -> None:
     """
     Создать уведомление при назначении заявки
     """
     if assigned_to.id == assigned_by.id:
         return  # Не уведомляем, если пользователь назначил сам себе
-    
+
     title = "📋 Вам назначена заявка"
     message = f"Заявка №{task.task_number or task.id} - {task.title}\n"
     message += f"Адрес: {task.raw_address}\n"
     message += f"Назначил: {assigned_by.full_name or assigned_by.username}"
-    
+
     # Определяем приоритет
     notification_type = "task"
     if get_priority_rank(task.priority) >= 4:  # EMERGENCY
         notification_type = "alert"
         title = "⚠️ СРОЧНАЯ заявка!"
-    
+
     create_notification(
         db=db,
         user_id=assigned_to.id,
         title=title,
         message=message,
         notification_type=notification_type,
-        task_id=task.id
+        task_id=task.id,
     )

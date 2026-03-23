@@ -1,12 +1,13 @@
 """Tests for TenantService and TenantFilter."""
 
 import pytest
-from app.services.tenant_service import TenantService, slugify
-from app.services.tenant_filter import TenantFilter
-from app.models import OrganizationModel, UserModel, TaskModel
+from fastapi import HTTPException
+
+from app.models import OrganizationModel, TaskModel, UserModel
 from app.models.enums import UserRole
 from app.services.auth import get_password_hash
-from fastapi import HTTPException
+from app.services.tenant_filter import TenantFilter
+from app.services.tenant_service import TenantService, slugify
 
 
 class TestSlugify:

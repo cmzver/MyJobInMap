@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.models import UserModel, OrganizationModel, TaskModel, get_db
+from app.models import OrganizationModel, TaskModel, UserModel, get_db
 from app.models.address import AddressModel
 from app.services import require_permission
 from app.services.tenant_service import TenantService, get_tenant_service
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 # === Pydantic schemas ===
+
 
 class OrganizationCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
@@ -78,29 +79,30 @@ class AssignUserRequest(BaseModel):
     organization_id: int
 
 
-def _require_superadmin(user: UserModel = Depends(require_permission("manage_organizations"))):
+def _require_superadmin(
+    user: UserModel = Depends(require_permission("manage_organizations")),
+):
     """Проверить, что пользователь — суперадмин (admin без организации)."""
     if user.organization_id is not None:
         raise HTTPException(
             status_code=403,
-            detail="Управление организациями доступно только суперадминам"
+            detail="Управление организациями доступно только суперадминам",
         )
     return user
 
 
 def _org_to_response(org: OrganizationModel, db: Session) -> OrganizationResponse:
     """Конвертировать модель в response."""
-    user_count = db.query(UserModel).filter(
-        UserModel.organization_id == org.id,
-        UserModel.is_active == True
-    ).count()
-    task_count = db.query(TaskModel).filter(
-        TaskModel.organization_id == org.id
-    ).count()
-    address_count = db.query(AddressModel).filter(
-        AddressModel.organization_id == org.id
-    ).count()
-    
+    user_count = (
+        db.query(UserModel)
+        .filter(UserModel.organization_id == org.id, UserModel.is_active == True)
+        .count()
+    )
+    task_count = db.query(TaskModel).filter(TaskModel.organization_id == org.id).count()
+    address_count = (
+        db.query(AddressModel).filter(AddressModel.organization_id == org.id).count()
+    )
+
     return OrganizationResponse(
         id=org.id,
         name=org.name,
@@ -121,6 +123,7 @@ def _org_to_response(org: OrganizationModel, db: Session) -> OrganizationRespons
 
 
 # === Endpoints ===
+
 
 @router.get("")
 async def list_organizations(
@@ -204,7 +207,9 @@ async def deactivate_organization(
     org = tenant_service.deactivate(org_id)
     if not org:
         raise HTTPException(status_code=404, detail="Организация не найдена")
-    logger.info(f"Организация '{org.name}' деактивирована пользователем {user.username}")
+    logger.info(
+        f"Организация '{org.name}' деактивирована пользователем {user.username}"
+    )
     return {"message": f"Организация '{org.name}' деактивирована"}
 
 
@@ -234,7 +239,9 @@ async def activate_organization(
     org = tenant_service.update(org_id, is_active=True)
     if not org:
         raise HTTPException(status_code=404, detail="Организация не найдена")
-    logger.info(f"Организация '{org.name}' реактивирована пользователем {user.username}")
+    logger.info(
+        f"Организация '{org.name}' реактивирована пользователем {user.username}"
+    )
     return _org_to_response(org, db)
 
 
@@ -249,17 +256,19 @@ async def unassign_user_from_organization(
     user_id = data.get("user_id")
     if not user_id:
         raise HTTPException(status_code=400, detail="user_id обязателен")
-    
+
     target_user = db.query(UserModel).filter(UserModel.id == user_id).first()
     if not target_user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
-    
+
     if target_user.organization_id != org_id:
-        raise HTTPException(status_code=400, detail="Пользователь не привязан к этой организации")
-    
+        raise HTTPException(
+            status_code=400, detail="Пользователь не привязан к этой организации"
+        )
+
     target_user.organization_id = None
     db.commit()
-    
+
     logger.info(f"Пользователь '{target_user.username}' убран из организации #{org_id}")
     return {"message": f"Пользователь '{target_user.username}' убран из организации"}
 
@@ -275,10 +284,14 @@ async def get_organization_users(
     org = tenant_service.get_by_id(org_id)
     if not org:
         raise HTTPException(status_code=404, detail="Организация не найдена")
-    
-    users = db.query(UserModel).filter(
-        UserModel.organization_id == org_id
-    ).order_by(UserModel.full_name).all()
-    
+
+    users = (
+        db.query(UserModel)
+        .filter(UserModel.organization_id == org_id)
+        .order_by(UserModel.full_name)
+        .all()
+    )
+
     from app.utils import user_to_response
+
     return [user_to_response(u) for u in users]

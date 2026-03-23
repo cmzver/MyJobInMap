@@ -24,11 +24,19 @@ def test_analytics_combines_reports_and_sla(client_with_auth, sample_tasks_for_r
 
     assert "reports" in data
     assert "sla" in data
-    assert data["reports"]["summary"]["total_tasks"] == data["sla"]["overview"]["total_tasks"]
-    assert data["reports"]["summary"]["completed_tasks"] == data["sla"]["overview"]["completed_tasks"]
+    assert (
+        data["reports"]["summary"]["total_tasks"]
+        == data["sla"]["overview"]["total_tasks"]
+    )
+    assert (
+        data["reports"]["summary"]["completed_tasks"]
+        == data["sla"]["overview"]["completed_tasks"]
+    )
 
 
-def test_analytics_week_uses_shared_period_days(client_with_auth, sample_tasks_for_reports):
+def test_analytics_week_uses_shared_period_days(
+    client_with_auth, sample_tasks_for_reports
+):
     response = client_with_auth.get("/api/analytics?period=week")
 
     assert response.status_code == 200
@@ -85,30 +93,32 @@ def test_sla_worker_filter_applies_to_trends(client_with_auth, db_session):
     db_session.refresh(worker_one)
     db_session.refresh(worker_two)
 
-    db_session.add_all([
-        TaskModel(
-            title="Worker one task",
-            description="Test",
-            raw_address="Address 1",
-            status="DONE",
-            priority="CURRENT",
-            created_at=now - timedelta(days=2),
-            completed_at=now - timedelta(days=1),
-            updated_at=now - timedelta(days=1),
-            assigned_user_id=worker_one.id,
-        ),
-        TaskModel(
-            title="Worker two task",
-            description="Test",
-            raw_address="Address 2",
-            status="DONE",
-            priority="CURRENT",
-            created_at=now - timedelta(days=2),
-            completed_at=now - timedelta(hours=12),
-            updated_at=now - timedelta(hours=12),
-            assigned_user_id=worker_two.id,
-        ),
-    ])
+    db_session.add_all(
+        [
+            TaskModel(
+                title="Worker one task",
+                description="Test",
+                raw_address="Address 1",
+                status="DONE",
+                priority="CURRENT",
+                created_at=now - timedelta(days=2),
+                completed_at=now - timedelta(days=1),
+                updated_at=now - timedelta(days=1),
+                assigned_user_id=worker_one.id,
+            ),
+            TaskModel(
+                title="Worker two task",
+                description="Test",
+                raw_address="Address 2",
+                status="DONE",
+                priority="CURRENT",
+                created_at=now - timedelta(days=2),
+                completed_at=now - timedelta(hours=12),
+                updated_at=now - timedelta(hours=12),
+                assigned_user_id=worker_two.id,
+            ),
+        ]
+    )
     db_session.commit()
 
     response = client_with_auth.get(f"/api/sla?period=all&worker_id={worker_one.id}")

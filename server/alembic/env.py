@@ -1,15 +1,17 @@
 """Alembic env.py configuration."""
+
 from logging.config import fileConfig
+
 from sqlalchemy import engine_from_config, pool
+
 from alembic import context
 from app.config import settings
 from app.models.base import Base
 
 config = context.config
 
-if (
-    config.config_file_name is not None
-    and config.attributes.get("configure_logger", True)
+if config.config_file_name is not None and config.attributes.get(
+    "configure_logger", True
 ):
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 

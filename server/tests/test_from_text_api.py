@@ -1,4 +1,5 @@
 """Tests for /api/tasks/from-text endpoint."""
+
 import pytest
 
 
@@ -8,13 +9,13 @@ class TestCreateTaskFromText:
     def test_create_from_dispatcher_format(self, client, auth_headers):
         """Test creating task from dispatcher format message."""
         text = "№1173544 Текущая. Центральная ул., д.3, подъезд 1. Брелки. Не работает брелок."
-        
+
         response = client.post(
             "/api/tasks/from-text",
             json={"text": text, "source": "telegram", "sender": "dispatcher"},
             headers=auth_headers,
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
@@ -25,13 +26,13 @@ class TestCreateTaskFromText:
     def test_create_from_standard_format(self, client, auth_headers):
         """Test creating task from standard format message."""
         text = "ул. Ленина, д.10\nНе работает домофон"
-        
+
         response = client.post(
             "/api/tasks/from-text",
             json={"text": text, "source": "whatsapp", "sender": "user123"},
             headers=auth_headers,
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
@@ -48,7 +49,7 @@ class TestCreateTaskFromText:
             },
             headers=auth_headers,
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         # Source info should be in description
@@ -61,7 +62,7 @@ class TestCreateTaskFromText:
             json={"text": "", "source": "telegram", "sender": "user"},
             headers=auth_headers,
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is False
@@ -74,11 +75,14 @@ class TestCreateTaskFromText:
             json={"text": "Привет", "source": "telegram", "sender": "user"},
             headers=auth_headers,
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         # Very short text should fail parsing
-        assert data["success"] is False or len(data.get("task", {}).get("raw_address", "")) < 10
+        assert (
+            data["success"] is False
+            or len(data.get("task", {}).get("raw_address", "")) < 10
+        )
 
     def test_with_assigned_user_id(self, client, auth_headers, admin_user):
         """Test creating task with assigned user."""
@@ -92,7 +96,7 @@ class TestCreateTaskFromText:
             },
             headers=auth_headers,
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         if data["success"]:
@@ -110,7 +114,7 @@ class TestCreateTaskFromText:
             },
             headers=auth_headers,
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         if data["success"]:
@@ -128,7 +132,7 @@ class TestCreateTaskFromText:
             },
             headers=auth_headers,
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         if data["success"]:
@@ -145,7 +149,7 @@ class TestCreateTaskFromText:
             },
             headers=auth_headers,
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         if data["success"]:
@@ -162,7 +166,7 @@ class TestCreateTaskFromTextValidation:
             json={"source": "telegram", "sender": "user"},
             headers=auth_headers,
         )
-        
+
         assert response.status_code == 422  # Validation error
 
     def test_missing_source_uses_default(self, client, auth_headers):
@@ -172,20 +176,20 @@ class TestCreateTaskFromTextValidation:
             json={"text": "№444 Текущая. Адрес, подъезд 1. Работа."},
             headers=auth_headers,
         )
-        
+
         # Should work with default values
         assert response.status_code == 200
 
     def test_very_long_text(self, client, auth_headers):
         """Test handling of very long text."""
         long_text = "№555 Текущая. Адрес, подъезд 1. " + "Описание. " * 500
-        
+
         response = client.post(
             "/api/tasks/from-text",
             json={"text": long_text, "source": "telegram", "sender": "user"},
             headers=auth_headers,
         )
-        
+
         # Should handle gracefully (either success or controlled error)
         assert response.status_code in [200, 422]
 
@@ -204,7 +208,7 @@ class TestCreateTaskFromTextSources:
             },
             headers=auth_headers,
         )
-        
+
         assert response.status_code == 200
 
     def test_whatsapp_source(self, client, auth_headers):
@@ -218,7 +222,7 @@ class TestCreateTaskFromTextSources:
             },
             headers=auth_headers,
         )
-        
+
         assert response.status_code == 200
 
     def test_web_source(self, client, auth_headers):
@@ -232,7 +236,7 @@ class TestCreateTaskFromTextSources:
             },
             headers=auth_headers,
         )
-        
+
         assert response.status_code == 200
 
     def test_unknown_source(self, client, auth_headers):
@@ -246,6 +250,6 @@ class TestCreateTaskFromTextSources:
             },
             headers=auth_headers,
         )
-        
+
         # Should handle gracefully
         assert response.status_code == 200

@@ -6,10 +6,8 @@ Chat Models
 
 import enum
 
-from sqlalchemy import (
-    Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Index,
-    UniqueConstraint,
-)
+from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Index, Integer,
+                        String, Text, UniqueConstraint)
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base, utcnow
@@ -17,14 +15,16 @@ from app.models.base import Base, utcnow
 
 class ConversationType(str, enum.Enum):
     """Типы чатов"""
-    TASK = "task"              # Чат по заявке
-    DIRECT = "direct"          # Личные сообщения (1-на-1)
-    GROUP = "group"            # Групповой чат
+
+    TASK = "task"  # Чат по заявке
+    DIRECT = "direct"  # Личные сообщения (1-на-1)
+    GROUP = "group"  # Групповой чат
     ORG_GENERAL = "org_general"  # Общий чат организации
 
 
 class ConversationMemberRole(str, enum.Enum):
     """Роли участника в чате"""
+
     OWNER = "owner"
     ADMIN = "admin"
     MEMBER = "member"
@@ -32,6 +32,7 @@ class ConversationMemberRole(str, enum.Enum):
 
 class MessageType(str, enum.Enum):
     """Типы сообщений"""
+
     TEXT = "text"
     IMAGE = "image"
     FILE = "file"
@@ -40,6 +41,7 @@ class MessageType(str, enum.Enum):
 
 class ConversationModel(Base):
     """Модель разговора (комнаты чата)"""
+
     __tablename__ = "conversations"
     __table_args__ = (
         UniqueConstraint("type", "task_id", name="uq_conversation_task"),
@@ -83,6 +85,7 @@ class ConversationModel(Base):
 
 class ConversationMemberModel(Base):
     """Участник разговора"""
+
     __tablename__ = "conversation_members"
     __table_args__ = (
         UniqueConstraint("conversation_id", "user_id", name="uq_conv_member"),
@@ -90,7 +93,9 @@ class ConversationMemberModel(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+    conversation_id = Column(
+        Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
+    )
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     role = Column(String(20), default=ConversationMemberRole.MEMBER.value)
 
@@ -108,6 +113,7 @@ class ConversationMemberModel(Base):
 
 class MessageModel(Base):
     """Сообщение в чате"""
+
     __tablename__ = "messages"
     __table_args__ = (
         Index("ix_messages_conv_created", "conversation_id", "created_at"),
@@ -115,7 +121,9 @@ class MessageModel(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+    conversation_id = Column(
+        Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
+    )
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     text = Column(Text, nullable=True)  # Nullable если только вложение
@@ -133,7 +141,9 @@ class MessageModel(Base):
     # Relationships
     conversation = relationship("ConversationModel", back_populates="messages")
     sender = relationship("UserModel", foreign_keys=[sender_id])
-    reply_to = relationship("MessageModel", remote_side="MessageModel.id", uselist=False)
+    reply_to = relationship(
+        "MessageModel", remote_side="MessageModel.id", uselist=False
+    )
     attachments = relationship(
         "MessageAttachmentModel",
         back_populates="message",
@@ -153,13 +163,14 @@ class MessageModel(Base):
 
 class MessageAttachmentModel(Base):
     """Вложение к сообщению"""
+
     __tablename__ = "message_attachments"
-    __table_args__ = (
-        Index("ix_msg_attachments_message", "message_id"),
-    )
+    __table_args__ = (Index("ix_msg_attachments_message", "message_id"),)
 
     id = Column(Integer, primary_key=True, index=True)
-    message_id = Column(Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=False)
+    message_id = Column(
+        Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=False
+    )
 
     file_path = Column(String(500), nullable=False)
     file_name = Column(String(255), nullable=False)
@@ -175,6 +186,7 @@ class MessageAttachmentModel(Base):
 
 class MessageReactionModel(Base):
     """Реакция на сообщение"""
+
     __tablename__ = "message_reactions"
     __table_args__ = (
         UniqueConstraint("message_id", "user_id", "emoji", name="uq_reaction"),
@@ -182,7 +194,9 @@ class MessageReactionModel(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    message_id = Column(Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=False)
+    message_id = Column(
+        Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=False
+    )
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     emoji = Column(String(10), nullable=False)
     created_at = Column(DateTime, default=utcnow)
@@ -194,6 +208,7 @@ class MessageReactionModel(Base):
 
 class MessageMentionModel(Base):
     """@упоминание в сообщении"""
+
     __tablename__ = "message_mentions"
     __table_args__ = (
         Index("ix_mentions_message", "message_id"),
@@ -201,10 +216,14 @@ class MessageMentionModel(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    message_id = Column(Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Упомянутый пользователь
-    offset = Column(Integer, default=0)   # Позиция в тексте
-    length = Column(Integer, default=0)   # Длина упоминания в тексте
+    message_id = Column(
+        Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id = Column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )  # Упомянутый пользователь
+    offset = Column(Integer, default=0)  # Позиция в тексте
+    length = Column(Integer, default=0)  # Длина упоминания в тексте
 
     # Relationships
     message = relationship("MessageModel", back_populates="mentions")

@@ -4,7 +4,8 @@ Support ticket models.
 
 from enum import Enum
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import (Column, DateTime, ForeignKey, Index, Integer, String,
+                        Text)
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base, utcnow
@@ -41,11 +42,15 @@ class SupportTicketModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=False)
-    category = Column(String(20), nullable=False, default=SupportTicketCategory.FEEDBACK.value)
+    category = Column(
+        String(20), nullable=False, default=SupportTicketCategory.FEEDBACK.value
+    )
     status = Column(String(20), nullable=False, default=SupportTicketStatus.NEW.value)
     admin_response = Column(Text, nullable=True)
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id"), nullable=True, index=True
+    )
     created_at = Column(DateTime, default=utcnow, nullable=False)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
     resolved_at = Column(DateTime, nullable=True)
@@ -75,11 +80,17 @@ class SupportTicketCommentModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     ticket_id = Column(Integer, ForeignKey("support_tickets.id"), nullable=False)
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    comment_type = Column(String(20), nullable=False, default=SupportTicketCommentType.COMMENT.value)
+    comment_type = Column(
+        String(20), nullable=False, default=SupportTicketCommentType.COMMENT.value
+    )
     body = Column(Text, nullable=True)
     old_status = Column(String(20), nullable=True)
     new_status = Column(String(20), nullable=True)
     created_at = Column(DateTime, default=utcnow, nullable=False)
 
     ticket = relationship("SupportTicketModel", back_populates="comments")
-    author = relationship("UserModel", back_populates="support_comments_authored", foreign_keys=[author_id])
+    author = relationship(
+        "UserModel",
+        back_populates="support_comments_authored",
+        foreign_keys=[author_id],
+    )

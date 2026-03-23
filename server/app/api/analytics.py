@@ -20,7 +20,6 @@ from app.services.excel_export import export_tasks_to_excel
 from app.services.sla_service import get_sla_metrics
 from app.services.tenant_filter import TenantFilter
 
-
 router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
 
 PERIOD_PATTERN = "^(today|yesterday|week|month|quarter|year|all|custom)$"
@@ -68,7 +67,9 @@ async def _load_analytics_payload(
     return reports, sla
 
 
-def _format_period_label(period: str, date_from: Optional[date], date_to: Optional[date]) -> str:
+def _format_period_label(
+    period: str, date_from: Optional[date], date_to: Optional[date]
+) -> str:
     if period == "custom" and date_from and date_to:
         return f"{date_from.strftime('%d.%m.%Y')} - {date_to.strftime('%d.%m.%Y')}"
     return PERIOD_LABELS.get(period, "Период не указан")
@@ -87,11 +88,15 @@ def _get_worker_name(db: Session, user: UserModel, worker_id: Optional[int]) -> 
         return "Все исполнители"
 
     tenant = TenantFilter(user)
-    worker = tenant.apply(db.query(UserModel), UserModel).filter(
-        UserModel.id == worker_id,
-        UserModel.role.in_([UserRole.WORKER.value, UserRole.DISPATCHER.value]),
-        UserModel.is_active == True,
-    ).first()
+    worker = (
+        tenant.apply(db.query(UserModel), UserModel)
+        .filter(
+            UserModel.id == worker_id,
+            UserModel.role.in_([UserRole.WORKER.value, UserRole.DISPATCHER.value]),
+            UserModel.is_active == True,
+        )
+        .first()
+    )
 
     if not worker:
         return f"ID {worker_id}"
@@ -118,7 +123,11 @@ async def _export_analytics_document(
 
     start_date, end_date, _ = resolve_analytics_period(period, date_from, date_to)
     worker_name = _get_worker_name(db, user, worker_id)
-    organization_name = user.organization.name if getattr(user, "organization", None) else "Все организации"
+    organization_name = (
+        user.organization.name
+        if getattr(user, "organization", None)
+        else "Все организации"
+    )
     generated_by = user.full_name or user.username
 
     output = export_tasks_to_excel(
@@ -147,8 +156,12 @@ async def _export_analytics_document(
 @router.get("", response_model=AnalyticsResponse)
 async def get_analytics(
     period: str = Query(default="month", pattern=PERIOD_PATTERN),
-    date_from: Optional[date] = Query(default=None, description="Custom period start (YYYY-MM-DD)"),
-    date_to: Optional[date] = Query(default=None, description="Custom period end (YYYY-MM-DD)"),
+    date_from: Optional[date] = Query(
+        default=None, description="Custom period start (YYYY-MM-DD)"
+    ),
+    date_to: Optional[date] = Query(
+        default=None, description="Custom period end (YYYY-MM-DD)"
+    ),
     worker_id: Optional[int] = Query(default=None, description="Filter by worker ID"),
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_dispatcher_or_admin),

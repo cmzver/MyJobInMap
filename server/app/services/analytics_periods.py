@@ -89,7 +89,9 @@ def resolve_analytics_period(
         return start, current, (current - start).days + 1
 
     if period == "year":
-        start = current.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        start = current.replace(
+            month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+        )
         return start, current, (current - start).days + 1
 
     if period == "all":

@@ -13,28 +13,22 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
-from sqlalchemy import text, create_engine
 
 from app.config import settings
-from app.models import (
-    UserModel, TaskModel, CommentModel, TaskPhotoModel,
-    DeviceModel, CustomFieldModel, SystemSettingModel,
-    UserRole, TaskPriority, get_db, get_setting, set_setting,
-)
+from app.models import (CommentModel, CustomFieldModel, DeviceModel,
+                        SystemSettingModel, TaskModel, TaskPhotoModel,
+                        TaskPriority, UserModel, UserRole, get_db, get_setting,
+                        set_setting)
 from app.models.address import AddressModel
 from app.models.notification import NotificationModel
-from app.schemas import (
-    BackupListResponse, BackupFile,
-    BackupSettingsSchema, BackupSettingsResponse,
-)
-from app.services import (
-    get_password_hash,
-    get_current_admin,
-    get_current_superadmin,
-)
-from app.services.audit_log import audit_backup_created, audit_backup_restored, audit_backup_deleted
-
+from app.schemas import (BackupFile, BackupListResponse,
+                         BackupSettingsResponse, BackupSettingsSchema)
+from app.services import (get_current_admin, get_current_superadmin,
+                          get_password_hash)
+from app.services.audit_log import (audit_backup_created, audit_backup_deleted,
+                                    audit_backup_restored)
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +42,7 @@ os.makedirs(BACKUP_DIR, exist_ok=True)
 # ============================================================================
 # Backups
 # ============================================================================
+
 
 def _resolve_sqlite_db_path() -> str:
     """Определить абсолютный путь к файлу SQLite БД."""
@@ -64,7 +59,9 @@ def _resolve_sqlite_db_path() -> str:
     if not os.path.exists(db_path):
         if os.path.exists("tasks.db"):
             return os.path.abspath("tasks.db")
-        raise HTTPException(status_code=500, detail=f"Database file not found at {db_path}")
+        raise HTTPException(
+            status_code=500, detail=f"Database file not found at {db_path}"
+        )
     return db_path
 
 
@@ -87,11 +84,13 @@ async def list_backups(
             if f.endswith(".sqlite.gz"):
                 path = os.path.join(BACKUP_DIR, f)
                 stat = os.stat(path)
-                backups.append(BackupFile(
-                    name=f,
-                    size=stat.st_size,
-                    created=datetime.fromtimestamp(stat.st_ctime),
-                ))
+                backups.append(
+                    BackupFile(
+                        name=f,
+                        size=stat.st_size,
+                        created=datetime.fromtimestamp(stat.st_ctime),
+                    )
+                )
 
     backups.sort(key=lambda x: x.created, reverse=True)
     return {"backups": backups}
@@ -120,6 +119,7 @@ async def run_backup(
 
 # -- Backup settings --------------------------------------------------------
 
+
 @router.get("/backups/settings", response_model=BackupSettingsResponse)
 async def get_backup_settings(
     db: Session = Depends(get_db),
@@ -144,12 +144,27 @@ async def update_backup_settings(
     admin: UserModel = Depends(get_current_superadmin),
 ):
     """Обновить настройки резервного копирования."""
-    set_setting(db, "backup_auto_enabled", str(settings_data.auto_backup).lower(),
-                description="Автоматическое резервное копирование", group="backup")
-    set_setting(db, "backup_schedule", settings_data.schedule,
-                description="Расписание бэкапов (daily/weekly/manual)", group="backup")
-    set_setting(db, "backup_retention_days", str(settings_data.retention_days),
-                description="Срок хранения бэкапов (дней)", group="backup")
+    set_setting(
+        db,
+        "backup_auto_enabled",
+        str(settings_data.auto_backup).lower(),
+        description="Автоматическое резервное копирование",
+        group="backup",
+    )
+    set_setting(
+        db,
+        "backup_schedule",
+        settings_data.schedule,
+        description="Расписание бэкапов (daily/weekly/manual)",
+        group="backup",
+    )
+    set_setting(
+        db,
+        "backup_retention_days",
+        str(settings_data.retention_days),
+        description="Срок хранения бэкапов (дней)",
+        group="backup",
+    )
 
     return BackupSettingsResponse(
         auto_backup=settings_data.auto_backup,
@@ -159,6 +174,7 @@ async def update_backup_settings(
 
 
 # -- Backup file operations --------------------------------------------------
+
 
 @router.get("/backups/{filename}/download")
 async def download_backup(
@@ -240,7 +256,9 @@ async def restore_backup(
             conn.close()
         except sqlite3.Error as e:
             os.remove(temp_db_path)
-            raise HTTPException(status_code=400, detail=f"Invalid SQLite file: {str(e)}")
+            raise HTTPException(
+                status_code=400, detail=f"Invalid SQLite file: {str(e)}"
+            )
 
         # 4. Замена текущей БД
         old_db_path = db_path + ".old"
@@ -273,6 +291,7 @@ async def restore_backup(
 # ============================================================================
 # Database Management
 # ============================================================================
+
 
 @router.post("/db/seed")
 async def seed_database(
@@ -342,55 +361,80 @@ async def seed_database(
                 title="Аварийная протечка",
                 raw_address="СПб, Невский проспект, 1",
                 description="Срочная заявка на устранение протечки в санузле.",
-                lat=59.935, lon=30.325,
-                status="NEW", priority=TaskPriority.EMERGENCY.value,
+                lat=59.935,
+                lon=30.325,
+                status="NEW",
+                priority=TaskPriority.EMERGENCY.value,
                 assigned_user_id=worker1.id,
-                is_remote=False, is_paid=True, payment_amount=2500.0,
-                created_at=now, updated_at=now,
+                is_remote=False,
+                is_paid=True,
+                payment_amount=2500.0,
+                created_at=now,
+                updated_at=now,
             ),
             TaskModel(
                 task_number="FW-0002",
                 title="Проверка отопления",
                 raw_address="Москва, Красная площадь, 1",
                 description="Плановая проверка системы отопления.",
-                lat=55.754, lon=37.620,
-                status="IN_PROGRESS", priority=TaskPriority.CURRENT.value,
+                lat=55.754,
+                lon=37.620,
+                status="IN_PROGRESS",
+                priority=TaskPriority.CURRENT.value,
                 assigned_user_id=worker2.id,
-                is_remote=False, is_paid=True, payment_amount=1800.0,
-                created_at=now - timedelta(days=1), updated_at=now,
+                is_remote=False,
+                is_paid=True,
+                payment_amount=1800.0,
+                created_at=now - timedelta(days=1),
+                updated_at=now,
             ),
             TaskModel(
                 task_number="FW-0003",
                 title="Консультация по телефону",
                 raw_address="Удалённо",
                 description="Техническая консультация по видеосвязи.",
-                lat=None, lon=None,
-                status="DONE", priority=TaskPriority.CURRENT.value,
+                lat=None,
+                lon=None,
+                status="DONE",
+                priority=TaskPriority.CURRENT.value,
                 assigned_user_id=worker1.id,
-                is_remote=True, is_paid=False, payment_amount=None,
-                created_at=now - timedelta(days=2), updated_at=now - timedelta(hours=1),
+                is_remote=True,
+                is_paid=False,
+                payment_amount=None,
+                created_at=now - timedelta(days=2),
+                updated_at=now - timedelta(hours=1),
             ),
             TaskModel(
                 task_number="FW-0004",
                 title="Ремонт окна",
                 raw_address="Казань, ул. Ленина, 42",
                 description="Замена разбитого стеклопакета.",
-                lat=55.796, lon=49.108,
-                status="NEW", priority=TaskPriority.PLANNED.value,
+                lat=55.796,
+                lon=49.108,
+                status="NEW",
+                priority=TaskPriority.PLANNED.value,
                 assigned_user_id=None,
-                is_remote=False, is_paid=True, payment_amount=3200.0,
-                created_at=now - timedelta(hours=2), updated_at=now - timedelta(hours=2),
+                is_remote=False,
+                is_paid=True,
+                payment_amount=3200.0,
+                created_at=now - timedelta(hours=2),
+                updated_at=now - timedelta(hours=2),
             ),
             TaskModel(
                 task_number="FW-0005",
                 title="Замена дверного замка",
                 raw_address="СПб, Лиговский проспект, 120",
                 description="Установка нового замка и личинки.",
-                lat=59.930, lon=30.340,
-                status="DONE", priority=TaskPriority.CURRENT.value,
+                lat=59.930,
+                lon=30.340,
+                status="DONE",
+                priority=TaskPriority.CURRENT.value,
                 assigned_user_id=worker2.id,
-                is_remote=False, is_paid=True, payment_amount=1500.0,
-                created_at=now - timedelta(days=3), updated_at=now - timedelta(days=2),
+                is_remote=False,
+                is_paid=True,
+                payment_amount=1500.0,
+                created_at=now - timedelta(days=3),
+                updated_at=now - timedelta(days=2),
             ),
         ]
 
@@ -414,6 +458,7 @@ async def seed_database(
 # ============================================================================
 # Database Tools
 # ============================================================================
+
 
 @router.get("/db/stats")
 async def get_database_stats(
@@ -457,9 +502,13 @@ async def get_database_stats(
             pass
 
         tasks_new = db.query(TaskModel).filter(TaskModel.status == "NEW").count()
-        tasks_in_progress = db.query(TaskModel).filter(TaskModel.status == "IN_PROGRESS").count()
+        tasks_in_progress = (
+            db.query(TaskModel).filter(TaskModel.status == "IN_PROGRESS").count()
+        )
         tasks_done = db.query(TaskModel).filter(TaskModel.status == "DONE").count()
-        tasks_cancelled = db.query(TaskModel).filter(TaskModel.status == "CANCELLED").count()
+        tasks_cancelled = (
+            db.query(TaskModel).filter(TaskModel.status == "CANCELLED").count()
+        )
 
         last_task = db.query(TaskModel).order_by(TaskModel.updated_at.desc()).first()
         last_activity = last_task.updated_at.isoformat() if last_task else None
@@ -505,7 +554,9 @@ async def check_database_integrity(
     """Проверить целостность БД (PRAGMA integrity_check)."""
     try:
         if not settings.is_sqlite:
-            raise HTTPException(status_code=400, detail="Integrity check only supported for SQLite")
+            raise HTTPException(
+                status_code=400, detail="Integrity check only supported for SQLite"
+            )
 
         result = db.execute(text("PRAGMA integrity_check")).fetchall()
         is_ok = len(result) == 1 and result[0][0] == "ok"
@@ -514,7 +565,9 @@ async def check_database_integrity(
             "status": "ok" if is_ok else "error",
             "integrity": "passed" if is_ok else "failed",
             "details": [row[0] for row in result] if not is_ok else None,
-            "message": "База данных в порядке" if is_ok else "Обнаружены проблемы целостности",
+            "message": (
+                "База данных в порядке" if is_ok else "Обнаружены проблемы целостности"
+            ),
         }
     except HTTPException:
         raise
@@ -555,10 +608,14 @@ async def cleanup_old_data(
                 "deleted_photos": 0,
             }
 
-        old_tasks = db.query(TaskModel).filter(
-            TaskModel.status.in_(statuses),
-            TaskModel.updated_at < cutoff_date,
-        ).all()
+        old_tasks = (
+            db.query(TaskModel)
+            .filter(
+                TaskModel.status.in_(statuses),
+                TaskModel.updated_at < cutoff_date,
+            )
+            .all()
+        )
 
         task_ids = [t.id for t in old_tasks]
 
@@ -571,28 +628,44 @@ async def cleanup_old_data(
                 "deleted_photos": 0,
             }
 
-        deleted_comments = db.query(CommentModel).filter(
-            CommentModel.task_id.in_(task_ids),
-        ).delete(synchronize_session=False)
+        deleted_comments = (
+            db.query(CommentModel)
+            .filter(
+                CommentModel.task_id.in_(task_ids),
+            )
+            .delete(synchronize_session=False)
+        )
 
         deleted_photos = 0
         try:
-            photos = db.query(TaskPhotoModel).filter(
-                TaskPhotoModel.task_id.in_(task_ids),
-            ).all()
+            photos = (
+                db.query(TaskPhotoModel)
+                .filter(
+                    TaskPhotoModel.task_id.in_(task_ids),
+                )
+                .all()
+            )
             for photo in photos:
                 photo_path = settings.PHOTOS_DIR / photo.filename
                 if photo_path.exists():
                     photo_path.unlink()
-            deleted_photos = db.query(TaskPhotoModel).filter(
-                TaskPhotoModel.task_id.in_(task_ids),
-            ).delete(synchronize_session=False)
+            deleted_photos = (
+                db.query(TaskPhotoModel)
+                .filter(
+                    TaskPhotoModel.task_id.in_(task_ids),
+                )
+                .delete(synchronize_session=False)
+            )
         except Exception:
             logger.warning("Failed to delete photos for old tasks")
 
-        deleted_tasks = db.query(TaskModel).filter(
-            TaskModel.id.in_(task_ids),
-        ).delete(synchronize_session=False)
+        deleted_tasks = (
+            db.query(TaskModel)
+            .filter(
+                TaskModel.id.in_(task_ids),
+            )
+            .delete(synchronize_session=False)
+        )
 
         db.commit()
 
@@ -636,7 +709,9 @@ async def optimize_database(
 ):
     """Оптимизировать индексы БД (ANALYZE + VACUUM)."""
     if not settings.is_sqlite:
-        raise HTTPException(status_code=400, detail="Optimize only supported for SQLite")
+        raise HTTPException(
+            status_code=400, detail="Optimize only supported for SQLite"
+        )
 
     try:
         # ANALYZE можно внутри транзакции

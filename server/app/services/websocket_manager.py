@@ -16,7 +16,7 @@ WebSocket Manager
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Set, Optional, TypedDict
+from typing import Dict, Optional, Set, TypedDict
 
 from fastapi import WebSocket
 
@@ -32,7 +32,7 @@ class ConnectionMeta(TypedDict):
 class ConnectionManager:
     """
     Менеджер WebSocket-соединений.
-    
+
     Поддерживает:
     - Broadcast всем подключённым клиентам
     - Отправка конкретному пользователю
@@ -78,10 +78,12 @@ class ConnectionManager:
                 "organization_id": organization_id,
                 "is_superadmin": is_superadmin,
             }
-        
+
         logger.info(
             "WebSocket connected: user_id=%d, total_connections=%d, unique_users=%d",
-            user_id, self.active_connections_count, self.active_users_count
+            user_id,
+            self.active_connections_count,
+            self.active_users_count,
         )
 
     async def disconnect(self, websocket: WebSocket) -> None:
@@ -93,35 +95,36 @@ class ConnectionManager:
                 self._connections[user_id].discard(websocket)
                 if not self._connections[user_id]:
                     del self._connections[user_id]
-        
+
         if user_id is not None:
             logger.info(
                 "WebSocket disconnected: user_id=%d, total_connections=%d",
-                user_id, self.active_connections_count
+                user_id,
+                self.active_connections_count,
             )
 
     async def send_to_user(self, user_id: int, message: dict) -> int:
         """
         Отправить сообщение конкретному пользователю (все его вкладки).
-        
+
         Returns:
             Количество успешно отправленных сообщений.
         """
         sent = 0
         connections = self._connections.get(user_id, set()).copy()
         stale: list[WebSocket] = []
-        
+
         for ws in connections:
             try:
                 await ws.send_json(message)
                 sent += 1
             except Exception:
                 stale.append(ws)
-        
+
         # Очистка закрытых соединений
         for ws in stale:
             await self.disconnect(ws)
-        
+
         return sent
 
     async def broadcast(
@@ -132,46 +135,46 @@ class ConnectionManager:
     ) -> int:
         """
         Отправить сообщение всем подключённым клиентам.
-        
+
         Args:
             message: JSON-сериализуемый dict
             exclude_user_id: Не отправлять этому пользователю (чтобы не дублировать)
-            
+
         Returns:
             Количество успешно отправленных сообщений.
         """
         sent = 0
         all_ws = list(self._ws_to_user.keys())
         stale: list[WebSocket] = []
-        
+
         for ws in all_ws:
             meta = self._ws_meta.get(ws)
             user_id = meta["user_id"] if meta else self._ws_to_user.get(ws)
             if user_id == exclude_user_id:
                 continue
             if organization_id is not None and meta is not None:
-                if not meta["is_superadmin"] and meta["organization_id"] != organization_id:
+                if (
+                    not meta["is_superadmin"]
+                    and meta["organization_id"] != organization_id
+                ):
                     continue
             try:
                 await ws.send_json(message)
                 sent += 1
             except Exception:
                 stale.append(ws)
-        
+
         for ws in stale:
             await self.disconnect(ws)
-        
+
         return sent
 
     async def broadcast_to_roles(
-        self,
-        message: dict,
-        user_ids: list[int],
-        exclude_user_id: Optional[int] = None
+        self, message: dict, user_ids: list[int], exclude_user_id: Optional[int] = None
     ) -> int:
         """
         Отправить сообщение списку пользователей.
-        
+
         Args:
             message: JSON-сериализуемый dict
             user_ids: Список user_id получателей
@@ -217,6 +220,7 @@ ws_manager = ConnectionManager()
 # Вспомогательные функции для broadcast событий
 # ============================================================================
 
+
 def _event(event_type: str, data: dict) -> dict:
     """Стандартный формат WebSocket события."""
     return {
@@ -235,11 +239,14 @@ async def broadcast_task_created(
 ) -> None:
     """Broadcast: новая заявка создана."""
     await ws_manager.broadcast(
-        _event("task_created", {
-            "task_id": task_id,
-            "task_number": task_number,
-            "title": title,
-        }),
+        _event(
+            "task_created",
+            {
+                "task_id": task_id,
+                "task_number": task_number,
+                "title": title,
+            },
+        ),
         exclude_user_id=user_id,
         organization_id=organization_id,
     )
@@ -254,11 +261,14 @@ async def broadcast_task_updated(
 ) -> None:
     """Broadcast: заявка обновлена."""
     await ws_manager.broadcast(
-        _event("task_updated", {
-            "task_id": task_id,
-            "task_number": task_number,
-            **changes,
-        }),
+        _event(
+            "task_updated",
+            {
+                "task_id": task_id,
+                "task_number": task_number,
+                **changes,
+            },
+        ),
         exclude_user_id=user_id,
         organization_id=organization_id,
     )
@@ -274,12 +284,15 @@ async def broadcast_task_status_changed(
 ) -> None:
     """Broadcast: статус заявки изменён."""
     await ws_manager.broadcast(
-        _event("task_status_changed", {
-            "task_id": task_id,
-            "task_number": task_number,
-            "old_status": old_status,
-            "new_status": new_status,
-        }),
+        _event(
+            "task_status_changed",
+            {
+                "task_id": task_id,
+                "task_number": task_number,
+                "old_status": old_status,
+                "new_status": new_status,
+            },
+        ),
         exclude_user_id=user_id,
         organization_id=organization_id,
     )
@@ -295,19 +308,28 @@ async def broadcast_task_assigned(
 ) -> None:
     """Broadcast: заявка назначена."""
     # Уведомить назначенного пользователя напрямую
-    await ws_manager.send_to_user(assigned_user_id, _event("task_assigned_to_me", {
-        "task_id": task_id,
-        "task_number": task_number,
-    }))
-    
+    await ws_manager.send_to_user(
+        assigned_user_id,
+        _event(
+            "task_assigned_to_me",
+            {
+                "task_id": task_id,
+                "task_number": task_number,
+            },
+        ),
+    )
+
     # Broadcast всем остальным
     await ws_manager.broadcast(
-        _event("task_assigned", {
-            "task_id": task_id,
-            "task_number": task_number,
-            "assigned_user_id": assigned_user_id,
-            "assigned_user_name": assigned_user_name,
-        }),
+        _event(
+            "task_assigned",
+            {
+                "task_id": task_id,
+                "task_number": task_number,
+                "assigned_user_id": assigned_user_id,
+                "assigned_user_name": assigned_user_name,
+            },
+        ),
         exclude_user_id=user_id,
         organization_id=organization_id,
     )
@@ -321,10 +343,13 @@ async def broadcast_task_deleted(
 ) -> None:
     """Broadcast: заявка удалена."""
     await ws_manager.broadcast(
-        _event("task_deleted", {
-            "task_id": task_id,
-            "task_number": task_number,
-        }),
+        _event(
+            "task_deleted",
+            {
+                "task_id": task_id,
+                "task_number": task_number,
+            },
+        ),
         exclude_user_id=user_id,
         organization_id=organization_id,
     )
@@ -333,6 +358,7 @@ async def broadcast_task_deleted(
 # ============================================================================
 # Chat broadcast helpers
 # ============================================================================
+
 
 async def broadcast_chat_message(
     member_user_ids: list[int],
@@ -343,10 +369,13 @@ async def broadcast_chat_message(
     """Broadcast: новое сообщение в чате."""
     await ws_manager.send_to_conversation(
         member_user_ids,
-        _event("chat_message", {
-            "conversation_id": conversation_id,
-            **message_data,
-        }),
+        _event(
+            "chat_message",
+            {
+                "conversation_id": conversation_id,
+                **message_data,
+            },
+        ),
         exclude_user_id=sender_id,
     )
 
@@ -361,11 +390,14 @@ async def broadcast_chat_message_edited(
     """Broadcast: сообщение отредактировано."""
     await ws_manager.send_to_conversation(
         member_user_ids,
-        _event("chat_message_edited", {
-            "conversation_id": conversation_id,
-            "message_id": message_id,
-            "text": new_text,
-        }),
+        _event(
+            "chat_message_edited",
+            {
+                "conversation_id": conversation_id,
+                "message_id": message_id,
+                "text": new_text,
+            },
+        ),
         exclude_user_id=sender_id,
     )
 
@@ -379,10 +411,13 @@ async def broadcast_chat_message_deleted(
     """Broadcast: сообщение удалено."""
     await ws_manager.send_to_conversation(
         member_user_ids,
-        _event("chat_message_deleted", {
-            "conversation_id": conversation_id,
-            "message_id": message_id,
-        }),
+        _event(
+            "chat_message_deleted",
+            {
+                "conversation_id": conversation_id,
+                "message_id": message_id,
+            },
+        ),
         exclude_user_id=sender_id,
     )
 
@@ -398,13 +433,16 @@ async def broadcast_chat_reaction(
     """Broadcast: реакция на сообщение."""
     await ws_manager.send_to_conversation(
         member_user_ids,
-        _event("chat_reaction", {
-            "conversation_id": conversation_id,
-            "message_id": message_id,
-            "emoji": emoji,
-            "user_id": user_id,
-            "action": action,
-        }),
+        _event(
+            "chat_reaction",
+            {
+                "conversation_id": conversation_id,
+                "message_id": message_id,
+                "emoji": emoji,
+                "user_id": user_id,
+                "action": action,
+            },
+        ),
         exclude_user_id=user_id,
     )
 
@@ -418,11 +456,14 @@ async def broadcast_chat_read(
     """Broadcast: пользователь прочитал сообщения."""
     await ws_manager.send_to_conversation(
         member_user_ids,
-        _event("chat_read", {
-            "conversation_id": conversation_id,
-            "user_id": user_id,
-            "last_message_id": last_message_id,
-        }),
+        _event(
+            "chat_read",
+            {
+                "conversation_id": conversation_id,
+                "user_id": user_id,
+                "last_message_id": last_message_id,
+            },
+        ),
         exclude_user_id=user_id,
     )
 

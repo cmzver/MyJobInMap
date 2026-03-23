@@ -2,9 +2,11 @@
 Creates fresh sample users, tasks, and comments.
 Usage: python scripts/seed_dev.py
 """
+
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
 import bcrypt
 
 DB_PATH = Path(__file__).resolve().parent.parent / "tasks.db"
@@ -193,8 +195,16 @@ def main():
                 task["priority"],
                 NOW.isoformat(sep=" "),
                 NOW.isoformat(sep=" "),
-                task.get("planned_date").isoformat(sep=" ") if task.get("planned_date") else None,
-                task.get("completed_at").isoformat(sep=" ") if task.get("completed_at") else None,
+                (
+                    task.get("planned_date").isoformat(sep=" ")
+                    if task.get("planned_date")
+                    else None
+                ),
+                (
+                    task.get("completed_at").isoformat(sep=" ")
+                    if task.get("completed_at")
+                    else None
+                ),
                 assigned_id,
                 int(task["is_remote"]),
                 int(task["is_paid"]),
@@ -203,7 +213,9 @@ def main():
         )
 
     for comment in COMMENTS:
-        cur.execute("SELECT id FROM tasks WHERE task_number=?;", (comment["task_number"],))
+        cur.execute(
+            "SELECT id FROM tasks WHERE task_number=?;", (comment["task_number"],)
+        )
         row = cur.fetchone()
         if not row:
             continue

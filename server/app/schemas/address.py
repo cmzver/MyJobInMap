@@ -3,19 +3,39 @@ Pydantic ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï
 
 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½: ï¿½ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½.
 """
+
 from datetime import datetime
-from typing import Optional, List
+from typing import List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict
-
+from pydantic import BaseModel, ConfigDict, Field
 
 # ============================================
 # Enums (ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½)
 # ============================================
 
-SYSTEM_TYPES = ["video_surveillance", "intercom", "fire_protection", "access_control", "fire_alarm", "other"]
+SYSTEM_TYPES = [
+    "video_surveillance",
+    "intercom",
+    "fire_protection",
+    "access_control",
+    "fire_alarm",
+    "other",
+]
 SYSTEM_STATUSES = ["active", "maintenance", "disabled"]
-EQUIPMENT_TYPES = ["camera", "dvr", "intercom_panel", "intercom_handset", "sensor", "controller", "reader", "lock", "switch", "router", "ups", "other"]
+EQUIPMENT_TYPES = [
+    "camera",
+    "dvr",
+    "intercom_panel",
+    "intercom_handset",
+    "sensor",
+    "controller",
+    "reader",
+    "lock",
+    "switch",
+    "router",
+    "ups",
+    "other",
+]
 EQUIPMENT_STATUSES = ["working", "faulty", "dismantled"]
 DOCUMENT_TYPES = ["contract", "estimate", "act", "scheme", "passport", "other"]
 CONTACT_TYPES = ["chairman", "elder", "management", "concierge", "other"]
@@ -25,63 +45,100 @@ CONTACT_TYPES = ["chairman", "elder", "management", "concierge", "other"]
 # Address Schemas
 # ============================================
 
+
 class AddressBase(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
-    address: str = Field(..., min_length=1, max_length=500, json_schema_extra={"example": "ï¿½ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½., 1"})
-    city: Optional[str] = Field(None, max_length=100, json_schema_extra={"example": "ï¿½ï¿½ï¿½ï¿½ï¿½-ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"})
-    street: Optional[str] = Field(None, max_length=200, json_schema_extra={"example": "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"})
-    building: Optional[str] = Field(None, max_length=50, json_schema_extra={"example": "1"})
-    corpus: Optional[str] = Field(None, max_length=20, json_schema_extra={"example": "2"})
-    entrance: Optional[str] = Field(None, max_length=10, json_schema_extra={"example": "3"})
-    
+
+    address: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        json_schema_extra={"example": "ï¿½ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½., 1"},
+    )
+    city: Optional[str] = Field(
+        None, max_length=100, json_schema_extra={"example": "ï¿½ï¿½ï¿½ï¿½ï¿½-ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"}
+    )
+    street: Optional[str] = Field(
+        None, max_length=200, json_schema_extra={"example": "ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"}
+    )
+    building: Optional[str] = Field(
+        None, max_length=50, json_schema_extra={"example": "1"}
+    )
+    corpus: Optional[str] = Field(
+        None, max_length=20, json_schema_extra={"example": "2"}
+    )
+    entrance: Optional[str] = Field(
+        None, max_length=10, json_schema_extra={"example": "3"}
+    )
+
     # ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     lat: Optional[float] = Field(None, json_schema_extra={"example": 59.9343})
     lon: Optional[float] = Field(None, json_schema_extra={"example": 30.3351})
-    
+
     # ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
-    entrance_count: Optional[int] = Field(1, ge=1, le=50, json_schema_extra={"example": 4})
-    floor_count: Optional[int] = Field(1, ge=1, le=100, json_schema_extra={"example": 9})
-    apartment_count: Optional[int] = Field(None, ge=1, json_schema_extra={"example": 36})
+    entrance_count: Optional[int] = Field(
+        1, ge=1, le=50, json_schema_extra={"example": 4}
+    )
+    floor_count: Optional[int] = Field(
+        1, ge=1, le=100, json_schema_extra={"example": 9}
+    )
+    apartment_count: Optional[int] = Field(
+        None, ge=1, json_schema_extra={"example": 36}
+    )
     has_elevator: Optional[bool] = Field(False, json_schema_extra={"example": True})
     has_intercom: Optional[bool] = Field(False, json_schema_extra={"example": True})
-    intercom_code: Optional[str] = Field(None, max_length=50, json_schema_extra={"example": "123#4567"})
-    
+    intercom_code: Optional[str] = Field(
+        None, max_length=50, json_schema_extra={"example": "123#4567"}
+    )
+
     # ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
-    management_company: Optional[str] = Field(None, max_length=200, json_schema_extra={"example": "ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½"})
-    management_phone: Optional[str] = Field(None, max_length=50, json_schema_extra={"example": "+7 (812) 123-45-67"})
-    
+    management_company: Optional[str] = Field(
+        None, max_length=200, json_schema_extra={"example": "ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½"}
+    )
+    management_phone: Optional[str] = Field(
+        None, max_length=50, json_schema_extra={"example": "+7 (812) 123-45-67"}
+    )
+
     # ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
-    notes: Optional[str] = Field(None, max_length=2000, json_schema_extra={"example": "ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½"})
-    extra_info: Optional[str] = Field(None, max_length=5000, json_schema_extra={"example": "ï¿½ï¿½ï¿½. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"})
+    notes: Optional[str] = Field(
+        None, max_length=2000, json_schema_extra={"example": "ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½"}
+    )
+    extra_info: Optional[str] = Field(
+        None,
+        max_length=5000,
+        json_schema_extra={"example": "ï¿½ï¿½ï¿½. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"},
+    )
 
 
 class AddressCreate(AddressBase):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     pass
 
 
 class AddressUpdate(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ (ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½)"""
+
     address: Optional[str] = Field(None, min_length=1, max_length=500)
     city: Optional[str] = Field(None, max_length=100)
     street: Optional[str] = Field(None, max_length=200)
     building: Optional[str] = Field(None, max_length=50)
     corpus: Optional[str] = Field(None, max_length=20)
     entrance: Optional[str] = Field(None, max_length=10)
-    
+
     lat: Optional[float] = None
     lon: Optional[float] = None
-    
+
     entrance_count: Optional[int] = Field(None, ge=1, le=50)
     floor_count: Optional[int] = Field(None, ge=1, le=100)
     apartment_count: Optional[int] = Field(None, ge=1)
     has_elevator: Optional[bool] = None
     has_intercom: Optional[bool] = None
     intercom_code: Optional[str] = Field(None, max_length=50)
-    
+
     management_company: Optional[str] = Field(None, max_length=200)
     management_phone: Optional[str] = Field(None, max_length=50)
-    
+
     notes: Optional[str] = Field(None, max_length=2000)
     extra_info: Optional[str] = Field(None, max_length=5000)
     is_active: Optional[bool] = None
@@ -89,8 +146,9 @@ class AddressUpdate(BaseModel):
 
 class AddressResponse(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: int
     address: str
     city: Optional[str] = None
@@ -98,30 +156,31 @@ class AddressResponse(BaseModel):
     building: Optional[str] = None
     corpus: Optional[str] = None
     entrance: Optional[str] = None
-    
+
     lat: Optional[float] = None
     lon: Optional[float] = None
-    
+
     entrance_count: Optional[int] = None
     floor_count: Optional[int] = None
     apartment_count: Optional[int] = None
     has_elevator: Optional[bool] = None
     has_intercom: Optional[bool] = None
     intercom_code: Optional[str] = None
-    
+
     management_company: Optional[str] = None
     management_phone: Optional[str] = None
-    
+
     notes: Optional[str] = None
     extra_info: Optional[str] = None
     is_active: bool = True
-    
+
     created_at: datetime
     updated_at: datetime
 
 
 class AddressListResponse(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     items: List[AddressResponse]
     total: int
     page: int
@@ -131,8 +190,9 @@ class AddressListResponse(BaseModel):
 
 class AddressSearchResponse(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: int
     address: str
     lat: Optional[float] = None
@@ -145,11 +205,13 @@ class AddressSearchResponse(BaseModel):
 
 class AddressParseRequest(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     address: str
 
 
 class AddressParseResponse(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     city: Optional[str] = None
     street: Optional[str] = None
     building: Optional[str] = None
@@ -159,6 +221,7 @@ class AddressParseResponse(BaseModel):
 
 class AddressComposeRequest(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     city: Optional[str] = None
     street: Optional[str] = None
     building: Optional[str] = None
@@ -168,6 +231,7 @@ class AddressComposeRequest(BaseModel):
 
 class AddressComposeResponse(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     address: str
 
 
@@ -175,8 +239,10 @@ class AddressComposeResponse(BaseModel):
 # System Schemas
 # ============================================
 
+
 class AddressSystemBase(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     system_type: str = Field(..., description="ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½")
     name: str = Field(..., min_length=1, max_length=200)
     status: str = Field(default="active", description="ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½")
@@ -189,11 +255,13 @@ class AddressSystemBase(BaseModel):
 
 class AddressSystemCreate(AddressSystemBase):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     pass
 
 
 class AddressSystemUpdate(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     system_type: Optional[str] = None
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     status: Optional[str] = None
@@ -206,8 +274,9 @@ class AddressSystemUpdate(BaseModel):
 
 class AddressSystemResponse(AddressSystemBase):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: int
     address_id: int
     created_at: datetime
@@ -218,8 +287,10 @@ class AddressSystemResponse(AddressSystemBase):
 # Equipment Schemas
 # ============================================
 
+
 class AddressEquipmentBase(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     equipment_type: str = Field(..., description="ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½")
     name: str = Field(..., min_length=1, max_length=200)
     model: Optional[str] = Field(None, max_length=100)
@@ -235,11 +306,13 @@ class AddressEquipmentBase(BaseModel):
 
 class AddressEquipmentCreate(AddressEquipmentBase):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     pass
 
 
 class AddressEquipmentUpdate(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     equipment_type: Optional[str] = None
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     model: Optional[str] = Field(None, max_length=100)
@@ -255,8 +328,9 @@ class AddressEquipmentUpdate(BaseModel):
 
 class AddressEquipmentResponse(AddressEquipmentBase):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: int
     address_id: int
     created_at: datetime
@@ -267,8 +341,10 @@ class AddressEquipmentResponse(AddressEquipmentBase):
 # Document Schemas
 # ============================================
 
+
 class AddressDocumentBase(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     name: str = Field(..., min_length=1, max_length=300)
     doc_type: str = Field(default="other", description="ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½")
     valid_from: Optional[datetime] = None
@@ -278,11 +354,13 @@ class AddressDocumentBase(BaseModel):
 
 class AddressDocumentCreate(AddressDocumentBase):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ (ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½)"""
+
     pass
 
 
 class AddressDocumentUpdate(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     name: Optional[str] = Field(None, min_length=1, max_length=300)
     doc_type: Optional[str] = None
     valid_from: Optional[datetime] = None
@@ -292,8 +370,9 @@ class AddressDocumentUpdate(BaseModel):
 
 class AddressDocumentResponse(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: int
     address_id: int
     name: str
@@ -313,8 +392,10 @@ class AddressDocumentResponse(BaseModel):
 # Contact Schemas
 # ============================================
 
+
 class AddressContactBase(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     contact_type: str = Field(default="other", description="ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½")
     name: str = Field(..., min_length=1, max_length=200)
     position: Optional[str] = Field(None, max_length=200, description="ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½")
@@ -326,11 +407,13 @@ class AddressContactBase(BaseModel):
 
 class AddressContactCreate(AddressContactBase):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     pass
 
 
 class AddressContactUpdate(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     contact_type: Optional[str] = None
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     position: Optional[str] = Field(None, max_length=200)
@@ -342,8 +425,9 @@ class AddressContactUpdate(BaseModel):
 
 class AddressContactResponse(AddressContactBase):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: int
     address_id: int
     created_at: datetime
@@ -354,10 +438,12 @@ class AddressContactResponse(AddressContactBase):
 # History Schemas
 # ============================================
 
+
 class AddressHistoryResponse(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: int
     address_id: int
     event_type: str
@@ -371,8 +457,10 @@ class AddressHistoryResponse(BaseModel):
 # Full Address Card
 # ============================================
 
+
 class TaskStats(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     total: int = 0
     new: int = 0
     in_progress: int = 0
@@ -382,8 +470,9 @@ class TaskStats(BaseModel):
 
 class AddressFullResponse(BaseModel):
     """ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"""
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     # ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     id: int
     address: str
@@ -407,7 +496,7 @@ class AddressFullResponse(BaseModel):
     is_active: bool = True
     created_at: datetime
     updated_at: datetime
-    
+
     # ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     systems: List[AddressSystemResponse] = []
     equipment: List[AddressEquipmentResponse] = []

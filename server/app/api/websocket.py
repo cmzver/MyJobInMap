@@ -10,7 +10,7 @@ WebSocket API
 import logging
 
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
-from jose import jwt, JWTError
+from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -22,10 +22,14 @@ router = APIRouter(tags=["WebSocket"])
 logger = logging.getLogger(__name__)
 
 
-def _authenticate_websocket_user(token: str, db: Session) -> tuple[int, int | None, bool] | None:
+def _authenticate_websocket_user(
+    token: str, db: Session
+) -> tuple[int, int | None, bool] | None:
     """Проверить JWT и пользователя в БД. Возвращает user_id, organization_id, is_superadmin."""
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
         if payload.get("type") != "access":
             return None
         user_id = payload.get("user_id")
@@ -54,10 +58,10 @@ async def websocket_endpoint(
 ):
     """
     WebSocket endpoint для реал-тайм уведомлений.
-    
+
     Подключение:
         ws://localhost:8001/ws?token=<JWT_TOKEN>
-    
+
     Формат сообщений (сервер → клиент):
     ```json
     {
@@ -66,7 +70,7 @@ async def websocket_endpoint(
         "timestamp": "2026-02-15T12:00:00+00:00"
     }
     ```
-    
+
     Клиент может отправлять ping для keepalive:
     ```json
     {"type": "ping"}
@@ -80,8 +84,10 @@ async def websocket_endpoint(
 
     user_id, organization_id, is_superadmin = auth_context
 
-    await ws_manager.connect(websocket, user_id, organization_id=organization_id, is_superadmin=is_superadmin)
-    
+    await ws_manager.connect(
+        websocket, user_id, organization_id=organization_id, is_superadmin=is_superadmin
+    )
+
     try:
         while True:
             # Ожидаем сообщения от клиента (ping/pong keepalive + chat events)
@@ -94,11 +100,17 @@ async def websocket_endpoint(
                 conv_id = data.get("conversation_id")
                 if conv_id:
                     from app.services.chat_service import _ensure_membership
+
                     _ensure_membership(db, conv_id, user_id)
                     from app.models.chat import ConversationMemberModel
-                    members = db.query(ConversationMemberModel.user_id).filter(
-                        ConversationMemberModel.conversation_id == conv_id,
-                    ).all()
+
+                    members = (
+                        db.query(ConversationMemberModel.user_id)
+                        .filter(
+                            ConversationMemberModel.conversation_id == conv_id,
+                        )
+                        .all()
+                    )
                     member_ids = [m[0] for m in members]
                     await ws_manager.send_to_conversation(
                         member_ids,
@@ -118,6 +130,7 @@ async def websocket_endpoint(
                 last_message_id = data.get("last_message_id")
                 if conv_id and last_message_id:
                     from app.services.chat_service import mark_as_read
+
                     mark_as_read(db, conv_id, user_id, last_message_id)
     except WebSocketDisconnect:
         pass

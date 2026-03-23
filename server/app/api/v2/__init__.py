@@ -9,8 +9,8 @@ v2-specific роутеры добавляют новые или переопре
 
 from fastapi import APIRouter
 
-from app.api.v2.tasks import router as tasks_v2_router
 from app.api.v2.meta import router as meta_v2_router
+from app.api.v2.tasks import router as tasks_v2_router
 
 v2_router = APIRouter()
 v2_router.include_router(meta_v2_router)

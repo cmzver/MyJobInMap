@@ -1,6 +1,9 @@
 """Tests for task creation and planned_date validation."""
+
 from datetime import datetime
+
 import pytest
+
 from app.schemas.task import TaskCreate, TaskUpdate
 
 
@@ -24,12 +27,16 @@ class TestPlannedDateValidator:
 
     def test_planned_date_iso_datetime(self):
         """Test full ISO datetime format."""
-        task = TaskCreate(title="Test", address="Test St", planned_date="2025-12-25T14:30:00")
+        task = TaskCreate(
+            title="Test", address="Test St", planned_date="2025-12-25T14:30:00"
+        )
         assert task.planned_date == datetime(2025, 12, 25, 14, 30, 0)
 
     def test_planned_date_invalid_format(self):
         """Test invalid format raises error."""
-        with pytest.raises(ValueError, match="planned_date must be ISO date or datetime"):
+        with pytest.raises(
+            ValueError, match="planned_date must be ISO date or datetime"
+        ):
             TaskCreate(title="Test", address="Test St", planned_date="invalid-date")
 
     def test_task_update_with_planned_date(self):

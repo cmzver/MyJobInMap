@@ -1,16 +1,16 @@
 """Tests for TaskService class."""
+
 import pytest
 from sqlalchemy.orm import Session
-from app.services.task_service import (
-    TaskService,
-    TaskNotFoundError,
-    PermissionDeniedError,
-    InvalidTransitionError,
-    CommentRequiredError,
-)
+
+from app.models import (OrganizationModel, TaskModel, TaskStatus, UserModel,
+                        UserRole)
 from app.schemas import TaskCreate
-from app.models import TaskModel, UserModel, UserRole, TaskStatus, OrganizationModel
 from app.services.auth import get_password_hash
+from app.services.task_service import (CommentRequiredError,
+                                       InvalidTransitionError,
+                                       PermissionDeniedError,
+                                       TaskNotFoundError, TaskService)
 
 
 class TestTaskServiceInit:
@@ -37,20 +37,20 @@ class TestTaskServiceGetById:
         )
         db_session.add(task)
         db_session.commit()
-        
+
         service = TaskService(db_session)
         result = service.get_by_id(task.id)
-        
+
         assert result.id == task.id
         assert result.title == "Test Task"
 
     def test_get_nonexistent_task_raises(self, db_session):
         """Test getting non-existent task raises TaskNotFoundError."""
         service = TaskService(db_session)
-        
+
         with pytest.raises(TaskNotFoundError) as exc_info:
             service.get_by_id(99999)
-        
+
         assert exc_info.value.status_code == 404
         assert "99999" in exc_info.value.message
 
@@ -62,7 +62,7 @@ class TestTaskServiceGetList:
         """Test getting empty task list."""
         service = TaskService(db_session)
         tasks = service.get_list(admin_user)
-        
+
         assert tasks == []
 
     def test_get_list_with_tasks(self, db_session, admin_user):
@@ -78,31 +78,50 @@ class TestTaskServiceGetList:
             )
             db_session.add(task)
         db_session.commit()
-        
+
         service = TaskService(db_session)
         tasks = service.get_list(admin_user)
-        
+
         assert len(tasks) == 3
 
     def test_get_list_filter_by_status(self, db_session, admin_user):
         """Test filtering tasks by status."""
         # Create tasks with different statuses
-        task1 = TaskModel(title="T1", raw_address="A1", status=TaskStatus.NEW.value, priority="CURRENT")
-        task2 = TaskModel(title="T2", raw_address="A2", status=TaskStatus.IN_PROGRESS.value, priority="CURRENT")
-        task3 = TaskModel(title="T3", raw_address="A3", status=TaskStatus.NEW.value, priority="CURRENT")
+        task1 = TaskModel(
+            title="T1",
+            raw_address="A1",
+            status=TaskStatus.NEW.value,
+            priority="CURRENT",
+        )
+        task2 = TaskModel(
+            title="T2",
+            raw_address="A2",
+            status=TaskStatus.IN_PROGRESS.value,
+            priority="CURRENT",
+        )
+        task3 = TaskModel(
+            title="T3",
+            raw_address="A3",
+            status=TaskStatus.NEW.value,
+            priority="CURRENT",
+        )
         db_session.add_all([task1, task2, task3])
         db_session.commit()
-        
+
         service = TaskService(db_session)
         new_tasks = service.get_list(admin_user, status="NEW")
-        
+
         assert len(new_tasks) == 2
         assert all(t.status == TaskStatus.NEW.value for t in new_tasks)
 
     def test_get_list_is_tenant_scoped(self, db_session):
         """Org user should not see tasks from another organization via service list."""
-        org1 = OrganizationModel(name="Task Service Org 1", slug="task-service-org-1", is_active=True)
-        org2 = OrganizationModel(name="Task Service Org 2", slug="task-service-org-2", is_active=True)
+        org1 = OrganizationModel(
+            name="Task Service Org 1", slug="task-service-org-1", is_active=True
+        )
+        org2 = OrganizationModel(
+            name="Task Service Org 2", slug="task-service-org-2", is_active=True
+        )
         user = UserModel(
             username="task_service_org_user",
             password_hash=get_password_hash("test"),
@@ -141,7 +160,7 @@ class TestTaskServiceCreate:
     def test_create_basic_task(self, db_session, admin_user):
         """Test basic task creation."""
         service = TaskService(db_session)
-        
+
         task_data = TaskCreate(
             title="New Task",
             address="Test Address",
@@ -149,7 +168,7 @@ class TestTaskServiceCreate:
             priority="URGENT",
         )
         task = service.create(task_data, admin_user)
-        
+
         assert task.id is not None
         assert task.title == "New Task"
         assert task.raw_address == "Test Address"
@@ -159,10 +178,10 @@ class TestTaskServiceCreate:
     def test_create_with_planned_date(self, db_session, admin_user):
         """Test task creation with planned date."""
         from datetime import datetime
-        
+
         service = TaskService(db_session)
         planned = datetime(2025, 12, 31, 12, 0, 0)
-        
+
         task_data = TaskCreate(
             title="Planned Task",
             address="Address",
@@ -170,13 +189,13 @@ class TestTaskServiceCreate:
             planned_date=planned,
         )
         task = service.create(task_data, admin_user)
-        
+
         assert task.planned_date is not None
 
     def test_create_with_payment(self, db_session, admin_user):
         """Test task creation with payment info."""
         service = TaskService(db_session)
-        
+
         task_data = TaskCreate(
             title="Paid Task",
             address="Address",
@@ -185,7 +204,7 @@ class TestTaskServiceCreate:
             payment_amount=5000.0,
         )
         task = service.create(task_data, admin_user)
-        
+
         assert task.is_paid is True
         assert task.payment_amount == 5000.0
 
@@ -204,10 +223,10 @@ class TestTaskServiceUpdateStatus:
         )
         db_session.add(task)
         db_session.commit()
-        
+
         service = TaskService(db_session)
         updated = service.update_status(task.id, "IN_PROGRESS", user=admin_user)
-        
+
         assert updated.status == TaskStatus.IN_PROGRESS.value
 
     def test_invalid_status_transition_raises(self, db_session, admin_user):
@@ -221,12 +240,12 @@ class TestTaskServiceUpdateStatus:
         )
         db_session.add(task)
         db_session.commit()
-        
+
         service = TaskService(db_session)
-        
+
         with pytest.raises(InvalidTransitionError) as exc_info:
             service.update_status(task.id, "DONE", user=admin_user)
-        
+
         assert exc_info.value.status_code == 422
 
     def test_complete_task_sets_completed_at(self, db_session, admin_user):
@@ -240,10 +259,12 @@ class TestTaskServiceUpdateStatus:
         )
         db_session.add(task)
         db_session.commit()
-        
+
         service = TaskService(db_session)
-        updated = service.update_status(task.id, "DONE", comment_text="Работы завершены", user=admin_user)
-        
+        updated = service.update_status(
+            task.id, "DONE", comment_text="Работы завершены", user=admin_user
+        )
+
         assert updated.status == TaskStatus.DONE.value
         assert updated.completed_at is not None
 
@@ -279,7 +300,9 @@ class TestTaskServiceUpdateStatus:
         service = TaskService(db_session)
 
         with pytest.raises(CommentRequiredError) as exc_info:
-            service.update_status(task.id, "CANCELLED", comment_text="", user=admin_user)
+            service.update_status(
+                task.id, "CANCELLED", comment_text="", user=admin_user
+            )
 
         assert exc_info.value.status_code == 422
 
@@ -298,7 +321,7 @@ class TestTaskServiceAssign:
             is_active=True,
         )
         db_session.add(worker)
-        
+
         # Create task
         task = TaskModel(
             title="Task",
@@ -308,10 +331,10 @@ class TestTaskServiceAssign:
         )
         db_session.add(task)
         db_session.commit()
-        
+
         service = TaskService(db_session)
         updated = service.assign(task.id, worker.id, admin_user)
-        
+
         assert updated.assigned_user_id == worker.id
 
     def test_unassign_task(self, db_session, admin_user):
@@ -326,10 +349,10 @@ class TestTaskServiceAssign:
         )
         db_session.add(task)
         db_session.commit()
-        
+
         service = TaskService(db_session)
         updated = service.assign(task.id, None, admin_user)
-        
+
         assert updated.assigned_user_id is None
 
 
@@ -348,10 +371,10 @@ class TestTaskServiceDelete:
         db_session.add(task)
         db_session.commit()
         task_id = task.id
-        
+
         service = TaskService(db_session)
         service.delete(task_id)
-        
+
         # Verify deleted
         deleted = db_session.query(TaskModel).filter(TaskModel.id == task_id).first()
         assert deleted is None
@@ -359,7 +382,7 @@ class TestTaskServiceDelete:
     def test_delete_nonexistent_raises(self, db_session, admin_user):
         """Test deleting non-existent task raises error."""
         service = TaskService(db_session)
-        
+
         with pytest.raises(TaskNotFoundError):
             service.delete(99999)
 
@@ -370,21 +393,21 @@ class TestTaskServiceExceptions:
     def test_task_not_found_error(self):
         """Test TaskNotFoundError attributes."""
         error = TaskNotFoundError(123)
-        
+
         assert error.status_code == 404
         assert "123" in error.message
 
     def test_permission_denied_error(self):
         """Test PermissionDeniedError attributes."""
         error = PermissionDeniedError("Custom message")
-        
+
         assert error.status_code == 403
         assert error.message == "Custom message"
 
     def test_invalid_transition_error(self):
         """Test InvalidTransitionError attributes."""
         error = InvalidTransitionError("NEW", "DONE")
-        
+
         assert error.status_code == 422
         assert "NEW" in error.message
         assert "DONE" in error.message
@@ -396,6 +419,7 @@ class TestTaskServiceStatusNames:
     def test_status_names_mapping(self):
         """Test STATUS_DISPLAY_NAMES contains all statuses."""
         from app.utils import STATUS_DISPLAY_NAMES
+
         assert STATUS_DISPLAY_NAMES["NEW"] == "Новая"
         assert STATUS_DISPLAY_NAMES["IN_PROGRESS"] == "В работе"
         assert STATUS_DISPLAY_NAMES["DONE"] == "Выполнена"
@@ -403,8 +427,9 @@ class TestTaskServiceStatusNames:
 
     def test_priority_names_mapping(self):
         """Test PRIORITY_DISPLAY_NAMES contains all priorities."""
-        from app.utils import PRIORITY_DISPLAY_NAMES
         from app.models.enums import TaskPriority
+        from app.utils import PRIORITY_DISPLAY_NAMES
+
         assert PRIORITY_DISPLAY_NAMES[TaskPriority.PLANNED.value] == "Плановая"
         assert PRIORITY_DISPLAY_NAMES[TaskPriority.CURRENT.value] == "Текущая"
         assert PRIORITY_DISPLAY_NAMES[TaskPriority.URGENT.value] == "Срочная"

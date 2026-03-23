@@ -17,12 +17,13 @@ from typing import Optional
 @dataclass
 class ParsedAddress:
     """Распарсенный адрес."""
+
     city: Optional[str] = None
     street: Optional[str] = None
     building: Optional[str] = None
     corpus: Optional[str] = None
     entrance: Optional[str] = None
-    
+
     def to_dict(self) -> dict:
         return {
             "city": self.city,
@@ -93,19 +94,19 @@ BUILDING_PATTERNS = [
 def parse_address(full_address: str) -> ParsedAddress:
     """
     Парсит полный адрес и извлекает город, улицу и номер дома.
-    
+
     Args:
         full_address: Полный адрес в свободной форме
-        
+
     Returns:
         ParsedAddress с извлечёнными компонентами
     """
     if not full_address:
         return ParsedAddress()
-    
+
     result = ParsedAddress()
     text = full_address.strip()
-    
+
     # 1. Извлекаем город
     for pattern in CITY_PATTERNS:
         match = re.search(pattern, text, re.IGNORECASE)
@@ -119,10 +120,12 @@ def parse_address(full_address: str) -> ParsedAddress:
             else:
                 result.city = city.title()
             break
-    
+
     # Проверяем сокращения в конце: ", СПб" или ", Мск"
     if not result.city:
-        suffix_match = re.search(r",?\s*(СПб|Мск|Санкт-Петербург|Москва)\s*$", text, re.IGNORECASE)
+        suffix_match = re.search(
+            r",?\s*(СПб|Мск|Санкт-Петербург|Москва)\s*$", text, re.IGNORECASE
+        )
         if suffix_match:
             city = suffix_match.group(1).strip()
             city_lower = city.lower()
@@ -130,7 +133,7 @@ def parse_address(full_address: str) -> ParsedAddress:
                 result.city = CITY_ALIASES[city_lower]
             else:
                 result.city = city.title()
-    
+
     # 2. Извлекаем улицу
     for pattern in STREET_PATTERNS:
         match = re.search(pattern, text, re.IGNORECASE)
@@ -155,7 +158,7 @@ def parse_address(full_address: str) -> ParsedAddress:
             else:
                 result.street = f"{street} ул."
             break
-    
+
     # 3. Извлекаем дом/корпус
     for pattern in BUILDING_PATTERNS:
         match = re.search(pattern, text, re.IGNORECASE)
@@ -176,7 +179,7 @@ def parse_address(full_address: str) -> ParsedAddress:
             else:
                 result.building = match.group(1)
             break
-    
+
     # 4. Извлекаем подъезд
     entrance_patterns = [
         r"(?:подъезд|под\.|п\.)\s*(\d+)",
@@ -187,28 +190,34 @@ def parse_address(full_address: str) -> ParsedAddress:
         if match:
             result.entrance = match.group(1)
             break
-    
+
     return result
 
 
-def compose_address(city: str = "", street: str = "", building: str = "", corpus: str = "", entrance: str = "") -> str:
+def compose_address(
+    city: str = "",
+    street: str = "",
+    building: str = "",
+    corpus: str = "",
+    entrance: str = "",
+) -> str:
     """
     Собирает полный адрес из компонентов.
-    
+
     Args:
         city: Город
         street: Улица
         building: Номер дома
         corpus: Корпус/строение
-        
+
     Returns:
         Полный адрес в формате "Улица, д. X, к. Y, Город"
     """
     parts = []
-    
+
     if street:
         parts.append(street.strip())
-    
+
     if building:
         building_str = building.strip()
         # Добавляем "д." если нет
@@ -216,7 +225,7 @@ def compose_address(city: str = "", street: str = "", building: str = "", corpus
             parts.append(f"д. {building_str}")
         else:
             parts.append(building_str)
-    
+
     if corpus:
         corpus_str = corpus.strip()
         # Добавляем "к." если нет
@@ -224,15 +233,17 @@ def compose_address(city: str = "", street: str = "", building: str = "", corpus
             parts.append(f"к. {corpus_str}")
         else:
             parts.append(corpus_str)
-    
+
     if entrance:
         entrance_str = entrance.strip()
         # Добавляем "подъезд" если нет
-        if not re.match(r"^(?:подъезд|под\.|п\.|парадная|парад\.)", entrance_str, re.IGNORECASE):
+        if not re.match(
+            r"^(?:подъезд|под\.|п\.|парадная|парад\.)", entrance_str, re.IGNORECASE
+        ):
             parts.append(f"подъезд {entrance_str}")
         else:
             parts.append(entrance_str)
-    
+
     if city:
         city = city.strip()
         # Сокращаем Санкт-Петербург до СПб
@@ -242,7 +253,7 @@ def compose_address(city: str = "", street: str = "", building: str = "", corpus
             parts.append("Москва")
         else:
             parts.append(city)
-    
+
     return ", ".join(parts) if parts else ""
 
 
@@ -255,7 +266,7 @@ if __name__ == "__main__":
         "пр. Просвещения, д. 14, к. 2, СПб",
         "Московский проспект 200А, Санкт-Петербург",
     ]
-    
+
     for addr in test_addresses:
         parsed = parse_address(addr)
         print(f"\nВход: {addr}")
@@ -264,6 +275,12 @@ if __name__ == "__main__":
         print(f"Дом: {parsed.building}")
         print(f"Корпус: {parsed.corpus}")
         print(f"Подъезд: {parsed.entrance}")
-        
-        composed = compose_address(parsed.city or "", parsed.street or "", parsed.building or "", parsed.corpus or "", parsed.entrance or "")
+
+        composed = compose_address(
+            parsed.city or "",
+            parsed.street or "",
+            parsed.building or "",
+            parsed.corpus or "",
+            parsed.entrance or "",
+        )
         print(f"Собранный: {composed}")

@@ -3,15 +3,16 @@ Tests for Dashboard and Finance API endpoints.
 """
 
 from datetime import datetime, timedelta, timezone
+
 import pytest
 
+from app.models.enums import UserRole
 from app.models.task import TaskModel
 from app.models.user import UserModel
 from app.services.auth import get_password_hash
-from app.models.enums import UserRole
-
 
 # ───────────────────────────── fixtures ──────────────────────────────
+
 
 @pytest.fixture()
 def worker(db_session):
@@ -169,18 +170,22 @@ class TestDashboardActivity:
         urgent_priorities = {t["priority"] for t in data["urgentTasks"]}
         assert urgent_priorities & {"EMERGENCY", "URGENT"}
 
-    def test_activity_urgent_tasks_limit(self, client_with_auth, db_session, admin_user):
+    def test_activity_urgent_tasks_limit(
+        self, client_with_auth, db_session, admin_user
+    ):
         """Limit is 5 urgent tasks."""
         now = datetime.now(timezone.utc)
         for i in range(8):
-            db_session.add(TaskModel(
-                title=f"Urgent {i}",
-                raw_address=f"Addr {i}",
-                status="NEW",
-                priority="EMERGENCY",
-                created_at=now - timedelta(minutes=i),
-                updated_at=now - timedelta(minutes=i),
-            ))
+            db_session.add(
+                TaskModel(
+                    title=f"Urgent {i}",
+                    raw_address=f"Addr {i}",
+                    status="NEW",
+                    priority="EMERGENCY",
+                    created_at=now - timedelta(minutes=i),
+                    updated_at=now - timedelta(minutes=i),
+                )
+            )
         db_session.commit()
 
         resp = client_with_auth.get("/api/dashboard/activity")
@@ -292,16 +297,24 @@ class TestFinanceWorkers:
         data = resp.json()
         assert isinstance(data, list)
 
-    def test_workers_sorted_by_completed(self, client_with_auth, db_session, admin_user):
+    def test_workers_sorted_by_completed(
+        self, client_with_auth, db_session, admin_user
+    ):
         """Workers sorted descending by completed_tasks."""
         now = datetime.now(timezone.utc)
         w1 = UserModel(
-            username="w1", password_hash=get_password_hash("p"),
-            full_name="W1", role=UserRole.WORKER.value, is_active=True,
+            username="w1",
+            password_hash=get_password_hash("p"),
+            full_name="W1",
+            role=UserRole.WORKER.value,
+            is_active=True,
         )
         w2 = UserModel(
-            username="w2", password_hash=get_password_hash("p"),
-            full_name="W2", role=UserRole.WORKER.value, is_active=True,
+            username="w2",
+            password_hash=get_password_hash("p"),
+            full_name="W2",
+            role=UserRole.WORKER.value,
+            is_active=True,
         )
         db_session.add_all([w1, w2])
         db_session.commit()
@@ -310,16 +323,28 @@ class TestFinanceWorkers:
 
         # w2 has more completed tasks
         for i in range(3):
-            db_session.add(TaskModel(
-                title=f"W2 task {i}", raw_address="A", status="DONE",
-                priority="PLANNED", assigned_user_id=w2.id,
-                created_at=now, updated_at=now,
-            ))
-        db_session.add(TaskModel(
-            title="W1 task", raw_address="A", status="DONE",
-            priority="PLANNED", assigned_user_id=w1.id,
-            created_at=now, updated_at=now,
-        ))
+            db_session.add(
+                TaskModel(
+                    title=f"W2 task {i}",
+                    raw_address="A",
+                    status="DONE",
+                    priority="PLANNED",
+                    assigned_user_id=w2.id,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        db_session.add(
+            TaskModel(
+                title="W1 task",
+                raw_address="A",
+                status="DONE",
+                priority="PLANNED",
+                assigned_user_id=w1.id,
+                created_at=now,
+                updated_at=now,
+            )
+        )
         db_session.commit()
 
         resp = client_with_auth.get("/api/finance/workers")

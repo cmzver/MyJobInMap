@@ -4,15 +4,17 @@ Task Models
 Модели заявок, комментариев и фотографий.
 """
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Boolean, Index
+from sqlalchemy import (Boolean, Column, DateTime, Float, ForeignKey, Index,
+                        Integer, String, Text)
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base, utcnow
-from app.models.enums import TaskStatus, TaskPriority
+from app.models.enums import TaskPriority, TaskStatus
 
 
 class TaskModel(Base):
     """Модель заявки"""
+
     __tablename__ = "tasks"
     __table_args__ = (
         Index("ix_tasks_status", "status"),
@@ -22,7 +24,7 @@ class TaskModel(Base):
         Index("ix_tasks_created_at", "created_at"),
         Index("ix_tasks_completed_at", "completed_at"),
     )
-    
+
     id = Column(Integer, primary_key=True, index=True)
     task_number = Column(String, nullable=True, index=True)  # Номер от диспетчера
     title = Column(String, nullable=False)
@@ -38,39 +40,48 @@ class TaskModel(Base):
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     planned_date = Column(DateTime, nullable=True)  # Планируемая дата выполнения
     completed_at = Column(DateTime, nullable=True)
-    
+
     # Назначенный пользователь
     assigned_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     assigned_user = relationship("UserModel", back_populates="assigned_tasks")
-    
+
     # Multi-tenant
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
-    
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id"), nullable=True, index=True
+    )
+
     # Система и тип неисправности
     system_id = Column(Integer, ForeignKey("address_systems.id"), nullable=True)
-    system_type = Column(String(50), nullable=True)  # Тип системы (video_surveillance, intercom, etc.)
+    system_type = Column(
+        String(50), nullable=True
+    )  # Тип системы (video_surveillance, intercom, etc.)
     defect_type = Column(String(200), nullable=True)  # Название типа неисправности
-    
+
     # Финансовые поля
     is_remote = Column(Boolean, default=False)
     is_paid = Column(Boolean, default=False)
     payment_amount = Column(Float, default=0.0)
-    
+
     # Связи
-    comments = relationship("CommentModel", back_populates="task", cascade="all, delete-orphan")
-    photos = relationship("TaskPhotoModel", back_populates="task", cascade="all, delete-orphan")
+    comments = relationship(
+        "CommentModel", back_populates="task", cascade="all, delete-orphan"
+    )
+    photos = relationship(
+        "TaskPhotoModel", back_populates="task", cascade="all, delete-orphan"
+    )
     notifications = relationship("NotificationModel", back_populates="task")
     organization = relationship("OrganizationModel", back_populates="tasks")
-    conversation = relationship("ConversationModel", back_populates="task", uselist=False)
+    conversation = relationship(
+        "ConversationModel", back_populates="task", uselist=False
+    )
 
 
 class CommentModel(Base):
     """Модель комментария/истории изменений"""
+
     __tablename__ = "comments"
-    __table_args__ = (
-        Index("ix_comments_task_id", "task_id"),
-    )
-    
+    __table_args__ = (Index("ix_comments_task_id", "task_id"),)
+
     id = Column(Integer, primary_key=True, index=True)
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
     text = Column(Text, nullable=False)
@@ -81,18 +92,19 @@ class CommentModel(Base):
     old_assignee = Column(String, nullable=True)
     new_assignee = Column(String, nullable=True)
     created_at = Column(DateTime, default=utcnow)
-    
+
     task = relationship("TaskModel", back_populates="comments")
 
 
 class TaskPhotoModel(Base):
     """Модель фотографии заявки"""
+
     __tablename__ = "task_photos"
     __table_args__ = (
         Index("ix_task_photos_task_id", "task_id"),
         Index("ix_task_photos_filename", "filename"),
     )
-    
+
     id = Column(Integer, primary_key=True, index=True)
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
     filename = Column(String(255), nullable=False)
@@ -102,6 +114,6 @@ class TaskPhotoModel(Base):
     uploaded_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     photo_type = Column(String(20), default="completion")  # before/after/completion
     created_at = Column(DateTime, default=utcnow)
-    
+
     task = relationship("TaskModel", back_populates="photos")
     uploaded_by = relationship("UserModel")

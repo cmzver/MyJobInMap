@@ -5,6 +5,7 @@ Revises: 001_add_planned_date
 Create Date: 2026-01-12 00:05:00.000000
 
 """
+
 from alembic import op
 
 revision = "002_add_task_indexes"
@@ -15,13 +16,22 @@ depends_on = None
 
 def upgrade() -> None:
     op.create_index("ix_tasks_status", "tasks", ["status"], unique=False)
-    op.create_index("ix_tasks_priority_created", "tasks", ["priority", "created_at"], unique=False)
-    op.create_index("ix_tasks_assigned_status", "tasks", ["assigned_user_id", "status"], unique=False)
+    op.create_index(
+        "ix_tasks_priority_created", "tasks", ["priority", "created_at"], unique=False
+    )
+    op.create_index(
+        "ix_tasks_assigned_status",
+        "tasks",
+        ["assigned_user_id", "status"],
+        unique=False,
+    )
     op.create_index("ix_tasks_planned_date", "tasks", ["planned_date"], unique=False)
 
     op.create_index("ix_comments_task_id", "comments", ["task_id"], unique=False)
     op.create_index("ix_task_photos_task_id", "task_photos", ["task_id"], unique=False)
-    op.create_index("ix_task_photos_filename", "task_photos", ["filename"], unique=False)
+    op.create_index(
+        "ix_task_photos_filename", "task_photos", ["filename"], unique=False
+    )
 
 
 def downgrade() -> None:

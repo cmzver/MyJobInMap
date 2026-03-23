@@ -198,11 +198,21 @@ def _build_styles() -> dict[str, Any]:
         "value_font": Font(name="Calibri", size=10, color="0F172A"),
         "body_font": Font(name="Calibri", size=10, color="0F172A"),
         "muted_font": Font(name="Calibri", size=10, color="64748B"),
-        "header_fill": PatternFill(start_color="1D4ED8", end_color="1D4ED8", fill_type="solid"),
-        "title_fill": PatternFill(start_color="0F172A", end_color="1E293B", fill_type="solid"),
-        "soft_fill": PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid"),
-        "accent_fill": PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid"),
-        "zebra_fill": PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid"),
+        "header_fill": PatternFill(
+            start_color="1D4ED8", end_color="1D4ED8", fill_type="solid"
+        ),
+        "title_fill": PatternFill(
+            start_color="0F172A", end_color="1E293B", fill_type="solid"
+        ),
+        "soft_fill": PatternFill(
+            start_color="F8FAFC", end_color="F8FAFC", fill_type="solid"
+        ),
+        "accent_fill": PatternFill(
+            start_color="DBEAFE", end_color="DBEAFE", fill_type="solid"
+        ),
+        "zebra_fill": PatternFill(
+            start_color="F8FAFC", end_color="F8FAFC", fill_type="solid"
+        ),
         "border": border,
         "center": Alignment(horizontal="center", vertical="center", wrap_text=True),
         "left": Alignment(horizontal="left", vertical="center", wrap_text=True),
@@ -329,7 +339,9 @@ def _add_summary_sheet(
     title.font = Font(name="Calibri", size=16, bold=True, color="0F172A")
     title.alignment = styles["left"]
 
-    ws["A2"] = f"Дата формирования: {datetime.now(timezone.utc).strftime('%d.%m.%Y %H:%M UTC')}"
+    ws["A2"] = (
+        f"Дата формирования: {datetime.now(timezone.utc).strftime('%d.%m.%Y %H:%M UTC')}"
+    )
     ws["A2"].font = styles["muted_font"]
 
     row = 4
@@ -363,7 +375,9 @@ def _add_summary_sheet(
     )
 
     worker_start = 18
-    ws.merge_cells(start_row=worker_start, start_column=1, end_row=worker_start, end_column=3)
+    ws.merge_cells(
+        start_row=worker_start, start_column=1, end_row=worker_start, end_column=3
+    )
     worker_title = ws.cell(row=worker_start, column=1, value="Исполнители")
     worker_title.font = styles["section_font"]
     worker_title.alignment = styles["left"]
@@ -378,7 +392,9 @@ def _add_summary_sheet(
     for index, worker in enumerate(reports_workers[:8], start=worker_start + 2):
         completion_rate = 0
         if worker.get("total", 0):
-            completion_rate = round(worker.get("completed", 0) / worker.get("total", 1) * 100, 1)
+            completion_rate = round(
+                worker.get("completed", 0) / worker.get("total", 1) * 100, 1
+            )
         values = [
             worker.get("user_name", "—"),
             worker.get("total", 0),
@@ -393,7 +409,12 @@ def _add_summary_sheet(
                 cell.fill = styles["zebra_fill"]
 
     sla_priority_start = 18
-    ws.merge_cells(start_row=sla_priority_start, start_column=5, end_row=sla_priority_start, end_column=7)
+    ws.merge_cells(
+        start_row=sla_priority_start,
+        start_column=5,
+        end_row=sla_priority_start,
+        end_column=7,
+    )
     sla_title = ws.cell(row=sla_priority_start, column=5, value="SLA по приоритетам")
     sla_title.font = styles["section_font"]
     sla_title.alignment = styles["left"]
@@ -405,7 +426,9 @@ def _add_summary_sheet(
         cell.alignment = styles["center"]
         cell.border = styles["border"]
 
-    for index, priority_row in enumerate(sla_priorities[:4], start=sla_priority_start + 2):
+    for index, priority_row in enumerate(
+        sla_priorities[:4], start=sla_priority_start + 2
+    ):
         values = [
             priority_row.get("label", priority_row.get("priority", "—")),
             f"{priority_row.get('sla_compliance_rate', 0)}%",
@@ -423,7 +446,9 @@ def _add_summary_sheet(
 def _add_tasks_sheet(ws, *, tasks: list[TaskModel], styles: dict[str, Any]) -> None:
     ws.freeze_panes = "A2"
     ws.sheet_view.showGridLines = False
-    ws.auto_filter.ref = f"A1:{get_column_letter(len(DETAIL_HEADERS))}{max(len(tasks) + 1, 2)}"
+    ws.auto_filter.ref = (
+        f"A1:{get_column_letter(len(DETAIL_HEADERS))}{max(len(tasks) + 1, 2)}"
+    )
     ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToWidth = 1
 
@@ -449,7 +474,9 @@ def _add_tasks_sheet(ws, *, tasks: list[TaskModel], styles: dict[str, Any]) -> N
 
         completion_hours: float | str = ""
         if task.created_at and task.completed_at:
-            completion_hours = round((task.completed_at - task.created_at).total_seconds() / 3600, 1)
+            completion_hours = round(
+                (task.completed_at - task.created_at).total_seconds() / 3600, 1
+            )
 
         values = [
             row_idx - 1,
@@ -473,7 +500,11 @@ def _add_tasks_sheet(ws, *, tasks: list[TaskModel], styles: dict[str, Any]) -> N
         for col_idx, value in enumerate(values, start=1):
             cell = ws.cell(row=row_idx, column=col_idx, value=value)
             cell.font = styles["body_font"]
-            cell.alignment = styles["left"] if col_idx in {2, 3, 6, 7, 8, 9, 15} else styles["center"]
+            cell.alignment = (
+                styles["left"]
+                if col_idx in {2, 3, 6, 7, 8, 9, 15}
+                else styles["center"]
+            )
             cell.border = styles["border"]
             if zebra:
                 cell.fill = styles["zebra_fill"]
@@ -485,7 +516,9 @@ def _add_tasks_sheet(ws, *, tasks: list[TaskModel], styles: dict[str, Any]) -> N
                 end_color=status_fill,
                 fill_type="solid",
             )
-            ws.cell(row=row_idx, column=4).font = Font(name="Calibri", size=10, bold=True, color="0F172A")
+            ws.cell(row=row_idx, column=4).font = Font(
+                name="Calibri", size=10, bold=True, color="0F172A"
+            )
 
         priority_key = str(task.priority).upper() if task.priority else ""
         priority_fill = PRIORITY_COLORS.get(priority_key)
@@ -495,7 +528,9 @@ def _add_tasks_sheet(ws, *, tasks: list[TaskModel], styles: dict[str, Any]) -> N
                 end_color=priority_fill,
                 fill_type="solid",
             )
-            ws.cell(row=row_idx, column=5).font = Font(name="Calibri", size=10, bold=True, color="0F172A")
+            ws.cell(row=row_idx, column=5).font = Font(
+                name="Calibri", size=10, bold=True, color="0F172A"
+            )
 
 
 def _write_metric_table(
@@ -536,7 +571,9 @@ def _write_metric_table(
     return current_row
 
 
-def _write_status_table(ws, *, styles: dict[str, Any], start_row: int, tasks: list[TaskModel]) -> int:
+def _write_status_table(
+    ws, *, styles: dict[str, Any], start_row: int, tasks: list[TaskModel]
+) -> int:
     ws.merge_cells(start_row=start_row, start_column=1, end_row=start_row, end_column=3)
     title = ws.cell(row=start_row, column=1, value="По статусам")
     title.font = styles["section_font"]
@@ -566,7 +603,9 @@ def _write_status_table(ws, *, styles: dict[str, Any], start_row: int, tasks: li
     return row
 
 
-def _write_priority_table(ws, *, styles: dict[str, Any], start_row: int, tasks: list[TaskModel]) -> int:
+def _write_priority_table(
+    ws, *, styles: dict[str, Any], start_row: int, tasks: list[TaskModel]
+) -> int:
     ws.merge_cells(start_row=start_row, start_column=1, end_row=start_row, end_column=3)
     title = ws.cell(row=start_row, column=1, value="По приоритетам")
     title.font = styles["section_font"]
@@ -585,7 +624,9 @@ def _write_priority_table(ws, *, styles: dict[str, Any], start_row: int, tasks: 
     rank_map = {"PLANNED": "1", "CURRENT": "2", "URGENT": "3", "EMERGENCY": "4"}
     for priority_key in priority_order:
         count = sum(
-            1 for task in tasks if str(task.priority).upper() in {priority_key, rank_map[priority_key]}
+            1
+            for task in tasks
+            if str(task.priority).upper() in {priority_key, rank_map[priority_key]}
         )
         percent = round(count / total * 100, 1) if total else 0
         values = [PRIORITY_LABELS[priority_key], count, f"{percent}%"]

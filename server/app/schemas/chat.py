@@ -6,27 +6,35 @@ Pydantic-схемы для чата: разговоры, сообщения, р�
 
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, Field, ConfigDict
 
+from pydantic import BaseModel, ConfigDict, Field
 
 # ========== Conversations ==========
 
+
 class ConversationCreate(BaseModel):
     """Создание разговора"""
+
     type: str = Field(..., description="Тип: direct, group, org_general")
-    name: Optional[str] = Field(None, max_length=200, description="Название (для group/org_general)")
+    name: Optional[str] = Field(
+        None, max_length=200, description="Название (для group/org_general)"
+    )
     task_id: Optional[int] = Field(None, description="ID заявки (для type=task)")
-    member_user_ids: List[int] = Field(default_factory=list, description="ID участников")
+    member_user_ids: List[int] = Field(
+        default_factory=list, description="ID участников"
+    )
 
 
 class ConversationUpdate(BaseModel):
     """Обновление разговора"""
+
     name: Optional[str] = Field(None, max_length=200)
     avatar_url: Optional[str] = Field(None, max_length=500)
 
 
 class MemberInfo(BaseModel):
     """Информация об участнике"""
+
     model_config = ConfigDict(from_attributes=True)
 
     user_id: int
@@ -42,6 +50,7 @@ class MemberInfo(BaseModel):
 
 class LastMessagePreview(BaseModel):
     """Превью последнего сообщения для списка чатов"""
+
     id: int
     text: Optional[str] = None
     sender_name: str
@@ -51,6 +60,7 @@ class LastMessagePreview(BaseModel):
 
 class ConversationResponse(BaseModel):
     """Полный ответ разговора"""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -66,11 +76,13 @@ class ConversationResponse(BaseModel):
 
 class ConversationDetailResponse(ConversationResponse):
     """Детальный ответ с участниками"""
+
     members: List[MemberInfo] = []
 
 
 class ConversationListItem(BaseModel):
     """Элемент списка чатов"""
+
     id: int
     type: str
     name: Optional[str] = None
@@ -86,8 +98,10 @@ class ConversationListItem(BaseModel):
 
 # ========== Messages ==========
 
+
 class MessageCreate(BaseModel):
     """Создание сообщения"""
+
     text: Optional[str] = Field(None, max_length=5000, description="Текст сообщения")
     reply_to_id: Optional[int] = Field(None, description="ID сообщения для ответа")
     message_type: str = Field("text", description="Тип: text, image, file, system")
@@ -95,11 +109,13 @@ class MessageCreate(BaseModel):
 
 class MessageUpdate(BaseModel):
     """Редактирование сообщения"""
+
     text: str = Field(..., min_length=1, max_length=5000)
 
 
 class AttachmentResponse(BaseModel):
     """Ответ с вложением"""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -112,6 +128,7 @@ class AttachmentResponse(BaseModel):
 
 class ReactionInfo(BaseModel):
     """Информация о реакции"""
+
     emoji: str
     count: int
     user_ids: List[int] = []
@@ -120,6 +137,7 @@ class ReactionInfo(BaseModel):
 
 class MentionInfo(BaseModel):
     """Информация об упоминании"""
+
     user_id: int
     username: str
     offset: int
@@ -128,6 +146,7 @@ class MentionInfo(BaseModel):
 
 class ReplyPreview(BaseModel):
     """Превью цитируемого сообщения"""
+
     id: int
     text: Optional[str] = None
     sender_id: int
@@ -136,6 +155,7 @@ class ReplyPreview(BaseModel):
 
 class MessageResponse(BaseModel):
     """Полный ответ сообщения"""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -157,69 +177,86 @@ class MessageResponse(BaseModel):
 
 class MessageListResponse(BaseModel):
     """Список сообщений с курсором"""
+
     items: List[MessageResponse]
     has_more: bool = False
 
 
 # ========== Reactions ==========
 
+
 class ReactionCreate(BaseModel):
     """Создание/удаление реакции (toggle)"""
+
     emoji: str = Field(..., min_length=1, max_length=10)
 
 
 # ========== Read Receipts ==========
 
+
 class ReadReceiptRequest(BaseModel):
     """Отметить как прочитанное"""
+
     last_message_id: int
 
 
 # ========== Members ==========
 
+
 class MemberAddRequest(BaseModel):
     """Добавление участников"""
+
     user_ids: List[int] = Field(..., min_length=1)
 
 
 class MemberRemoveRequest(BaseModel):
     """Удаление участника"""
+
     user_id: int
 
 
 class MemberRoleUpdateRequest(BaseModel):
     """Изменение роли участника в чате"""
+
     role: str = Field(..., description="Новая роль: admin или member")
 
 
 class OwnershipTransferRequest(BaseModel):
     """Передача ownership другому участнику"""
+
     user_id: int = Field(..., description="ID нового владельца")
 
 
 # ========== Mute / Archive ==========
 
+
 class MuteRequest(BaseModel):
     """Mute/unmute разговора"""
+
     is_muted: bool
 
 
 class ArchiveRequest(BaseModel):
     """Archive/unarchive разговора"""
+
     is_archived: bool
 
 
 # ========== Search ==========
 
+
 class MessageSearchRequest(BaseModel):
     """Поиск по сообщениям"""
+
     query: str = Field(..., min_length=1, max_length=200)
 
 
 # ========== Typing ==========
 
+
 class TypingIndicator(BaseModel):
     """Индикатор печати (WS)"""
+
     conversation_id: int
     user_id: int
     is_typing: bool = True

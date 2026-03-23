@@ -33,7 +33,9 @@ class TestUsersApi:
             data={"username": "worker", "password": "worker"},
         )
         assert login_response.status_code == 200
-        auth_headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+        auth_headers = {
+            "Authorization": f"Bearer {login_response.json()['access_token']}"
+        }
 
         now = datetime.now(timezone.utc)
         completed_task = TaskModel(
@@ -91,7 +93,11 @@ class TestUsersApi:
         assert data["username"] == "public_alias_user"
         assert data["role"] == "dispatcher"
 
-        user = db_session.query(UserModel).filter(UserModel.username == "public_alias_user").first()
+        user = (
+            db_session.query(UserModel)
+            .filter(UserModel.username == "public_alias_user")
+            .first()
+        )
         assert user is not None
         assert user.role == UserRole.DISPATCHER.value
         assert user.password_hash != "secret123"

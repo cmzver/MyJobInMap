@@ -2,6 +2,7 @@
 """
 Run FastAPI server without reload (for testing)
 """
+
 import uvicorn
 
 if __name__ == "__main__":

@@ -12,60 +12,60 @@ Settings Models
 
 import logging
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, JSON
+from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.orm import Session
 
 from app.config import settings as app_settings
-
 from app.models.base import Base, utcnow
-
 
 # ============================================
 # System Settings
 # ============================================
 
+
 class SystemSettingModel(Base):
     """
     Модель системных настроек.
-    
+
     Хранит все настраиваемые параметры сервера с поддержкой типизации и групп.
     Группы: images, backup, notifications, security, interface, branding, server
     Типы: string, int, float, bool, json, select
     """
+
     __tablename__ = "system_settings"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    
+
     # Ключ настройки (уникальный)
     key = Column(String(100), unique=True, nullable=False, index=True)
-    
+
     # Значение (строка, парсится по типу)
     value = Column(Text, nullable=True)
-    
+
     # Тип значения: string, int, float, bool, json, select
     value_type = Column(String(20), default="string")
-    
+
     # Группа настроек для UI
     group = Column(String(50), default="general")
-    
+
     # Отображаемое название
     label = Column(String(100), nullable=False)
-    
+
     # Описание настройки
     description = Column(String(500), nullable=True)
-    
+
     # Опции для select типа (JSON массив)
     options = Column(JSON, nullable=True)
-    
+
     # Порядок отображения
     sort_order = Column(Integer, default=0)
-    
+
     # Скрытая настройка (не показывать в UI)
     is_hidden = Column(Boolean, default=False)
-    
+
     # Только для чтения
     is_readonly = Column(Boolean, default=False)
-    
+
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     updated_by = Column(String(100), nullable=True)
 
@@ -73,7 +73,7 @@ class SystemSettingModel(Base):
         """Получить значение с правильным типом"""
         if self.value is None:
             return None
-        
+
         if self.value_type == "bool":
             return self.value.lower() in ("true", "1", "yes", "on")
         elif self.value_type == "int":
@@ -88,19 +88,21 @@ class SystemSettingModel(Base):
                 return 0.0
         elif self.value_type == "json":
             import json
+
             try:
                 return json.loads(self.value)
             except (json.JSONDecodeError, ValueError):
                 return {}
         else:
             return self.value
-    
+
     def set_typed_value(self, value):
         """Установить значение с конвертацией в строку"""
         if self.value_type == "bool":
             self.value = "true" if value else "false"
         elif self.value_type == "json":
             import json
+
             self.value = json.dumps(value, ensure_ascii=False)
         else:
             self.value = str(value) if value is not None else None
@@ -110,53 +112,55 @@ class SystemSettingModel(Base):
 # Custom Fields
 # ============================================
 
+
 class CustomFieldModel(Base):
     """
     Модель кастомных полей заявок.
-    
+
     Позволяет динамически добавлять новые поля к заявкам без изменения схемы БД.
     Поддерживаемые типы: text, number, select, date, checkbox, textarea
     """
+
     __tablename__ = "custom_fields"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    
+
     # Системное имя поля (латиница, без пробелов)
     name = Column(String(50), unique=True, nullable=False, index=True)
-    
+
     # Отображаемое название
     label = Column(String(100), nullable=False)
-    
+
     # Тип поля: text, number, select, date, checkbox, textarea
     field_type = Column(String(20), default="text")
-    
+
     # Обязательное поле
     is_required = Column(Boolean, default=False)
-    
+
     # Активно (показывать в формах)
     is_active = Column(Boolean, default=True)
-    
+
     # Показывать в списке заявок
     show_in_list = Column(Boolean, default=False)
-    
+
     # Показывать в карточке заявки
     show_in_card = Column(Boolean, default=True)
-    
+
     # Опции для select типа (JSON массив строк)
     options = Column(JSON, nullable=True)
-    
+
     # Значение по умолчанию
     default_value = Column(String(255), nullable=True)
-    
+
     # Placeholder для текстовых полей
     placeholder = Column(String(255), nullable=True)
-    
+
     # Порядок отображения
     sort_order = Column(Integer, default=0)
-    
+
     # Группа полей (для организации в UI)
     field_group = Column(String(50), default="custom")
-    
+
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -165,19 +169,20 @@ class CustomFieldValueModel(Base):
     """
     Значения кастомных полей для конкретных заявок.
     """
+
     __tablename__ = "custom_field_values"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    
+
     # Связь с заявкой
     task_id = Column(Integer, nullable=False, index=True)
-    
+
     # Связь с полем
     field_id = Column(Integer, nullable=False, index=True)
-    
+
     # Значение поля
     value = Column(Text, nullable=True)
-    
+
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
@@ -185,23 +190,25 @@ class CustomFieldValueModel(Base):
 # Role Permissions
 # ============================================
 
+
 class RolePermissionModel(Base):
     """
     Разрешения для ролей.
-    
+
     Определяет какие функции доступны каждой роли (admin, dispatcher, worker).
     Разрешения: view_dashboard, view_tasks, create_tasks, edit_tasks, etc.
     """
+
     __tablename__ = "role_permissions"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    
+
     # Роль: admin, dispatcher, worker
     role = Column(String(20), nullable=False, index=True)
-    
+
     # Код разрешения
     permission = Column(String(50), nullable=False)
-    
+
     # Разрешено или запрещено
     is_allowed = Column(Boolean, default=True)
 
@@ -209,6 +216,7 @@ class RolePermissionModel(Base):
 # ============================================
 # Helper Functions
 # ============================================
+
 
 def get_setting(db: Session, key: str, default=None):
     """Получить значение настройки по ключу"""
@@ -218,7 +226,14 @@ def get_setting(db: Session, key: str, default=None):
     return default
 
 
-def set_setting(db: Session, key: str, value, updated_by: str = None, description: str = None, group: str = None):
+def set_setting(
+    db: Session,
+    key: str,
+    value,
+    updated_by: str = None,
+    description: str = None,
+    group: str = None,
+):
     """Установить значение настройки (upsert — создаёт если не существует)."""
     setting = db.query(SystemSettingModel).filter(SystemSettingModel.key == key).first()
     if setting:
@@ -248,10 +263,14 @@ def set_setting(db: Session, key: str, value, updated_by: str = None, descriptio
 
 def get_settings_by_group(db: Session, group: str):
     """Получить все настройки группы"""
-    return db.query(SystemSettingModel).filter(
-        SystemSettingModel.group == group,
-        SystemSettingModel.is_hidden == False
-    ).order_by(SystemSettingModel.sort_order).all()
+    return (
+        db.query(SystemSettingModel)
+        .filter(
+            SystemSettingModel.group == group, SystemSettingModel.is_hidden == False
+        )
+        .order_by(SystemSettingModel.sort_order)
+        .all()
+    )
 
 
 def get_all_settings(db: Session, include_hidden: bool = False):
@@ -265,11 +284,11 @@ def get_all_settings(db: Session, include_hidden: bool = False):
 def init_default_settings(db: Session):
     """
     Инициализация настроек по умолчанию.
-    
+
     Вызывается при первом запуске сервера.
     Создаёт все необходимые настройки и разрешения ролей.
     """
-    
+
     default_settings = [
         # === Изображения ===
         {
@@ -279,7 +298,7 @@ def init_default_settings(db: Session):
             "group": "images",
             "label": "Оптимизация изображений",
             "description": "Автоматическое сжатие и ресайз загружаемых фото",
-            "sort_order": 1
+            "sort_order": 1,
         },
         {
             "key": "image_quality",
@@ -288,7 +307,7 @@ def init_default_settings(db: Session):
             "group": "images",
             "label": "Качество сжатия",
             "description": "Качество JPEG/WebP (1-100). Рекомендуется 80-90",
-            "sort_order": 2
+            "sort_order": 2,
         },
         {
             "key": "image_max_dimension",
@@ -297,7 +316,7 @@ def init_default_settings(db: Session):
             "group": "images",
             "label": "Максимальный размер (px)",
             "description": "Максимальная ширина или высота изображения",
-            "sort_order": 3
+            "sort_order": 3,
         },
         {
             "key": "image_convert_to_webp",
@@ -306,9 +325,8 @@ def init_default_settings(db: Session):
             "group": "images",
             "label": "Конвертировать в WebP",
             "description": "Конвертировать все изображения в формат WebP",
-            "sort_order": 4
+            "sort_order": 4,
         },
-        
         # === Резервное копирование ===
         {
             "key": "backup_auto_enabled",
@@ -317,7 +335,7 @@ def init_default_settings(db: Session):
             "group": "backup",
             "label": "Автоматические бэкапы",
             "description": "Включить автоматическое резервное копирование",
-            "sort_order": 1
+            "sort_order": 1,
         },
         {
             "key": "backup_schedule",
@@ -329,9 +347,9 @@ def init_default_settings(db: Session):
             "options": [
                 {"value": "daily", "label": "Ежедневно"},
                 {"value": "weekly", "label": "Еженедельно"},
-                {"value": "manual", "label": "Вручную"}
+                {"value": "manual", "label": "Вручную"},
             ],
-            "sort_order": 2
+            "sort_order": 2,
         },
         {
             "key": "backup_retention_days",
@@ -340,7 +358,7 @@ def init_default_settings(db: Session):
             "group": "backup",
             "label": "Хранить бэкапы (дней)",
             "description": "Количество дней хранения старых бэкапов",
-            "sort_order": 3
+            "sort_order": 3,
         },
         {
             "key": "backup_include_photos",
@@ -349,9 +367,8 @@ def init_default_settings(db: Session):
             "group": "backup",
             "label": "Включать фото в бэкап",
             "description": "Архивировать папку с фотографиями",
-            "sort_order": 4
+            "sort_order": 4,
         },
-        
         # === Уведомления ===
         {
             "key": "push_enabled",
@@ -360,7 +377,7 @@ def init_default_settings(db: Session):
             "group": "notifications",
             "label": "Push-уведомления",
             "description": "Отправлять push-уведомления на устройства",
-            "sort_order": 1
+            "sort_order": 1,
         },
         {
             "key": "notify_on_new_task",
@@ -369,7 +386,7 @@ def init_default_settings(db: Session):
             "group": "notifications",
             "label": "Уведомлять о новых заявках",
             "description": "Отправлять уведомление при создании заявки",
-            "sort_order": 2
+            "sort_order": 2,
         },
         {
             "key": "notify_on_status_change",
@@ -378,9 +395,8 @@ def init_default_settings(db: Session):
             "group": "notifications",
             "label": "Уведомлять о смене статуса",
             "description": "Отправлять уведомление при изменении статуса",
-            "sort_order": 3
+            "sort_order": 3,
         },
-        
         # === Безопасность ===
         {
             "key": "rate_limit_attempts",
@@ -389,7 +405,7 @@ def init_default_settings(db: Session):
             "group": "security",
             "label": "Попыток входа",
             "description": "Максимум попыток входа до блокировки",
-            "sort_order": 1
+            "sort_order": 1,
         },
         {
             "key": "rate_limit_window",
@@ -398,7 +414,7 @@ def init_default_settings(db: Session):
             "group": "security",
             "label": "Окно блокировки (сек)",
             "description": "Время сброса счётчика попыток",
-            "sort_order": 2
+            "sort_order": 2,
         },
         {
             "key": "session_timeout_hours",
@@ -407,9 +423,8 @@ def init_default_settings(db: Session):
             "group": "security",
             "label": "Время сессии (часов)",
             "description": "Срок действия JWT токена (168 = 1 неделя)",
-            "sort_order": 3
+            "sort_order": 3,
         },
-        
         # === Интерфейс ===
         {
             "key": "tasks_per_page",
@@ -418,7 +433,7 @@ def init_default_settings(db: Session):
             "group": "interface",
             "label": "Заявок на странице",
             "description": "Количество заявок на одной странице",
-            "sort_order": 1
+            "sort_order": 1,
         },
         {
             "key": "auto_refresh_interval",
@@ -427,7 +442,7 @@ def init_default_settings(db: Session):
             "group": "interface",
             "label": "Автообновление (сек)",
             "description": "Интервал автоматического обновления данных",
-            "sort_order": 2
+            "sort_order": 2,
         },
         {
             "key": "enable_resizable_columns",
@@ -436,7 +451,7 @@ def init_default_settings(db: Session):
             "group": "interface",
             "label": "Изменяемая ширина колонок",
             "description": "Разрешить изменение ширины колонок в таблицах",
-            "sort_order": 3
+            "sort_order": 3,
         },
         {
             "key": "compact_table_view",
@@ -445,7 +460,7 @@ def init_default_settings(db: Session):
             "group": "interface",
             "label": "Компактный вид",
             "description": "Уменьшенные отступы и высота строк в таблицах",
-            "sort_order": 4
+            "sort_order": 4,
         },
         {
             "key": "default_task_priority",
@@ -458,11 +473,10 @@ def init_default_settings(db: Session):
                 {"value": "1", "label": "Плановая"},
                 {"value": "2", "label": "Текущая"},
                 {"value": "3", "label": "Срочная"},
-                {"value": "4", "label": "Аварийная"}
+                {"value": "4", "label": "Аварийная"},
             ],
-            "sort_order": 5
+            "sort_order": 5,
         },
-
         # === Брендинг входа ===
         {
             "key": "login_app_name",
@@ -471,7 +485,7 @@ def init_default_settings(db: Session):
             "group": "branding",
             "label": "Название приложения",
             "description": "Основное название портала на экране входа",
-            "sort_order": 1
+            "sort_order": 1,
         },
         {
             "key": "login_product_label",
@@ -480,7 +494,7 @@ def init_default_settings(db: Session):
             "group": "branding",
             "label": "Подзаголовок продукта",
             "description": "Короткая подпись в бренд-блоке экрана входа",
-            "sort_order": 2
+            "sort_order": 2,
         },
         {
             "key": "login_headline",
@@ -489,7 +503,7 @@ def init_default_settings(db: Session):
             "group": "branding",
             "label": "Главный заголовок",
             "description": "Крупный заголовок левой панели экрана входа",
-            "sort_order": 3
+            "sort_order": 3,
         },
         {
             "key": "login_description",
@@ -498,7 +512,7 @@ def init_default_settings(db: Session):
             "group": "branding",
             "label": "Описание экрана входа",
             "description": "Основной поясняющий текст на странице авторизации",
-            "sort_order": 4
+            "sort_order": 4,
         },
         {
             "key": "login_organization_name",
@@ -507,7 +521,7 @@ def init_default_settings(db: Session):
             "group": "branding",
             "label": "Название организации на входе",
             "description": "Необязательное имя организации для отдельной брендированной точки входа",
-            "sort_order": 5
+            "sort_order": 5,
         },
         {
             "key": "support_email",
@@ -516,7 +530,7 @@ def init_default_settings(db: Session):
             "group": "branding",
             "label": "Email поддержки",
             "description": "Почта в блоке получения доступа на экране входа",
-            "sort_order": 6
+            "sort_order": 6,
         },
         {
             "key": "support_phone",
@@ -525,7 +539,7 @@ def init_default_settings(db: Session):
             "group": "branding",
             "label": "Телефон поддержки",
             "description": "Телефон в блоке получения доступа на экране входа",
-            "sort_order": 7
+            "sort_order": 7,
         },
         {
             "key": "support_hours",
@@ -534,9 +548,8 @@ def init_default_settings(db: Session):
             "group": "branding",
             "label": "Часы работы поддержки",
             "description": "Расписание, отображаемое в блоке поддержки на экране входа",
-            "sort_order": 8
+            "sort_order": 8,
         },
-        
         # === Сервер (только чтение) ===
         {
             "key": "server_version",
@@ -546,7 +559,7 @@ def init_default_settings(db: Session):
             "label": "Версия сервера",
             "description": "Текущая версия API",
             "is_readonly": True,
-            "sort_order": 1
+            "sort_order": 1,
         },
         {
             "key": "server_port",
@@ -556,9 +569,8 @@ def init_default_settings(db: Session):
             "label": "Порт сервера",
             "description": "HTTP порт (требует перезапуска)",
             "is_readonly": True,
-            "sort_order": 2
+            "sort_order": 2,
         },
-        
         # === Типы неисправностей ===
         {
             "key": "defect_types",
@@ -567,7 +579,7 @@ def init_default_settings(db: Session):
             "group": "interface",
             "label": "Типы неисправностей",
             "description": "Список типов неисправностей для заявок",
-            "sort_order": 6
+            "sort_order": 6,
         },
         {
             "key": "permissions_migrated_2026_01",
@@ -578,10 +590,10 @@ def init_default_settings(db: Session):
             "description": "Internal flag for permissions defaults migration.",
             "is_hidden": True,
             "is_readonly": True,
-            "sort_order": 1000
+            "sort_order": 1000,
         },
     ]
-    
+
     # Разрешения по умолчанию
     default_permissions = [
         # Admin - всё разрешено
@@ -605,7 +617,6 @@ def init_default_settings(db: Session):
         ("admin", "edit_settings", True),
         ("admin", "view_addresses", True),
         ("admin", "edit_addresses", True),
-        
         # Dispatcher - ограниченный доступ
         ("dispatcher", "view_dashboard", True),
         ("dispatcher", "view_tasks", True),
@@ -627,7 +638,6 @@ def init_default_settings(db: Session):
         ("dispatcher", "edit_settings", False),
         ("dispatcher", "view_addresses", True),
         ("dispatcher", "edit_addresses", True),
-        
         # Worker - минимальный доступ
         ("worker", "view_dashboard", False),
         ("worker", "view_tasks", True),
@@ -650,50 +660,60 @@ def init_default_settings(db: Session):
         ("worker", "view_addresses", True),
         ("worker", "edit_addresses", False),
     ]
-    
+
     # Создаём настройки если не существуют
     for setting_data in default_settings:
-        existing = db.query(SystemSettingModel).filter(
-            SystemSettingModel.key == setting_data["key"]
-        ).first()
-        
+        existing = (
+            db.query(SystemSettingModel)
+            .filter(SystemSettingModel.key == setting_data["key"])
+            .first()
+        )
+
         if not existing:
             setting = SystemSettingModel(**setting_data)
             db.add(setting)
-    
+
     # Создаём разрешения если не существуют
     for role, permission, is_allowed in default_permissions:
-        existing = db.query(RolePermissionModel).filter(
-            RolePermissionModel.role == role,
-            RolePermissionModel.permission == permission
-        ).first()
-        
+        existing = (
+            db.query(RolePermissionModel)
+            .filter(
+                RolePermissionModel.role == role,
+                RolePermissionModel.permission == permission,
+            )
+            .first()
+        )
+
         if not existing:
             perm = RolePermissionModel(
-                role=role,
-                permission=permission,
-                is_allowed=is_allowed
+                role=role, permission=permission, is_allowed=is_allowed
             )
             db.add(perm)
 
-    migration_setting = db.query(SystemSettingModel).filter(
-        SystemSettingModel.key == "permissions_migrated_2026_01"
-    ).first()
+    migration_setting = (
+        db.query(SystemSettingModel)
+        .filter(SystemSettingModel.key == "permissions_migrated_2026_01")
+        .first()
+    )
     if migration_setting and migration_setting.value != "true":
         for permission in ("edit_tasks", "delete_tasks"):
-            perm = db.query(RolePermissionModel).filter(
-                RolePermissionModel.role == "worker",
-                RolePermissionModel.permission == permission
-            ).first()
+            perm = (
+                db.query(RolePermissionModel)
+                .filter(
+                    RolePermissionModel.role == "worker",
+                    RolePermissionModel.permission == permission,
+                )
+                .first()
+            )
             if perm:
                 perm.is_allowed = False
             else:
-                db.add(RolePermissionModel(
-                    role="worker",
-                    permission=permission,
-                    is_allowed=False
-                ))
+                db.add(
+                    RolePermissionModel(
+                        role="worker", permission=permission, is_allowed=False
+                    )
+                )
         migration_setting.value = "true"
-    
+
     db.commit()
     logging.getLogger(__name__).info("Default settings and permissions initialized")

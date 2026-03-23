@@ -12,29 +12,29 @@ v2 формат ответа:
 
 import logging
 from datetime import datetime, timezone
-from typing import Optional, Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, func
 
-from app.models import (
-    UserModel, TaskModel,
-    TaskStatus, UserRole, get_db
-)
-from app.models.address import AddressModel
 from app.api.address_extended import build_task_filters_for_address
-from app.schemas import TaskListResponse, PaginatedResponse
+from app.config import settings
+from app.models import TaskModel, TaskStatus, UserModel, UserRole, get_db
+from app.models.address import AddressModel
+from app.schemas import PaginatedResponse, TaskListResponse
 from app.services import require_permission
 from app.services.tenant_filter import TenantFilter
-from app.config import settings
-from app.utils import task_to_list_response, normalize_priority_value, get_priority_rank, priority_rank_expr
+from app.utils import (get_priority_rank, normalize_priority_value,
+                       priority_rank_expr, task_to_list_response)
 
 router = APIRouter(prefix="/tasks", tags=["v2-Tasks"])
 logger = logging.getLogger(__name__)
 
 
-def envelope(data: Any, request: Request, extra_meta: Optional[Dict[str, Any]] = None) -> dict:
+def envelope(
+    data: Any, request: Request, extra_meta: Optional[Dict[str, Any]] = None
+) -> dict:
     """Оборачивает ответ в v2 envelope формат."""
     meta = {
         "api_version": "v2",
@@ -56,20 +56,20 @@ async def tasks_summary(
 ):
     """
     v2-only: Сводка по заявкам (количество по статусам, приоритетам).
-    
+
     Возвращает агрегированную статистику без загрузки отдельных заявок.
     """
     tenant = TenantFilter(user)
     query = tenant.apply(db.query(TaskModel), TaskModel)
-    
+
     if user.role == UserRole.WORKER.value:
         query = query.filter(TaskModel.assigned_user_id == user.id)
     elif assignee_id is not None:
         query = query.filter(TaskModel.assigned_user_id == assignee_id)
-    
+
     if status:
         query = query.filter(TaskModel.status == status.value)
-    
+
     # Count by status
     status_counts = dict(
         db.query(TaskModel.status, func.count(TaskModel.id))
@@ -77,7 +77,7 @@ async def tasks_summary(
         .group_by(TaskModel.status)
         .all()
     )
-    
+
     # Count by priority
     priority_counts = dict(
         db.query(TaskModel.priority, func.count(TaskModel.id))
@@ -85,16 +85,16 @@ async def tasks_summary(
         .group_by(TaskModel.priority)
         .all()
     )
-    
+
     total = query.count()
     unassigned = query.filter(TaskModel.assigned_user_id.is_(None)).count()
-    
+
     now = datetime.now(timezone.utc)
     overdue = query.filter(
         TaskModel.planned_date < now,
-        TaskModel.status.notin_([TaskStatus.DONE.value, TaskStatus.CANCELLED.value])
+        TaskModel.status.notin_([TaskStatus.DONE.value, TaskStatus.CANCELLED.value]),
     ).count()
-    
+
     summary_data = {
         "total": total,
         "unassigned": unassigned,
@@ -110,7 +110,7 @@ async def tasks_summary(
             "CURRENT": priority_counts.get("CURRENT", 0),
             "URGENT": priority_counts.get("URGENT", 0),
             "EMERGENCY": priority_counts.get("EMERGENCY", 0),
-        }
+        },
     }
-    
+
     return envelope(summary_data, request)

@@ -1,10 +1,12 @@
 """Tests for authentication endpoint."""
+
 from pathlib import Path
 
 import pytest
-from app.services.rate_limiter import login_rate_limiter
-from app.services.auth import create_refresh_token, create_access_token
+
 from app.config import settings
+from app.services.auth import create_access_token, create_refresh_token
+from app.services.rate_limiter import login_rate_limiter
 
 
 class TestAuth:
@@ -78,7 +80,7 @@ class TestAuthRateLimit:
             else:
                 # 5th attempt should also be 401 (counted but failed)
                 assert response.status_code == 401
-        
+
         # 6th attempt should be rate limited (429)
         response = client.post(
             "/api/auth/login",
@@ -97,7 +99,7 @@ class TestAuthRateLimit:
                 data={"username": "admin", "password": "wrong"},
             )
             assert response.status_code == 401
-        
+
         # Counter should have accumulated 2 attempts, but still available
         response = client.post(
             "/api/auth/login",
@@ -130,7 +132,7 @@ class TestTokenRefresh:
     def test_refresh_success(self, client, admin_user):
         """Test successful token refresh returns new pair."""
         refresh_token = self._get_refresh_token(client, admin_user)
-        
+
         response = client.post(
             "/api/auth/refresh",
             json={"refresh_token": refresh_token},
@@ -148,14 +150,14 @@ class TestTokenRefresh:
     def test_refresh_with_new_access_token_works(self, client, admin_user):
         """Test that the new access token is valid for API calls."""
         refresh_token = self._get_refresh_token(client, admin_user)
-        
+
         response = client.post(
             "/api/auth/refresh",
             json={"refresh_token": refresh_token},
         )
         assert response.status_code == 200
         new_access_token = response.json()["access_token"]
-        
+
         # Use new access token
         me_response = client.get(
             "/api/auth/me",
@@ -179,7 +181,7 @@ class TestTokenRefresh:
             data={"username": "admin", "password": "admin"},
         )
         access_token = login_response.json()["access_token"]
-        
+
         # Try to use access token as refresh token
         response = client.post(
             "/api/auth/refresh",
@@ -190,12 +192,13 @@ class TestTokenRefresh:
     def test_refresh_expired_token(self, client, admin_user):
         """Test refresh with expired token returns 401."""
         from datetime import timedelta
+
         # Create a refresh token that's already expired
         expired_token = create_refresh_token(
             data={"sub": "admin", "user_id": admin_user.id},
-            expires_delta=timedelta(seconds=-1)
+            expires_delta=timedelta(seconds=-1),
         )
-        
+
         response = client.post(
             "/api/auth/refresh",
             json={"refresh_token": expired_token},
@@ -205,11 +208,11 @@ class TestTokenRefresh:
     def test_refresh_deactivated_user(self, client, admin_user, db_session):
         """Test refresh fails if user is deactivated."""
         refresh_token = self._get_refresh_token(client, admin_user)
-        
+
         # Deactivate user
         admin_user.is_active = False
         db_session.commit()
-        
+
         response = client.post(
             "/api/auth/refresh",
             json={"refresh_token": refresh_token},
@@ -247,7 +250,9 @@ class TestPasswordChange:
         )
         assert new_login.status_code == 200
 
-    def test_change_password_rejects_wrong_old_password(self, client, admin_user, admin_token):
+    def test_change_password_rejects_wrong_old_password(
+        self, client, admin_user, admin_token
+    ):
         response = client.patch(
             "/api/auth/password",
             json={"current_password": "wrong", "new_password": "newadmin123"},
@@ -271,7 +276,9 @@ class TestPasswordChange:
 class TestAvatarUpload:
     """Test avatar upload and retrieval."""
 
-    def test_upload_avatar_and_get_it(self, client, admin_user, admin_token, db_session):
+    def test_upload_avatar_and_get_it(
+        self, client, admin_user, admin_token, db_session
+    ):
         response = client.post(
             "/api/auth/avatar",
             headers={"Authorization": f"Bearer {admin_token}"},
@@ -295,4 +302,3 @@ class TestAvatarUpload:
         user_dir = saved_path.parent
         if user_dir.exists() and not any(user_dir.iterdir()):
             user_dir.rmdir()
-

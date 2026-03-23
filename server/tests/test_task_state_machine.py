@@ -1,7 +1,9 @@
 """Tests for task_state_machine service."""
+
 import pytest
-from app.services.task_state_machine import TaskStatusMachine
+
 from app.models.enums import TaskStatus
+from app.services.task_state_machine import TaskStatusMachine
 
 
 class TestTaskStatusMachine:
@@ -45,7 +47,9 @@ class TestTaskStatusMachine:
     def test_cancelled_to_any_other_status_invalid(self):
         """Test CANCELLED is terminal and cannot transition to other statuses."""
         assert TaskStatusMachine.is_valid_transition("CANCELLED", "NEW") is False
-        assert TaskStatusMachine.is_valid_transition("CANCELLED", "IN_PROGRESS") is False
+        assert (
+            TaskStatusMachine.is_valid_transition("CANCELLED", "IN_PROGRESS") is False
+        )
         assert TaskStatusMachine.is_valid_transition("CANCELLED", "DONE") is False
 
     def test_in_progress_to_new_invalid(self):
@@ -102,7 +106,7 @@ class TestTaskStatusMachine:
         """Test validate_transition raises ValueError for invalid transition."""
         with pytest.raises(ValueError) as exc_info:
             TaskStatusMachine.validate_transition("NEW", "DONE")
-        
+
         assert "Cannot transition" in str(exc_info.value)
         assert "NEW" in str(exc_info.value)
         assert "DONE" in str(exc_info.value)
@@ -111,14 +115,14 @@ class TestTaskStatusMachine:
         """Test validate_transition raises when trying to reopen DONE task."""
         with pytest.raises(ValueError) as exc_info:
             TaskStatusMachine.validate_transition("DONE", "IN_PROGRESS")
-        
+
         assert "Cannot transition" in str(exc_info.value)
 
     def test_validate_from_cancelled_raises(self):
         """Test validate_transition raises when trying to reopen CANCELLED task."""
         with pytest.raises(ValueError) as exc_info:
             TaskStatusMachine.validate_transition("CANCELLED", "NEW")
-        
+
         assert "Cannot transition" in str(exc_info.value)
 
     # ============== Edge Cases ==============

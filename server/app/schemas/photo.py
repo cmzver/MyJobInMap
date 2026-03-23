@@ -6,11 +6,13 @@ Photo Schemas
 
 from datetime import datetime
 from typing import Optional
+
 from pydantic import BaseModel
 
 
 class PhotoResponse(BaseModel):
     """РћС‚РІРµС‚ СЃ РёРЅС„РѕСЂРјР°С†РёРµР№ Рѕ С„РѕС‚Рѕ"""
+
     id: int
     task_id: int
     filename: str

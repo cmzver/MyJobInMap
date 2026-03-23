@@ -18,7 +18,9 @@ def _login_headers(client: TestClient, username: str, password: str) -> dict[str
     return {"Authorization": f"Bearer {token}"}
 
 
-def _create_org_admin(db_session, username: str = "orgadmin", password: str = "pass123") -> UserModel:
+def _create_org_admin(
+    db_session, username: str = "orgadmin", password: str = "pass123"
+) -> UserModel:
     org = OrganizationModel(name=f"Org for {username}", slug=f"org-{username}")
     db_session.add(org)
     db_session.commit()
@@ -85,7 +87,13 @@ def test_org_admin_cannot_upload_apk(client: TestClient, db_session):
         response = client.post(
             "/api/updates/upload",
             headers=headers,
-            files={"file": ("app.apk", b"PK" + b"\x00" * 1022, "application/vnd.android.package-archive")},
+            files={
+                "file": (
+                    "app.apk",
+                    b"PK" + b"\x00" * 1022,
+                    "application/vnd.android.package-archive",
+                )
+            },
             data={"version_name": "1.0.0", "version_code": "1"},
         )
 

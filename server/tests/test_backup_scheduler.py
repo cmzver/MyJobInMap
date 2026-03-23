@@ -1,18 +1,19 @@
 """Tests for backup scheduler service and configuration."""
-import os
+
 import gzip
+import os
 import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 # ============================================================================
 # Test: Configuration (.env support)
 # ============================================================================
+
 
 class TestConfiguration:
     """Test Settings loads env variables correctly."""
@@ -20,6 +21,7 @@ class TestConfiguration:
     def test_default_values(self):
         """Default settings should have sensible values."""
         from app.config import Settings
+
         s = Settings()
         assert s.PORT == 8001
         assert s.HOST == "0.0.0.0"
@@ -42,6 +44,7 @@ class TestConfiguration:
         monkeypatch.setenv("BACKUP_RETENTION_DAYS", "14")
 
         from app.config import Settings
+
         s = Settings()
         assert s.PORT == 9999
         assert s.RATE_LIMIT_MAX_ATTEMPTS == 10
@@ -53,6 +56,7 @@ class TestConfiguration:
     def test_is_sqlite(self):
         """is_sqlite computed property."""
         from app.config import Settings
+
         s = Settings(DATABASE_URL="sqlite:///./test.db")
         assert s.is_sqlite is True
         assert s.is_postgres is False
@@ -60,6 +64,7 @@ class TestConfiguration:
     def test_is_postgres(self):
         """is_postgres computed property."""
         from app.config import Settings
+
         s = Settings(DATABASE_URL="postgresql://u:p@host/db")
         assert s.is_postgres is True
         assert s.is_sqlite is False
@@ -67,12 +72,16 @@ class TestConfiguration:
     def test_is_production(self):
         """is_production computed property."""
         from app.config import Settings
-        s = Settings(ENVIRONMENT="production", SECRET_KEY="safe-key-12345678901234567890")
+
+        s = Settings(
+            ENVIRONMENT="production", SECRET_KEY="safe-key-12345678901234567890"
+        )
         assert s.is_production is True
 
     def test_production_secret_warning(self):
         """Warning when using default SECRET_KEY in production."""
         from app.config import Settings
+
         with pytest.warns(RuntimeWarning, match="SECRET_KEY"):
             Settings(ENVIRONMENT="production")
 
@@ -80,6 +89,7 @@ class TestConfiguration:
         """CORS_ORIGINS parsed as list."""
         monkeypatch.setenv("CORS_ORIGINS", '["https://a.com","https://b.com"]')
         from app.config import Settings
+
         s = Settings()
         assert "https://a.com" in s.CORS_ORIGINS
         assert "https://b.com" in s.CORS_ORIGINS
@@ -89,13 +99,15 @@ class TestConfiguration:
 # Test: Rate limiter uses config
 # ============================================================================
 
+
 class TestRateLimiterConfig:
     """Test that rate limiter picks up configuration."""
 
     def test_default_rate_limiter(self):
         """login_rate_limiter should use config values."""
-        from app.services.rate_limiter import login_rate_limiter
         from app.config import settings
+        from app.services.rate_limiter import login_rate_limiter
+
         assert login_rate_limiter.max_attempts == settings.RATE_LIMIT_MAX_ATTEMPTS
         assert login_rate_limiter.window_seconds == settings.RATE_LIMIT_WINDOW_SECONDS
 
@@ -104,12 +116,14 @@ class TestRateLimiterConfig:
 # Test: Backup Scheduler
 # ============================================================================
 
+
 class TestBackupScheduler:
     """Test backup scheduler service."""
 
     def test_scheduler_disabled_by_default(self):
         """Scheduler should not start when BACKUP_SCHEDULER_ENABLED=false."""
         from app.services.backup_scheduler import get_scheduler_status
+
         status = get_scheduler_status()
         assert status["enabled"] is False
         assert status["running"] is False
@@ -148,6 +162,7 @@ class TestBackupScheduler:
     def test_rotate_backups_empty_dir(self, tmp_path):
         """_rotate_backups handles empty directory."""
         from app.services.backup_scheduler import _rotate_backups
+
         deleted = _rotate_backups(tmp_path, retention_days=30)
         assert deleted == 0
 
@@ -197,6 +212,7 @@ class TestBackupScheduler:
     def test_start_scheduler_disabled(self):
         """start_scheduler returns False when disabled."""
         from app.services.backup_scheduler import start_scheduler
+
         result = start_scheduler()
         assert result is False
 
@@ -208,6 +224,7 @@ class TestBackupScheduler:
         mock_settings.is_postgres = True
 
         from app.services.backup_scheduler import start_scheduler
+
         result = start_scheduler()
         assert result is False
 
@@ -221,7 +238,9 @@ class TestBackupScheduler:
         mock_settings.BACKUP_SCHEDULE_MINUTE = 0
         mock_settings.BACKUP_RETENTION_DAYS = 30
 
-        from app.services.backup_scheduler import start_scheduler, stop_scheduler
+        from app.services.backup_scheduler import (start_scheduler,
+                                                   stop_scheduler)
+
         try:
             result = start_scheduler()
             assert result is True
@@ -231,6 +250,7 @@ class TestBackupScheduler:
     def test_stop_scheduler_noop_when_not_started(self):
         """stop_scheduler should not crash when scheduler is None."""
         from app.services.backup_scheduler import stop_scheduler
+
         stop_scheduler()  # Should not raise
 
     @patch("app.services.backup_scheduler.settings")
@@ -242,11 +262,13 @@ class TestBackupScheduler:
         mock_settings.BACKUP_RETENTION_DAYS = 14
 
         import app.services.backup_scheduler as bs
+
         old_scheduler = bs._scheduler
         bs._scheduler = None
 
         try:
             from app.services.backup_scheduler import get_scheduler_status
+
             status = get_scheduler_status()
             assert status["enabled"] is True
             assert status["running"] is False
@@ -259,6 +281,7 @@ class TestBackupScheduler:
 # ============================================================================
 # Test: Health detailed includes scheduler status
 # ============================================================================
+
 
 class TestHealthSchedulerStatus:
     """Test /health/detailed includes backup_scheduler info."""

@@ -1,11 +1,10 @@
 """Tests for task_parser service."""
+
 import pytest
-from app.services.task_parser import (
-    ParsedTask,
-    parse_dispatcher_format,
-    parse_standard_format,
-    parse_dispatcher_message,
-)
+
+from app.services.task_parser import (ParsedTask, parse_dispatcher_format,
+                                      parse_dispatcher_message,
+                                      parse_standard_format)
 
 
 class TestParseDispatcherFormat:
@@ -15,7 +14,7 @@ class TestParseDispatcherFormat:
         """Test basic dispatcher message parsing."""
         text = "№1173544 Текущая. Центральная ул., д.3, подъезд 1. Брелки. Не работает брелок."
         result = parse_dispatcher_format(text)
-        
+
         assert result is not None
         assert result.external_id == "1173544"
         assert result.priority == "CURRENT"  # Текущая
@@ -27,7 +26,7 @@ class TestParseDispatcherFormat:
         """Test urgent priority parsing."""
         text = "№123456 Срочная. ул. Ленина, д.15, подъезд 2. Замок. Сломан замок."
         result = parse_dispatcher_format(text)
-        
+
         assert result is not None
         assert result.priority == "URGENT"  # Срочная
 
@@ -35,7 +34,7 @@ class TestParseDispatcherFormat:
         """Test emergency priority parsing."""
         text = "№654321 Аварийная. пр. Мира, д.20, подъезд 3. Затопление. Вода течёт."
         result = parse_dispatcher_format(text)
-        
+
         assert result is not None
         assert result.priority == "EMERGENCY"  # Аварийная
 
@@ -43,7 +42,7 @@ class TestParseDispatcherFormat:
         """Test planned priority parsing."""
         text = "№111222 Плановая. Садовая ул., д.5, подъезд 1. Осмотр. Плановый осмотр."
         result = parse_dispatcher_format(text)
-        
+
         assert result is not None
         assert result.priority == "PLANNED"  # Плановая
 
@@ -51,7 +50,7 @@ class TestParseDispatcherFormat:
         """Test phone number extraction."""
         text = "№123 Текущая. Адрес, подъезд 1. Работа. Описание. +79110001122"
         result = parse_dispatcher_format(text)
-        
+
         assert result is not None
         assert result.contact_phone == "+79110001122"
 
@@ -59,7 +58,7 @@ class TestParseDispatcherFormat:
         """Test phone number without + prefix."""
         text = "№123 Текущая. Адрес, подъезд 1. Работа. Описание. 79110001122"
         result = parse_dispatcher_format(text)
-        
+
         assert result is not None
         assert result.contact_phone == "79110001122"
 
@@ -67,7 +66,7 @@ class TestParseDispatcherFormat:
         """Test apartment number extraction."""
         text = "№123 Текущая. Адрес, подъезд 1. Работа. Описание. кв.45"
         result = parse_dispatcher_format(text)
-        
+
         assert result is not None
         assert result.apartment == "45"
         assert "кв. 45" in result.address
@@ -76,7 +75,7 @@ class TestParseDispatcherFormat:
         """Test apartment extraction without dot (кв45)."""
         text = "№123 Текущая. Адрес, подъезд 1. Работа. кв123"
         result = parse_dispatcher_format(text)
-        
+
         assert result is not None
         assert result.apartment == "123"
 
@@ -89,7 +88,7 @@ class TestParseDispatcherFormat:
             "кв.45 +79110267493 Иванов Иван"
         )
         result = parse_dispatcher_format(text)
-        
+
         assert result is not None
         assert result.external_id == "1173544"
         assert result.priority == "CURRENT"
@@ -101,7 +100,7 @@ class TestParseDispatcherFormat:
         """Test that non-dispatcher messages return None."""
         text = "Обычное сообщение без номера заявки"
         result = parse_dispatcher_format(text)
-        
+
         assert result is None
 
     def test_empty_string(self):
@@ -122,7 +121,7 @@ class TestParseStandardFormat:
         """Test two-line format: address + description."""
         text = "ул. Ленина, д.10\nНе работает домофон"
         result = parse_standard_format(text)
-        
+
         assert result is not None
         assert result.address == "ул. Ленина, д.10"
         assert "домофон" in result.description
@@ -131,16 +130,18 @@ class TestParseStandardFormat:
         """Test single line - used as both address and description."""
         text = "Срочный ремонт на Невском проспекте"
         result = parse_standard_format(text)
-        
+
         assert result is not None
         assert result.address == text
         assert result.description == text
 
     def test_multiline(self):
         """Test multiline: first line is address, rest is description."""
-        text = "Московский пр., д.5\nПроблема с электричеством\nТребуется замена проводки"
+        text = (
+            "Московский пр., д.5\nПроблема с электричеством\nТребуется замена проводки"
+        )
         result = parse_standard_format(text)
-        
+
         assert result is not None
         assert result.address == "Московский пр., д.5"
         assert "электричеством" in result.description
@@ -150,7 +151,7 @@ class TestParseStandardFormat:
         """Test phone extraction in standard format."""
         text = "Адрес улица\nОписание проблемы +79998887766"
         result = parse_standard_format(text)
-        
+
         assert result is not None
         assert result.contact_phone == "+79998887766"
 
@@ -158,7 +159,7 @@ class TestParseStandardFormat:
         """Test that empty lines are filtered out."""
         text = "Адрес\n\n\nОписание"
         result = parse_standard_format(text)
-        
+
         assert result is not None
         assert result.address == "Адрес"
         assert result.description == "Описание"
@@ -171,7 +172,7 @@ class TestParseDispatcherMessage:
         """Test that dispatcher format is detected."""
         text = "№123 Текущая. Адрес, подъезд 1. Работа."
         result = parse_dispatcher_message(text)
-        
+
         assert result["success"] is True
         assert result["data"]["external_id"] == "123"
 
@@ -179,7 +180,7 @@ class TestParseDispatcherMessage:
         """Test fallback to standard format."""
         text = "Обычный адрес\nОписание работы"
         result = parse_dispatcher_message(text)
-        
+
         assert result["success"] is True
         assert result["data"]["address"] == "Обычный адрес"
 
@@ -205,7 +206,7 @@ class TestParseDispatcherMessage:
         """Test successful parse returns dict with data."""
         text = "№456 Срочная. Тестовый адрес, подъезд 2. Категория."
         result = parse_dispatcher_message(text)
-        
+
         assert result["success"] is True
         assert "data" in result
         assert result["data"]["title"] is not None
@@ -229,10 +230,10 @@ class TestParsedTaskDataclass:
             external_id="12345",
             contact_phone="+79001234567",
             apartment="10",
-            priority="URGENT"
+            priority="URGENT",
         )
         d = task.to_dict()
-        
+
         assert d["title"] == "Title"
         assert d["address"] == "Address"
         assert d["description"] == "Description"
@@ -244,7 +245,7 @@ class TestParsedTaskDataclass:
     def test_optional_fields_none(self):
         """Test optional fields default to None."""
         task = ParsedTask(title="T", address="A", description="D")
-        
+
         assert task.external_id is None
         assert task.contact_phone is None
         assert task.contact_name is None

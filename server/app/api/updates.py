@@ -17,7 +17,8 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import (APIRouter, Depends, File, Form, HTTPException, UploadFile,
+                     status)
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -80,25 +81,25 @@ async def check_update(
 ):
     """
     Проверить наличие обновления.
-    
+
     Вызывается из Android-приложения.
     Не требует авторизации.
-    
+
     Args:
         version_code: Текущий version_code приложения
         version_name: Текущая версия приложения (для отображения)
     """
     latest = _get_latest_record()
-    
+
     if latest is None or latest["version_code"] <= version_code:
         return AppUpdateCheck(
             update_available=False,
             current_version=version_name or None,
         )
-    
+
     apk_path = APK_DIR / latest["filename"]
     download_url = f"/api/updates/download"
-    
+
     return AppUpdateCheck(
         update_available=True,
         current_version=version_name or None,
@@ -118,7 +119,7 @@ async def check_update(
 async def download_latest_apk():
     """
     Скачать последнюю версию APK.
-    
+
     Не требует авторизации (приложение скачивает без токена).
     """
     latest = _get_latest_record()
@@ -127,14 +128,14 @@ async def download_latest_apk():
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Нет доступных обновлений",
         )
-    
+
     apk_path = APK_DIR / latest["filename"]
     if not apk_path.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Файл APK не найден",
         )
-    
+
     return FileResponse(
         path=str(apk_path),
         filename=f"fieldworker-{latest['version_name']}.apk",
@@ -142,18 +143,24 @@ async def download_latest_apk():
     )
 
 
-@router.post("/upload", response_model=AppUpdateInfo, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/upload", response_model=AppUpdateInfo, status_code=status.HTTP_201_CREATED
+)
 async def upload_apk(
     file: UploadFile = File(..., description="APK файл"),
-    version_name: str | None = Form(default=None, description="Версия из APK, опционально для валидации"),
-    version_code: int | None = Form(default=None, description="Код версии из APK, опционально для валидации"),
+    version_name: str | None = Form(
+        default=None, description="Версия из APK, опционально для валидации"
+    ),
+    version_code: int | None = Form(
+        default=None, description="Код версии из APK, опционально для валидации"
+    ),
     release_notes: str = Form(default="", description="Описание изменений"),
     is_mandatory: bool = Form(default=False, description="Обязательное обновление"),
     admin: UserModel = Depends(get_current_superadmin),
 ):
     """
     Загрузить новую версию APK.
-    
+
     Только для администраторов.
     """
     # Валидация файла
@@ -162,7 +169,7 @@ async def upload_apk(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Файл должен быть в формате .apk",
         )
-    
+
     # Проверяем размер
     content = await file.read()
     if len(content) > MAX_APK_SIZE:
@@ -170,7 +177,7 @@ async def upload_apk(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Размер файла превышает лимит ({MAX_APK_SIZE // 1024 // 1024} МБ)",
         )
-    
+
     if len(content) == 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -183,7 +190,9 @@ async def upload_apk(
         temp_apk_path = Path(temp_file.name)
 
     try:
-        extracted_version_name, extracted_version_code = extract_apk_version_info(temp_apk_path)
+        extracted_version_name, extracted_version_code = extract_apk_version_info(
+            temp_apk_path
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -192,7 +201,11 @@ async def upload_apk(
     finally:
         temp_apk_path.unlink(missing_ok=True)
 
-    if version_name is not None and version_name.strip() and version_name.strip() != extracted_version_name:
+    if (
+        version_name is not None
+        and version_name.strip()
+        and version_name.strip() != extracted_version_name
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
@@ -209,10 +222,12 @@ async def upload_apk(
                 f"({version_code} != {extracted_version_code})"
             ),
         )
-    
+
     # Проверяем, не существует ли версия с таким version_code
     records = _load_metadata()
-    existing = next((r for r in records if r["version_code"] == extracted_version_code), None)
+    existing = next(
+        (r for r in records if r["version_code"] == extracted_version_code), None
+    )
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -231,15 +246,15 @@ async def upload_apk(
                 f"({latest['version_code']})"
             ),
         )
-    
+
     # Сохраняем APK файл
     _ensure_apk_dir()
     safe_filename = f"fieldworker-v{extracted_version_code}.apk"
     apk_path = APK_DIR / safe_filename
-    
+
     with open(apk_path, "wb") as f:
         f.write(content)
-    
+
     # Создаём запись
     now = datetime.now(timezone.utc)
     record = {
@@ -251,10 +266,10 @@ async def upload_apk(
         "file_size": len(content),
         "created_at": now.isoformat(),
     }
-    
+
     records.append(record)
     _save_metadata(records)
-    
+
     logger.info(
         "APK uploaded: v%s (code %d), %d bytes, by %s",
         extracted_version_name,
@@ -262,7 +277,7 @@ async def upload_apk(
         len(content),
         admin.username,
     )
-    
+
     return AppUpdateInfo(
         version_name=extracted_version_name,
         version_code=extracted_version_code,
@@ -280,12 +295,12 @@ async def list_updates(
 ):
     """
     Получить список всех загруженных версий.
-    
+
     Только для администраторов. Отсортировано по version_code DESC.
     """
     records = _load_metadata()
     records.sort(key=lambda r: r["version_code"], reverse=True)
-    
+
     return [
         AppUpdateInfo(
             version_name=r["version_name"],
@@ -307,27 +322,27 @@ async def delete_update(
 ):
     """
     Удалить версию обновления.
-    
+
     Только для администраторов.
     """
     records = _load_metadata()
     record = next((r for r in records if r["version_code"] == version_code), None)
-    
+
     if record is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Версия с кодом {version_code} не найдена",
         )
-    
+
     # Удаляем APK файл
     apk_path = APK_DIR / record["filename"]
     if apk_path.exists():
         apk_path.unlink()
-    
+
     # Удаляем запись
     records = [r for r in records if r["version_code"] != version_code]
     _save_metadata(records)
-    
+
     logger.info(
         "APK deleted: v%s (code %d) by %s",
         record["version_name"],

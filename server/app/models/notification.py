@@ -29,7 +29,9 @@ class NotificationModel(Base):
     type = Column(String(20), default="system")  # task, system, alert, support
     is_read = Column(Boolean, default=False)
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)
-    support_ticket_id = Column(Integer, ForeignKey("support_tickets.id"), nullable=True, index=True)
+    support_ticket_id = Column(
+        Integer, ForeignKey("support_tickets.id"), nullable=True, index=True
+    )
     created_at = Column(DateTime, default=utcnow)
 
     user = relationship("UserModel", back_populates="notifications")

@@ -4,58 +4,36 @@ Chat API
 REST-эндпоинты для чата: разговоры, сообщения, реакции, прочтение.
 """
 
+import logging
 import os
 import uuid
-import logging
 from pathlib import Path
 from typing import List, Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import UserModel, get_db
-from app.models.chat import (
-    ConversationType,
-    ConversationModel,
-    ConversationMemberModel,
-    MessageModel,
-    MessageAttachmentModel,
-    MessageType,
-)
-from app.schemas.chat import (
-    ConversationCreate,
-    ConversationUpdate,
-    ConversationResponse,
-    ConversationDetailResponse,
-    ConversationListItem,
-    MessageCreate,
-    MessageUpdate,
-    MessageResponse,
-    MessageListResponse,
-    ReactionCreate,
-    ReadReceiptRequest,
-    MemberAddRequest,
-    MemberRoleUpdateRequest,
-    OwnershipTransferRequest,
-    MuteRequest,
-    ArchiveRequest,
-    MessageSearchRequest,
-    ReactionInfo,
-    MemberInfo,
-)
-from app.services import get_current_user_required
+from app.models.chat import (ConversationMemberModel, ConversationModel,
+                             ConversationType, MessageAttachmentModel,
+                             MessageModel, MessageType)
+from app.schemas.chat import (ArchiveRequest, ConversationCreate,
+                              ConversationDetailResponse, ConversationListItem,
+                              ConversationResponse, ConversationUpdate,
+                              MemberAddRequest, MemberInfo,
+                              MemberRoleUpdateRequest, MessageCreate,
+                              MessageListResponse, MessageResponse,
+                              MessageSearchRequest, MessageUpdate, MuteRequest,
+                              OwnershipTransferRequest, ReactionCreate,
+                              ReactionInfo, ReadReceiptRequest)
+from app.services import chat_service, get_current_user_required
 from app.services.tenant_filter import TenantFilter
-from app.services import chat_service
 from app.services.websocket_manager import (
-    broadcast_chat_message,
-    broadcast_chat_message_edited,
-    broadcast_chat_message_deleted,
-    broadcast_chat_conversation_updated,
-    broadcast_chat_reaction,
-    broadcast_chat_read,
-)
+    broadcast_chat_conversation_updated, broadcast_chat_message,
+    broadcast_chat_message_deleted, broadcast_chat_message_edited,
+    broadcast_chat_reaction, broadcast_chat_read)
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +41,7 @@ router = APIRouter(prefix="/api/chat", tags=["Chat"])
 
 
 # ========== Conversations ==========
+
 
 @router.get("/conversations", response_model=List[ConversationListItem])
 async def list_conversations(
@@ -119,19 +98,29 @@ async def update_conversation(
 ):
     """Обновить название / аватар чата."""
     conv = chat_service.update_conversation(
-        db, conv_id, current_user.id,
-        name=data.name, avatar_url=data.avatar_url,
+        db,
+        conv_id,
+        current_user.id,
+        name=data.name,
+        avatar_url=data.avatar_url,
     )
 
     import asyncio
+
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
-    asyncio.ensure_future(broadcast_chat_conversation_updated(
-        member_user_ids=member_ids,
-        conversation_id=conv_id,
-        action="conversation_renamed" if data.name is not None else "conversation_updated",
-        actor_user_id=current_user.id,
-        name=conv.name,
-    ))
+    asyncio.ensure_future(
+        broadcast_chat_conversation_updated(
+            member_user_ids=member_ids,
+            conversation_id=conv_id,
+            action=(
+                "conversation_renamed"
+                if data.name is not None
+                else "conversation_updated"
+            ),
+            actor_user_id=current_user.id,
+            name=conv.name,
+        )
+    )
     return ConversationResponse.model_validate(conv)
 
 
@@ -155,7 +144,9 @@ async def get_conversation_avatar(
     if avatar_name != file_name:
         raise HTTPException(status_code=404, detail="Avatar not found")
 
-    full_path = (settings.UPLOADS_DIR / "chat_avatars" / str(conv_id) / avatar_name).resolve()
+    full_path = (
+        settings.UPLOADS_DIR / "chat_avatars" / str(conv_id) / avatar_name
+    ).resolve()
     avatars_root = (settings.UPLOADS_DIR / "chat_avatars").resolve()
     if avatars_root not in full_path.parents:
         raise HTTPException(status_code=404, detail="Avatar not found")
@@ -184,7 +175,9 @@ async def upload_conversation_avatar(
     if conv_type == ConversationType.DIRECT.value:
         raise HTTPException(status_code=400, detail="Нельзя менять аватар direct-чата")
     if member_role not in {"owner", "admin"}:
-        raise HTTPException(status_code=403, detail="Недостаточно прав для изменения аватара")
+        raise HTTPException(
+            status_code=403, detail="Недостаточно прав для изменения аватара"
+        )
     if not avatar.content_type or not avatar.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Разрешены только изображения")
 
@@ -192,11 +185,15 @@ async def upload_conversation_avatar(
     if len(content) == 0:
         raise HTTPException(status_code=400, detail="Файл пустой")
     if len(content) > 5 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Размер файла не должен превышать 5 МБ")
+        raise HTTPException(
+            status_code=400, detail="Размер файла не должен превышать 5 МБ"
+        )
 
     extension = Path(avatar.filename or "avatar").suffix.lower()
     if extension not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
-        raise HTTPException(status_code=400, detail="Поддерживаются JPG, PNG, WEBP и GIF")
+        raise HTTPException(
+            status_code=400, detail="Поддерживаются JPG, PNG, WEBP и GIF"
+        )
 
     avatar_dir = settings.UPLOADS_DIR / "chat_avatars" / str(conv_id)
     avatar_dir.mkdir(parents=True, exist_ok=True)
@@ -205,7 +202,11 @@ async def upload_conversation_avatar(
         old_name = Path(conv_avatar_url).name
         old_path = (avatar_dir / old_name).resolve()
         avatars_root = (settings.UPLOADS_DIR / "chat_avatars").resolve()
-        if avatars_root in old_path.parents and old_path.exists() and old_path.is_file():
+        if (
+            avatars_root in old_path.parents
+            and old_path.exists()
+            and old_path.is_file()
+        ):
             old_path.unlink(missing_ok=True)
 
     file_name = f"{uuid.uuid4().hex}{extension}"
@@ -217,14 +218,17 @@ async def upload_conversation_avatar(
     db.refresh(conv)
 
     import asyncio
+
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
-    asyncio.ensure_future(broadcast_chat_conversation_updated(
-        member_user_ids=member_ids,
-        conversation_id=conv_id,
-        action="conversation_avatar_updated",
-        actor_user_id=current_user_id,
-        name=conv_name,
-    ))
+    asyncio.ensure_future(
+        broadcast_chat_conversation_updated(
+            member_user_ids=member_ids,
+            conversation_id=conv_id,
+            action="conversation_avatar_updated",
+            actor_user_id=current_user_id,
+            name=conv_name,
+        )
+    )
 
     return ConversationResponse.model_validate(conv)
 
@@ -240,15 +244,18 @@ async def add_members(
     members = chat_service.add_members(db, conv_id, data.user_ids, current_user.id)
 
     import asyncio
+
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
     for added_user_id in data.user_ids:
-        asyncio.ensure_future(broadcast_chat_conversation_updated(
-            member_user_ids=member_ids,
-            conversation_id=conv_id,
-            action="member_added",
-            actor_user_id=current_user.id,
-            target_user_id=added_user_id,
-        ))
+        asyncio.ensure_future(
+            broadcast_chat_conversation_updated(
+                member_user_ids=member_ids,
+                conversation_id=conv_id,
+                action="member_added",
+                actor_user_id=current_user.id,
+                target_user_id=added_user_id,
+            )
+        )
 
     return members
 
@@ -264,19 +271,24 @@ async def remove_member(
     chat_service.remove_member(db, conv_id, user_id, current_user.id)
 
     import asyncio
+
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
     notify_ids = list(dict.fromkeys(member_ids + [user_id]))
-    asyncio.ensure_future(broadcast_chat_conversation_updated(
-        member_user_ids=notify_ids,
-        conversation_id=conv_id,
-        action="member_removed",
-        actor_user_id=current_user.id,
-        target_user_id=user_id,
-    ))
+    asyncio.ensure_future(
+        broadcast_chat_conversation_updated(
+            member_user_ids=notify_ids,
+            conversation_id=conv_id,
+            action="member_removed",
+            actor_user_id=current_user.id,
+            target_user_id=user_id,
+        )
+    )
     return {"detail": "ok"}
 
 
-@router.patch("/conversations/{conv_id}/members/{user_id}", response_model=List[MemberInfo])
+@router.patch(
+    "/conversations/{conv_id}/members/{user_id}", response_model=List[MemberInfo]
+)
 async def update_member_role(
     conv_id: int,
     user_id: int,
@@ -285,22 +297,29 @@ async def update_member_role(
     db: Session = Depends(get_db),
 ):
     """Изменить роль участника в чате."""
-    members = chat_service.update_member_role(db, conv_id, user_id, data.role, current_user.id)
+    members = chat_service.update_member_role(
+        db, conv_id, user_id, data.role, current_user.id
+    )
 
     import asyncio
+
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
-    asyncio.ensure_future(broadcast_chat_conversation_updated(
-        member_user_ids=member_ids,
-        conversation_id=conv_id,
-        action="member_role_updated",
-        actor_user_id=current_user.id,
-        target_user_id=user_id,
-        role=data.role,
-    ))
+    asyncio.ensure_future(
+        broadcast_chat_conversation_updated(
+            member_user_ids=member_ids,
+            conversation_id=conv_id,
+            action="member_role_updated",
+            actor_user_id=current_user.id,
+            target_user_id=user_id,
+            role=data.role,
+        )
+    )
     return members
 
 
-@router.post("/conversations/{conv_id}/transfer-ownership", response_model=List[MemberInfo])
+@router.post(
+    "/conversations/{conv_id}/transfer-ownership", response_model=List[MemberInfo]
+)
 async def transfer_ownership(
     conv_id: int,
     data: OwnershipTransferRequest,
@@ -308,18 +327,23 @@ async def transfer_ownership(
     db: Session = Depends(get_db),
 ):
     """Передать ownership другому участнику."""
-    members = chat_service.transfer_ownership(db, conv_id, data.user_id, current_user.id)
+    members = chat_service.transfer_ownership(
+        db, conv_id, data.user_id, current_user.id
+    )
 
     import asyncio
+
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
-    asyncio.ensure_future(broadcast_chat_conversation_updated(
-        member_user_ids=member_ids,
-        conversation_id=conv_id,
-        action="ownership_transferred",
-        actor_user_id=current_user.id,
-        target_user_id=data.user_id,
-        role="owner",
-    ))
+    asyncio.ensure_future(
+        broadcast_chat_conversation_updated(
+            member_user_ids=member_ids,
+            conversation_id=conv_id,
+            action="ownership_transferred",
+            actor_user_id=current_user.id,
+            target_user_id=data.user_id,
+            role="owner",
+        )
+    )
     return members
 
 
@@ -349,10 +373,13 @@ async def archive_conversation(
 
 # ========== Messages ==========
 
+
 @router.get("/conversations/{conv_id}/messages", response_model=MessageListResponse)
 async def get_messages(
     conv_id: int,
-    before_id: Optional[int] = Query(None, description="Cursor: ID сообщения (загрузить старше)"),
+    before_id: Optional[int] = Query(
+        None, description="Cursor: ID сообщения (загрузить старше)"
+    ),
     limit: int = Query(50, ge=1, le=100),
     current_user: UserModel = Depends(get_current_user_required),
     db: Session = Depends(get_db),
@@ -370,7 +397,9 @@ async def send_message(
 ):
     """Отправить сообщение."""
     result = chat_service.send_message(
-        db, conv_id, current_user.id,
+        db,
+        conv_id,
+        current_user.id,
         text=data.text,
         reply_to_id=data.reply_to_id,
         message_type=data.message_type,
@@ -378,13 +407,20 @@ async def send_message(
 
     # WebSocket broadcast
     import asyncio
+
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
-    asyncio.ensure_future(broadcast_chat_message(
-        member_user_ids=member_ids,
-        conversation_id=conv_id,
-        message_data={"id": result.id, "text": result.text, "sender_id": current_user.id},
-        sender_id=current_user.id,
-    ))
+    asyncio.ensure_future(
+        broadcast_chat_message(
+            member_user_ids=member_ids,
+            conversation_id=conv_id,
+            message_data={
+                "id": result.id,
+                "text": result.text,
+                "sender_id": current_user.id,
+            },
+            sender_id=current_user.id,
+        )
+    )
 
     return result
 
@@ -400,14 +436,17 @@ async def edit_message(
     result = chat_service.edit_message(db, message_id, current_user.id, data.text)
 
     import asyncio
+
     member_ids = chat_service.get_conversation_member_ids(db, result.conversation_id)
-    asyncio.ensure_future(broadcast_chat_message_edited(
-        member_user_ids=member_ids,
-        conversation_id=result.conversation_id,
-        message_id=message_id,
-        new_text=data.text,
-        sender_id=current_user.id,
-    ))
+    asyncio.ensure_future(
+        broadcast_chat_message_edited(
+            member_user_ids=member_ids,
+            conversation_id=result.conversation_id,
+            message_id=message_id,
+            new_text=data.text,
+            sender_id=current_user.id,
+        )
+    )
 
     return result
 
@@ -427,18 +466,23 @@ async def delete_message(
 
     if conv_id:
         import asyncio
+
         member_ids = chat_service.get_conversation_member_ids(db, conv_id)
-        asyncio.ensure_future(broadcast_chat_message_deleted(
-            member_user_ids=member_ids,
-            conversation_id=conv_id,
-            message_id=message_id,
-            sender_id=current_user.id,
-        ))
+        asyncio.ensure_future(
+            broadcast_chat_message_deleted(
+                member_user_ids=member_ids,
+                conversation_id=conv_id,
+                message_id=message_id,
+                sender_id=current_user.id,
+            )
+        )
 
     return {"detail": "ok"}
 
 
-@router.post("/conversations/{conv_id}/messages/search", response_model=List[MessageResponse])
+@router.post(
+    "/conversations/{conv_id}/messages/search", response_model=List[MessageResponse]
+)
 async def search_messages(
     conv_id: int,
     data: MessageSearchRequest,
@@ -450,6 +494,7 @@ async def search_messages(
 
 
 # ========== Attachments ==========
+
 
 @router.post("/messages/{message_id}/attachments", response_model=MessageResponse)
 async def upload_attachment(
@@ -485,6 +530,7 @@ async def upload_attachment(
     if mime.startswith("image/"):
         try:
             from app.services import image_optimizer
+
             thumb_ext = os.path.splitext(safe_name)[1] or ".jpg"
             optimized_bytes, new_ext, _ = image_optimizer.optimize(content, thumb_ext)
             # Сохраняем оптимизированную версию как thumbnail
@@ -518,14 +564,17 @@ async def upload_attachment(
     result = chat_service._build_message_response(db, msg)
 
     import asyncio
+
     member_ids = chat_service.get_conversation_member_ids(db, msg.conversation_id)
-    asyncio.ensure_future(broadcast_chat_message_edited(
-        member_user_ids=member_ids,
-        conversation_id=msg.conversation_id,
-        message_id=msg.id,
-        new_text=result.text or "",
-        sender_id=current_user.id,
-    ))
+    asyncio.ensure_future(
+        broadcast_chat_message_edited(
+            member_user_ids=member_ids,
+            conversation_id=msg.conversation_id,
+            message_id=msg.id,
+            new_text=result.text or "",
+            sender_id=current_user.id,
+        )
+    )
 
     return result
 
@@ -537,13 +586,19 @@ async def download_attachment(
     db: Session = Depends(get_db),
 ):
     """Скачать вложение сообщения с проверкой доступа к чату."""
-    attachment = db.query(MessageAttachmentModel).filter(
-        MessageAttachmentModel.id == attachment_id,
-    ).first()
+    attachment = (
+        db.query(MessageAttachmentModel)
+        .filter(
+            MessageAttachmentModel.id == attachment_id,
+        )
+        .first()
+    )
     if not attachment:
         raise HTTPException(404, "Вложение не найдено")
 
-    message = db.query(MessageModel).filter(MessageModel.id == attachment.message_id).first()
+    message = (
+        db.query(MessageModel).filter(MessageModel.id == attachment.message_id).first()
+    )
     if not message:
         raise HTTPException(404, "Сообщение не найдено")
 
@@ -577,9 +632,13 @@ async def download_attachment_thumbnail(
     db: Session = Depends(get_db),
 ):
     """Скачать thumbnail вложения сообщения с проверкой доступа к чату."""
-    attachment = db.query(MessageAttachmentModel).filter(
-        MessageAttachmentModel.id == attachment_id,
-    ).first()
+    attachment = (
+        db.query(MessageAttachmentModel)
+        .filter(
+            MessageAttachmentModel.id == attachment_id,
+        )
+        .first()
+    )
     if not attachment:
         raise HTTPException(404, "Вложение не найдено")
 
@@ -587,7 +646,9 @@ async def download_attachment_thumbnail(
     if not thumbnail_path:
         raise HTTPException(404, "Миниатюра недоступна")
 
-    message = db.query(MessageModel).filter(MessageModel.id == attachment.message_id).first()
+    message = (
+        db.query(MessageModel).filter(MessageModel.id == attachment.message_id).first()
+    )
     if not message:
         raise HTTPException(404, "Сообщение не найдено")
 
@@ -614,6 +675,7 @@ async def download_attachment_thumbnail(
 
 # ========== Reactions ==========
 
+
 @router.post("/messages/{message_id}/reactions", response_model=List[ReactionInfo])
 async def toggle_reaction(
     message_id: int,
@@ -627,25 +689,30 @@ async def toggle_reaction(
     msg = db.query(MessageModel).filter(MessageModel.id == message_id).first()
     if msg:
         import asyncio
+
         member_ids = chat_service.get_conversation_member_ids(db, msg.conversation_id)
         # Определить action по наличию реакции от этого пользователя
         has_reaction = any(
             current_user.id in (r.user_ids or [])
-            for r in result if r.emoji == data.emoji
+            for r in result
+            if r.emoji == data.emoji
         )
-        asyncio.ensure_future(broadcast_chat_reaction(
-            member_user_ids=member_ids,
-            conversation_id=msg.conversation_id,
-            message_id=message_id,
-            emoji=data.emoji,
-            user_id=current_user.id,
-            action="added" if has_reaction else "removed",
-        ))
+        asyncio.ensure_future(
+            broadcast_chat_reaction(
+                member_user_ids=member_ids,
+                conversation_id=msg.conversation_id,
+                message_id=message_id,
+                emoji=data.emoji,
+                user_id=current_user.id,
+                action="added" if has_reaction else "removed",
+            )
+        )
 
     return result
 
 
 # ========== Read Receipts ==========
+
 
 @router.post("/conversations/{conv_id}/read")
 async def mark_as_read(
@@ -658,18 +725,22 @@ async def mark_as_read(
     chat_service.mark_as_read(db, conv_id, current_user.id, data.last_message_id)
 
     import asyncio
+
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
-    asyncio.ensure_future(broadcast_chat_read(
-        member_user_ids=member_ids,
-        conversation_id=conv_id,
-        user_id=current_user.id,
-        last_message_id=data.last_message_id,
-    ))
+    asyncio.ensure_future(
+        broadcast_chat_read(
+            member_user_ids=member_ids,
+            conversation_id=conv_id,
+            user_id=current_user.id,
+            last_message_id=data.last_message_id,
+        )
+    )
 
     return {"detail": "ok"}
 
 
 # ========== Task Chat Shortcut ==========
+
 
 @router.get("/task/{task_id}", response_model=ConversationResponse)
 async def get_task_chat(
@@ -679,6 +750,9 @@ async def get_task_chat(
 ):
     """Получить/создать чат заявки."""
     conv = chat_service.get_or_create_task_conversation(
-        db, task_id, current_user.id, current_user.organization_id,
+        db,
+        task_id,
+        current_user.id,
+        current_user.organization_id,
     )
     return ConversationResponse.model_validate(conv)

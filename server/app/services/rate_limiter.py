@@ -9,9 +9,9 @@ Configuration via .env or environment variables:
     RATE_LIMIT_WINDOW_SECONDS=60   # Window duration in seconds
 """
 
-import time
 import threading
-from typing import Dict, Tuple, List
+import time
+from typing import Dict, List, Tuple
 
 
 class RateLimiter:
@@ -38,7 +38,8 @@ class RateLimiter:
         """Remove expired entries. Must be called with lock held."""
         window_start = current_time - self.window_seconds
         expired_ips = [
-            ip for ip, attempts in self._attempts.items()
+            ip
+            for ip, attempts in self._attempts.items()
             if not any(ts > window_start for ts in attempts)
         ]
         for ip in expired_ips:
@@ -147,6 +148,7 @@ class RateLimiter:
 def _create_login_rate_limiter() -> RateLimiter:
     try:
         from app.config import settings
+
         return RateLimiter(
             max_attempts=settings.RATE_LIMIT_MAX_ATTEMPTS,
             window_seconds=settings.RATE_LIMIT_WINDOW_SECONDS,
@@ -154,5 +156,6 @@ def _create_login_rate_limiter() -> RateLimiter:
     except Exception:
         # Fallback defaults if config not available (e.g. isolated tests)
         return RateLimiter(max_attempts=5, window_seconds=60)
+
 
 login_rate_limiter = _create_login_rate_limiter()

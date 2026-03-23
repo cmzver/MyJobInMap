@@ -71,7 +71,9 @@ class TestOrganizationsAPI:
         assert response.status_code == 201
         org_id = response.json()["id"]
 
-        users_response = client_with_auth.get(f"/api/admin/organizations/{org_id}/users")
+        users_response = client_with_auth.get(
+            f"/api/admin/organizations/{org_id}/users"
+        )
         assert users_response.status_code == 200
         users = users_response.json()
         assert len(users) == 1
@@ -79,7 +81,9 @@ class TestOrganizationsAPI:
         assert users[0]["role"] == "admin"
         assert users[0]["organization_id"] == org_id
 
-    def test_create_organization_with_initial_admin_rejects_duplicate_username(self, client_with_auth, admin_user):
+    def test_create_organization_with_initial_admin_rejects_duplicate_username(
+        self, client_with_auth, admin_user
+    ):
         """Test organization creation fails if initial admin username already exists."""
         data = {
             "name": "Duplicate Admin Org",
@@ -171,7 +175,10 @@ class TestOrganizationsAPI:
         # Deactivate
         response = client_with_auth.delete(f"/api/admin/organizations/{org_id}")
         assert response.status_code == 200
-        assert "деактивирована" in response.json()["message"].lower() or "deactivate" in response.json()["message"].lower()
+        assert (
+            "деактивирована" in response.json()["message"].lower()
+            or "deactivate" in response.json()["message"].lower()
+        )
 
         # Verify not in active list
         list_resp = client_with_auth.get("/api/admin/organizations")

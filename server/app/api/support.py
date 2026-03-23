@@ -5,28 +5,16 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import (
-    SupportTicketCategory,
-    SupportTicketCommentModel,
-    SupportTicketCommentType,
-    SupportTicketModel,
-    SupportTicketStatus,
-    UserModel,
-    get_db,
-)
+from app.models import (SupportTicketCategory, SupportTicketCommentModel,
+                        SupportTicketCommentType, SupportTicketModel,
+                        SupportTicketStatus, UserModel, get_db)
 from app.models.base import utcnow
-from app.schemas import (
-    SupportTicketCommentCreate,
-    SupportTicketCommentResponse,
-    SupportTicketCreate,
-    SupportTicketDetailResponse,
-    SupportTicketReporter,
-    SupportTicketResponse,
-    SupportTicketUpdate,
-)
+from app.schemas import (SupportTicketCommentCreate,
+                         SupportTicketCommentResponse, SupportTicketCreate,
+                         SupportTicketDetailResponse, SupportTicketReporter,
+                         SupportTicketResponse, SupportTicketUpdate)
 from app.services import create_notification, get_current_user_required
 from app.services.role_utils import is_superadmin_user, public_role_value
-
 
 router = APIRouter(prefix="/api/support", tags=["Support"])
 
@@ -34,7 +22,9 @@ router = APIRouter(prefix="/api/support", tags=["Support"])
 def _ticket_query(db: Session):
     return db.query(SupportTicketModel).options(
         joinedload(SupportTicketModel.created_by),
-        joinedload(SupportTicketModel.comments).joinedload(SupportTicketCommentModel.author),
+        joinedload(SupportTicketModel.comments).joinedload(
+            SupportTicketCommentModel.author
+        ),
     )
 
 
@@ -48,7 +38,9 @@ def _serialize_user(user: UserModel) -> SupportTicketReporter:
     )
 
 
-def _serialize_comment(comment: SupportTicketCommentModel) -> SupportTicketCommentResponse:
+def _serialize_comment(
+    comment: SupportTicketCommentModel,
+) -> SupportTicketCommentResponse:
     return SupportTicketCommentResponse(
         id=comment.id,
         comment_type=comment.comment_type,
@@ -84,7 +76,9 @@ def _serialize_ticket_detail(ticket: SupportTicketModel) -> SupportTicketDetailR
     )
 
 
-def _get_ticket_or_404(db: Session, current_user: UserModel, ticket_id: int) -> SupportTicketModel:
+def _get_ticket_or_404(
+    db: Session, current_user: UserModel, ticket_id: int
+) -> SupportTicketModel:
     ticket = _ticket_query(db).filter(SupportTicketModel.id == ticket_id).first()
     if ticket is None:
         raise HTTPException(status_code=404, detail="Тикет поддержки не найден")
@@ -201,7 +195,9 @@ async def list_support_tickets(
     if category is not None:
         query = query.filter(SupportTicketModel.category == category.value)
 
-    tickets = query.order_by(SupportTicketModel.updated_at.desc(), SupportTicketModel.created_at.desc()).all()
+    tickets = query.order_by(
+        SupportTicketModel.updated_at.desc(), SupportTicketModel.created_at.desc()
+    ).all()
     return [_serialize_ticket(ticket) for ticket in tickets]
 
 
@@ -215,7 +211,11 @@ async def get_support_ticket(
     return _serialize_ticket_detail(ticket)
 
 
-@router.post("/tickets", response_model=SupportTicketResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/tickets",
+    response_model=SupportTicketResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_support_ticket(
     payload: SupportTicketCreate,
     current_user: UserModel = Depends(get_current_user_required),
@@ -245,7 +245,11 @@ async def create_support_ticket(
     return _serialize_ticket(ticket)
 
 
-@router.post("/tickets/{ticket_id}/comments", response_model=SupportTicketCommentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/tickets/{ticket_id}/comments",
+    response_model=SupportTicketCommentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_support_ticket_comment(
     ticket_id: int,
     payload: SupportTicketCommentCreate,
@@ -294,14 +298,21 @@ async def update_support_ticket(
     if not payload.model_fields_set:
         raise HTTPException(status_code=400, detail="Нет данных для обновления")
     if not is_superadmin_user(current_user):
-        raise HTTPException(status_code=403, detail="Только супер-админ может обновлять тикеты поддержки")
+        raise HTTPException(
+            status_code=403,
+            detail="Только супер-админ может обновлять тикеты поддержки",
+        )
 
     ticket = _get_ticket_or_404(db, current_user, ticket_id)
     old_status = ticket.status
     status_changed = False
     response_changed = False
 
-    if "status" in payload.model_fields_set and payload.status is not None and payload.status.value != ticket.status:
+    if (
+        "status" in payload.model_fields_set
+        and payload.status is not None
+        and payload.status.value != ticket.status
+    ):
         ticket.status = payload.status.value
         status_changed = True
         if payload.status in (SupportTicketStatus.RESOLVED, SupportTicketStatus.CLOSED):

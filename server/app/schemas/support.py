@@ -7,7 +7,8 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models import SupportTicketCategory, SupportTicketCommentType, SupportTicketStatus
+from app.models import (SupportTicketCategory, SupportTicketCommentType,
+                        SupportTicketStatus)
 
 
 class SupportTicketReporter(BaseModel):

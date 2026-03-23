@@ -5,31 +5,38 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.models import NotificationModel, SupportTicketModel, TaskModel, UserModel, get_db
+from app.models import (NotificationModel, SupportTicketModel, TaskModel,
+                        UserModel, get_db)
 from app.schemas import NotificationResponse, PushNotificationRequest
-from app.services import _send_push_sync, enforce_worker_task_access, get_current_admin, get_current_user_required
+from app.services import (_send_push_sync, enforce_worker_task_access,
+                          get_current_admin, get_current_user_required)
 from app.services.role_utils import is_superadmin_user
 from app.services.tenant_filter import TenantFilter
-
 
 router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
 
 
-def _get_accessible_support_tickets(db: Session, current_user: UserModel) -> list[SupportTicketModel]:
+def _get_accessible_support_tickets(
+    db: Session, current_user: UserModel
+) -> list[SupportTicketModel]:
     query = db.query(SupportTicketModel)
     if not is_superadmin_user(current_user):
         query = query.filter(SupportTicketModel.created_by_id == current_user.id)
     return query.all()
 
 
-def _infer_support_ticket_id(notification: NotificationModel, tickets: list[SupportTicketModel]) -> Optional[int]:
+def _infer_support_ticket_id(
+    notification: NotificationModel, tickets: list[SupportTicketModel]
+) -> Optional[int]:
     if notification.type != "support":
         return notification.support_ticket_id
     if notification.support_ticket_id is not None:
         return notification.support_ticket_id
 
     haystack = f"{notification.title}\n{notification.message}".lower()
-    ordered_tickets = sorted(tickets, key=lambda ticket: len(ticket.title), reverse=True)
+    ordered_tickets = sorted(
+        tickets, key=lambda ticket: len(ticket.title), reverse=True
+    )
 
     for ticket in ordered_tickets:
         title = ticket.title.strip().lower()
@@ -39,7 +46,9 @@ def _infer_support_ticket_id(notification: NotificationModel, tickets: list[Supp
     return None
 
 
-def _get_accessible_task_or_404(db: Session, current_user: UserModel, task_id: int) -> TaskModel:
+def _get_accessible_task_or_404(
+    db: Session, current_user: UserModel, task_id: int
+) -> TaskModel:
     task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
     if task is None:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
@@ -74,14 +83,19 @@ async def get_notifications(
     db: Session = Depends(get_db),
 ):
     """Get notifications for the current user."""
-    query = db.query(NotificationModel).filter(NotificationModel.user_id == current_user.id)
+    query = db.query(NotificationModel).filter(
+        NotificationModel.user_id == current_user.id
+    )
 
     if is_read is not None:
         query = query.filter(NotificationModel.is_read == is_read)
 
     notifications = query.order_by(NotificationModel.created_at.desc()).limit(100).all()
     support_tickets = _get_accessible_support_tickets(db, current_user)
-    return [_serialize_notification(notification, support_tickets) for notification in notifications]
+    return [
+        _serialize_notification(notification, support_tickets)
+        for notification in notifications
+    ]
 
 
 @router.patch("/{notification_id}/read")
@@ -91,10 +105,14 @@ async def mark_notification_as_read(
     db: Session = Depends(get_db),
 ):
     """Mark a notification as read."""
-    notification = db.query(NotificationModel).filter(
-        NotificationModel.id == notification_id,
-        NotificationModel.user_id == current_user.id,
-    ).first()
+    notification = (
+        db.query(NotificationModel)
+        .filter(
+            NotificationModel.id == notification_id,
+            NotificationModel.user_id == current_user.id,
+        )
+        .first()
+    )
 
     if not notification:
         raise HTTPException(status_code=404, detail="Уведомление не найдено")
@@ -134,11 +152,15 @@ async def mark_support_ticket_notifications_as_read(
     if ticket_id not in accessible_ticket_ids:
         raise HTTPException(status_code=404, detail="Тикет поддержки не найден")
 
-    notifications = db.query(NotificationModel).filter(
-        NotificationModel.user_id == current_user.id,
-        NotificationModel.type == "support",
-        NotificationModel.is_read == False,  # noqa: E712
-    ).all()
+    notifications = (
+        db.query(NotificationModel)
+        .filter(
+            NotificationModel.user_id == current_user.id,
+            NotificationModel.type == "support",
+            NotificationModel.is_read == False,  # noqa: E712
+        )
+        .all()
+    )
 
     updated = 0
     for notification in notifications:
@@ -183,10 +205,14 @@ async def delete_notification(
     db: Session = Depends(get_db),
 ):
     """Delete a notification."""
-    notification = db.query(NotificationModel).filter(
-        NotificationModel.id == notification_id,
-        NotificationModel.user_id == current_user.id,
-    ).first()
+    notification = (
+        db.query(NotificationModel)
+        .filter(
+            NotificationModel.id == notification_id,
+            NotificationModel.user_id == current_user.id,
+        )
+        .first()
+    )
 
     if not notification:
         raise HTTPException(status_code=404, detail="Уведомление не найдено")
@@ -208,7 +234,9 @@ async def send_notification(
     if request.user_ids and not tenant.is_superadmin:
         users = db.query(UserModel).filter(UserModel.id.in_(request.user_ids)).all()
         if len(users) != len(request.user_ids):
-            raise HTTPException(status_code=404, detail="Некоторые пользователи не найдены")
+            raise HTTPException(
+                status_code=404, detail="Некоторые пользователи не найдены"
+            )
         for target_user in users:
             tenant.enforce_access(
                 target_user,

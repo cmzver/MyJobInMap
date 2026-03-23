@@ -1,9 +1,12 @@
 """Rate limiting demonstration script."""
-import requests
+
 import time
+
+import requests
 
 BASE_URL = "http://localhost:8001"
 API_LOGIN = f"{BASE_URL}/api/auth/login"
+
 
 def test_rate_limit():
     """Demonstrate rate limiting on login endpoint."""
@@ -12,21 +15,17 @@ def test_rate_limit():
     print(f"Target: {API_LOGIN}")
     print(f"Limit: 5 attempts per 60 seconds")
     print()
-    
+
     # Make 7 failed login attempts
     for attempt in range(1, 8):
         print(f"Attempt {attempt}:")
-        
+
         response = requests.post(
-            API_LOGIN,
-            data={
-                "username": "wronguser",
-                "password": "wrongpass"
-            }
+            API_LOGIN, data={"username": "wronguser", "password": "wrongpass"}
         )
-        
+
         print(f"  Status: {response.status_code}")
-        
+
         if response.status_code == 429:  # Too Many Requests
             print(f"  ⚠️  RATE LIMITED!")
             retry_after = response.headers.get("Retry-After", "N/A")
@@ -36,12 +35,13 @@ def test_rate_limit():
             print(f"  ❌ Invalid credentials")
         else:
             print(f"  Response: {response.json()}")
-        
+
         print()
-        
+
         # Small delay between attempts
         if attempt < 7:
             time.sleep(0.5)
+
 
 if __name__ == "__main__":
     try:

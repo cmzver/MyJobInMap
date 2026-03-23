@@ -8,22 +8,13 @@ Task Schemas
 
 """
 
-
-
 from datetime import datetime
+from typing import Generic, List, Optional, TypeVar
 
-from typing import Optional, List, Generic, TypeVar
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
-
-
-
-from app.models.enums import TaskStatus, TaskPriority
-
+from app.models.enums import TaskPriority, TaskStatus
 from app.schemas.comment import CommentResponse
-
-
-
 
 
 def _parse_planned_date_value(value):
@@ -41,27 +32,21 @@ def _parse_planned_date_value(value):
             raise ValueError("planned_date must be ISO date or datetime") from exc
     return value
 
+
 PRIORITY_NUMBER_TO_VALUE = {
-
     1: TaskPriority.PLANNED.value,
-
     2: TaskPriority.CURRENT.value,
-
     3: TaskPriority.URGENT.value,
-
     4: TaskPriority.EMERGENCY.value,
-
 }
-
 
 
 VALID_PRIORITY_VALUES = set(PRIORITY_NUMBER_TO_VALUE.values())
 
 
-
 def _normalize_priority_value(value):
 
-    if value is None or value == '':
+    if value is None or value == "":
 
         return None
 
@@ -77,7 +62,7 @@ def _normalize_priority_value(value):
 
             return mapped
 
-        raise ValueError('priority must be PLANNED, CURRENT, URGENT, EMERGENCY')
+        raise ValueError("priority must be PLANNED, CURRENT, URGENT, EMERGENCY")
 
     if isinstance(value, str):
 
@@ -101,20 +86,13 @@ def _normalize_priority_value(value):
 
             return upper_value
 
-    raise ValueError('priority must be PLANNED, CURRENT, URGENT, EMERGENCY')
-
-
-
-
-
-
+    raise ValueError("priority must be PLANNED, CURRENT, URGENT, EMERGENCY")
 
 
 class TaskCreate(BaseModel):
-
     """Создание заявки
 
-    
+
 
     Все параметры кроме title и address опциональны.
 
@@ -122,69 +100,115 @@ class TaskCreate(BaseModel):
 
     """
 
-    title: str = Field(..., min_length=1, max_length=200, json_schema_extra={"example": "Аварийная утечка"})
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        json_schema_extra={"example": "Аварийная утечка"},
+    )
 
-    address: str = Field(..., min_length=1, max_length=500, json_schema_extra={"example": "СПб, Невский пр., 1"})
+    address: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        json_schema_extra={"example": "СПб, Невский пр., 1"},
+    )
 
-    description: str = Field(default="", max_length=2000, json_schema_extra={"example": "Требуется срочный выезд"})
+    description: str = Field(
+        default="",
+        max_length=2000,
+        json_schema_extra={"example": "Требуется срочный выезд"},
+    )
 
-    customer_name: Optional[str] = Field(None, max_length=200, description="Имя клиента", json_schema_extra={"example": "Иван Иванов"})
+    customer_name: Optional[str] = Field(
+        None,
+        max_length=200,
+        description="Имя клиента",
+        json_schema_extra={"example": "Иван Иванов"},
+    )
 
-    customer_phone: Optional[str] = Field(None, max_length=50, description="Телефон клиента", json_schema_extra={"example": "+79991234567"})
+    customer_phone: Optional[str] = Field(
+        None,
+        max_length=50,
+        description="Телефон клиента",
+        json_schema_extra={"example": "+79991234567"},
+    )
 
-    status: Optional[str] = Field(None, description="NEW, IN_PROGRESS, DONE, CANCELLED", json_schema_extra={"example": "NEW"})
+    status: Optional[str] = Field(
+        None,
+        description="NEW, IN_PROGRESS, DONE, CANCELLED",
+        json_schema_extra={"example": "NEW"},
+    )
 
-    priority: Optional[str] = Field(None, description="PLANNED, CURRENT, URGENT, EMERGENCY", json_schema_extra={"example": "EMERGENCY"})
+    priority: Optional[str] = Field(
+        None,
+        description="PLANNED, CURRENT, URGENT, EMERGENCY",
+        json_schema_extra={"example": "EMERGENCY"},
+    )
 
-    assigned_user_id: Optional[int] = Field(None, description="ID исполнителя (worker)", json_schema_extra={"example": 1})
+    assigned_user_id: Optional[int] = Field(
+        None, description="ID исполнителя (worker)", json_schema_extra={"example": 1}
+    )
 
-    planned_date: Optional[datetime] = Field(None, description="Плановая дата (YYYY-MM-DD или ISO datetime)", json_schema_extra={"example": "2025-12-31"})
+    planned_date: Optional[datetime] = Field(
+        None,
+        description="Плановая дата (YYYY-MM-DD или ISO datetime)",
+        json_schema_extra={"example": "2025-12-31"},
+    )
 
-    is_remote: Optional[bool] = Field(None, description="Удалённая ли заявка", json_schema_extra={"example": False})
+    is_remote: Optional[bool] = Field(
+        None, description="Удалённая ли заявка", json_schema_extra={"example": False}
+    )
 
-    is_paid: Optional[bool] = Field(None, description="Платная ли заявка", json_schema_extra={"example": True})
+    is_paid: Optional[bool] = Field(
+        None, description="Платная ли заявка", json_schema_extra={"example": True}
+    )
 
-    payment_amount: Optional[float] = Field(None, ge=0, description="Сумма оплаты (если is_paid=true)", json_schema_extra={"example": 2500.0})
+    payment_amount: Optional[float] = Field(
+        None,
+        ge=0,
+        description="Сумма оплаты (если is_paid=true)",
+        json_schema_extra={"example": 2500.0},
+    )
 
     # Система и тип неисправности
 
-    system_id: Optional[int] = Field(None, description="ID системы обслуживания", json_schema_extra={"example": 1})
+    system_id: Optional[int] = Field(
+        None, description="ID системы обслуживания", json_schema_extra={"example": 1}
+    )
 
-    system_type: Optional[str] = Field(None, max_length=50, description="Тип системы (video_surveillance, intercom, etc.)", json_schema_extra={"example": "video_surveillance"})
+    system_type: Optional[str] = Field(
+        None,
+        max_length=50,
+        description="Тип системы (video_surveillance, intercom, etc.)",
+        json_schema_extra={"example": "video_surveillance"},
+    )
 
-    defect_type: Optional[str] = Field(None, max_length=200, description="Тип неисправности", json_schema_extra={"example": "Нет изображения"})
-
-
+    defect_type: Optional[str] = Field(
+        None,
+        max_length=200,
+        description="Тип неисправности",
+        json_schema_extra={"example": "Нет изображения"},
+    )
 
     @field_validator("priority", mode="before")
-
     @classmethod
-
     def _normalize_priority(cls, value):
 
         return _normalize_priority_value(value)
 
-
-
     @field_validator("planned_date", mode="before")
-
     @classmethod
-
     def _parse_planned_date(cls, value):
-
         """Allow plain date (YYYY-MM-DD) or full ISO datetime; empty -> None."""
 
         return _parse_planned_date_value(value)
 
 
-
-
-
 class TaskUpdate(BaseModel):
-
     """Обновление заявки (админ)
 
-    
+
 
     Все поля опциональны. Передавай только то, что хочешь изменить.
 
@@ -192,113 +216,130 @@ class TaskUpdate(BaseModel):
 
     """
 
-    title: Optional[str] = Field(None, min_length=1, max_length=200, json_schema_extra={"example": "Новый заголовок"})
+    title: Optional[str] = Field(
+        None,
+        min_length=1,
+        max_length=200,
+        json_schema_extra={"example": "Новый заголовок"},
+    )
 
-    address: Optional[str] = Field(None, min_length=1, max_length=500, json_schema_extra={"example": "Новый адрес"})
+    address: Optional[str] = Field(
+        None, min_length=1, max_length=500, json_schema_extra={"example": "Новый адрес"}
+    )
 
-    description: Optional[str] = Field(None, max_length=2000, json_schema_extra={"example": "Новое описание"})
+    description: Optional[str] = Field(
+        None, max_length=2000, json_schema_extra={"example": "Новое описание"}
+    )
 
-    customer_name: Optional[str] = Field(None, max_length=200, json_schema_extra={"example": "Иван Иванов"})
+    customer_name: Optional[str] = Field(
+        None, max_length=200, json_schema_extra={"example": "Иван Иванов"}
+    )
 
-    customer_phone: Optional[str] = Field(None, max_length=50, json_schema_extra={"example": "+79991234567"})
+    customer_phone: Optional[str] = Field(
+        None, max_length=50, json_schema_extra={"example": "+79991234567"}
+    )
 
-    status: Optional[str] = Field(None, description="NEW, IN_PROGRESS, DONE, CANCELLED", json_schema_extra={"example": "IN_PROGRESS"})
+    status: Optional[str] = Field(
+        None,
+        description="NEW, IN_PROGRESS, DONE, CANCELLED",
+        json_schema_extra={"example": "IN_PROGRESS"},
+    )
 
-    priority: Optional[str] = Field(None, description="PLANNED, CURRENT, URGENT, EMERGENCY", json_schema_extra={"example": "EMERGENCY"})
+    priority: Optional[str] = Field(
+        None,
+        description="PLANNED, CURRENT, URGENT, EMERGENCY",
+        json_schema_extra={"example": "EMERGENCY"},
+    )
 
-    assigned_user_id: Optional[int] = Field(None, description="ID нового исполнителя", json_schema_extra={"example": 2})
+    assigned_user_id: Optional[int] = Field(
+        None, description="ID нового исполнителя", json_schema_extra={"example": 2}
+    )
 
-    planned_date: Optional[datetime] = Field(None, description="Новая плановая дата", json_schema_extra={"example": "2025-12-25"})
+    planned_date: Optional[datetime] = Field(
+        None,
+        description="Новая плановая дата",
+        json_schema_extra={"example": "2025-12-25"},
+    )
 
     is_remote: Optional[bool] = Field(None, json_schema_extra={"example": True})
 
     is_paid: Optional[bool] = Field(None, json_schema_extra={"example": False})
 
-    payment_amount: Optional[float] = Field(None, ge=0, json_schema_extra={"example": 0.0})
+    payment_amount: Optional[float] = Field(
+        None, ge=0, json_schema_extra={"example": 0.0}
+    )
 
     # Система и тип неисправности
 
-    system_id: Optional[int] = Field(None, description="ID системы обслуживания", json_schema_extra={"example": 1})
+    system_id: Optional[int] = Field(
+        None, description="ID системы обслуживания", json_schema_extra={"example": 1}
+    )
 
-    system_type: Optional[str] = Field(None, max_length=50, description="Тип системы", json_schema_extra={"example": "video_surveillance"})
+    system_type: Optional[str] = Field(
+        None,
+        max_length=50,
+        description="Тип системы",
+        json_schema_extra={"example": "video_surveillance"},
+    )
 
-    defect_type: Optional[str] = Field(None, max_length=200, description="Тип неисправности", json_schema_extra={"example": "Нет изображения"})
-
-
+    defect_type: Optional[str] = Field(
+        None,
+        max_length=200,
+        description="Тип неисправности",
+        json_schema_extra={"example": "Нет изображения"},
+    )
 
     @field_validator("priority", mode="before")
-
     @classmethod
-
     def _normalize_priority(cls, value):
 
         return _normalize_priority_value(value)
 
-
-
     @field_validator("planned_date", mode="before")
-
     @classmethod
-
     def _parse_planned_date(cls, value):
-
         """Allow plain date (YYYY-MM-DD) or full ISO datetime; empty -> None."""
 
         return _parse_planned_date_value(value)
 
 
-
-
-
 class TaskStatusUpdate(BaseModel):
-
     """Обновление статуса"""
 
     status: TaskStatus
 
-    comment: str = Field(default="", max_length=1000, description="Комментарий к смене статуса. Обязателен для DONE и CANCELLED")
-
-
-
+    comment: str = Field(
+        default="",
+        max_length=1000,
+        description="Комментарий к смене статуса. Обязателен для DONE и CANCELLED",
+    )
 
 
 class TaskAssignRequest(BaseModel):
-
     """Task assignment payload."""
 
     assigned_user_id: Optional[int] = Field(None, json_schema_extra={"example": 2})
 
 
-
-
-
 class PlannedDateUpdate(BaseModel):
-
     """Planned date update payload."""
 
-    planned_date: Optional[datetime] = Field(None, json_schema_extra={"example": "2025-12-31"})
-
-
+    planned_date: Optional[datetime] = Field(
+        None, json_schema_extra={"example": "2025-12-31"}
+    )
 
     @field_validator("planned_date", mode="before")
-
     @classmethod
-
     def _parse_planned_date(cls, value):
-
         """Allow plain date (YYYY-MM-DD) or full ISO datetime; empty -> None."""
 
         return _parse_planned_date_value(value)
 
 
-
-
-
 class TaskResponse(BaseModel):
-
     """Полный ответ заявки
 
-    
+
 
     Включает все данные заявки, включая геолокацию, плановую дату, платёжные данные и комментарии.
 
@@ -306,75 +347,138 @@ class TaskResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    
-
     id: int
 
-    task_number: Optional[str] = Field(None, description="Номер заявки (автогенерируется)", json_schema_extra={"example": "FW-0001"})
+    task_number: Optional[str] = Field(
+        None,
+        description="Номер заявки (автогенерируется)",
+        json_schema_extra={"example": "FW-0001"},
+    )
 
     title: str = Field(..., json_schema_extra={"example": "Ремонт стояка"})
 
-    raw_address: str = Field(..., json_schema_extra={"example": "СПб, Лиговский пр., 50"})
+    raw_address: str = Field(
+        ..., json_schema_extra={"example": "СПб, Лиговский пр., 50"}
+    )
 
     description: str = Field(..., json_schema_extra={"example": "Затопление подъезда"})
 
-    customer_name: Optional[str] = Field(None, description="Имя клиента", json_schema_extra={"example": "Иван Иванов"})
+    customer_name: Optional[str] = Field(
+        None, description="Имя клиента", json_schema_extra={"example": "Иван Иванов"}
+    )
 
-    customer_phone: Optional[str] = Field(None, description="Телефон клиента", json_schema_extra={"example": "+79991234567"})
+    customer_phone: Optional[str] = Field(
+        None,
+        description="Телефон клиента",
+        json_schema_extra={"example": "+79991234567"},
+    )
 
-    lat: float = Field(..., description="Широта (геокодирование)", json_schema_extra={"example": 59.920})
+    lat: float = Field(
+        ...,
+        description="Широта (геокодирование)",
+        json_schema_extra={"example": 59.920},
+    )
 
-    lon: float = Field(..., description="Долгота (геокодирование)", json_schema_extra={"example": 30.355})
+    lon: float = Field(
+        ...,
+        description="Долгота (геокодирование)",
+        json_schema_extra={"example": 30.355},
+    )
 
-    status: str = Field(..., description="NEW, IN_PROGRESS, DONE, CANCELLED", json_schema_extra={"example": "IN_PROGRESS"})
+    status: str = Field(
+        ...,
+        description="NEW, IN_PROGRESS, DONE, CANCELLED",
+        json_schema_extra={"example": "IN_PROGRESS"},
+    )
 
-    priority: str = Field(..., description="PLANNED, CURRENT, URGENT, EMERGENCY", json_schema_extra={"example": "URGENT"})
+    priority: str = Field(
+        ...,
+        description="PLANNED, CURRENT, URGENT, EMERGENCY",
+        json_schema_extra={"example": "URGENT"},
+    )
 
-    created_at: datetime = Field(..., description="Дата создания (UTC)", json_schema_extra={"example": "2025-12-09T23:00:00"})
+    created_at: datetime = Field(
+        ...,
+        description="Дата создания (UTC)",
+        json_schema_extra={"example": "2025-12-09T23:00:00"},
+    )
 
-    updated_at: datetime = Field(..., description="Дата последнего обновления (UTC)", json_schema_extra={"example": "2025-12-09T23:30:00"})
+    updated_at: datetime = Field(
+        ...,
+        description="Дата последнего обновления (UTC)",
+        json_schema_extra={"example": "2025-12-09T23:30:00"},
+    )
 
-    planned_date: Optional[datetime] = Field(None, description="Плановая дата выполнения", json_schema_extra={"example": "2025-12-10T00:00:00"})
+    planned_date: Optional[datetime] = Field(
+        None,
+        description="Плановая дата выполнения",
+        json_schema_extra={"example": "2025-12-10T00:00:00"},
+    )
 
-    completed_at: Optional[datetime] = Field(None, description="Дата завершения (если статус=DONE)", json_schema_extra={"example": "2025-12-09T21:00:00"})
+    completed_at: Optional[datetime] = Field(
+        None,
+        description="Дата завершения (если статус=DONE)",
+        json_schema_extra={"example": "2025-12-09T21:00:00"},
+    )
 
-    assigned_user_id: Optional[int] = Field(None, description="ID назначенного исполнителя", json_schema_extra={"example": 2})
+    assigned_user_id: Optional[int] = Field(
+        None,
+        description="ID назначенного исполнителя",
+        json_schema_extra={"example": 2},
+    )
 
-    assigned_user_name: Optional[str] = Field(None, description="Имя исполнителя", json_schema_extra={"example": "Иван Полевой"})
+    assigned_user_name: Optional[str] = Field(
+        None,
+        description="Имя исполнителя",
+        json_schema_extra={"example": "Иван Полевой"},
+    )
 
-    is_remote: bool = Field(False, description="Может ли быть выполнена удалённо", json_schema_extra={"example": False})
+    is_remote: bool = Field(
+        False,
+        description="Может ли быть выполнена удалённо",
+        json_schema_extra={"example": False},
+    )
 
-    is_paid: bool = Field(False, description="Платная ли заявка", json_schema_extra={"example": True})
+    is_paid: bool = Field(
+        False, description="Платная ли заявка", json_schema_extra={"example": True}
+    )
 
-    payment_amount: float = Field(0.0, ge=0, description="Сумма оплаты", json_schema_extra={"example": 2500.0})
+    payment_amount: float = Field(
+        0.0, ge=0, description="Сумма оплаты", json_schema_extra={"example": 2500.0}
+    )
 
     # Система и тип неисправности
 
-    system_id: Optional[int] = Field(None, description="ID системы обслуживания", json_schema_extra={"example": 1})
+    system_id: Optional[int] = Field(
+        None, description="ID системы обслуживания", json_schema_extra={"example": 1}
+    )
 
-    system_type: Optional[str] = Field(None, description="Тип системы (video_surveillance, intercom, etc.)", json_schema_extra={"example": "video_surveillance"})
+    system_type: Optional[str] = Field(
+        None,
+        description="Тип системы (video_surveillance, intercom, etc.)",
+        json_schema_extra={"example": "video_surveillance"},
+    )
 
-    defect_type: Optional[str] = Field(None, description="Тип неисправности", json_schema_extra={"example": "Нет изображения"})
+    defect_type: Optional[str] = Field(
+        None,
+        description="Тип неисправности",
+        json_schema_extra={"example": "Нет изображения"},
+    )
 
     organization_id: Optional[int] = Field(None, description="ID организации")
 
-    comments: List[CommentResponse] = Field([], description="История комментариев и изменений")
-
-
-
+    comments: List[CommentResponse] = Field(
+        [], description="История комментариев и изменений"
+    )
 
 
 T = TypeVar("T")
 
 
-
 class PaginatedResponse(BaseModel, Generic[T]):
-
     """Ответ с пагинацией"""
 
     model_config = ConfigDict(from_attributes=True)
-
-    
 
     items: List[T]
 
@@ -387,16 +491,10 @@ class PaginatedResponse(BaseModel, Generic[T]):
     pages: int
 
 
-
-
-
 class TaskListResponse(BaseModel):
-
     """Краткий ответ для списка"""
 
     model_config = ConfigDict(from_attributes=True)
-
-    
 
     id: int
 
@@ -455,13 +553,16 @@ class TaskListResponse(BaseModel):
 # Text Parsing Schemas
 # ============================================================================
 
+
 class ParseTaskRequest(BaseModel):
     """Запрос на парсинг сообщения диспетчерской"""
+
     text: str
 
 
 class ParsedTaskResponse(BaseModel):
     """Ответ с распарсенными данными заявки"""
+
     success: bool
     data: Optional[dict] = None
     error: Optional[str] = None
@@ -469,6 +570,7 @@ class ParsedTaskResponse(BaseModel):
 
 class CreateTaskFromTextRequest(BaseModel):
     """Запрос на создание заявки из текстового сообщения"""
+
     text: str
     source: Optional[str] = None  # telegram, web
     sender: Optional[str] = None  # Отправитель (имя/номер)
@@ -477,8 +579,8 @@ class CreateTaskFromTextRequest(BaseModel):
 
 class CreateTaskFromTextResponse(BaseModel):
     """Ответ на создание заявки из текста"""
+
     success: bool
     task: Optional[TaskResponse] = None
     parsed_data: Optional[dict] = None
     error: Optional[str] = None
-
