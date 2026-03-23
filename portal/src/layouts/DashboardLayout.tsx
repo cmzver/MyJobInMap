@@ -184,32 +184,35 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   )
 
   return (
-    <div className={`min-h-screen transition-colors ${isModern ? 'bg-transparent' : 'bg-gray-50 dark:bg-gray-900'}`}>
+    <div className={`min-h-screen overflow-x-hidden transition-colors ${isModern ? 'bg-transparent' : 'bg-gray-50 dark:bg-gray-900'}`}>
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 transition-colors">
         <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex h-16 min-w-0 items-center justify-between gap-2">
             {/* Logo and mobile menu */}
-            <div className="flex items-center">
+            <div className="flex min-w-0 items-center">
               <button
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                 className="lg:hidden p-2 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
               >
                 {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
               </button>
-              <Link to={normalizeRoleForAccess(user?.role) === 'worker' ? '/my-tasks' : '/dashboard'} className="flex items-center ml-2 lg:ml-0">
+              <Link
+                to={normalizeRoleForAccess(user?.role) === 'worker' ? '/my-tasks' : '/dashboard'}
+                className="ml-2 flex min-w-0 items-center lg:ml-0"
+              >
                 <div className="w-9 h-9 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/30">
                   <LayoutDashboard size={20} className="text-white" />
                 </div>
-                <span className="ml-3 text-xl font-bold text-gray-900 dark:text-white tracking-tight">
+                <span className="ml-2 truncate text-lg font-bold tracking-tight text-gray-900 dark:text-white max-[380px]:hidden sm:ml-3 sm:text-xl">
                   FieldWorker
                 </span>
               </Link>
             </div>
 
             {/* Right side controls */}
-            <div className="flex items-center space-x-2 sm:space-x-3">
-              <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-2 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 sm:px-3">
+            <div className="flex flex-shrink-0 items-center gap-1 sm:gap-3">
+              <div className="hidden min-[400px]:flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-2 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 sm:px-3">
                 <Clock size={16} className="text-primary-500 dark:text-primary-400" />
                 <div className="leading-tight">
                   <div className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white">{formattedTime}</div>
@@ -265,7 +268,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="relative">
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className="flex items-center px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                  className="flex items-center rounded-lg px-2 py-2 text-gray-700 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:px-3"
                 >
                   <UserAvatar
                     fullName={user?.fullName}
@@ -381,7 +384,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
         {/* Main content */}
         <main className="flex-1 lg:pl-64 min-w-0">
-          <div className="px-4 sm:px-6 lg:px-8 py-6">
+          <div className="max-w-full px-4 py-6 sm:px-6 lg:px-8">
             {children}
           </div>
         </main>

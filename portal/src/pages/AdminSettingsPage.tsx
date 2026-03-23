@@ -1826,13 +1826,13 @@ function DevicesTab() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-medium text-gray-900 dark:text-white">
             Устройства и push-канал
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:justify-end">
           <Button
             variant="primary"
             onClick={() => handleSendTest()}

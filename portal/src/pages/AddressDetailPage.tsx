@@ -403,22 +403,22 @@ export default function AddressDetailPage() {
   return (
     <div className="p-6 space-y-6">
       {/* Заголовок */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 items-start gap-4">
           <Button variant="ghost" onClick={() => navigate('/addresses')}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <div className="min-w-0">
+            <h1 className="flex min-w-0 items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">
               <MapPin className="h-6 w-6 text-blue-500" />
-              {address.address}
+              <span className="truncate">{address.address}</span>
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1">
               Карточка объекта
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setAddressModal(true)}>
             <Edit className="h-4 w-4 mr-2" />
             Редактировать
@@ -616,7 +616,7 @@ export default function AddressDetailPage() {
         {/* Системы */}
         {activeTab === 'systems' && (
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Системы на обслуживании
               </h3>
@@ -639,12 +639,12 @@ export default function AddressDetailPage() {
                   
                   return (
                     <Card key={system.id} className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex min-w-0 items-start gap-4">
                           <div className={`p-3 rounded-lg ${statusConfig.bg}`}>
                             <SystemIcon className={`h-6 w-6 ${statusConfig.color}`} />
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <h4 className="font-semibold text-gray-900 dark:text-white">
                               {system.name}
                             </h4>
@@ -674,7 +674,7 @@ export default function AddressDetailPage() {
                             )}
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-shrink-0 gap-2 self-end sm:self-start">
                           <Button variant="ghost" size="sm" onClick={() => setSystemModal({ open: true, system })}>
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -694,7 +694,7 @@ export default function AddressDetailPage() {
         {/* Оборудование */}
         {activeTab === 'equipment' && (
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Список оборудования
               </h3>
@@ -788,7 +788,7 @@ export default function AddressDetailPage() {
         {/* Документы */}
         {activeTab === 'documents' && (
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Документы объекта
               </h3>
@@ -873,7 +873,7 @@ export default function AddressDetailPage() {
         {/* Контакты */}
         {activeTab === 'contacts' && (
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Контакты
               </h3>
@@ -892,13 +892,13 @@ export default function AddressDetailPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 {contacts.map((contact) => (
                   <Card key={contact.id} className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex min-w-0 items-start gap-3">
                         <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full">
                           <Users className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
                             <h4 className="font-medium text-gray-900 dark:text-white">
                               {contact.name}
                             </h4>
@@ -938,7 +938,7 @@ export default function AddressDetailPage() {
                           )}
                         </div>
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex flex-shrink-0 gap-1 self-end sm:self-start">
                         <Button variant="ghost" size="sm" onClick={() => setContactModal({ open: true, contact })}>
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -957,7 +957,7 @@ export default function AddressDetailPage() {
         {/* Заявки */}
         {activeTab === 'tasks' && (
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Заявки по объекту
               </h3>
@@ -995,7 +995,7 @@ export default function AddressDetailPage() {
 
             {/* Ссылка на все заявки */}
             <Card className="p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-gray-600 dark:text-gray-300">
                   Для просмотра всех заявок по этому адресу перейдите в раздел заявок с фильтром
                 </p>

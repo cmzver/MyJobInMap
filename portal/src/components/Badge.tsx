@@ -5,9 +5,11 @@ interface BadgeProps {
   children: React.ReactNode
   variant?: 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'gray'
   className?: string
+  compactContent?: React.ReactNode
+  title?: string
 }
 
-function Badge({ children, variant = 'gray', className }: BadgeProps) {
+function Badge({ children, variant = 'gray', className, compactContent, title }: BadgeProps) {
   const variants = {
     primary: 'bg-primary-100 text-primary-800',
     success: 'bg-green-100 text-green-800',
@@ -19,10 +21,26 @@ function Badge({ children, variant = 'gray', className }: BadgeProps) {
 
   return (
     <span
+      aria-label={title}
       data-variant={variant}
-      className={cn('badge inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', variants[variant], className)}
+      title={title}
+      className={cn(
+        'badge inline-flex max-w-full items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+        compactContent ? 'badge-adaptive' : undefined,
+        variants[variant],
+        className
+      )}
     >
-      {children}
+      {compactContent ? (
+        <>
+          <span className="badge-full min-w-0 truncate">{children}</span>
+          <span className="badge-compact" aria-hidden="true">
+            {compactContent}
+          </span>
+        </>
+      ) : (
+        children
+      )}
     </span>
   )
 }

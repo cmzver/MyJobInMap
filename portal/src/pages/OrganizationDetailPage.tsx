@@ -250,17 +250,17 @@ export default function OrganizationDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
           <button
             onClick={() => navigate('/admin/organizations')}
             className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate text-2xl font-bold text-gray-900 dark:text-white">
                 {org.name}
               </h1>
               <Badge variant={org.is_active ? 'success' : 'gray'}>
@@ -272,7 +272,7 @@ export default function OrganizationDetailPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => { refetchOrg(); refetchUsers() }}>
             <RefreshCw className="w-4 h-4" />
           </Button>
@@ -338,14 +338,14 @@ export default function OrganizationDetailPage() {
 
       {/* Tabs */}
       <div className="border-b border-gray-200 dark:border-gray-700">
-        <nav className="flex gap-4">
+        <nav className="flex gap-4 overflow-x-auto pb-px">
           {tabs.map((tab) => {
             const Icon = tab.icon
             return (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                className={`flex items-center gap-2 whitespace-nowrap px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === tab.key
                     ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                     : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
@@ -389,7 +389,7 @@ export default function OrganizationDetailPage() {
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="grid grid-cols-1 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700 sm:grid-cols-2">
               <div>
                 <span className="text-sm text-gray-500 dark:text-gray-400">Лимит пользователей:</span>
                 <span className="ml-2 font-medium text-gray-900 dark:text-white">{org.max_users}</span>
@@ -405,7 +405,7 @@ export default function OrganizationDetailPage() {
 
       {activeTab === 'users' && (
         <Card>
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+          <div className="flex flex-col gap-3 border-b border-gray-200 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="font-medium text-gray-900 dark:text-white">
               Пользователи организации
             </h3>
@@ -522,7 +522,7 @@ export default function OrganizationDetailPage() {
             value={editData.description}
             onChange={(e) => setEditData({ ...editData, description: e.target.value })}
           />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
               label="Email"
               type="email"
@@ -540,7 +540,7 @@ export default function OrganizationDetailPage() {
             value={editData.address}
             onChange={(e) => setEditData({ ...editData, address: e.target.value })}
           />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
               label="Макс. пользователей"
               type="number"
@@ -576,10 +576,10 @@ export default function OrganizationDetailPage() {
         title="Добавить пользователя"
       >
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 dark:border-gray-700 mb-4">
+        <div className="mb-4 flex overflow-x-auto border-b border-gray-200 dark:border-gray-700">
           <button
             type="button"
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               addUserMode === 'create'
                 ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
@@ -590,7 +590,7 @@ export default function OrganizationDetailPage() {
           </button>
           <button
             type="button"
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               addUserMode === 'assign'
                 ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'

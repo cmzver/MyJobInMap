@@ -118,7 +118,7 @@ interface ChatApi {
     suspend fun toggleReaction(
         @Path("id") messageId: Long,
         @Body body: ReactionCreateDto,
-    ): Response<MessageDto>
+    ): Response<List<ReactionInfoDto>>
 
     // ---- Read receipts ----
 

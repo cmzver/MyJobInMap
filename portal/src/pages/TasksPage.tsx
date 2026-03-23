@@ -42,6 +42,8 @@ const COLUMN_VISIBILITY_STORAGE_KEY = 'tasks-table-visible-columns'
 type ColumnKey = 'select' | 'number' | 'title' | 'address' | 'status' | 'priority' | 'assignee' | 'date' | 'sla'
 type ToggleableColumnKey = Exclude<ColumnKey, 'select'>
 
+const getColumnWidthCssVar = (key: ColumnKey) => `--tasks-col-${key}`
+
 interface InterfaceSettings {
   enable_resizable_columns: boolean
   compact_table_view: boolean
@@ -60,15 +62,27 @@ const defaultColumnWidths: Record<ColumnKey, number> = {
 }
 
 const columnMinWidths: Record<ColumnKey, number> = {
-  select: 36,
-  number: 70,
-  title: 160,
-  address: 180,
-  status: 110,
-  priority: 110,
-  assignee: 130,
-  date: 120,
-  sla: 110,
+  select: 28,
+  number: 54,
+  title: 88,
+  address: 96,
+  status: 72,
+  priority: 72,
+  assignee: 88,
+  date: 84,
+  sla: 72,
+}
+
+const columnMaxWidths: Record<ColumnKey, number> = {
+  select: 64,
+  number: 180,
+  title: 640,
+  address: 720,
+  status: 240,
+  priority: 240,
+  assignee: 320,
+  date: 240,
+  sla: 180,
 }
 
 const toggleableColumns: Array<{ key: ToggleableColumnKey; label: string }> = [
@@ -93,6 +107,128 @@ const defaultVisibleColumns: Record<ToggleableColumnKey, boolean> = {
   sla: true,
 }
 
+const getVisibleColumnOrder = (visibleColumns: Record<ToggleableColumnKey, boolean>): ColumnKey[] => [
+  'select',
+  ...toggleableColumns
+    .filter((column) => visibleColumns[column.key])
+    .map((column) => column.key),
+]
+
+const clampColumnWidth = (key: ColumnKey, width: number) =>
+  Math.min(columnMaxWidths[key], Math.max(columnMinWidths[key], width))
+
+const distributeColumnWidths = (
+  widths: Record<ColumnKey, number>,
+  visibleColumnOrder: ColumnKey[],
+  delta: number,
+  mode: 'shrink' | 'grow'
+) => {
+  if (delta <= 0) return widths
+
+  const adjustableColumns = visibleColumnOrder.map((key) => {
+    const currentWidth = widths[key]
+    const limit = mode === 'shrink' ? columnMinWidths[key] : columnMaxWidths[key]
+    const adjustable = Math.max(0, mode === 'shrink' ? currentWidth - limit : limit - currentWidth)
+    return {
+      key,
+      currentWidth,
+      adjustable,
+    }
+  })
+
+  const totalAdjustable = adjustableColumns.reduce((total, column) => total + column.adjustable, 0)
+  if (totalAdjustable <= 0) return widths
+
+  const normalized = adjustableColumns.map((column) => {
+    const rawChange = delta * (column.adjustable / totalAdjustable)
+    const change = Math.min(column.adjustable, Math.floor(rawChange))
+    return {
+      key: column.key,
+      currentWidth: column.currentWidth,
+      adjustable: column.adjustable,
+      change,
+      fraction: rawChange - change,
+    }
+  })
+
+  let applied = normalized.reduce((total, column) => total + column.change, 0)
+  let remainder = Math.min(delta - applied, totalAdjustable - applied)
+
+  if (remainder > 0) {
+    const sortedByFraction = [...normalized]
+      .filter((column) => column.adjustable > column.change)
+      .sort((left, right) => right.fraction - left.fraction)
+
+    while (remainder > 0 && sortedByFraction.length > 0) {
+      let changedInPass = false
+
+      for (const candidate of sortedByFraction) {
+        if (remainder <= 0) break
+        const column = normalized.find((entry) => entry.key === candidate.key)
+        if (!column || column.change >= column.adjustable) continue
+        column.change += 1
+        applied += 1
+        remainder -= 1
+        changedInPass = true
+      }
+
+      if (!changedInPass) break
+    }
+  }
+
+  const next = { ...widths }
+  normalized.forEach((column) => {
+    const width = mode === 'shrink'
+      ? column.currentWidth - column.change
+      : column.currentWidth + column.change
+    next[column.key] = clampColumnWidth(column.key, width)
+  })
+
+  return next
+}
+
+const fitColumnWidthsToContainer = (
+  widths: Record<ColumnKey, number>,
+  visibleColumnOrder: ColumnKey[],
+  containerWidth: number
+) => {
+  const targetWidth = Math.floor(containerWidth)
+  if (targetWidth <= 0) return widths
+
+  const currentTotal = visibleColumnOrder.reduce((total, key) => total + widths[key], 0)
+  const minTotal = visibleColumnOrder.reduce((total, key) => total + columnMinWidths[key], 0)
+  const maxTotal = visibleColumnOrder.reduce((total, key) => total + columnMaxWidths[key], 0)
+  const boundedTarget = Math.min(maxTotal, Math.max(targetWidth, minTotal))
+
+  if (currentTotal === boundedTarget) return widths
+
+  return currentTotal > boundedTarget
+    ? distributeColumnWidths(widths, visibleColumnOrder, currentTotal - boundedTarget, 'shrink')
+    : distributeColumnWidths(widths, visibleColumnOrder, boundedTarget - currentTotal, 'grow')
+}
+
+const sanitizeColumnWidths = (widths?: Partial<Record<ColumnKey, number>>) => {
+  const next = { ...defaultColumnWidths }
+
+  Object.keys(next).forEach((key) => {
+    const typedKey = key as ColumnKey
+    const value = widths?.[typedKey]
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+      next[typedKey] = clampColumnWidth(typedKey, value)
+    }
+  })
+
+  const totalWidth = (Object.keys(next) as ColumnKey[]).reduce((total, key) => total + next[key], 0)
+  const viewportWidth = typeof window === 'undefined' ? 0 : window.innerWidth
+  const maxReasonableTotal = Math.max(viewportWidth * 2.5, 2400)
+
+  if (totalWidth > maxReasonableTotal) {
+    return { ...defaultColumnWidths }
+  }
+
+  return next
+}
+
 const loadColumnWidths = (): Record<ColumnKey, number> => {
   if (typeof window === 'undefined') return defaultColumnWidths
 
@@ -100,15 +236,7 @@ const loadColumnWidths = (): Record<ColumnKey, number> => {
     const stored = localStorage.getItem(COLUMN_STORAGE_KEY)
     if (!stored) return defaultColumnWidths
     const parsed = JSON.parse(stored) as Partial<Record<ColumnKey, number>>
-    const next = { ...defaultColumnWidths }
-    Object.keys(next).forEach((key) => {
-      const typedKey = key as ColumnKey
-      const value = parsed[typedKey]
-      if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-        next[typedKey] = value
-      }
-    })
-    return next
+    return sanitizeColumnWidths(parsed)
   } catch {
     return defaultColumnWidths
   }
@@ -184,11 +312,21 @@ export default function TasksPage() {
   const [visibleColumns, setVisibleColumns] = useState<Record<ToggleableColumnKey, boolean>>(loadVisibleColumns)
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false)
   const resizeState = useRef<{
-    key: ColumnKey
+    leftKey: ColumnKey
+    rightKey: ColumnKey | null
     startX: number
-    startWidth: number
+    startLeftWidth: number
+    startRightWidth: number | null
+    currentLeftWidth: number
+    currentRightWidth: number | null
+    snapshotWidths: Record<ColumnKey, number>
+    previousCursor: string
+    previousUserSelect: string
   } | null>(null)
   const columnMenuRef = useRef<HTMLDivElement | null>(null)
+  const tableContainerRef = useRef<HTMLDivElement | null>(null)
+  const tableRef = useRef<HTMLTableElement | null>(null)
+  const [tableContainerWidth, setTableContainerWidth] = useState(0)
   const initialPage = Number(searchParams.get('page') || 1)
   const [page, setPage] = useState(() => (Number.isFinite(initialPage) && initialPage > 0 ? initialPage : 1))
   const initialSize = Number(searchParams.get('size') || PAGE_SIZE)
@@ -263,6 +401,18 @@ export default function TasksPage() {
     [visibleColumns]
   )
   const visibleColumnCount = visibleDataColumnCount + 1
+  const visibleColumnOrder = useMemo(() => getVisibleColumnOrder(visibleColumns), [visibleColumns])
+  const effectiveColumnWidths = useMemo(() => {
+    const sanitized = sanitizeColumnWidths(columnWidths)
+    if (!isResizableEnabled || tableContainerWidth <= 0) {
+      return sanitized
+    }
+    return fitColumnWidthsToContainer(sanitized, visibleColumnOrder, tableContainerWidth)
+  }, [columnWidths, isResizableEnabled, tableContainerWidth, visibleColumnOrder])
+  const resizableTableWidth = useMemo(
+    () => visibleColumnOrder.reduce((total, key) => total + effectiveColumnWidths[key], 0),
+    [effectiveColumnWidths, visibleColumnOrder]
+  )
 
   // Handle search with debounce effect (reset page on search)
   const handleSearchChange = (value: string) => {
@@ -289,45 +439,154 @@ export default function TasksPage() {
     setPage(1)
   }
 
-  const handleResizeMove = useCallback((event: MouseEvent) => {
-    if (!resizeState.current) return
-    const { key, startX, startWidth } = resizeState.current
-    const delta = event.clientX - startX
-    const nextWidth = Math.max(columnMinWidths[key], startWidth + delta)
-
-    setColumnWidths((prev) => {
-      if (prev[key] === nextWidth) return prev
-      return {
-        ...prev,
-        [key]: nextWidth,
-      }
-    })
+  const applyColumnWidth = useCallback((key: ColumnKey, width: number) => {
+    if (!tableRef.current) return
+    tableRef.current.style.setProperty(getColumnWidthCssVar(key), `${width}px`)
   }, [])
 
+  const applyColumnWidths = useCallback((widths: Record<ColumnKey, number>) => {
+    (Object.keys(widths) as ColumnKey[]).forEach((key) => {
+      applyColumnWidth(key, widths[key])
+    })
+  }, [applyColumnWidth])
+
+  const handleResizeMove = useCallback((event: MouseEvent) => {
+    if (!resizeState.current) return
+    const { leftKey, rightKey, startX, startLeftWidth, startRightWidth } = resizeState.current
+    const delta = event.clientX - startX
+
+    if (!rightKey || startRightWidth == null) {
+      const nextWidth = clampColumnWidth(leftKey, startLeftWidth + delta)
+
+      if (resizeState.current.currentLeftWidth === nextWidth) return
+
+      resizeState.current.currentLeftWidth = nextWidth
+      applyColumnWidth(leftKey, nextWidth)
+      return
+    }
+
+    const minDelta = columnMinWidths[leftKey] - startLeftWidth
+    const maxDelta = Math.min(
+      startRightWidth - columnMinWidths[rightKey],
+      columnMaxWidths[leftKey] - startLeftWidth
+    )
+    const nextDelta = Math.min(maxDelta, Math.max(minDelta, delta))
+    const nextLeftWidth = clampColumnWidth(leftKey, startLeftWidth + nextDelta)
+    const nextRightWidth = clampColumnWidth(rightKey, startRightWidth - nextDelta)
+
+    if (
+      resizeState.current.currentLeftWidth === nextLeftWidth
+      && resizeState.current.currentRightWidth === nextRightWidth
+    ) {
+      return
+    }
+
+    resizeState.current.currentLeftWidth = nextLeftWidth
+    resizeState.current.currentRightWidth = nextRightWidth
+    applyColumnWidth(leftKey, nextLeftWidth)
+    applyColumnWidth(rightKey, nextRightWidth)
+  }, [applyColumnWidth])
+
   const stopResize = useCallback(() => {
-    resizeState.current = null
     document.removeEventListener('mousemove', handleResizeMove)
     document.removeEventListener('mouseup', stopResize)
+    const activeResize = resizeState.current
+    resizeState.current = null
+
+    if (!activeResize) return
+
+    document.body.style.cursor = activeResize.previousCursor
+    document.body.style.userSelect = activeResize.previousUserSelect
+
+    if (
+      activeResize.currentLeftWidth === activeResize.startLeftWidth
+      && activeResize.currentRightWidth === activeResize.startRightWidth
+    ) {
+      return
+    }
+
+    setColumnWidths((prev) => {
+      const baseWidths = sanitizeColumnWidths(activeResize.snapshotWidths)
+      const leftUnchanged = baseWidths[activeResize.leftKey] === activeResize.currentLeftWidth
+      const rightUnchanged = activeResize.rightKey == null
+        || baseWidths[activeResize.rightKey] === activeResize.currentRightWidth
+      if (leftUnchanged && rightUnchanged) return prev
+
+      return {
+        ...baseWidths,
+        [activeResize.leftKey]: activeResize.currentLeftWidth,
+        ...(activeResize.rightKey && activeResize.currentRightWidth != null
+          ? { [activeResize.rightKey]: activeResize.currentRightWidth }
+          : {}),
+      }
+    })
   }, [handleResizeMove])
 
   const startResize = useCallback(
     (key: ColumnKey, event: React.MouseEvent) => {
       if (!isResizableEnabled) return
       event.preventDefault()
+      event.stopPropagation()
+      const currentIndex = visibleColumnOrder.indexOf(key)
+      const rightKey = currentIndex >= 0 ? visibleColumnOrder[currentIndex + 1] ?? null : null
+      const startLeftWidth = effectiveColumnWidths[key]
+      const startRightWidth = rightKey ? effectiveColumnWidths[rightKey] : null
       resizeState.current = {
-        key,
+        leftKey: key,
+        rightKey,
         startX: event.clientX,
-        startWidth: columnWidths[key],
+        startLeftWidth,
+        startRightWidth,
+        currentLeftWidth: startLeftWidth,
+        currentRightWidth: startRightWidth,
+        snapshotWidths: effectiveColumnWidths,
+        previousCursor: document.body.style.cursor,
+        previousUserSelect: document.body.style.userSelect,
       }
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
       document.addEventListener('mousemove', handleResizeMove)
       document.addEventListener('mouseup', stopResize)
     },
-    [columnWidths, handleResizeMove, isResizableEnabled, stopResize]
+    [effectiveColumnWidths, handleResizeMove, isResizableEnabled, stopResize, visibleColumnOrder]
   )
 
   useEffect(() => {
+    applyColumnWidths(effectiveColumnWidths)
+  }, [applyColumnWidths, effectiveColumnWidths])
+
+  useEffect(() => {
+    setColumnWidths((prev) => {
+      const next = sanitizeColumnWidths(prev)
+      const hasChanges = (Object.keys(prev) as ColumnKey[]).some((key) => prev[key] !== next[key])
+      return hasChanges ? next : prev
+    })
+  }, [])
+
+  useEffect(() => {
+    const element = tableContainerRef.current
+    if (!element) return
+
+    const updateWidth = () => {
+      setTableContainerWidth(Math.floor(element.clientWidth))
+    }
+
+    updateWidth()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateWidth)
+      return () => window.removeEventListener('resize', updateWidth)
+    }
+
+    const observer = new ResizeObserver(() => updateWidth())
+    observer.observe(element)
+
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
     if (!isResizableEnabled) return
-    localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnWidths))
+    localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(sanitizeColumnWidths(columnWidths)))
   }, [columnWidths, isResizableEnabled])
 
   useEffect(() => {
@@ -365,9 +624,12 @@ export default function TasksPage() {
     return (
       <div
         role="separator"
+        aria-orientation="vertical"
         onMouseDown={(event) => startResize(key, event)}
-        className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-primary-200/70"
-      />
+        className="group absolute right-0 top-0 z-10 flex h-full w-3 cursor-col-resize touch-none items-center justify-center"
+      >
+        <span className="h-[calc(100%-0.875rem)] w-px rounded-full bg-gray-200 transition-colors group-hover:bg-primary-400 dark:bg-gray-600 dark:group-hover:bg-primary-400" />
+      </div>
     )
   }
 
@@ -1461,24 +1723,28 @@ export default function TasksPage() {
                 )}
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className={`min-w-full divide-y divide-gray-200 dark:divide-gray-700 ${isResizableEnabled ? 'table-fixed' : ''}`}>
+            <div ref={tableContainerRef} className="overflow-x-auto">
+              <table
+                ref={tableRef}
+                className={`divide-y divide-gray-200 dark:divide-gray-700 ${isResizableEnabled ? 'table-fixed' : 'min-w-full'}`}
+                style={isResizableEnabled ? { width: `${resizableTableWidth}px` } : undefined}
+              >
                 {isResizableEnabled && (
                   <colgroup>
-                    <col style={{ width: columnWidths.select }} />
-                    {visibleColumns.number && <col style={{ width: columnWidths.number }} />}
-                    {visibleColumns.title && <col style={{ width: columnWidths.title }} />}
-                    {visibleColumns.address && <col style={{ width: columnWidths.address }} />}
-                    {visibleColumns.status && <col style={{ width: columnWidths.status }} />}
-                    {visibleColumns.priority && <col style={{ width: columnWidths.priority }} />}
-                    {visibleColumns.assignee && <col style={{ width: columnWidths.assignee }} />}
-                    {visibleColumns.date && <col style={{ width: columnWidths.date }} />}
-                    {visibleColumns.sla && <col style={{ width: columnWidths.sla }} />}
+                    <col style={{ width: `var(${getColumnWidthCssVar('select')}, ${effectiveColumnWidths.select}px)` }} />
+                    {visibleColumns.number && <col style={{ width: `var(${getColumnWidthCssVar('number')}, ${effectiveColumnWidths.number}px)` }} />}
+                    {visibleColumns.title && <col style={{ width: `var(${getColumnWidthCssVar('title')}, ${effectiveColumnWidths.title}px)` }} />}
+                    {visibleColumns.address && <col style={{ width: `var(${getColumnWidthCssVar('address')}, ${effectiveColumnWidths.address}px)` }} />}
+                    {visibleColumns.status && <col style={{ width: `var(${getColumnWidthCssVar('status')}, ${effectiveColumnWidths.status}px)` }} />}
+                    {visibleColumns.priority && <col style={{ width: `var(${getColumnWidthCssVar('priority')}, ${effectiveColumnWidths.priority}px)` }} />}
+                    {visibleColumns.assignee && <col style={{ width: `var(${getColumnWidthCssVar('assignee')}, ${effectiveColumnWidths.assignee}px)` }} />}
+                    {visibleColumns.date && <col style={{ width: `var(${getColumnWidthCssVar('date')}, ${effectiveColumnWidths.date}px)` }} />}
+                    {visibleColumns.sla && <col style={{ width: `var(${getColumnWidthCssVar('sla')}, ${effectiveColumnWidths.sla}px)` }} />}
                   </colgroup>
                 )}
                 <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900/50">
                   <tr>
-                    <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                    <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
                       <input
                         type="checkbox"
                         checked={allSelectedOnPage}
@@ -1489,49 +1755,49 @@ export default function TasksPage() {
                       {renderResizeHandle('select')}
                     </th>
                     {visibleColumns.number && (
-                      <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                      <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
                         №
                         {renderResizeHandle('number')}
                       </th>
                     )}
                     {visibleColumns.title && (
-                      <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                      <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
                         Заявка
                         {renderResizeHandle('title')}
                       </th>
                     )}
                     {visibleColumns.address && (
-                      <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                      <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
                         Адрес
                         {renderResizeHandle('address')}
                       </th>
                     )}
                     {visibleColumns.status && (
-                      <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                      <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
                         Статус
                         {renderResizeHandle('status')}
                       </th>
                     )}
                     {visibleColumns.priority && (
-                      <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                      <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
                         Приоритет
                         {renderResizeHandle('priority')}
                       </th>
                     )}
                     {visibleColumns.assignee && (
-                      <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                      <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
                         Исполнитель
                         {renderResizeHandle('assignee')}
                       </th>
                     )}
                     {visibleColumns.date && (
-                      <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                      <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
                         Дата
                         {renderResizeHandle('date')}
                       </th>
                     )}
                     {visibleColumns.sla && (
-                      <th className={`relative ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                      <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
                         Срок
                         {renderResizeHandle('sla')}
                       </th>
@@ -1590,9 +1856,9 @@ export default function TasksPage() {
                                 />
                               </td>
                               {visibleColumns.number && (
-                                <td className={`${cellPadding} whitespace-nowrap`}>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm font-mono text-gray-900 dark:text-gray-100">
+                                <td className={`${cellPadding} overflow-hidden whitespace-nowrap`}>
+                                  <div className="flex min-w-0 items-center gap-2">
+                                    <span className="truncate text-sm font-mono text-gray-900 dark:text-gray-100">
                                       {task.task_number || `#${task.id}`}
                                     </span>
                                     {hasUnreadTaskUpdates && <TaskNotificationBubble count={unreadCount} />}
@@ -1600,62 +1866,66 @@ export default function TasksPage() {
                                 </td>
                               )}
                               {visibleColumns.title && (
-                                <td className={cellPadding}>
-                                  <div className="line-clamp-1 text-sm font-medium text-gray-900 dark:text-white">
+                                <td className={`${cellPadding} overflow-hidden`}>
+                                  <div className="min-w-0 line-clamp-1 text-sm font-medium text-gray-900 dark:text-white">
                                     {task.defect_type || task.title || 'Без описания'}
                                   </div>
                                   {(task.defect_type ? task.title : task.description) && (
-                                    <div className="mt-0.5 line-clamp-1 text-xs text-gray-500 dark:text-gray-400">
+                                    <div className="mt-0.5 min-w-0 line-clamp-1 text-xs text-gray-500 dark:text-gray-400">
                                       {task.defect_type ? task.title : task.description}
                                     </div>
                                   )}
                                 </td>
                               )}
                               {visibleColumns.address && (
-                                <td className={cellPadding}>
-                                  <div className="flex items-start gap-1.5">
+                                <td className={`${cellPadding} overflow-hidden`}>
+                                  <div className="flex min-w-0 items-start gap-1.5">
                                     <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
-                                    <span className="line-clamp-2 text-sm text-gray-600 dark:text-gray-300">
+                                    <span className="min-w-0 line-clamp-2 text-sm text-gray-600 dark:text-gray-300">
                                       {task.raw_address || '-'}
                                     </span>
                                   </div>
                                 </td>
                               )}
                               {visibleColumns.status && (
-                                <td className={`${cellPadding} whitespace-nowrap`}>
-                                  <StatusBadge status={task.status} />
+                                <td className={`${cellPadding} overflow-hidden`}>
+                                  <div className="tasks-badge-cell max-w-full overflow-hidden">
+                                    <StatusBadge status={task.status} className="max-w-full truncate" />
+                                  </div>
                                 </td>
                               )}
                               {visibleColumns.priority && (
-                                <td className={`${cellPadding} whitespace-nowrap`}>
-                                  <PriorityBadge priority={task.priority} />
+                                <td className={`${cellPadding} overflow-hidden`}>
+                                  <div className="tasks-badge-cell max-w-full overflow-hidden">
+                                    <PriorityBadge priority={task.priority} className="max-w-full truncate" />
+                                  </div>
                                 </td>
                               )}
                               {visibleColumns.assignee && (
-                                <td className={`${cellPadding} whitespace-nowrap`}>
-                                  <div className="flex items-center gap-1.5">
-                                    <User className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                                    <span className="text-sm text-gray-600 dark:text-gray-300">
+                                <td className={`${cellPadding} overflow-hidden`}>
+                                  <div className="flex min-w-0 items-center gap-1.5">
+                                    <User className="h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                                    <span className="min-w-0 truncate text-sm text-gray-600 dark:text-gray-300">
                                       {task.assigned_user_name || '-'}
                                     </span>
                                   </div>
                                 </td>
                               )}
                               {visibleColumns.date && (
-                                <td className={`${cellPadding} whitespace-nowrap`}>
-                                  <div className="flex items-center gap-1.5">
-                                    <Calendar className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                                <td className={`${cellPadding} overflow-hidden`}>
+                                  <div className="flex min-w-0 items-center gap-1.5">
+                                    <Calendar className="h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                                    <span className="min-w-0 truncate text-sm text-gray-500 dark:text-gray-400">
                                       {formatDateTime(task.created_at)}
                                     </span>
                                   </div>
                                 </td>
                               )}
                               {visibleColumns.sla && (
-                                <td className={`${cellPadding} whitespace-nowrap`}>
-                                  <div className="flex items-center gap-1.5">
-                                    <Clock className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                                    <span className={`text-sm ${sla.tone}`}>
+                                <td className={`${cellPadding} overflow-hidden`}>
+                                  <div className="flex min-w-0 items-center gap-1.5">
+                                    <Clock className="h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                                    <span className={`min-w-0 truncate text-sm ${sla.tone}`}>
                                       {sla.label}
                                     </span>
                                   </div>

@@ -22,13 +22,14 @@ function Card({ children, className, title, action, compact = false }: CardProps
       {(title || action) && (
         <div
           className={cn(
-            'border-b border-gray-200 dark:border-gray-700 flex items-center justify-between',
+            'border-b border-gray-200 dark:border-gray-700 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between',
             compact ? 'px-4 py-3' : 'px-6 py-4',
           )}
         >
           {title && (
             <h3
               className={cn(
+                'min-w-0',
                 compact
                   ? 'text-sm font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400'
                   : 'text-lg font-semibold text-gray-900 dark:text-white',
@@ -37,7 +38,7 @@ function Card({ children, className, title, action, compact = false }: CardProps
               {title}
             </h3>
           )}
-          {action}
+          {action && <div className="w-full sm:w-auto sm:shrink-0">{action}</div>}
         </div>
       )}
       <div className={cn(compact ? 'p-4' : 'p-6')}>

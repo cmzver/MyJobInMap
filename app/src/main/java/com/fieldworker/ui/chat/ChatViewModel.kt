@@ -350,8 +350,8 @@ class ChatViewModel @Inject constructor(
     fun toggleReaction(messageId: Long, emoji: String) {
         viewModelScope.launch {
             chatRepository.toggleReaction(messageId, emoji).fold(
-                onSuccess = { updated ->
-                    replaceMessage(updated)
+                onSuccess = { reactions ->
+                    replaceMessageReactions(messageId, reactions)
                 },
                 onFailure = { /* ignore */ }
             )
@@ -680,6 +680,20 @@ class ChatViewModel @Inject constructor(
         _chatState.update { state ->
             state.copy(
                 messages = state.messages.map { if (it.id == updated.id) updated else it }
+            )
+        }
+    }
+
+    private fun replaceMessageReactions(messageId: Long, reactions: List<ChatReaction>) {
+        _chatState.update { state ->
+            state.copy(
+                messages = state.messages.map { message ->
+                    if (message.id == messageId) {
+                        message.copy(reactions = reactions)
+                    } else {
+                        message
+                    }
+                }
             )
         }
     }

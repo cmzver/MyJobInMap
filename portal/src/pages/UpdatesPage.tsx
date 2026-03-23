@@ -97,7 +97,7 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
   return (
     <div className="space-y-6">
       {!embedded && (
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               Обновления приложения
@@ -106,7 +106,7 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
               Управление версиями Android-приложения
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             <Button variant="ghost" onClick={() => refetch()} disabled={isFetching}>
               <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
             </Button>
@@ -129,7 +129,7 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
                 Публикация APK, контроль обязательных релизов и история версий.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
               <Button variant="ghost" onClick={() => refetch()} disabled={isFetching}>
                 <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
               </Button>
@@ -191,7 +191,7 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Публикация</p>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                <p className="break-all text-sm font-semibold text-gray-900 dark:text-white">
                   {latestUpdate?.download_url ?? '/api/updates/download'}
                 </p>
               </div>

@@ -197,9 +197,9 @@ class ChatRepository @Inject constructor(
 
     // ---- Reactions ----
 
-    suspend fun toggleReaction(messageId: Long, emoji: String): Result<ChatMessage> = apiCall {
+    suspend fun toggleReaction(messageId: Long, emoji: String): Result<List<ChatReaction>> = apiCall {
         chatApi.toggleReaction(messageId, ReactionCreateDto(emoji = emoji))
-    }.map { it.toDomain() }
+    }.map { list -> list.map { it.toDomain() } }
 
     // ---- Read receipts ----
 
