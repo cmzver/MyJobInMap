@@ -68,13 +68,16 @@ def verify_refresh_token(token: str) -> Optional[dict]:
 def authenticate_user(db: Session, username: str, password: str) -> Optional[UserModel]:
     """Аутентификация пользователя"""
     user = db.query(UserModel).filter(UserModel.username == username).first()
-    if not user or not verify_password(password, user.password_hash):
+    password_hash = getattr(user, "password_hash", None)
+    if not user or password_hash is None or not verify_password(password, password_hash):
         return None
-    if not user.is_active:
+    if not getattr(user, "is_active", False):
         return None
     # Проверяем, что организация пользователя активна
-    if user.organization_id and user.organization:
-        if not user.organization.is_active:
+    org_id = getattr(user, "organization_id", None)
+    org = getattr(user, "organization", None)
+    if org_id is not None and org is not None:
+        if not getattr(org, "is_active", False):
             return None
     return user
 
@@ -89,24 +92,23 @@ async def get_current_user(
     
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id: int = payload.get("user_id")
+        user_id = payload.get("user_id")
         username_from_token = payload.get("sub")
-        
         if user_id is None:
             return None
     except JWTError:
         return None
-    
+
     user = db.query(UserModel).filter(UserModel.id == user_id).first()
-    
-    if user is None or not user.is_active:
+
+    if user is None or not getattr(user, "is_active", False):
         return None
-    
+
     # Проверяем что username в токене совпадает с username в БД
     # Это защита от ситуации, когда пользователь был удалён и ID переиспользован
     if username_from_token and user.username != username_from_token:
         return None
-    
+
     return user
 
 
@@ -175,16 +177,16 @@ def check_permission(db: Session, user: UserModel, permission: str) -> bool:
     # Админ имеет все права
     if is_admin_user(user):
         return True
-    
+
     # Проверяем в таблице прав
     perm = db.query(RolePermissionModel).filter(
         RolePermissionModel.role == canonical_role_value(user.role),
         RolePermissionModel.permission == permission
     ).first()
-    
+
     if perm:
-        return perm.is_allowed
-    
+        return bool(getattr(perm, "is_allowed", False))
+
     # По умолчанию - запрещено
     return False
 
@@ -241,7 +243,7 @@ def enforce_worker_task_access(
     tenant = TenantFilter(user)
     tenant.enforce_access(task, detail=detail)
 
-    if user.role == UserRole.WORKER.value and task.assigned_user_id != user.id:
+    if getattr(user, "role", None) == UserRole.WORKER.value and getattr(task, "assigned_user_id", None) != getattr(user, "id", None):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=detail
