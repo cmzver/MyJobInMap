@@ -13,8 +13,8 @@ Models Package
 - settings.py: SystemSettingModel, CustomFieldModel, RolePermissionModel + helper functions
 """
 
-from app.models.address import (AddressContactModel,  # Enums; Models
-                                AddressDocumentModel, AddressEquipmentModel,
+from app.models.address import AddressContactModel  # Enums; Models
+from app.models.address import (AddressDocumentModel, AddressEquipmentModel,
                                 AddressHistoryEventType, AddressHistoryModel,
                                 AddressModel, AddressSystemModel, ContactType,
                                 DocumentType, EquipmentStatus, EquipmentType,
