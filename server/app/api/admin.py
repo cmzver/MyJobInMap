@@ -24,6 +24,7 @@ from app.schemas import (CustomFieldCreate, CustomFieldResponse,
 from app.services import (geocoding_service, get_current_admin,
                           get_current_dispatcher_or_admin,
                           get_current_superadmin)
+from app.services.task_service import TaskService
 from app.services.tenant_filter import TenantFilter
 from app.utils import task_to_response
 
@@ -58,7 +59,10 @@ async def admin_update_task(
         task.title = task_data.title
     if task_data.address is not None:
         task.raw_address = task_data.address
-        lat, lon = geocoding_service.geocode(task_data.address)
+        lat, lon = TaskService(db).resolve_coordinates(
+            task_data.address,
+            task.organization_id or admin.organization_id,
+        )
         task.lat = lat
         task.lon = lon
     if task_data.description is not None:

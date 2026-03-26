@@ -30,9 +30,11 @@ class FCMService : FirebaseMessagingService() {
         const val CHANNEL_ID_TASKS = "fieldworker_tasks"
         const val CHANNEL_ID_STATUS = "fieldworker_status"
         const val CHANNEL_ID_EMERGENCY = "fieldworker_emergency"
+        const val CHANNEL_ID_CHAT = "fieldworker_chat"
         const val NOTIFICATION_ID_NEW_TASK = 1001
         const val NOTIFICATION_ID_STATUS_CHANGE = 1002
         const val NOTIFICATION_ID_EMERGENCY = 1003
+        const val NOTIFICATION_ID_CHAT = 1004
     }
     
     override fun onCreate() {
@@ -84,6 +86,12 @@ class FCMService : FirebaseMessagingService() {
                 "status_change" -> {
                     if (preferences.getNotifyStatusChange()) {
                         showStatusChangeNotification(title, body, taskId)
+                    }
+                }
+                "chat", "chat_message" -> {
+                    if (preferences.getNotifyChatMessages()) {
+                        val chatId = data["chat_id"] ?: data["conversation_id"]
+                        showChatNotification(title, body, chatId)
                     }
                 }
                 else -> {
@@ -198,6 +206,46 @@ class FCMService : FirebaseMessagingService() {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(
             taskId?.hashCode() ?: NOTIFICATION_ID_STATUS_CHANGE,
+            notification
+        )
+    }
+    
+    /**
+     * Показывает уведомление о сообщении в чате
+     */
+    private fun showChatNotification(
+        title: String,
+        body: String,
+        chatId: String?
+    ) {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            chatId?.let { putExtra(MainActivity.EXTRA_CHAT_ID, it) }
+        }
+
+        val requestCode = chatId?.hashCode() ?: NOTIFICATION_ID_CHAT
+        
+        val pendingIntent = PendingIntent.getActivity(
+            this, 
+            requestCode, 
+            intent, 
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID_CHAT)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .build()
+        
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(
+            chatId?.hashCode() ?: NOTIFICATION_ID_CHAT,
             notification
         )
     }

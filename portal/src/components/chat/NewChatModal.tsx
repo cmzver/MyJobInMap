@@ -79,10 +79,10 @@ export default function NewChatModal({ isOpen, onClose, onSubmit, isLoading }: P
           <button
             onClick={() => { setChatType('direct'); setSelectedUserIds([]) }}
             className={cn(
-              'flex-1 py-2 px-4 rounded-lg text-sm font-medium transition',
+              'flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
               chatType === 'direct'
-                ? 'bg-primary-500 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600',
+                ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
+                : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700',
             )}
           >
             Личный чат
@@ -90,10 +90,10 @@ export default function NewChatModal({ isOpen, onClose, onSubmit, isLoading }: P
           <button
             onClick={() => { setChatType('group'); setSelectedUserIds([]) }}
             className={cn(
-              'flex-1 py-2 px-4 rounded-lg text-sm font-medium transition',
+              'flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
               chatType === 'group'
-                ? 'bg-primary-500 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600',
+                ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
+                : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700',
             )}
           >
             Групповой
@@ -122,7 +122,7 @@ export default function NewChatModal({ isOpen, onClose, onSubmit, isLoading }: P
         />
 
         {selectedUsers.length > 0 && (
-          <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-700 dark:bg-gray-800/60">
+          <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/60">
             <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
               {chatType === 'direct' ? 'Выбран собеседник' : `Выбрано участников: ${selectedUsers.length}`}
             </div>
@@ -132,7 +132,7 @@ export default function NewChatModal({ isOpen, onClose, onSubmit, isLoading }: P
                   key={selectedUser.id}
                   type="button"
                   onClick={() => toggleUser(selectedUser.id)}
-                  className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-700 shadow-sm ring-1 ring-gray-200 transition hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-600"
+                  className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
                 >
                   <span className="max-w-40 truncate">{selectedUser.full_name}</span>
                   <span className="text-gray-400 dark:text-gray-300">×</span>
@@ -151,11 +151,11 @@ export default function NewChatModal({ isOpen, onClose, onSubmit, isLoading }: P
               className={cn(
                 'w-full flex items-center gap-3 px-4 py-2.5 text-left transition border-b border-gray-100 dark:border-gray-700 last:border-0',
                 selectedUserIds.includes(user.id)
-                  ? 'bg-primary-50 dark:bg-primary-900/20'
+                  ? 'bg-gray-100 dark:bg-gray-700'
                   : 'hover:bg-gray-50 dark:hover:bg-gray-700/50',
               )}
             >
-              <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-sm font-medium text-gray-600 dark:text-gray-300">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-gray-100 text-sm font-medium text-gray-600 dark:border-gray-600 dark:bg-gray-600 dark:text-gray-300">
                 {user.full_name.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">

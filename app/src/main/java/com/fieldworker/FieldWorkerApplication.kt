@@ -162,7 +162,18 @@ class FieldWorkerApplication : Application(), Configuration.Provider {
                 description = "Уведомления об изменении статуса задач"
             }
             
-            notificationManager.createNotificationChannels(listOf(tasksChannel, emergencyChannel, statusChannel))
+            // Канал для чата
+            val chatChannel = NotificationChannel(
+                FCMService.CHANNEL_ID_CHAT,
+                "Сообщения в чате",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Уведомления о новых сообщениях в чатах"
+                enableVibration(true)
+                enableLights(true)
+            }
+            
+            notificationManager.createNotificationChannels(listOf(tasksChannel, emergencyChannel, statusChannel, chatChannel))
             Log.d(TAG, "Notification channels created")
         }
     }
@@ -220,28 +231,18 @@ class FieldWorkerApplication : Application(), Configuration.Provider {
     }
     
     /**
-     * Запускает периодический polling для устройств без GMS
+     * Запускает фоновый сервис для устройств без GMS
      */
     private fun startPolling() {
-        val intervalMinutes = preferences.getPollingIntervalMinutes()
-        Log.d(TAG, "Starting task polling (every $intervalMinutes minutes)")
-        
-        val pollingRequest = PeriodicWorkRequestBuilder<TaskPollingWorker>(
-            intervalMinutes.toLong(), TimeUnit.MINUTES
-        ).build()
-        
-        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-            TaskPollingWorker.WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP,
-            pollingRequest
-        )
+        Log.d(TAG, "Starting Realtime Push Service (without GMS)")
+        com.fieldworker.data.realtime.RealtimePushService.startService(this)
     }
     
     /**
-     * Останавливает polling
+     * Останавливает фоновый сервис
      */
     private fun stopPolling() {
-        Log.d(TAG, "Stopping task polling")
-        WorkManager.getInstance(this).cancelUniqueWork(TaskPollingWorker.WORK_NAME)
+        Log.d(TAG, "Stopping Realtime Push Service")
+        com.fieldworker.data.realtime.RealtimePushService.stopService(this)
     }
 }

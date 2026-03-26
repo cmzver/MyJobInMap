@@ -12,11 +12,14 @@ from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 
 from fastapi import Depends
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models import (CommentModel, TaskModel, TaskStatus, UserModel,
                         UserRole, get_db)
+from app.models.address import AddressModel
 from app.schemas import TaskCreate, TaskStatusUpdate
+from app.services.address_parser import parse_address
 from app.services.geocoding import geocoding_service
 from app.services.notification_service import (
     create_task_assignment_notification, create_task_status_notification)
@@ -70,6 +73,32 @@ class CommentRequiredError(TaskServiceError):
 
 
 logger = logging.getLogger(__name__)
+COORDINATE_PLACEHOLDER_EPSILON = 0.000001
+
+
+def has_valid_task_coordinates(lat: Optional[float], lon: Optional[float]) -> bool:
+    if lat is None or lon is None:
+        return False
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return False
+    if abs(lat) < COORDINATE_PLACEHOLDER_EPSILON and abs(lon) < COORDINATE_PLACEHOLDER_EPSILON:
+        return False
+    return True
+
+
+def _string_match_score(left: Optional[str], right: Optional[str]) -> int:
+    if not left or not right:
+        return 0
+
+    normalized_left = left.strip().lower()
+    normalized_right = right.strip().lower()
+    if not normalized_left or not normalized_right:
+        return 0
+    if normalized_left == normalized_right:
+        return 18
+    if normalized_left in normalized_right or normalized_right in normalized_left:
+        return 10
+    return 0
 
 
 class TaskService:
@@ -85,6 +114,109 @@ class TaskService:
 
     def __init__(self, db: Session):
         self.db = db
+
+    def resolve_coordinates(
+        self,
+        raw_address: str,
+        organization_id: Optional[int] = None,
+    ) -> Tuple[float, float]:
+        parsed = parse_address(raw_address)
+        normalized_raw = geocoding_service.normalize_address(raw_address).lower()
+
+        candidates_query = (
+            self.db.query(AddressModel)
+            .filter(
+                AddressModel.is_active.is_(True),
+                AddressModel.lat.isnot(None),
+                AddressModel.lon.isnot(None),
+            )
+        )
+        if organization_id is not None:
+            candidates_query = candidates_query.filter(
+                AddressModel.organization_id == organization_id
+            )
+
+        search_clauses = []
+        if parsed.street:
+            search_clauses.extend(
+                [
+                    AddressModel.street.ilike(f"%{parsed.street}%"),
+                    AddressModel.address.ilike(f"%{parsed.street}%"),
+                ]
+            )
+        if parsed.building:
+            search_clauses.extend(
+                [
+                    AddressModel.building.ilike(f"%{parsed.building}%"),
+                    AddressModel.address.ilike(f"%{parsed.building}%"),
+                ]
+            )
+        if parsed.city:
+            search_clauses.extend(
+                [
+                    AddressModel.city.ilike(f"%{parsed.city}%"),
+                    AddressModel.address.ilike(f"%{parsed.city}%"),
+                ]
+            )
+        if search_clauses:
+            candidates_query = candidates_query.filter(or_(*search_clauses))
+
+        best_candidate = None
+        best_score = 0
+        for candidate in candidates_query.order_by(AddressModel.updated_at.desc()).limit(25).all():
+            if not has_valid_task_coordinates(candidate.lat, candidate.lon):
+                continue
+
+            score = 0
+            normalized_candidate = geocoding_service.normalize_address(
+                candidate.address or ""
+            ).lower()
+            if normalized_candidate and normalized_candidate == normalized_raw:
+                score += 100
+            elif normalized_candidate and (
+                normalized_candidate in normalized_raw or normalized_raw in normalized_candidate
+            ):
+                score += 55
+
+            score += _string_match_score(parsed.street, candidate.street)
+            score += _string_match_score(parsed.building, candidate.building)
+            score += _string_match_score(parsed.corpus, candidate.corpus)
+            score += _string_match_score(parsed.city, candidate.city)
+
+            if candidate.address and parsed.street and parsed.street.lower() in candidate.address.lower():
+                score += 12
+            if candidate.address and parsed.building and parsed.building.lower() in candidate.address.lower():
+                score += 16
+
+            if score > best_score:
+                best_score = score
+                best_candidate = candidate
+
+        if best_candidate is not None and best_score >= 34:
+            logger.info(
+                "Resolved task coordinates from address book for '%s' -> (%s, %s)",
+                raw_address,
+                best_candidate.lat,
+                best_candidate.lon,
+            )
+            return best_candidate.lat, best_candidate.lon
+
+        return geocoding_service.geocode(raw_address)
+
+    def repair_task_coordinates(self, task: TaskModel) -> bool:
+        if has_valid_task_coordinates(task.lat, task.lon):
+            return False
+        if not task.raw_address.strip():
+            return False
+
+        lat, lon = self.resolve_coordinates(task.raw_address, task.organization_id)
+        if not has_valid_task_coordinates(lat, lon):
+            return False
+
+        changed = task.lat != lat or task.lon != lon
+        task.lat = lat
+        task.lon = lon
+        return changed
 
     def get_by_id(self, task_id: int) -> TaskModel:
         """
@@ -136,7 +268,10 @@ class TaskService:
         - Генерирует внутренний номер
         """
         # Геокодирование
-        lat, lon = geocoding_service.geocode(data.address)
+        lat, lon = self.resolve_coordinates(
+            data.address,
+            user.organization_id if user else None,
+        )
 
         # Приоритет: из запроса или из текста
         priority = (

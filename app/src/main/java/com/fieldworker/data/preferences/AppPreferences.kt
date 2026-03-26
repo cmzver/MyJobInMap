@@ -215,6 +215,14 @@ class AppPreferences @Inject constructor(
         prefs.edit().putBoolean(KEY_NOTIFY_STATUS_CHANGE, notify).apply()
     }
     
+    fun getNotifyChatMessages(): Boolean {
+        return prefs.getBoolean(KEY_NOTIFY_CHAT_MESSAGES, true)
+    }
+    
+    fun setNotifyChatMessages(notify: Boolean) {
+        prefs.edit().putBoolean(KEY_NOTIFY_CHAT_MESSAGES, notify).apply()
+    }
+    
     fun getFcmToken(): String? {
         return prefs.getString(KEY_FCM_TOKEN, null)
     }
@@ -443,6 +451,7 @@ class AppPreferences @Inject constructor(
         private const val KEY_NOTIFICATIONS_ENABLED = "notifications_enabled"
         private const val KEY_NOTIFY_NEW_TASKS = "notify_new_tasks"
         private const val KEY_NOTIFY_STATUS_CHANGE = "notify_status_change"
+        private const val KEY_NOTIFY_CHAT_MESSAGES = "notify_chat_messages"
         private const val KEY_FCM_TOKEN = "fcm_token"
         private const val KEY_LAST_CHECKED_TASK_ID = "last_checked_task_id"
         private const val KEY_POLLING_ENABLED = "polling_enabled"

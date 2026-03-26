@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, AlertCircle } from 'lucide-react'
 import { addressesApi } from '@/api/addresses'
 import Spinner from '@/components/Spinner'
@@ -23,26 +23,19 @@ export default function SystemSelector({
   const [systems, setSystems] = useState<AddressSystem[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const syncedSelectionRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!buildingId) return
 
     const loadSystems = async () => {
-      setIsLoading(true)
-      try {
-        const result = await addressesApi.getSystems(buildingId)
-        setSystems(result)
-        
-        // Если есть выбранное значение, найдём систему и вызовем onChange для установки system_type
-        if (value) {
-          const selectedSys = result.find((s: AddressSystem) => s.id === value || s.id === Number(value))
-          if (selectedSys) {
-            onChange(selectedSys.id, selectedSys)
-          }
-        }
-      } catch (err) {
-        if (import.meta.env.DEV) console.error('Error loading systems:', err)
-        setSystems([])
+        setIsLoading(true)
+        try {
+          const result = await addressesApi.getSystems(buildingId)
+          setSystems(result)
+        } catch (err) {
+          if (import.meta.env.DEV) console.error('Error loading systems:', err)
+          setSystems([])
       } finally {
         setIsLoading(false)
       }
@@ -50,6 +43,23 @@ export default function SystemSelector({
 
     loadSystems()
   }, [buildingId])
+
+  useEffect(() => {
+    syncedSelectionRef.current = null
+  }, [buildingId])
+
+  useEffect(() => {
+    if (!value || systems.length === 0) return
+
+    const selectedSys = systems.find((s) => s.id === value || s.id === Number(value))
+    if (!selectedSys) return
+
+    const syncKey = `${buildingId ?? 'no-building'}:${selectedSys.id}`
+    if (syncedSelectionRef.current === syncKey) return
+
+    syncedSelectionRef.current = syncKey
+    onChange(selectedSys.id, selectedSys)
+  }, [buildingId, onChange, systems, value])
 
   const selectedSystem = systems.find((s) => s.id === value || s.id === Number(value))
 
@@ -125,6 +135,7 @@ export default function SystemSelector({
                     key={system.id}
                     type="button"
                     onClick={() => {
+                      syncedSelectionRef.current = `${buildingId ?? 'no-building'}:${system.id}`
                       onChange(system.id, system)
                       setIsOpen(false)
                     }}

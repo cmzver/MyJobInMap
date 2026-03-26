@@ -190,7 +190,7 @@ export default function SupportTicketDetailPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500 shadow-sm dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400">
+        <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500 shadow-sm dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400">
           <div>Создан: {formatDateTime(ticket.created_at)}</div>
           <div className="mt-1">Обновлён: {formatDateTime(ticket.updated_at)}</div>
           {ticket.resolved_at && <div className="mt-1">Закрыт: {formatDateTime(ticket.resolved_at)}</div>}
@@ -222,7 +222,7 @@ export default function SupportTicketDetailPage() {
                 {ticket.comments.map((comment) => (
                   <article
                     key={comment.id}
-                    className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900/40"
+                    className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900/40"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2">

@@ -29,14 +29,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import com.fieldworker.data.notification.TaskPollingWorker
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.AuthRepository
 import kotlinx.coroutines.launch
-import java.util.concurrent.TimeUnit
 
 private val SettingsSectionShape = RoundedCornerShape(28.dp)
 private val SettingsInnerShape = RoundedCornerShape(22.dp)
@@ -65,6 +60,7 @@ fun SettingsScreen(
     var notificationsEnabled by remember { mutableStateOf(preferences.getNotificationsEnabled()) }
     var notifyNewTasks by remember { mutableStateOf(preferences.getNotifyNewTasks()) }
     var notifyStatusChange by remember { mutableStateOf(preferences.getNotifyStatusChange()) }
+    var notifyChatMessages by remember { mutableStateOf(preferences.getNotifyChatMessages()) }
     var usePolling by remember { mutableStateOf(preferences.isPollingEnabled()) }
     var pollingInterval by remember { mutableStateOf(preferences.getPollingIntervalMinutes()) }
     var showPollingIntervalDialog by remember { mutableStateOf(false) }
@@ -115,7 +111,7 @@ fun SettingsScreen(
     val userRole = roleLabel(preferences.getUserRole())
     val serverPreview = buildServerEndpointPreview(serverUrl, serverPort)
     val syncSummary = when {
-        usePolling -> "Polling каждые $pollingInterval мин"
+        usePolling -> "Фоновый сервис активен"
         notificationsEnabled -> "Push-уведомления активны"
         else -> "Автооповещения отключены"
     }
@@ -271,33 +267,31 @@ fun SettingsScreen(
                     )
 
                     SettingsSwitch(
+                        icon = Icons.Default.Email,
+                        title = "Сообщения в чате",
+                        subtitle = "Уведомлять о новых сообщениях в чатах",
+                        checked = notifyChatMessages,
+                        onCheckedChange = { 
+                            notifyChatMessages = it
+                            preferences.setNotifyChatMessages(it)
+                        }
+                    )
+
+                    SettingsSwitch(
                         icon = Icons.Default.Refresh,
-                        title = "Режим polling",
-                        subtitle = "Проверять задачи каждые $pollingInterval мин (для устройств без Google)",
+                        title = "Фоновые уведомления",
+                        subtitle = "Мгновенные уведомления (для устройств без Google)",
                         checked = usePolling,
                         onCheckedChange = { 
                             usePolling = it
                             preferences.setPollingEnabled(it)
-                            // Запускаем/останавливаем polling
                             if (it) {
-                                schedulePollingWork(context, pollingInterval)
+                                com.fieldworker.data.realtime.RealtimePushService.startService(context)
                             } else {
-                                cancelPollingWork(context)
+                                com.fieldworker.data.realtime.RealtimePushService.stopService(context)
                             }
                         }
                     )
-                    
-                    if (usePolling) {
-                        SettingsItem(
-                            icon = Icons.Default.Info,
-                            title = "Интервал проверки",
-                            subtitle = pollingIntervalLabel(pollingInterval),
-                            onClick = { showPollingIntervalDialog = true },
-                            trailing = {
-                                SettingsActionPill(text = "Изменить")
-                            }
-                        )
-                    }
                 }
             }
             
@@ -529,7 +523,7 @@ fun SettingsScreen(
             }
         }
     }
-    
+
     // Диалог сброса
     if (showResetDialog) {
         AlertDialog(
@@ -547,13 +541,14 @@ fun SettingsScreen(
                         notificationsEnabled = preferences.getNotificationsEnabled()
                         notifyNewTasks = preferences.getNotifyNewTasks()
                         notifyStatusChange = preferences.getNotifyStatusChange()
+                        notifyChatMessages = preferences.getNotifyChatMessages()
                         usePolling = preferences.isPollingEnabled()
                         pollingInterval = preferences.getPollingIntervalMinutes()
 
                         if (usePolling) {
-                            schedulePollingWork(context, pollingInterval)
+                            com.fieldworker.data.realtime.RealtimePushService.startService(context)
                         } else {
-                            cancelPollingWork(context)
+                            com.fieldworker.data.realtime.RealtimePushService.stopService(context)
                         }
 
                         showResetDialog = false
@@ -568,68 +563,6 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { showResetDialog = false }) {
                     Text("Отмена")
-                }
-            }
-        )
-    }
-    
-    // Диалог выбора интервала polling
-    if (showPollingIntervalDialog) {
-        AlertDialog(
-            onDismissRequest = { showPollingIntervalDialog = false },
-            title = { Text("Интервал проверки") },
-            text = {
-                Column {
-                    Text(
-                        "Выберите как часто проверять новые задачи:",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-                    
-                    AppPreferences.POLLING_INTERVALS.forEach { minutes ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = pollingInterval == minutes,
-                                onClick = {
-                                    pollingInterval = minutes
-                                    preferences.setPollingIntervalMinutes(minutes)
-                                }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = when (minutes) {
-                                    5 -> "Каждые 5 минут"
-                                    10 -> "Каждые 10 минут"
-                                    15 -> "Каждые 15 минут"
-                                    30 -> "Каждые 30 минут"
-                                    60 -> "Каждый час"
-                                    else -> "Каждые $minutes мин"
-                                },
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { 
-                        showPollingIntervalDialog = false
-                        // Перезапускаем WorkManager с новым интервалом
-                        if (usePolling) {
-                            schedulePollingWork(context, pollingInterval)
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Интервал изменён: ${pollingIntervalLabel(pollingInterval)}")
-                            }
-                        }
-                    }
-                ) {
-                    Text("Готово")
                 }
             }
         )
@@ -1285,19 +1218,3 @@ private fun buildServerEndpointPreview(serverUrl: String, serverPort: String): S
     return if (urlWithoutScheme.contains(":")) baseUrl else "$baseUrl:$port"
 }
 
-private fun schedulePollingWork(context: Context, pollingInterval: Int) {
-    val request = PeriodicWorkRequestBuilder<TaskPollingWorker>(
-        pollingInterval.toLong(),
-        TimeUnit.MINUTES
-    ).build()
-
-    WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-        TaskPollingWorker.WORK_NAME,
-        ExistingPeriodicWorkPolicy.UPDATE,
-        request
-    )
-}
-
-private fun cancelPollingWork(context: Context) {
-    WorkManager.getInstance(context).cancelUniqueWork(TaskPollingWorker.WORK_NAME)
-}

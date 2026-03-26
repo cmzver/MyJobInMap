@@ -427,7 +427,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
   }
 
   const openAddressCreateFlow = () => {
-    const { photos: _photos, ...draftFormData } = formData
+    const draftFormData: Omit<TaskFormData, 'photos'> = { ...formData }
 
     const prefill = {
       address: fullAddress,

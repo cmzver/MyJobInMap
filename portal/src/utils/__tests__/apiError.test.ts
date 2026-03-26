@@ -5,9 +5,17 @@
 import { describe, it, expect, vi } from 'vitest'
 import { getApiErrorMessage } from '../apiError'
 
+type FakeAxiosError = Error & {
+  isAxiosError: boolean
+  response: {
+    data: unknown
+    status: number
+  }
+}
+
 // Minimal AxiosError-like shape
 function makeAxiosError(data: unknown, status?: number) {
-  const error = new Error('Request failed') as any
+  const error = new Error('Request failed') as FakeAxiosError
   error.isAxiosError = true
   error.response = { data, status: status ?? 400 }
   return error
@@ -20,7 +28,7 @@ vi.mock('axios', async () => {
     ...actual,
     default: {
       ...actual.default,
-      isAxiosError: (e: any) => !!e?.isAxiosError,
+      isAxiosError: (e: unknown) => Boolean((e as { isAxiosError?: boolean } | null)?.isAxiosError),
     },
   }
 })

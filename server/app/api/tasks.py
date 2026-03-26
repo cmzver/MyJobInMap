@@ -20,7 +20,7 @@ from app.schemas import (CommentCreate, CommentResponse, PaginatedResponse,
                          PlannedDateUpdate, TaskAssignRequest, TaskCreate,
                          TaskListResponse, TaskResponse, TaskStatusUpdate)
 from app.services import (TaskServiceError, check_permission,
-                          geocoding_service, get_task_service,
+                          TaskService, geocoding_service, get_task_service,
                           require_permission)
 from app.services.task_parser import parse_dispatcher_message
 from app.services.tenant_filter import TenantFilter
@@ -211,6 +211,12 @@ async def get_tasks(
 
     # Применяем пагинацию
     tasks = query.order_by(*order_by).offset((page - 1) * size).limit(size).all()
+    task_service = TaskService(db)
+    did_repair_coordinates = False
+    for task in tasks:
+        did_repair_coordinates = task_service.repair_task_coordinates(task) or did_repair_coordinates
+    if did_repair_coordinates:
+        db.commit()
 
     return PaginatedResponse(
         items=[task_to_list_response(t) for t in tasks],

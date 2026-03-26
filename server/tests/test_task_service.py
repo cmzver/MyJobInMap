@@ -3,7 +3,7 @@
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models import (OrganizationModel, TaskModel, TaskStatus, UserModel,
+from app.models import (AddressModel, OrganizationModel, TaskModel, TaskStatus, UserModel,
                         UserRole)
 from app.schemas import TaskCreate
 from app.services.auth import get_password_hash
@@ -207,6 +207,94 @@ class TestTaskServiceCreate:
 
         assert task.is_paid is True
         assert task.payment_amount == 5000.0
+
+    def test_create_uses_address_book_coordinates_before_geocoder(self, db_session, monkeypatch):
+        """Task creation should reuse known address coordinates when the address already exists."""
+        org = OrganizationModel(
+            name="Geo Org",
+            slug="geo-org",
+            is_active=True,
+        )
+        user = UserModel(
+            username="geo_dispatcher",
+            password_hash=get_password_hash("test"),
+            full_name="Geo Dispatcher",
+            role=UserRole.DISPATCHER.value,
+            is_active=True,
+            organization=org,
+        )
+        known_address = AddressModel(
+            address="Невская ул., д. 11/1, Санкт-Петербург",
+            city="Санкт-Петербург",
+            street="Невская ул.",
+            building="11/1",
+            lat=59.9386,
+            lon=30.3141,
+            organization=org,
+            is_active=True,
+        )
+        db_session.add_all([org, user, known_address])
+        db_session.commit()
+
+        monkeypatch.setattr(
+            "app.services.task_service.geocoding_service.geocode",
+            lambda _: (0.0, 0.0),
+        )
+
+        service = TaskService(db_session)
+        task = service.create(
+            TaskCreate(
+                title="Address Match Task",
+                address="СПб, Невская ул., д. 11/1",
+                description="Task description",
+            ),
+            user,
+        )
+
+        assert task.lat == pytest.approx(59.9386)
+        assert task.lon == pytest.approx(30.3141)
+
+    def test_repair_task_coordinates_restores_invalid_zero_coordinates(self, db_session, monkeypatch):
+        """Legacy tasks with 0,0 should be repaired from the address book."""
+        org = OrganizationModel(
+            name="Repair Org",
+            slug="repair-org",
+            is_active=True,
+        )
+        known_address = AddressModel(
+            address="Лиговский пр., д. 120, Санкт-Петербург",
+            city="Санкт-Петербург",
+            street="Лиговский пр.",
+            building="120",
+            lat=59.9192,
+            lon=30.3551,
+            organization=org,
+            is_active=True,
+        )
+        task = TaskModel(
+            title="Broken Coordinates Task",
+            raw_address="СПб, Лиговский пр., д. 120",
+            description="Legacy task",
+            lat=0.0,
+            lon=0.0,
+            status=TaskStatus.NEW.value,
+            priority="CURRENT",
+            organization=org,
+        )
+        db_session.add_all([org, known_address, task])
+        db_session.commit()
+
+        monkeypatch.setattr(
+            "app.services.task_service.geocoding_service.geocode",
+            lambda _: (0.0, 0.0),
+        )
+
+        service = TaskService(db_session)
+        repaired = service.repair_task_coordinates(task)
+
+        assert repaired is True
+        assert task.lat == pytest.approx(59.9192)
+        assert task.lon == pytest.approx(30.3551)
 
 
 class TestTaskServiceUpdateStatus:

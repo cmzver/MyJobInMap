@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
 
     <application
         android:name=".FieldWorkerApplication"
@@ -42,6 +44,12 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- Realtime Push Service for non-GMS devices -->
+        <service
+            android:name=".data.realtime.RealtimePushService"
+            android:foregroundServiceType="remoteMessaging"
+            android:exported="false" />
         
         <!-- Default notification channel metadata -->
         <meta-data

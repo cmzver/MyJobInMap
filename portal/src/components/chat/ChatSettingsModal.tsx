@@ -245,7 +245,7 @@ export default function ChatSettingsModal({
                 : 'Изменение названия и фото доступно только owner и admin.'}
             </p>
           </div>
-          <div className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-700 dark:bg-gray-800/60 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               <UserAvatar
                 fullName={conversation.name ?? 'Групповой чат'}
@@ -301,22 +301,22 @@ export default function ChatSettingsModal({
             <p className="text-xs text-gray-500 dark:text-gray-400">Owner/admin может удалять участников, любой пользователь может выйти сам.</p>
           </div>
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50/80 p-3 dark:border-gray-700 dark:bg-gray-800/60">
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-600">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/60">
+              <span className="rounded-md border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
                 Всего: {sortedMembers.length}
               </span>
-              <span className="rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-200">
+              <span className="rounded-md border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
                 Владельцы: {membersSummary.owners}
               </span>
-              <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 dark:bg-sky-900/30 dark:text-sky-200">
+              <span className="rounded-md border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
                 Админы: {membersSummary.admins}
               </span>
-              <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+              <span className="rounded-md border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200">
                 Участники: {membersSummary.members}
               </span>
             </div>
 
-            <div className="space-y-2 rounded-2xl border border-gray-200 bg-white/90 p-2 dark:border-gray-700 dark:bg-gray-900/40">
+            <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-900/40">
             {sortedMembers.map((member) => {
               const canRemove = member.user_id === currentUserId || canManageOthers
               const canChangeRole = canManageOthers && member.user_id !== currentUserId && member.role !== 'owner'
@@ -324,7 +324,7 @@ export default function ChatSettingsModal({
               return (
                 <div
                   key={member.user_id}
-                  className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-3 dark:border-gray-700 dark:bg-gray-800/60"
+                  className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-800/60"
                 >
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex min-w-0 items-start gap-3">
@@ -346,7 +346,7 @@ export default function ChatSettingsModal({
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">{member.full_name}</div>
                           {member.user_id === currentUserId && (
-                            <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200">
+                            <span className="inline-flex rounded-md border border-emerald-200 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:border-emerald-900/40 dark:text-emerald-200">
                               Вы
                             </span>
                           )}
@@ -355,7 +355,7 @@ export default function ChatSettingsModal({
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span
                             className={cn(
-                              'inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold',
+                              'inline-flex rounded-md px-2.5 py-1 text-[11px] font-semibold',
                               member.role === 'owner'
                                 ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-200'
                                 : member.role === 'admin'
@@ -365,16 +365,16 @@ export default function ChatSettingsModal({
                           >
                             {getRoleLabel(member.role)}
                           </span>
-                          <span className="inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-gray-500 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-600">
+                          <span className="inline-flex rounded-md border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400">
                             В чате с {formatDatePretty(member.joined_at)}
                           </span>
                           {member.is_muted && (
-                            <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                            <span className="inline-flex rounded-md border border-amber-200 px-2.5 py-1 text-[11px] font-medium text-amber-700 dark:border-amber-900/40 dark:text-amber-300">
                               Без звука
                             </span>
                           )}
                           {member.is_archived && (
-                            <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                            <span className="inline-flex rounded-md border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-600 dark:border-gray-700 dark:text-gray-300">
                               Архив
                             </span>
                           )}
@@ -387,7 +387,7 @@ export default function ChatSettingsModal({
                         <button
                           type="button"
                           onClick={() => setActionMenuUserId((current) => current === member.user_id ? null : member.user_id)}
-                          className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                           aria-haspopup="menu"
                           aria-expanded={actionMenuUserId === member.user_id}
                           aria-label={`Действия для ${member.full_name}`}
@@ -397,10 +397,10 @@ export default function ChatSettingsModal({
                         </button>
 
                         {actionMenuUserId === member.user_id && (
-                          <div className="absolute right-0 top-full z-30 mt-2 min-w-[220px] rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl dark:border-gray-600 dark:bg-gray-800">
+                          <div className="absolute right-0 top-full z-30 mt-2 min-w-[220px] rounded-lg border border-gray-200 bg-white p-1.5 shadow-sm dark:border-gray-600 dark:bg-gray-800">
                             {canChangeRole && (
                               <>
-                                <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-gray-500">
+                                <div className="px-3 py-2 text-xs font-medium text-gray-400 dark:text-gray-500">
                                   Роль участника
                                 </div>
                                 <button
@@ -412,7 +412,7 @@ export default function ChatSettingsModal({
                                     setActionMenuUserId(null)
                                   }}
                                   disabled={member.role === 'member' || updatingRoleUserId === member.user_id}
-                                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-700"
+                                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-700"
                                 >
                                   <span>Сделать участником</span>
                                   {member.role === 'member' && <span className="text-xs text-gray-400 dark:text-gray-500">Текущая</span>}
@@ -426,7 +426,7 @@ export default function ChatSettingsModal({
                                     setActionMenuUserId(null)
                                   }}
                                   disabled={member.role === 'admin' || updatingRoleUserId === member.user_id}
-                                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-700"
+                                  className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-700"
                                 >
                                   <span>Сделать администратором</span>
                                   {member.role === 'admin' && <span className="text-xs text-gray-400 dark:text-gray-500">Текущая</span>}
@@ -442,7 +442,7 @@ export default function ChatSettingsModal({
                                   setActionMenuUserId(null)
                                 }}
                                 disabled={transferringOwnershipUserId === member.user_id}
-                                className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-700"
+                                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-700"
                               >
                                 <span>Передать ownership</span>
                                 {transferringOwnershipUserId === member.user_id && <span className="text-xs text-gray-400 dark:text-gray-500">...</span>}
@@ -458,7 +458,7 @@ export default function ChatSettingsModal({
                                 }}
                                 disabled={removingUserId === member.user_id}
                                 className={cn(
-                                  'flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                                  'flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50',
                                   member.user_id === currentUserId
                                     ? 'text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-900/20'
                                     : 'text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/20',
@@ -481,7 +481,7 @@ export default function ChatSettingsModal({
         </section>
 
         {canTransferOwnership && (
-          <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/70 dark:bg-amber-950/20">
+          <section className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/70 dark:bg-amber-950/20">
             <div>
               <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200">Передача ownership</h3>
               <p className="text-xs text-amber-800/80 dark:text-amber-300/80">
@@ -505,7 +505,7 @@ export default function ChatSettingsModal({
             />
 
             {selectedUserIds.length > 0 && (
-              <div className="flex flex-wrap gap-2 rounded-xl border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-700 dark:bg-gray-800/60">
+              <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/60">
                 {users
                   .filter((candidate) => selectedUserIds.includes(candidate.id))
                   .map((selectedUser) => (
@@ -513,7 +513,7 @@ export default function ChatSettingsModal({
                       key={selectedUser.id}
                       type="button"
                       onClick={() => handleToggleUser(selectedUser.id)}
-                      className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-700 shadow-sm ring-1 ring-gray-200 transition hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-200 dark:ring-gray-600 dark:hover:bg-gray-600"
+                      className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
                     >
                       <span className="max-w-40 truncate">{selectedUser.full_name}</span>
                       <span className="text-gray-400 dark:text-gray-300">×</span>

@@ -36,7 +36,7 @@ import PriorityBadge from '@/components/PriorityBadge'
 import Card from '@/components/Card'
 import Modal from '@/components/Modal'
 import Textarea from '@/components/Textarea'
-import type { TaskStatus } from '@/types/task'
+import type { Task, TaskStatus } from '@/types/task'
 import { isAssignableRole, normalizeRoleForAccess } from '@/types/user'
 import { cn } from '@/utils/cn'
 import { getAvailableStatusTransitions, getStatusCommentCopy, requiresStatusComment } from '@/config/taskConstants'
@@ -62,6 +62,7 @@ const systemTypeLabels: Record<string, string> = {
   fire_alarm: 'ОПС',
   other: 'Другое',
 }
+const hasCoordinates = (task: Pick<Task, 'lat' | 'lon'>) => task.lat != null && task.lon != null
 
 interface CollapsibleCardProps {
   title: string
@@ -423,7 +424,7 @@ export default function TaskDetailPage() {
                 <p className="mt-1 text-[15px] font-semibold text-gray-900 dark:text-white break-words leading-5">
                   {task.raw_address || 'Не указан'}
                 </p>
-                {(task.customer_name || task.customer_phone || (task.lat && task.lon)) && (
+                {(task.customer_name || task.customer_phone || hasCoordinates(task)) && (
                   <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-gray-600 dark:text-gray-300">
                     {task.customer_name && <span>{task.customer_name}</span>}
                     {task.customer_phone && (
@@ -435,10 +436,10 @@ export default function TaskDetailPage() {
                         {task.customer_phone}
                       </a>
                     )}
-                    {task.lat && task.lon && (
+                    {hasCoordinates(task) && (
                       <button
                         type="button"
-                        onClick={() => window.open(`https://yandex.ru/maps/?pt=${task.lon},${task.lat}&z=17`, '_blank')}
+                        onClick={() => window.open(`https://yandex.ru/maps/?pt=${task.lon},${task.lat}&z=17`, '_blank', 'noopener,noreferrer')}
                         className="inline-flex items-center gap-1 hover:text-primary-600 dark:hover:text-primary-400"
                       >
                         <ExternalLink className="h-3.5 w-3.5" />

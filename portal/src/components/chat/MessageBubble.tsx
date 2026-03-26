@@ -254,11 +254,13 @@ function ImageAttachmentLightbox({
   }, [attachments, currentIndex, ensureAttachmentLoaded, isOpen])
 
   useEffect(() => {
+    const objectUrlCache = objectUrlCacheRef.current
+
     return () => {
-      objectUrlCacheRef.current.forEach((objectUrl) => {
+      objectUrlCache.forEach((objectUrl) => {
         window.URL.revokeObjectURL(objectUrl)
       })
-      objectUrlCacheRef.current.clear()
+      objectUrlCache.clear()
     }
   }, [])
 
@@ -384,15 +386,15 @@ function ImageAttachmentLightbox({
       size="xl"
     >
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-200/70 bg-gray-50/85 px-3.5 py-2.5 text-sm text-gray-500 shadow-sm dark:border-gray-700 dark:bg-gray-800/85 dark:text-gray-400">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
           <div className="flex flex-wrap items-center gap-2">
             <span>{formatAttachmentSize(attachment.file_size)}</span>
             {attachments.length > 1 && currentIndex >= 0 && (
-              <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:ring-gray-600">
+              <span className="rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300">
                 {currentIndex + 1} из {attachments.length}
               </span>
             )}
-            <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:ring-gray-600">
+            <span className="rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300">
               {Math.round(scale * 100)}%
             </span>
           </div>
@@ -441,14 +443,14 @@ function ImageAttachmentLightbox({
         </div>
 
         <div
-          className="relative flex min-h-[50vh] items-center justify-center overflow-hidden rounded-[1.75rem] border border-gray-800/40 bg-gray-950/95 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+          className="relative flex min-h-[50vh] items-center justify-center overflow-hidden rounded-xl border border-gray-800/40 bg-gray-950/95 p-3"
           onWheel={handleWheelZoom}
         >
           {hasPrevious && (
             <button
               type="button"
               onClick={() => openGalleryAttachment(attachments[currentIndex - 1]!.id)}
-              className="absolute left-10 z-10 rounded-full bg-white/85 p-2 text-gray-900 shadow-lg transition hover:bg-white dark:bg-gray-800/90 dark:text-white dark:hover:bg-gray-800"
+              className="absolute left-10 z-10 rounded-lg border border-gray-200 bg-white p-2 text-gray-900 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
               aria-label="Предыдущее изображение"
             >
               <ChevronLeft className="h-5 w-5" />
@@ -458,7 +460,7 @@ function ImageAttachmentLightbox({
             <button
               type="button"
               onClick={() => openGalleryAttachment(attachments[currentIndex + 1]!.id)}
-              className="absolute right-10 z-10 rounded-full bg-white/85 p-2 text-gray-900 shadow-lg transition hover:bg-white dark:bg-gray-800/90 dark:text-white dark:hover:bg-gray-800"
+              className="absolute right-10 z-10 rounded-lg border border-gray-200 bg-white p-2 text-gray-900 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
               aria-label="Следующее изображение"
             >
               <ChevronRight className="h-5 w-5" />
@@ -496,7 +498,7 @@ function ImageAttachmentLightbox({
         </div>
 
         {attachments.length > 1 && (
-          <div className="overflow-x-auto rounded-2xl border border-gray-200/70 bg-gray-50/85 px-2.5 py-2.5 shadow-sm dark:border-gray-700 dark:bg-gray-800/85">
+          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-2.5 dark:border-gray-700 dark:bg-gray-800">
             <div className="flex min-w-max items-center gap-2">
               {attachments.map((item) => {
                 const previewUrl = objectUrlCacheRef.current.get(item.id)
@@ -508,9 +510,9 @@ function ImageAttachmentLightbox({
                     type="button"
                     onClick={() => openGalleryAttachment(item.id)}
                     className={cn(
-                      'relative overflow-hidden rounded-xl border transition-colors duration-150',
+                      'relative overflow-hidden rounded-lg border transition-colors duration-150',
                       isSelected
-                        ? 'border-primary-400 ring-2 ring-primary-300/70 dark:border-primary-500 dark:ring-primary-700/60'
+                        ? 'border-gray-400 ring-1 ring-gray-300 dark:border-gray-500 dark:ring-gray-600'
                         : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-500',
                     )}
                   >
@@ -525,7 +527,7 @@ function ImageAttachmentLightbox({
                       <div className={cn(
                         'flex h-14 w-20 items-center justify-center text-[10px] font-medium',
                         isSelected
-                          ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300'
+                          ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
                           : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300',
                       )}>
                         {item.id === attachment.id ? 'Текущее' : 'Превью'}
@@ -534,7 +536,7 @@ function ImageAttachmentLightbox({
                     <div className={cn(
                       'absolute inset-x-0 bottom-0 truncate px-1.5 py-0.5 text-[10px] font-medium backdrop-blur-sm',
                       isSelected
-                        ? 'bg-primary-500/75 text-white'
+                        ? 'bg-gray-900/75 text-white dark:bg-gray-100/80 dark:text-gray-900'
                         : 'bg-black/45 text-white/90',
                     )}>
                       {item.file_name}
@@ -588,7 +590,7 @@ function MessageBubble({
   if (message.is_deleted) {
     return (
       <div className={cn('flex mb-2', isOwn ? 'justify-end' : 'justify-start')}>
-        <div className="px-4 py-2 rounded-2xl bg-gray-100 dark:bg-gray-700/50 italic text-gray-400 dark:text-gray-500 text-sm">
+        <div className="rounded-lg bg-gray-100 px-4 py-2 text-sm italic text-gray-400 dark:bg-gray-700/50 dark:text-gray-500">
           Сообщение удалено
         </div>
       </div>
@@ -601,19 +603,19 @@ function MessageBubble({
     return (
       <div className="mb-3 flex justify-center px-3">
         <div className="flex w-full max-w-xl items-center gap-3 text-center">
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 to-gray-200 dark:via-gray-700 dark:to-gray-700" />
-          <div className="rounded-2xl border border-gray-200 bg-gray-50/90 px-4 py-2 shadow-sm dark:border-gray-700 dark:bg-gray-800/85">
-            <div className={cn('text-[10px] font-semibold uppercase tracking-[0.12em]', eventMeta.accentClassName)}>
+          <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+          <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-700 dark:bg-gray-800">
+            <div className={cn('text-[10px] font-medium', eventMeta.accentClassName)}>
               {eventMeta.title}
             </div>
             <div className="mt-1 text-xs font-medium leading-5 text-gray-600 dark:text-gray-300">
               {message.text}
             </div>
-            <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-gray-400 dark:text-gray-500">
+            <div className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
               {formatDatePretty(message.created_at)}
             </div>
           </div>
-          <div className="h-px flex-1 bg-gradient-to-l from-transparent via-gray-200 to-gray-200 dark:via-gray-700 dark:to-gray-700" />
+          <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
         </div>
       </div>
     )
@@ -623,7 +625,7 @@ function MessageBubble({
     <div
       id={`chat-message-${message.id}`}
       className={cn(
-        'group rounded-[1.75rem] px-1 py-1 transition-all duration-500',
+        'group rounded-xl px-1 py-1 transition-colors duration-300',
         groupedWithNext ? 'mb-0.5' : 'mb-2',
         isOwn ? 'flex justify-end' : 'flex justify-start',
         isHighlighted && 'bg-amber-100/80 shadow-[0_0_0_1px_rgba(245,158,11,0.35)] dark:bg-amber-500/15',

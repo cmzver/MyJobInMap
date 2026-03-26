@@ -4,6 +4,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { addressesApi, CreateSystemData, UpdateSystemData, CreateEquipmentData, UpdateEquipmentData, CreateContactData, UpdateContactData } from '@/api/addresses'
 import type { AddressFull, AddressSystem, AddressEquipment, AddressDocument, AddressContact, AddressHistory } from '@/types/address'
+import type { Task } from '@/types/task'
 import { useAuthStore } from '@/store/authStore'
 
 // Query Keys
@@ -275,7 +276,7 @@ export function useAddressHistory(addressId: number, limit?: number) {
 export function useAddressTasks(addressId: number, status?: string, limit?: number) {
   const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
 
-  return useQuery<any[]>({
+  return useQuery<Task[]>({
     queryKey: [...addressCardKeys.tasks(organizationId, addressId), status, limit],
     queryFn: () => addressesApi.getAddressTasks(addressId, status, limit),
     enabled: addressId > 0,

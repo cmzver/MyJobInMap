@@ -5,17 +5,15 @@ import {
   CheckCircle,
   Clock,
   Download,
-  Filter,
   Shield,
   Target,
   TrendingUp,
-  Users,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 import OverviewSection from '@/components/analytics/OverviewSection'
 import SlaSection from '@/components/analytics/SlaSection'
-import { complianceBg, complianceColor, formatHours } from '@/components/analytics/analyticsUtils'
+import { complianceColor, formatHours } from '@/components/analytics/analyticsUtils'
 import Button from '@/components/Button'
 import Card from '@/components/Card'
 import EmptyState from '@/components/EmptyState'
@@ -44,6 +42,7 @@ export default function AnalyticsPage() {
   const workers = users.filter((user) => isAssignableRole(user.role))
   const selectedWorker = workers.find((worker) => String(worker.id) === selectedWorkerId)
   const workerFilterLabel = selectedWorker ? selectedWorker.full_name || selectedWorker.username : 'Все исполнители'
+
   const filters = {
     period,
     worker_id: selectedWorkerId ? Number(selectedWorkerId) : undefined,
@@ -54,9 +53,9 @@ export default function AnalyticsPage() {
   const handleExport = async () => {
     try {
       await downloadAnalyticsReport(filters)
-      toast.success('Профессиональный отчет формируется...')
+      toast.success('Отчёт формируется...')
     } catch (err) {
-      toast.error('Не удалось сформировать отчет')
+      toast.error('Не удалось сформировать отчёт')
       if (import.meta.env.DEV) console.error('Analytics export failed:', err)
     }
   }
@@ -80,201 +79,138 @@ export default function AnalyticsPage() {
   }
 
   const { reports, sla } = data
-  const avgExecutionTime = reports.completion_time ? formatHours(reports.completion_time.avg_hours) : formatHours(sla.timing.avg_completion_hours)
+  const avgExecutionTime = reports.completion_time
+    ? formatHours(reports.completion_time.avg_hours)
+    : formatHours(sla.timing.avg_completion_hours)
+
+  const overviewCards = [
+    {
+      title: 'Всего заявок',
+      value: reports.summary.total_tasks,
+      meta: `За ${reports.summary.period_days} дн.`,
+      icon: BarChart3,
+    },
+    {
+      title: 'Выполнено',
+      value: reports.summary.completed_tasks,
+      meta: `${reports.summary.completion_rate}% от всех`,
+      icon: CheckCircle,
+      valueClassName: 'text-green-600 dark:text-green-400',
+    },
+    {
+      title: 'SLA',
+      value: `${sla.overview.sla_compliance_rate}%`,
+      meta: 'Завершено в срок',
+      icon: Target,
+      valueClassName: complianceColor(sla.overview.sla_compliance_rate),
+    },
+    {
+      title: 'Просроченные',
+      value: sla.overview.active_overdue,
+      meta: 'Активные нарушения',
+      icon: Shield,
+      valueClassName: sla.overview.active_overdue > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white',
+    },
+    {
+      title: 'Среднее в день',
+      value: reports.summary.avg_tasks_per_day,
+      meta: 'Новые заявки',
+      icon: TrendingUp,
+    },
+    {
+      title: 'Среднее время',
+      value: avgExecutionTime,
+      meta: 'На выполнение',
+      icon: Clock,
+    },
+  ]
 
   return (
-    <div className="space-y-6">
-      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.18),_transparent_38%),radial-gradient(circle_at_top_right,_rgba(16,185,129,0.12),_transparent_36%)] px-6 py-6 sm:px-8">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-3xl">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary-600 dark:text-primary-400">
-                Analytics Workspace
+    <div className="space-y-4">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Аналитика</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Сводка по заявкам, исполнителям и соблюдению SLA за выбранный период.
+        </p>
+      </div>
+
+      <Card>
+        <div className="space-y-4 p-5">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div>
+                <p className="mb-2 text-sm font-medium text-gray-900 dark:text-white">Период</p>
+                <Select
+                  value={period}
+                  onChange={(value) => setPeriod(value as ReportPeriod)}
+                  options={periodOptions}
+                  className="h-10"
+                />
               </div>
-              <h1 className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
-                Аналитика заявок и SLA в одном рабочем контуре
-              </h1>
-              <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                Один экран для потока заявок, производительности исполнителей и контроля сроков.
-                Экспорт собирается в единый XLSX-документ с титульным листом, сводкой и детальным
-                реестром.
-              </p>
+
+              <div>
+                <p className="mb-2 text-sm font-medium text-gray-900 dark:text-white">Исполнитель</p>
+                <Select
+                  value={selectedWorkerId}
+                  onChange={(value) => setSelectedWorkerId(value)}
+                  options={[
+                    { value: '', label: 'Все исполнители' },
+                    ...workers.map((worker) => ({
+                      value: String(worker.id),
+                      label: worker.full_name || worker.username,
+                    })),
+                  ]}
+                  className="h-10"
+                />
+              </div>
+
+              <div className="md:col-span-2 xl:col-span-1">
+                <p className="mb-2 text-sm font-medium text-gray-900 dark:text-white">Действия</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" onClick={() => refetch()} disabled={isFetching}>
+                    <Activity className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+                    Обновить
+                  </Button>
+                  <Button variant="primary" onClick={handleExport}>
+                    <Download className="h-4 w-4" />
+                    Экспорт XLSX
+                  </Button>
+                </div>
+              </div>
             </div>
 
-            <div className="grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-3">
-              <a
-                href="#overview"
-                className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-left shadow-sm transition hover:border-primary-300 hover:bg-white dark:border-slate-700 dark:bg-slate-900/80 dark:hover:border-primary-700"
-              >
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Обзор
-                </div>
-                <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
-                  Поток и исполнители
-                </div>
-              </a>
-              <a
-                href="#sla"
-                className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-left shadow-sm transition hover:border-primary-300 hover:bg-white dark:border-slate-700 dark:bg-slate-900/80 dark:hover:border-primary-700"
-              >
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  SLA
-                </div>
-                <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
-                  Сроки и compliance
-                </div>
-              </a>
-              <a
-                href="#export"
-                className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-left shadow-sm transition hover:border-primary-300 hover:bg-white dark:border-slate-700 dark:bg-slate-900/80 dark:hover:border-primary-700"
-              >
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Export
-                </div>
-                <div className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
-                  Документ для руководства
-                </div>
-              </a>
+            <div className="rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+              <p>
+                Исполнитель: <span className="font-medium text-gray-900 dark:text-white">{workerFilterLabel}</span>
+              </p>
+              <p className="mt-1">
+                Период:{' '}
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {periodOptions.find((option) => option.value === period)?.label ?? period}
+                </span>
+              </p>
             </div>
           </div>
         </div>
-      </section>
+      </Card>
 
-      <div id="export">
-        <Card className="p-4 sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Filter className="h-5 w-5 text-slate-400" />
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Период:</span>
+      <div className="grid gap-px overflow-hidden rounded-lg border border-gray-200 bg-gray-200 dark:border-gray-700 dark:bg-gray-700 md:grid-cols-2 xl:grid-cols-3">
+        {overviewCards.map((card) => (
+          <div key={card.title} className="bg-white p-4 dark:bg-gray-800">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">{card.title}</p>
+                <p className={`mt-2 text-2xl font-semibold text-gray-900 dark:text-white ${card.valueClassName ?? ''}`}>
+                  {card.value}
+                </p>
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{card.meta}</p>
               </div>
-              <Select
-                value={period}
-                onChange={(value) => setPeriod(value as ReportPeriod)}
-                options={periodOptions}
-                className="w-48"
-              />
-
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-slate-400" />
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Исполнитель:</span>
+              <div className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                <card.icon className="h-4.5 w-4.5" />
               </div>
-              <Select
-                value={selectedWorkerId}
-                onChange={(value) => setSelectedWorkerId(value)}
-                options={[
-                  { value: '', label: 'Все исполнители' },
-                  ...workers.map((worker) => ({
-                    value: String(worker.id),
-                    label: worker.full_name || worker.username,
-                  })),
-                ]}
-                className="w-60"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <Button variant="secondary" onClick={() => refetch()} disabled={isFetching}>
-                <Activity className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
-                Обновить
-              </Button>
-              <Button variant="primary" onClick={handleExport}>
-                <Download className="h-4 w-4" />
-                Экспорт XLSX
-              </Button>
             </div>
           </div>
-          <div className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-            В отчёт войдут текущие фильтры: <span className="font-medium text-slate-700 dark:text-slate-200">{workerFilterLabel}</span> и период{' '}
-            <span className="font-medium text-slate-700 dark:text-slate-200">
-              {periodOptions.find((option) => option.value === period)?.label ?? period}
-            </span>.
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Всего заявок</p>
-              <p className="mt-1 text-3xl font-bold text-slate-900 dark:text-white">{reports.summary.total_tasks}</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">За {reports.summary.period_days} дн.</p>
-            </div>
-            <div className="rounded-2xl bg-blue-100 p-3 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-              <BarChart3 className="h-6 w-6" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Выполнено</p>
-              <p className="mt-1 text-3xl font-bold text-green-600 dark:text-green-400">{reports.summary.completed_tasks}</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{reports.summary.completion_rate}% от всех</p>
-            </div>
-            <div className="rounded-2xl bg-green-100 p-3 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-              <CheckCircle className="h-6 w-6" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500 dark:text-slate-400">SLA compliance</p>
-              <p className={`mt-1 text-3xl font-bold ${complianceColor(sla.overview.sla_compliance_rate)}`}>
-                {sla.overview.sla_compliance_rate}%
-              </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Завершенные в срок</p>
-            </div>
-            <div className={`rounded-2xl p-3 ${complianceBg(sla.overview.sla_compliance_rate)}`}>
-              <Target className="h-6 w-6" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Активные просрочки</p>
-              <p className={`mt-1 text-3xl font-bold ${sla.overview.active_overdue > 0 ? 'text-red-600' : 'text-slate-400'}`}>
-                {sla.overview.active_overdue}
-              </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Требуют реакции</p>
-            </div>
-            <div className="rounded-2xl bg-red-100 p-3 text-red-700 dark:bg-red-900/30 dark:text-red-300">
-              <Shield className="h-6 w-6" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Среднее в день</p>
-              <p className="mt-1 text-3xl font-bold text-slate-900 dark:text-white">{reports.summary.avg_tasks_per_day}</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Новые заявки</p>
-            </div>
-            <div className="rounded-2xl bg-violet-100 p-3 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
-              <TrendingUp className="h-6 w-6" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Среднее время</p>
-              <p className="mt-1 text-3xl font-bold text-slate-900 dark:text-white">{avgExecutionTime}</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">На выполнение</p>
-            </div>
-            <div className="rounded-2xl bg-orange-100 p-3 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
-              <Clock className="h-6 w-6" />
-            </div>
-          </div>
-        </Card>
+        ))}
       </div>
 
       <OverviewSection reports={reports} workerFilterLabel={workerFilterLabel} />

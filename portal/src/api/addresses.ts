@@ -13,6 +13,7 @@ import type {
   AddressContact,
   AddressHistory,
 } from '@/types/address'
+import type { Task } from '@/types/task'
 
 // ============================================
 // Типы для создания/обновления сущностей
@@ -272,13 +273,13 @@ export const addressesApi = {
 
   // --- Заявки по адресу ---
   
-  async getAddressTasks(addressId: number, status?: string, limit?: number): Promise<any[]> {
+  async getAddressTasks(addressId: number, status?: string, limit?: number): Promise<Task[]> {
     const params = new URLSearchParams()
     if (status) params.append('status', status)
     if (limit) params.append('limit', String(limit))
     const queryString = params.toString() ? `?${params.toString()}` : ''
     
-    const { data } = await apiClient.get<any[]>(`/addresses/${addressId}/tasks${queryString}`)
+    const { data } = await apiClient.get<Task[]>(`/addresses/${addressId}/tasks${queryString}`)
     return data
   },
 

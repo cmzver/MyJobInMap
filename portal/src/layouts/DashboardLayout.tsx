@@ -8,6 +8,7 @@ import { useWebSocket } from '@/hooks/useWebSocket'
 import { getMenuForRole, type MenuSection, type MenuItem } from '@/config/menuConfig'
 import { getRoleLabel, normalizeRoleForAccess } from '@/types/user'
 import UserAvatar from '@/components/UserAvatar'
+import portalPackage from '../../package.json'
 import { 
   LayoutDashboard, 
   LogOut,
@@ -16,9 +17,8 @@ import {
   Sun,
   Moon,
   Monitor,
-  Sparkles,
-  Apple,
   Palette,
+  Sparkles,
   ChevronDown,
   Building2,
   Clock,
@@ -57,7 +57,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     [unreadNotifications],
   )
 
-  const isModern = theme === 'modern' || theme === 'mac' || theme === 'aurora'
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
@@ -91,19 +90,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { value: 'dark' as const, label: 'Тёмная', icon: Moon },
     { value: 'system' as const, label: 'Системная', icon: Monitor },
     { value: 'modern' as const, label: 'Modern / Glass', icon: Sparkles },
-    { value: 'mac' as const, label: 'macOS / iOS', icon: Apple },
-    { value: 'aurora' as const, label: 'Aurora Night', icon: Palette },
+    { value: 'mac' as const, label: 'macOS / iOS', icon: Palette },
+    { value: 'aurora' as const, label: 'Aurora Night', icon: Sparkles },
   ]
 
-  const CurrentThemeIcon = theme === 'modern'
-    ? Sparkles
-    : theme === 'mac'
-      ? Apple
-      : theme === 'aurora'
-        ? Palette
-        : isDark
-          ? Moon
-          : Sun
+  const CurrentThemeIcon = theme === 'modern' || theme === 'mac' || theme === 'aurora'
+    ? Palette
+    : isDark
+      ? Moon
+      : Sun
 
   const formattedTime = useMemo(
     () => currentTime.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
@@ -118,6 +113,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }),
     [currentTime],
   )
+  const portalVersion = portalPackage.version
 
   const renderMenuItem = (item: MenuItem, closeSidebar?: () => void) => {
     const Icon = item.icon
@@ -184,7 +180,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   )
 
   return (
-    <div className={`min-h-screen overflow-x-hidden transition-colors ${isModern ? 'bg-transparent' : 'bg-gray-50 dark:bg-gray-900'}`}>
+    <div className="min-h-screen overflow-x-hidden bg-gray-50 transition-colors dark:bg-gray-900">
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 transition-colors">
         <div className="px-4 sm:px-6 lg:px-8">
@@ -351,7 +347,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Version info at bottom */}
           <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              FieldWorker Portal v2.4.6
+              FieldWorker Portal v{portalVersion}
             </p>
           </div>
         </aside>

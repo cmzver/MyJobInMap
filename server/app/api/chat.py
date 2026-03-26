@@ -137,10 +137,11 @@ async def get_conversation_avatar(
         raise HTTPException(status_code=404, detail="Avatar not found")
 
     expected_prefix = f"/api/chat/conversations/{conv_id}/avatar/"
-    if not avatar_url.startswith(expected_prefix):
+    avatar_url_str = cast(str, avatar_url)  # narrowed: guaranteed non-None by guard above
+    if not avatar_url_str.startswith(expected_prefix):
         raise HTTPException(status_code=404, detail="Avatar not found")
 
-    avatar_name = Path(avatar_url).name
+    avatar_name = Path(avatar_url_str).name
     if avatar_name != file_name:
         raise HTTPException(status_code=404, detail="Avatar not found")
 
@@ -409,6 +410,23 @@ async def send_message(
     import asyncio
 
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
+
+    # Push notifications
+    from app.services import send_push_notification
+    notify_user_ids = [uid for uid in member_ids if uid != current_user.id]
+    if notify_user_ids:
+        conv = db.query(ConversationModel).filter(ConversationModel.id == conv_id).first()
+        title = conv.name if conv and conv.name else (current_user.full_name or "Новое сообщение")
+        
+        send_push_notification(
+            title=title,
+            body=data.text[:100] if data.text else "Вложение",
+            notification_type="chat_message",
+            task_id=conv.task_id if conv else None,
+            user_ids=notify_user_ids,
+            extra_data={"chat_id": str(conv_id)}
+        )
+
     asyncio.ensure_future(
         broadcast_chat_message(
             member_user_ids=member_ids,
@@ -511,13 +529,14 @@ async def upload_attachment(
         raise HTTPException(403, "Нельзя добавлять вложения к чужим сообщениям")
 
     # Безопасное имя файла
-    ext = os.path.splitext(file.filename or "file")[1][:10]
+    _raw_ext: str = os.path.splitext(file.filename or "file")[1]
+    ext = _raw_ext[:10]
     safe_name = f"{uuid.uuid4().hex}{ext}"
     upload_dir = os.path.join(settings.UPLOADS_DIR, "chat")
     os.makedirs(upload_dir, exist_ok=True)
     file_path = os.path.join(upload_dir, safe_name)
 
-    content = await file.read()
+    content: bytes = await file.read()
     if len(content) > 10 * 1024 * 1024:  # 10MB limit
         raise HTTPException(413, "Файл слишком большой (макс. 10 МБ)")
 

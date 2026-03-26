@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val TAG = "MainActivity"
         const val EXTRA_TASK_ID = "task_id"
+        const val EXTRA_CHAT_ID = "chat_id"
     }
     
     @Inject
@@ -72,6 +73,7 @@ class MainActivity : ComponentActivity() {
     // Флаг готовности приложения (используется для Splash Screen)
     private var isAppReady = false
     private var pendingNotificationTaskId by mutableStateOf<Long?>(null)
+    private var pendingNotificationChatId by mutableStateOf<Long?>(null)
     
     // Запрос разрешения на уведомления для Android 13+
     private val requestPermissionLauncher = registerForActivityResult(
@@ -90,6 +92,7 @@ class MainActivity : ComponentActivity() {
         
         super.onCreate(savedInstanceState)
         pendingNotificationTaskId = extractTaskIdFromIntent(intent)
+        pendingNotificationChatId = extractChatIdFromIntent(intent)
         
         // Контролируем, когда скрыть Splash Screen
         splashScreen.setKeepOnScreenCondition { !isAppReady }
@@ -220,6 +223,11 @@ class MainActivity : ComponentActivity() {
                                     pendingNotificationTaskId = null
                                     intent?.removeExtra(EXTRA_TASK_ID)
                                 },
+                                notificationChatId = pendingNotificationChatId,
+                                onNotificationChatHandled = {
+                                    pendingNotificationChatId = null
+                                    intent?.removeExtra(EXTRA_CHAT_ID)
+                                },
                                 onCheckForUpdates = {
                                     updateViewModel.checkForUpdate(
                                         versionCode = appVersionInfo.versionCode,
@@ -274,6 +282,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         pendingNotificationTaskId = extractTaskIdFromIntent(intent)
+        pendingNotificationChatId = extractChatIdFromIntent(intent)
     }
     
     /**
@@ -327,6 +336,11 @@ class MainActivity : ComponentActivity() {
     private fun extractTaskIdFromIntent(intent: Intent?): Long? {
         val rawTaskId = intent?.getStringExtra(EXTRA_TASK_ID) ?: return null
         return rawTaskId.toLongOrNull()
+    }
+
+    private fun extractChatIdFromIntent(intent: Intent?): Long? {
+        val rawChatId = intent?.getStringExtra(EXTRA_CHAT_ID) ?: return null
+        return rawChatId.toLongOrNull()
     }
 
     @androidx.compose.runtime.Composable

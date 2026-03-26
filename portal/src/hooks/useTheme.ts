@@ -1,11 +1,19 @@
 import { useState, useEffect } from 'react'
 
 type Theme = 'light' | 'dark' | 'system' | 'modern' | 'mac' | 'aurora'
+const SUPPORTED_THEMES = new Set<Theme>(['light', 'dark', 'system', 'modern', 'mac', 'aurora'])
+
+function normalizeStoredTheme(value: string | null): Theme {
+  if (value && SUPPORTED_THEMES.has(value as Theme)) {
+    return value as Theme
+  }
+  return 'system'
+}
 
 export function useTheme() {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem('theme') as Theme) || 'system'
+      return normalizeStoredTheme(localStorage.getItem('theme'))
     }
     return 'system'
   })
@@ -19,30 +27,30 @@ export function useTheme() {
     const applyTheme = (newTheme: Theme) => {
       root.classList.remove(...THEME_CLASSES)
 
-      if (newTheme === 'modern') {
-        root.classList.add('light', 'theme-modern')
-        setResolvedTheme('light')
-        return
-      }
-
-      if (newTheme === 'mac') {
-        root.classList.add('light', 'theme-mac')
-        setResolvedTheme('light')
-        return
-      }
-
-      if (newTheme === 'aurora') {
-        root.classList.add('dark', 'theme-aurora')
-        setResolvedTheme('dark')
-        return
-      }
-
       if (newTheme === 'system') {
         const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
           ? 'dark'
           : 'light'
         root.classList.add(systemTheme)
         setResolvedTheme(systemTheme)
+        return
+      }
+
+      if (newTheme === 'modern') {
+        root.classList.add('theme-modern')
+        setResolvedTheme('light')
+        return
+      }
+
+      if (newTheme === 'mac') {
+        root.classList.add('theme-mac')
+        setResolvedTheme('light')
+        return
+      }
+
+      if (newTheme === 'aurora') {
+        root.classList.add('theme-aurora')
+        setResolvedTheme('dark')
         return
       }
 
@@ -63,8 +71,9 @@ export function useTheme() {
   }, [theme])
 
   const setThemeAndStore = (newTheme: Theme) => {
-    localStorage.setItem('theme', newTheme)
-    setTheme(newTheme)
+    const normalizedTheme = normalizeStoredTheme(newTheme)
+    localStorage.setItem('theme', normalizedTheme)
+    setTheme(normalizedTheme)
   }
 
   return {

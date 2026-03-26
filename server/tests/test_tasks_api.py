@@ -104,6 +104,49 @@ class TestTaskRetrieval:
         assert len(tasks) >= 1
         assert any(t["title"] == "Test task" for t in tasks)
 
+    def test_get_tasks_repairs_invalid_coordinates_from_known_address(
+        self, client, admin_token, db_session, monkeypatch
+    ):
+        """List response should auto-repair legacy 0,0 coordinates when an address card exists."""
+        from app.models import AddressModel, TaskModel
+
+        known_address = AddressModel(
+            address="Невская ул., д. 11/1, Санкт-Петербург",
+            city="Санкт-Петербург",
+            street="Невская ул.",
+            building="11/1",
+            lat=59.9386,
+            lon=30.3141,
+            is_active=True,
+        )
+        broken_task = TaskModel(
+            title="Broken map task",
+            raw_address="СПб, Невская ул., д. 11/1",
+            description="Needs repair",
+            lat=0.0,
+            lon=0.0,
+            status="NEW",
+            priority="CURRENT",
+        )
+        db_session.add_all([known_address, broken_task])
+        db_session.commit()
+
+        monkeypatch.setattr(
+            "app.services.task_service.geocoding_service.geocode",
+            lambda _: (0.0, 0.0),
+        )
+
+        response = client.get(
+            "/api/tasks",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        assert response.status_code == 200
+        items = response.json()["items"]
+        matched_task = next(item for item in items if item["id"] == broken_task.id)
+        assert matched_task["lat"] == pytest.approx(59.9386)
+        assert matched_task["lon"] == pytest.approx(30.3141)
+
     def test_get_tasks_sorted_by_created_at_asc(self, client, admin_token):
         """Test getting tasks sorted by creation date ascending."""
         client.post(

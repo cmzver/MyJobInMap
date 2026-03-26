@@ -198,15 +198,15 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="grid grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start">
-      <aside className="rounded-2xl border border-gray-200 bg-white p-1.5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <div className="mb-2 rounded-xl border border-gray-200 bg-slate-50 px-3 py-3 dark:border-gray-800 dark:bg-gray-800/60">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Администрирование</div>
-          <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">Настройки портала</div>
+      <aside className="rounded-lg border border-gray-200 bg-white p-2 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div className="mb-2 px-2 py-2">
+          <div className="text-sm font-semibold text-gray-900 dark:text-white">Настройки портала</div>
+          <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">Разделы администрирования и системные параметры.</div>
         </div>
         <nav className="flex flex-col gap-2" aria-label="Разделы настроек">
           {settingsMenuGroups.map((group) => (
-            <div key={group.id} className="rounded-xl border border-gray-200/80 bg-gray-50/80 px-1.5 py-1.5 dark:border-gray-800 dark:bg-gray-800/30">
-              <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
+            <div key={group.id} className="rounded-lg border border-gray-200 bg-gray-50 px-1.5 py-1.5 dark:border-gray-800 dark:bg-gray-800/40">
+              <div className="px-2 py-1 text-sm font-medium text-gray-500 dark:text-gray-400">
                 {group.label}
               </div>
               <div className="mt-1 flex flex-col gap-1">
@@ -240,7 +240,7 @@ export default function AdminSettingsPage() {
         </nav>
       </aside>
 
-      <section className="rounded-xl border border-gray-200 bg-white p-2.5 dark:border-gray-800 dark:bg-gray-900">
+      <section className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
         <div className="border-b border-gray-200 px-1 pb-2.5 dark:border-gray-800">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
@@ -252,10 +252,10 @@ export default function AdminSettingsPage() {
           </div>
 
           {activePanel !== 'portal-branding' && (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary-100 bg-primary-50 px-3 py-3 dark:border-primary-900/40 dark:bg-primary-950/20">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-800 dark:bg-gray-800/40">
               <div>
-                <p className="text-sm font-semibold text-primary-900 dark:text-primary-200">Не можете найти брендирование входа</p>
-                <p className="mt-1 text-sm text-primary-700 dark:text-primary-300/90">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">Брендирование входа находится в отдельном разделе</p>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   Откройте раздел «Брендинг и доступ», чтобы изменить экран входа, название портала и контакты поддержки.
                 </p>
               </div>
@@ -1126,7 +1126,16 @@ function NotificationSettingsTab() {
   const { data: notifyOnNewTask, isLoading: newTaskLoading } = useSetting('notify_on_new_task')
   const { data: notifyOnStatusChange, isLoading: statusChangeLoading } = useSetting('notify_on_status_change')
   const updateSettingMutation = useUpdateSetting()
+  const testPushMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await apiClient.post<{ success: boolean; message?: string }>('/notifications/test')
+      return data
+    },
+    onSuccess: () => showApiSuccess('Тестовое уведомление отправлено'),
+    onError: (error) => showApiError(error, 'Не удалось отправить тестовое уведомление'),
+  })
   const isSaving = updateSettingMutation.isPending
+  const isPushEnabled = typeof pushEnabled?.value === 'boolean' ? pushEnabled.value : true
 
   const settingsLoading = pushLoading || newTaskLoading || statusChangeLoading
 
@@ -1149,7 +1158,7 @@ function NotificationSettingsTab() {
           <CompactToggleRow
             title="Push-уведомления"
             description="Отправлять push через Firebase на зарегистрированные устройства."
-            checked={Boolean(pushEnabled?.value ?? true)}
+            checked={isPushEnabled}
             disabled={isSaving}
             onChange={(checked) => handleToggle('push_enabled', checked, 'Настройки push-уведомлений сохранены')}
           />
@@ -1180,14 +1189,14 @@ function NotificationSettingsTab() {
           {
             label: 'Push-канал',
             value: (
-              <CompactStatusBadge tone={Boolean(pushEnabled?.value ?? true) ? 'success' : 'danger'}>
-                {Boolean(pushEnabled?.value ?? true) ? 'Включён' : 'Отключён'}
+              <CompactStatusBadge tone={isPushEnabled ? 'success' : 'danger'}>
+                {isPushEnabled ? 'Включён' : 'Отключён'}
               </CompactStatusBadge>
             ),
           },
           {
             label: 'Состояние отправки',
-            value: Boolean(pushEnabled?.value ?? true)
+            value: isPushEnabled
               ? 'Уведомления будут отправляться на зарегистрированные устройства.'
               : 'Отправка push-уведомлений отключена системной настройкой.',
           },
@@ -1200,8 +1209,9 @@ function NotificationSettingsTab() {
         actions={
           <Button
             variant="secondary"
-            onClick={() => toast.success('Тестовое уведомление отправлено')}
-            disabled={!Boolean(pushEnabled?.value ?? true)}
+            onClick={() => testPushMutation.mutate()}
+            disabled={!isPushEnabled}
+            isLoading={testPushMutation.isPending}
           >
             <Bell className="h-4 w-4 mr-2" />
             Отправить тестовое уведомление
@@ -2081,15 +2091,15 @@ function CompactGroupLabel({
   return (
     <div
       className={cn(
-        'flex items-center gap-3 rounded-xl border border-gray-200 bg-slate-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-800/60',
+        'flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-800/60',
         className
       )}
     >
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm dark:bg-gray-900 dark:text-gray-300">
+      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
         <Icon className="h-4 w-4" />
       </div>
       <div>
-        <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">{title}</h4>
+        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h4>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Настройки и действия внутри этого блока сгруппированы в отдельные карточки.</p>
       </div>
     </div>
@@ -2149,7 +2159,7 @@ function CompactDatabaseSection({
         <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h4>
       </div>
 
-      <div className="space-y-2.5 rounded-xl border border-gray-200 bg-white/90 p-3 dark:border-gray-800 dark:bg-gray-900/70">
+      <div className="space-y-2.5 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900/70">
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {items.map((item) => (
             <CompactInfoTile
@@ -2193,7 +2203,7 @@ function CompactInfoTile({
 }) {
   return (
       <div className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 dark:border-gray-800 dark:bg-gray-800/40">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">{label}</p>
+      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</p>
       <div
         className={cn(
           'mt-0.5 text-sm font-semibold text-gray-900 dark:text-white',
@@ -2221,7 +2231,7 @@ function CompactToggleRow({
   disabled?: boolean
 }) {
   return (
-    <div className="grid gap-2 rounded-xl border border-gray-200 bg-white px-2.5 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:border-gray-800 dark:bg-gray-900/70">
+    <div className="grid gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:border-gray-800 dark:bg-gray-900/70">
       <div className="pr-2">
         <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
       </div>
@@ -2240,12 +2250,12 @@ function CompactFieldRow({
   control: React.ReactNode
 }) {
   return (
-    <div className="grid gap-2 rounded-xl border border-gray-200 bg-white px-2.5 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:border-gray-800 dark:bg-gray-900/70">
+    <div className="grid gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:border-gray-800 dark:bg-gray-900/70">
       <div className="pr-2">
         <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
       </div>
       <div className="sm:flex sm:justify-end">
-        <div className="min-w-[136px] rounded-lg bg-gray-50 p-0.5 dark:bg-gray-800">{control}</div>
+        <div className="min-w-[136px] rounded-md bg-gray-50 p-0.5 dark:bg-gray-800">{control}</div>
       </div>
     </div>
   )
@@ -2261,7 +2271,7 @@ function CompactActionRow({
   actions: React.ReactNode
 }) {
   return (
-    <div className="grid gap-2 rounded-xl border border-gray-200 bg-white px-2.5 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:border-gray-800 dark:bg-gray-900/70">
+    <div className="grid gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:border-gray-800 dark:bg-gray-900/70">
       <div className="pr-2">
         <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
       </div>
@@ -2280,7 +2290,7 @@ function CompactActionTile({
   actions: React.ReactNode
 }) {
   return (
-    <div className="flex h-full flex-col justify-between rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-2 dark:border-gray-800 dark:bg-gray-800/40">
+    <div className="flex h-full flex-col justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 dark:border-gray-800 dark:bg-gray-800/40">
       <div>
         <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
       </div>
@@ -2305,16 +2315,16 @@ function CompactSliderRow({
   onChange: (value: number) => void
 }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white px-2.5 py-2 dark:border-gray-800 dark:bg-gray-900/70">
+    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-800 dark:bg-gray-900/70">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="pr-2">
           <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
         </div>
-        <div className="min-w-[210px] rounded-lg bg-gray-50 p-1.5 dark:bg-gray-800">
-          <div className="mb-1 flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
-            <span>Сжатие</span>
+        <div className="min-w-[210px] rounded-md bg-gray-50 p-1.5 dark:bg-gray-800">
+          <div className="mb-1 flex items-center justify-between text-xs font-medium text-gray-500 dark:text-gray-400">
+            <span>Ниже</span>
             <span>{value}%</span>
-            <span>Качество</span>
+            <span>Выше</span>
           </div>
           <input
             type="range"

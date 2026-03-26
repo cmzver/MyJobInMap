@@ -1189,17 +1189,17 @@ export default function TasksPage() {
       </div>
 
       {/* Filters */}
-      <div className="mb-5 rounded-xl border border-gray-200 bg-white p-3 shadow-sm transition-colors dark:border-gray-700 dark:bg-gray-800">
+      <div className="mb-5 rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-colors dark:border-gray-700 dark:bg-gray-800">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
           <div className="xl:w-[320px]">
-            <div className="mb-1 flex items-center justify-between gap-2">
+            <div className="mb-2 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Search className="h-4 w-4 text-primary-500 dark:text-primary-400" />
-                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
-                  Фильтры и поиск
+                <Search className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                  Поиск
                 </span>
               </div>
-              <span className="text-[11px] text-gray-400 dark:text-gray-500">
+              <span className="text-xs text-gray-400 dark:text-gray-500">
                 {hasActiveFilters ? `Активно: ${activeFilters.length}` : 'Все заявки'}
               </span>
             </div>
@@ -1286,7 +1286,7 @@ export default function TasksPage() {
               <button
                 key={filter.id}
                 onClick={() => clearSingleFilter(filter)}
-                className="flex h-7 items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-3 text-xs font-medium text-gray-700 transition hover:border-primary-200 hover:bg-primary-50 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-200 dark:hover:border-primary-800 dark:hover:bg-primary-900/20"
+                className="flex h-8 items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-3 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-200 dark:hover:bg-gray-800"
               >
                 <span className="text-gray-500 dark:text-gray-400">{filter.label}:</span>
                 <span className="max-w-[180px] truncate text-gray-900 dark:text-white">{filter.value}</span>
@@ -1297,19 +1297,19 @@ export default function TasksPage() {
       )}
 
         {data && (
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
-            <span className="font-medium text-gray-600 dark:text-gray-300">Сводка:</span>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-200 pt-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            <span className="font-medium text-gray-900 dark:text-white">Сводка</span>
             <span>
-              Без исполнителя <span className="font-semibold text-blue-700 dark:text-blue-300">{summary.unassigned}</span>
+              Без исполнителя <span className="font-semibold text-gray-900 dark:text-white">{summary.unassigned}</span>
             </span>
             <span>
-              Просроченные <span className="font-semibold text-red-700 dark:text-red-300">{summary.overdue}</span>
+              Просроченные <span className="font-semibold text-gray-900 dark:text-white">{summary.overdue}</span>
             </span>
             <span>
-              Срок &lt; 24ч <span className="font-semibold text-orange-700 dark:text-orange-300">{summary.dueSoon}</span>
+              Срок &lt; 24ч <span className="font-semibold text-gray-900 dark:text-white">{summary.dueSoon}</span>
             </span>
             <span>
-              Срочные <span className="font-semibold text-primary-700 dark:text-primary-300">{summary.urgent}</span>
+              Срочные <span className="font-semibold text-gray-900 dark:text-white">{summary.urgent}</span>
             </span>
           </div>
         )}
@@ -1666,7 +1666,7 @@ export default function TasksPage() {
           {/* Tasks Table */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden transition-colors">
             <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-2.5 dark:border-gray-700">
-              <div className="text-xs text-gray-500 dark:text-gray-400">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
                 Колонки: {visibleDataColumnCount}/{toggleableColumns.length}
               </div>
               <div ref={columnMenuRef} className="relative">
@@ -1681,9 +1681,9 @@ export default function TasksPage() {
                   Колонки
                 </Button>
                 {isColumnMenuOpen && (
-                  <div className="absolute right-0 top-full z-20 mt-2 w-60 rounded-xl border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                  <div className="absolute right-0 top-full z-20 mt-2 w-60 rounded-lg border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                     <div className="mb-3 flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
                         Видимость колонок
                       </span>
                       <button
@@ -1744,7 +1744,7 @@ export default function TasksPage() {
                 )}
                 <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900/50">
                   <tr>
-                    <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                    <th className={`relative overflow-hidden ${cellPadding} text-left text-sm font-medium text-gray-500 dark:text-gray-400`}>
                       <input
                         type="checkbox"
                         checked={allSelectedOnPage}
@@ -1755,49 +1755,49 @@ export default function TasksPage() {
                       {renderResizeHandle('select')}
                     </th>
                     {visibleColumns.number && (
-                      <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                      <th className={`relative overflow-hidden ${cellPadding} text-left text-sm font-medium text-gray-500 dark:text-gray-400`}>
                         №
                         {renderResizeHandle('number')}
                       </th>
                     )}
                     {visibleColumns.title && (
-                      <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                      <th className={`relative overflow-hidden ${cellPadding} text-left text-sm font-medium text-gray-500 dark:text-gray-400`}>
                         Заявка
                         {renderResizeHandle('title')}
                       </th>
                     )}
                     {visibleColumns.address && (
-                      <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                      <th className={`relative overflow-hidden ${cellPadding} text-left text-sm font-medium text-gray-500 dark:text-gray-400`}>
                         Адрес
                         {renderResizeHandle('address')}
                       </th>
                     )}
                     {visibleColumns.status && (
-                      <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                      <th className={`relative overflow-hidden ${cellPadding} text-left text-sm font-medium text-gray-500 dark:text-gray-400`}>
                         Статус
                         {renderResizeHandle('status')}
                       </th>
                     )}
                     {visibleColumns.priority && (
-                      <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                      <th className={`relative overflow-hidden ${cellPadding} text-left text-sm font-medium text-gray-500 dark:text-gray-400`}>
                         Приоритет
                         {renderResizeHandle('priority')}
                       </th>
                     )}
                     {visibleColumns.assignee && (
-                      <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                      <th className={`relative overflow-hidden ${cellPadding} text-left text-sm font-medium text-gray-500 dark:text-gray-400`}>
                         Исполнитель
                         {renderResizeHandle('assignee')}
                       </th>
                     )}
                     {visibleColumns.date && (
-                      <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                      <th className={`relative overflow-hidden ${cellPadding} text-left text-sm font-medium text-gray-500 dark:text-gray-400`}>
                         Дата
                         {renderResizeHandle('date')}
                       </th>
                     )}
                     {visibleColumns.sla && (
-                      <th className={`relative overflow-hidden ${cellPadding} text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                      <th className={`relative overflow-hidden ${cellPadding} text-left text-sm font-medium text-gray-500 dark:text-gray-400`}>
                         Срок
                         {renderResizeHandle('sla')}
                       </th>

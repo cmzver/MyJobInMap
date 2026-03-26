@@ -50,6 +50,7 @@ def _send_push_sync(
     task_id: Optional[int] = None,
     user_ids: Optional[List[int]] = None,
     organization_id: Optional[int] = None,
+    extra_data: Optional[dict] = None,
 ) -> dict:
     """Синхронная отправка push-уведомлений"""
     if firebase_app is None:
@@ -84,12 +85,17 @@ def _send_push_sync(
 
         tokens = [d.fcm_token for d in devices]
 
+        payload_data = {
+            "type": notification_type,
+            "task_id": str(task_id) if task_id else "",
+        }
+        if extra_data:
+            for k, v in extra_data.items():
+                payload_data[k] = str(v)
+
         message = messaging.MulticastMessage(
             notification=messaging.Notification(title=title, body=body),
-            data={
-                "type": notification_type,
-                "task_id": str(task_id) if task_id else "",
-            },
+            data=payload_data,
             tokens=tokens,
             android=messaging.AndroidConfig(
                 priority="high",
@@ -145,11 +151,12 @@ def send_push_background(
     task_id: Optional[int] = None,
     user_ids: Optional[List[int]] = None,
     organization_id: Optional[int] = None,
+    extra_data: Optional[dict] = None,
 ):
     """Отправка push в фоновом потоке (не блокирует)"""
     thread = threading.Thread(
         target=_send_push_sync,
-        args=(title, body, notification_type, task_id, user_ids, organization_id),
+        args=(title, body, notification_type, task_id, user_ids, organization_id, extra_data),
         daemon=True,
     )
     thread.start()
@@ -163,9 +170,10 @@ def send_push_notification(
     task_id: Optional[int] = None,
     user_ids: Optional[List[int]] = None,
     organization_id: Optional[int] = None,
+    extra_data: Optional[dict] = None,
 ) -> dict:
     """Отправка push-уведомлений (асинхронно)"""
     send_push_background(
-        title, body, notification_type, task_id, user_ids, organization_id
+        title, body, notification_type, task_id, user_ids, organization_id, extra_data
     )
     return {"success": True, "message": "Push queued"}

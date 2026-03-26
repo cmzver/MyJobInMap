@@ -59,6 +59,8 @@ import com.fieldworker.ui.settings.SettingsScreen
 @Composable
 fun MainScreen(
     notificationTaskId: Long? = null,
+    notificationChatId: Long? = null,
+    onNotificationChatHandled: () -> Unit = {},
     onNotificationTaskHandled: () -> Unit = {},
     onLogout: () -> Unit = {},
     onCheckForUpdates: () -> Unit = {},
@@ -190,6 +192,19 @@ fun MainScreen(
         }
         viewModel.openTaskFromNotification(taskId)
         onNotificationTaskHandled()
+    }
+    
+    LaunchedEffect(notificationChatId) {
+        val chatId = notificationChatId ?: return@LaunchedEffect
+        navController.navigate(Screen.Chat.route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+        chatViewModel.openConversation(chatId)
+        onNotificationChatHandled()
     }
     
     Scaffold(

@@ -299,10 +299,12 @@ export default function ChatPage() {
       })
     })
 
+    const typingTimeouts = typingTimeoutsRef.current
+
     return () => {
       unsub()
-      typingTimeoutsRef.current.forEach(clearTimeout)
-      typingTimeoutsRef.current.clear()
+      typingTimeouts.forEach(clearTimeout)
+      typingTimeouts.clear()
       setTypingUsers(new Map())
     }
   }, [activeConversationId, activeDetail])
@@ -629,14 +631,14 @@ export default function ChatPage() {
         </div>
 
         <div className="px-4 pb-2">
-          <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-100 p-1 dark:bg-gray-700/70">
+          <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setConversationScope('active')}
               className={cn(
-                'flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                'flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
                 conversationScope === 'active'
-                  ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-800 dark:text-white'
-                  : 'text-gray-500 dark:text-gray-300',
+                  ? 'border-gray-300 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white'
+                  : 'border-gray-200 text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800',
               )}
             >
               <MessageSquare className="h-4 w-4" />
@@ -645,10 +647,10 @@ export default function ChatPage() {
             <button
               onClick={() => setConversationScope('archived')}
               className={cn(
-                'flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                'flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
                 conversationScope === 'archived'
-                  ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-800 dark:text-white'
-                  : 'text-gray-500 dark:text-gray-300',
+                  ? 'border-gray-300 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white'
+                  : 'border-gray-200 text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800',
               )}
             >
               <Archive className="h-4 w-4" />
@@ -689,8 +691,8 @@ export default function ChatPage() {
                   {activeConvName}
                 </h2>
                 {headerParticipants.length > 0 && headerParticipantLabel && (
-                  <div className="mt-1 flex min-w-0 items-center gap-2">
-                    <div className="flex flex-shrink-0 -space-x-2">
+                <div className="mt-1 flex min-w-0 items-center gap-2">
+                  <div className="flex flex-shrink-0 -space-x-2">
                       {headerParticipants.slice(0, 4).map((member, index) => (
                         <div key={member.user_id} style={{ zIndex: 10 - index }} title={member.full_name}>
                           <UserAvatar
@@ -703,7 +705,7 @@ export default function ChatPage() {
                         </div>
                       ))}
                       {headerParticipants.length > 4 && (
-                        <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-primary-100 text-[10px] font-bold text-primary-700 dark:border-gray-800 dark:bg-primary-900/40 dark:text-primary-200">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg border-2 border-white bg-gray-100 text-[10px] font-bold text-gray-700 dark:border-gray-800 dark:bg-gray-700 dark:text-gray-200">
                           +{headerParticipants.length - 4}
                         </div>
                       )}
@@ -715,17 +717,17 @@ export default function ChatPage() {
                 )}
                 <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
                   {activeDetail && (
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                    <span className="rounded-md border border-gray-200 px-2 py-0.5 font-medium text-gray-600 dark:border-gray-700 dark:text-gray-300">
                       {activeDetail.members.length} участник(ов)
                     </span>
                   )}
                   {memberIsMuted && (
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                    <span className="rounded-md border border-amber-200 px-2 py-0.5 font-medium text-amber-700 dark:border-amber-900/40 dark:text-amber-300">
                       Без звука
                     </span>
                   )}
                   {memberIsArchived && (
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                    <span className="rounded-md border border-gray-200 px-2 py-0.5 font-medium text-gray-600 dark:border-gray-700 dark:text-gray-300">
                       В архиве
                     </span>
                   )}
@@ -758,7 +760,7 @@ export default function ChatPage() {
                   <MoreVertical className="h-5 w-5 text-gray-500" />
                 </button>
                 {showConvMenu && (
-                  <div className="absolute right-0 top-full z-50 mt-1.5 w-48 rounded-xl border border-gray-200 bg-white p-1 shadow-xl dark:border-gray-600 dark:bg-gray-800">
+                  <div className="absolute right-0 top-full z-50 mt-1.5 w-48 rounded-lg border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-600 dark:bg-gray-800">
                     <button
                       onClick={handleMute}
                       className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
@@ -831,7 +833,7 @@ export default function ChatPage() {
                     return (
                       <div key={item.key} className="my-4 flex items-center gap-3 px-3">
                         <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
-                        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 shadow-sm ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">
+                        <span className="rounded-md border border-gray-200 bg-white px-3 py-1 text-[11px] font-medium text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
                           {item.label}
                         </span>
                         <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />

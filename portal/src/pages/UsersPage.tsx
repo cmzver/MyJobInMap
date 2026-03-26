@@ -333,7 +333,7 @@ export default function UsersPage() {
       ) : (
         <div className="space-y-4">
           {groupedUsers.length > 1 && (
-            <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
                 <Badge variant="info">Организаций: {groupedUsers.length}</Badge>
                 <Badge variant="gray">Свернуто: {collapsedCount}</Badge>
@@ -366,15 +366,15 @@ export default function UsersPage() {
             return (
               <section
                 key={group.key}
-                className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-colors dark:border-gray-700 dark:bg-gray-800"
+                className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-colors dark:border-gray-700 dark:bg-gray-800"
               >
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.key)}
-                  className="flex w-full items-center justify-between gap-4 border-b border-gray-200 bg-gray-50/80 px-4 py-3 text-left transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900/40 dark:hover:bg-gray-900/70"
+                  className="flex w-full items-center justify-between gap-4 border-b border-gray-200 bg-gray-50 px-4 py-3 text-left transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900/40 dark:hover:bg-gray-900/70"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200">
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
                       <Building2 className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
@@ -392,7 +392,7 @@ export default function UsersPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-white px-2 py-1 text-sm font-semibold text-gray-700 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-600">
+                    <span className="inline-flex min-w-[2rem] items-center justify-center rounded-md border border-gray-200 bg-white px-2 py-1 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
                       {group.users.length}
                     </span>
                     {isCollapsed ? (
@@ -408,25 +408,25 @@ export default function UsersPage() {
                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                       <thead className="bg-gray-50 dark:bg-gray-900/50">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+                          <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
                             Пользователь
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+                          <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
                             Роль
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+                          <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
                             Контакты
                           </th>
-                          <th className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+                          <th className="px-4 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">
                             Заявок
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+                          <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
                             Статус
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+                          <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
                             Последний вход
                           </th>
-                          <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+                          <th className="px-4 py-3 text-right text-sm font-medium text-gray-500 dark:text-gray-400">
                             Действия
                           </th>
                         </tr>
@@ -440,7 +440,7 @@ export default function UsersPage() {
                             <tr key={user.id} className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50">
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-3">
-                                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700">
+                                  <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-700">
                                     <User className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                                   </div>
                                   <div>
@@ -465,7 +465,7 @@ export default function UsersPage() {
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-center">
-                                <span className="inline-flex min-w-[2rem] items-center justify-center rounded-full bg-gray-100 px-2 py-1 text-sm font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                                <span className="inline-flex min-w-[2rem] items-center justify-center rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-sm font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-300">
                                   {user.assigned_tasks_count}
                                 </span>
                               </td>

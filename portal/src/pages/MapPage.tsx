@@ -1,19 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
 import { DivIcon, Icon, LatLngBounds, divIcon } from 'leaflet'
-import { 
+import {
   Calendar,
-  Locate, 
   Filter,
+  Locate,
+  MapPin,
   Navigation,
   Phone,
   User,
   X,
-  MapPin
 } from 'lucide-react'
-import Card from '@/components/Card'
 import Spinner from '@/components/Spinner'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
@@ -24,10 +23,8 @@ import { Task } from '@/types/task'
 import { normalizeRoleForAccess } from '@/types/user'
 import { formatDatePretty } from '@/utils/dateFormat'
 
-// Import Leaflet CSS
 import 'leaflet/dist/leaflet.css'
 
-// Custom marker icons
 const lightenColor = (hex: string, factor = 0.25) => {
   if (!hex.startsWith('#') || (hex.length !== 7 && hex.length !== 4)) return hex
   const full = hex.length === 4
@@ -150,40 +147,61 @@ const getTaskSecondaryTitle = (task: Task) => {
 }
 
 const formatDateTime = formatDatePretty
+const COORDINATE_PLACEHOLDER_EPSILON = 0.000001
+type Coordinates = Pick<Task, 'lat' | 'lon'>
 
-// Component to fit bounds
+const isFiniteCoordinate = (value: number | null | undefined): value is number =>
+  typeof value === 'number' && Number.isFinite(value)
+
+const hasUsableCoordinates = (task: Coordinates): task is { lat: number; lon: number } => {
+  if (!isFiniteCoordinate(task.lat) || !isFiniteCoordinate(task.lon)) return false
+  if (task.lat < -90 || task.lat > 90 || task.lon < -180 || task.lon > 180) return false
+  if (
+    Math.abs(task.lat) < COORDINATE_PLACEHOLDER_EPSILON
+    && Math.abs(task.lon) < COORDINATE_PLACEHOLDER_EPSILON
+  ) {
+    return false
+  }
+  return true
+}
+
+const isTaskWithUsableCoordinates = (task: Task): task is Task & { lat: number; lon: number } =>
+  hasUsableCoordinates(task)
+
 function FitBounds({ tasks }: { tasks: Task[] }) {
   const map = useMap()
-  
+
   useEffect(() => {
     if (tasks.length > 0) {
-      const validTasks = tasks.filter(t => t.lat && t.lon)
+      const validTasks = tasks.filter(isTaskWithUsableCoordinates)
       if (validTasks.length > 0) {
         const bounds = new LatLngBounds(
-          validTasks.map(t => [t.lat!, t.lon!] as [number, number])
+          validTasks.map((task) => [task.lat!, task.lon!] as [number, number]),
         )
-        map.fitBounds(bounds, { padding: [50, 50] })
+        map.fitBounds(bounds, {
+          paddingTopLeft: [180, 88],
+          paddingBottomRight: [56, 56],
+        })
       }
     }
   }, [tasks, map])
-  
+
   return null
 }
 
-// Component for locate user
 function LocateControl() {
   const map = useMap()
-  
+
   const handleLocate = () => {
     map.locate({ setView: true, maxZoom: 16 })
   }
-  
+
   return (
-      <button
-        onClick={handleLocate}
-        className="absolute bottom-20 right-4 z-10 p-3 bg-white dark:bg-gray-800 rounded-lg shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition"
-        title="Моё местоположение"
-      >
+    <button
+      onClick={handleLocate}
+      className="absolute bottom-20 right-4 z-10 rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
+      title="Моё местоположение"
+    >
       <Locate size={20} className="text-gray-700 dark:text-gray-300" />
     </button>
   )
@@ -202,8 +220,6 @@ export default function MapPage() {
     { value: 'IN_PROGRESS', label: 'В работе', color: '#f59e0b' },
   ] as const
   const allStatusesSelected = statusFilter.length === statusDefs.length
-
-  // Filter by assignee for workers
   const isWorker = normalizeRoleForAccess(user?.role) === 'worker'
 
   const { data, isLoading } = useQuery({
@@ -211,19 +227,19 @@ export default function MapPage() {
     queryFn: async () => {
       const params = new URLSearchParams()
       if (!allStatusesSelected && sortedStatuses.length === 1) {
-        params.append('status', sortedStatuses[0]!) // API принимает только один статус
+        params.append('status', sortedStatuses[0]!)
       }
       if (isWorker && user?.id) {
         params.append('assignee_id', String(user.id))
       }
       params.append('size', '200')
       const response = await apiClient.get<{ items: Task[] }>(`/tasks?${params}`)
-      const items = response.data.items.filter(t => t.lat && t.lon)
-      return items.filter(t => statusFilter.includes(t.status))
+      const items = response.data.items.filter(isTaskWithUsableCoordinates)
+      return items.filter((task) => statusFilter.includes(task.status))
     },
   })
 
-  const tasks = data ?? []
+  const tasks = useMemo(() => data ?? [], [data])
   const statusCounts = useMemo(() => {
     return tasks.reduce<Record<string, number>>((acc, task) => {
       acc[task.status] = (acc[task.status] || 0) + 1
@@ -231,13 +247,14 @@ export default function MapPage() {
     }, {})
   }, [tasks])
   const filterLabel = statusFilter.length === statusDefs.length
-    ? 'Новые + В работе'
-    : statusFilter.map(s => statusDefs.find(d => d.value === s)?.label || s).join(', ')
+    ? 'Новые и в работе'
+    : statusFilter.map((status) => statusDefs.find((def) => def.value === status)?.label || status).join(', ')
+
   const groupedTasks = useMemo(() => {
     const groups = new Map<string, { key: string; lat: number; lon: number; latSum: number; lonSum: number; tasks: Task[] }>()
 
     tasks.forEach((task) => {
-      if (task.lat == null || task.lon == null) return
+      if (!isTaskWithUsableCoordinates(task)) return
       const key = `coord:${task.lat.toFixed(4)}|${task.lon.toFixed(4)}`
       const existing = groups.get(key)
       if (existing) {
@@ -262,80 +279,79 @@ export default function MapPage() {
   }
 
   const toggleStatus = (status: string) => {
-    setStatusFilter(prev => {
-      const has = prev.includes(status)
-      if (has && prev.length === 1) return prev // не выключаем последний активный статус
-      if (has) return prev.filter(s => s !== status)
+    setStatusFilter((prev) => {
+      const hasStatus = prev.includes(status)
+      if (hasStatus && prev.length === 1) return prev
+      if (hasStatus) return prev.filter((item) => item !== status)
       return [...prev, status]
     })
   }
 
-  const defaultCenter: [number, number] = [55.7558, 37.6173] // Moscow
+  const defaultCenter: [number, number] = [55.7558, 37.6173]
+
   const openNavigation = (task: Task) => {
-    if (task.lat == null || task.lon == null) return
-    window.open(`https://yandex.ru/maps/?rtext=~${task.lat},${task.lon}&rtt=auto`, '_blank')
+    if (!isTaskWithUsableCoordinates(task)) return
+    window.open(`https://yandex.ru/maps/?rtext=~${task.lat},${task.lon}&rtt=auto`, '_blank', 'noopener,noreferrer')
   }
+
   return (
-    <div className="h-[calc(100vh-8rem)] relative isolate">
-      {/* Filter Panel */}
-      <div className="absolute top-4 left-16 z-[1000] flex flex-col space-y-2 pointer-events-none">
+    <div className="relative isolate h-[calc(100vh-8rem)]">
+      <div className="pointer-events-none absolute left-[4.5rem] top-4 z-[1000] flex max-w-[320px] flex-col gap-2">
         <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="pointer-events-auto flex items-center gap-2 px-4 py-2 rounded-xl bg-white/90 dark:bg-gray-800 shadow-2xl border border-white/60 dark:border-gray-700 backdrop-blur-md hover:-translate-y-0.5 transition-all"
+          onClick={() => setShowFilters((prev) => !prev)}
+          className="pointer-events-auto flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
         >
           <Filter size={18} className="text-gray-700 dark:text-gray-200" />
-          <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">{filterLabel}</span>
+          <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{filterLabel}</span>
         </button>
-        
+
         {showFilters && (
-          <Card className="pointer-events-auto p-4 shadow-2xl rounded-2xl border border-white/60 dark:border-gray-700 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl mt-2">
-            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3 tracking-wide">Фильтры</p>
+          <div className="pointer-events-auto rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <p className="mb-3 text-sm font-medium text-gray-900 dark:text-white">Показывать на карте</p>
             <div className="flex flex-col gap-2">
               {statusDefs.map((status) => {
                 const checked = statusFilter.includes(status.value)
                 return (
                   <label
                     key={status.value}
-                    className={`flex items-center justify-between rounded-full px-3 py-2.5 border cursor-pointer transition-all text-sm ${
+                    className={`flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors ${
                       checked
-                        ? 'bg-white/95 dark:bg-gray-800/90 shadow-sm border-gray-200 dark:border-gray-600'
-                        : 'bg-gray-50 dark:bg-gray-700/60 border-transparent dark:border-gray-700'
+                        ? 'border-gray-300 bg-gray-50 dark:border-gray-600 dark:bg-gray-700'
+                        : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
                     }`}
                     onClick={() => toggleStatus(status.value)}
                   >
                     <span className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full" style={{ background: status.color }} />
-                      <span className="text-sm text-gray-900 dark:text-gray-50">{status.label}</span>
+                      <span className="h-3 w-3 rounded-full" style={{ background: status.color }} />
+                      <span className="text-sm text-gray-900 dark:text-gray-100">{status.label}</span>
                     </span>
-                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 min-w-[18px] text-right">
+                    <span className="min-w-[18px] text-right text-sm text-gray-500 dark:text-gray-400">
                       {statusCounts[status.value] || 0}
                     </span>
                   </label>
                 )
               })}
             </div>
-          </Card>
+          </div>
         )}
       </div>
 
-      {/* Task count */}
-      <div className="absolute top-4 right-4 z-10 bg-white/95 dark:bg-gray-800/95 rounded-xl shadow-2xl border border-white/60 dark:border-gray-700 px-4 py-2 backdrop-blur-lg">
-        <span className="text-sm font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+      <div className="absolute right-4 top-4 z-10 rounded-lg border border-gray-200 bg-white px-4 py-2 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <span className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
           <MapPin size={16} className="text-gray-500" />
           {tasks.length} заявок на карте
         </span>
       </div>
 
-      {/* Map */}
       {isLoading ? (
-        <div className="h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+        <div className="flex h-full items-center justify-center rounded-xl border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
           <Spinner size="lg" />
         </div>
       ) : (
         <MapContainer
           center={defaultCenter}
           zoom={10}
-          className="fw-map h-full w-full rounded-[28px] relative z-0 overflow-hidden border border-white/60 dark:border-gray-700 shadow-2xl"
+          className="fw-map relative z-0 h-full w-full overflow-hidden rounded-xl border border-gray-200 shadow-sm dark:border-gray-700"
           style={{ background: '#f3f4f6' }}
         >
           <TileLayer
@@ -347,10 +363,10 @@ export default function MapPage() {
                 : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
             }
           />
-          
+
           <FitBounds tasks={tasks} />
           <LocateControl />
-          
+
           {groupedTasks.map((group) => {
             const primaryTask = group.tasks[0]!
             const groupStatus = getGroupStatus(group.tasks) as keyof typeof markerColors
@@ -369,179 +385,164 @@ export default function MapPage() {
                   click: () => setSelectedTask(primaryTask),
                 }}
               >
-              <Popup className="fw-popup">
-                <div className="min-w-[260px] max-w-[320px]">
-                  {isGrouped ? (
-                    <div className="space-y-3 fw-map-card">
-                      <div>
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                              В этой точке
+                <Popup className="fw-popup">
+                  <div className="min-w-[260px] max-w-[320px]">
+                    {isGrouped ? (
+                      <div className="fw-map-card space-y-3">
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            {group.tasks.length} заявок по адресу
+                          </p>
+                          {primaryTask.raw_address && (
+                            <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
+                              {primaryTask.raw_address}
                             </p>
-                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                              {group.tasks.length} заявок
-                            </p>
-                          </div>
-                          <span className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
-                            В работе
-                          </span>
+                          )}
                         </div>
-                        {primaryTask.raw_address && (
-                          <div className="mt-2 flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400">
-                            <MapPin size={14} className="text-gray-400 dark:text-gray-500 mt-0.5" />
-                            <span className="line-clamp-2">{primaryTask.raw_address}</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                        {group.tasks.map((task) => {
-                          const taskSubtitle = getTaskSecondaryTitle(task)
-                          const statusColor = markerColors[task.status as keyof typeof markerColors] || markerColors.NEW
 
-                          return (
-                            <Link
-                              key={task.id}
-                              to={`/tasks/${task.id}`}
-                              className="block rounded-xl border border-gray-100 dark:border-gray-600 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition shadow-sm"
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: statusColor }} />
-                                  <span className="text-xs font-mono text-gray-500 dark:text-gray-400">№{getTaskNumber(task)}</span>
+                        <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                          {group.tasks.map((task) => {
+                            const taskSubtitle = getTaskSecondaryTitle(task)
+                            const statusColor = markerColors[task.status as keyof typeof markerColors] || markerColors.NEW
+
+                            return (
+                              <Link
+                                key={task.id}
+                                to={`/tasks/${task.id}`}
+                                className="block rounded-lg border border-gray-200 px-3 py-2 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: statusColor }} />
+                                    <span className="text-xs font-mono text-gray-500 dark:text-gray-400">№{getTaskNumber(task)}</span>
+                                  </div>
+                                  <PriorityBadge priority={task.priority} />
                                 </div>
-                                <PriorityBadge priority={task.priority} />
-                              </div>
-                              <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-2">
-                                {getTaskPrimaryTitle(task)}
-                              </div>
-                              {taskSubtitle && (
-                                <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
-                                  {taskSubtitle}
+                                <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-2">
+                                  {getTaskPrimaryTitle(task)}
                                 </div>
-                              )}
-                              {task.assigned_user_name && (
-                                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                  Исполнитель: {task.assigned_user_name}
-                                </div>
-                              )}
-                            </Link>
-                          )
-                        })}
+                                {taskSubtitle && (
+                                  <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+                                    {taskSubtitle}
+                                  </div>
+                                )}
+                                {task.assigned_user_name && (
+                                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    Исполнитель: {task.assigned_user_name}
+                                  </div>
+                                )}
+                              </Link>
+                            )
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3 fw-map-card">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="inline-flex items-center gap-2">
-                            <span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-semibold text-gray-800 dark:text-gray-200">
+                    ) : (
+                      <div className="fw-map-card space-y-3">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-200">
                               № {getTaskNumber(primaryTask)}
                             </span>
                             <PriorityBadge priority={primaryTask.priority} />
                             <StatusBadge status={primaryTask.status} />
                           </div>
-                          <h3 className="mt-2 text-lg font-semibold text-gray-900 dark:text-gray-100 leading-tight">
-                            {getTaskPrimaryTitle(primaryTask)}
-                          </h3>
-                          {secondaryTitle && (
-                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                              {secondaryTitle}
-                            </p>
+                          <div>
+                            <h3 className="text-base font-semibold leading-tight text-gray-900 dark:text-gray-100">
+                              {getTaskPrimaryTitle(primaryTask)}
+                            </h3>
+                            {secondaryTitle && (
+                              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{secondaryTitle}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                          <div className="flex items-start gap-2">
+                            <MapPin size={16} className="mt-0.5 text-gray-400 dark:text-gray-500" />
+                            <span className="leading-snug">{primaryTask.raw_address || 'Адрес не указан'}</span>
+                          </div>
+                          {primaryTask.assigned_user_name && (
+                            <div className="flex items-center gap-2">
+                              <User size={16} className="text-gray-400 dark:text-gray-500" />
+                              <span>Исполнитель: {primaryTask.assigned_user_name}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <Calendar size={16} className="text-gray-400 dark:text-gray-500" />
+                            <span>
+                              {primaryTask.planned_date
+                                ? `Срок: ${formatDateTime(primaryTask.planned_date)}`
+                                : `Создана: ${formatDateTime(primaryTask.created_at)}`}
+                            </span>
+                          </div>
+                          {primaryTask.customer_name && (
+                            <div className="flex items-center gap-2">
+                              <User size={16} className="text-gray-400 dark:text-gray-500" />
+                              <span className="line-clamp-1">Клиент: {primaryTask.customer_name}</span>
+                            </div>
+                          )}
+                          {primaryTask.customer_phone && (
+                            <div className="flex items-center gap-2">
+                              <Phone size={16} className="text-gray-400 dark:text-gray-500" />
+                              <a
+                                href={`tel:${primaryTask.customer_phone}`}
+                                className="font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                              >
+                                {primaryTask.customer_phone}
+                              </a>
+                            </div>
                           )}
                         </div>
-                      </div>
-                      <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-                        <div className="flex items-start gap-2">
-                          <MapPin size={16} className="text-orange-500 mt-0.5" />
-                          <span className="leading-snug">
-                            {primaryTask.raw_address || 'Адрес не указан'}
-                          </span>
+
+                        <div className="grid grid-cols-2 gap-3 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => openNavigation(primaryTask)}
+                            className="inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                          >
+                            <Navigation size={16} />
+                            Маршрут
+                          </button>
+                          <Link
+                            to={`/tasks/${primaryTask.id}`}
+                            className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                          >
+                            Открыть
+                          </Link>
                         </div>
-                        {primaryTask.assigned_user_name && (
-                          <div className="flex items-center gap-2">
-                            <User size={16} className="text-amber-500" />
-                            <span>Исполнитель: {primaryTask.assigned_user_name}</span>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2">
-                          <Calendar size={16} className="text-blue-500" />
-                          <span>
-                            {primaryTask.planned_date
-                              ? `Срок: ${formatDateTime(primaryTask.planned_date)}`
-                              : `Создана: ${formatDateTime(primaryTask.created_at)}`}
-                          </span>
-                        </div>
-                        {primaryTask.customer_name && (
-                          <div className="flex items-center gap-2">
-                            <User size={16} className="text-purple-500" />
-                            <span className="line-clamp-1">Клиент: {primaryTask.customer_name}</span>
-                          </div>
-                        )}
-                        {primaryTask.customer_phone && (
-                          <div className="flex items-center gap-2">
-                            <Phone size={16} className="text-green-500" />
-                            <a
-                              href={`tel:${primaryTask.customer_phone}`}
-                              className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-semibold"
-                            >
-                              {primaryTask.customer_phone}
-                            </a>
-                          </div>
-                        )}
                       </div>
-                      <div className="grid grid-cols-2 gap-3 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => openNavigation(primaryTask)}
-                          className="inline-flex items-center justify-center gap-1 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm font-semibold text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
-                        >
-                          <Navigation size={16} />
-                          Маршрут
-                        </button>
-                        <Link
-                          to={`/tasks/${primaryTask.id}`}
-                          className="inline-flex items-center justify-center rounded-xl bg-orange-500 px-3 py-2 text-sm font-semibold text-white shadow-lg hover:bg-orange-600 transition"
-                        >
-                          Открыть
-                        </Link>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </Popup>
+                    )}
+                  </div>
+                </Popup>
               </Marker>
             )
           })}
         </MapContainer>
       )}
 
-      {/* Selected Task Panel (Mobile) */}
       {selectedTask && (
-        <div className="lg:hidden absolute bottom-0 left-0 right-0 z-10 bg-white dark:bg-gray-800 rounded-t-2xl shadow-2xl p-4 animate-in slide-in-from-bottom">
+        <div className="absolute bottom-0 left-0 right-0 z-10 rounded-t-xl border border-gray-200 bg-white p-4 shadow-lg lg:hidden dark:border-gray-700 dark:bg-gray-800">
           <button
             onClick={() => setSelectedTask(null)}
-            className="absolute top-4 right-4 p-1 text-gray-500 hover:text-gray-700"
+            className="absolute right-4 top-4 p-1 text-gray-500 transition-colors hover:text-gray-700 dark:hover:text-gray-300"
           >
             <X size={20} />
           </button>
-          
-          <div className="flex items-center space-x-2 mb-3">
+
+          <div className="mb-3 flex items-center gap-2">
             <PriorityBadge priority={selectedTask.priority} />
             <StatusBadge status={selectedTask.status} />
           </div>
-          
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-            {selectedTask.title}
+
+          <h3 className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
+            {getTaskPrimaryTitle(selectedTask)}
           </h3>
-          
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            {selectedTask.raw_address}
-          </p>
-          
+
+          <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">{selectedTask.raw_address}</p>
+
           <Link
             to={`/tasks/${selectedTask.id}`}
-            className="block w-full text-center py-3 bg-primary-500 text-white font-medium rounded-lg hover:bg-primary-600 transition"
+            className="block w-full rounded-lg bg-gray-900 py-3 text-center text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
           >
             Открыть заявку
           </Link>
