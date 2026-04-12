@@ -153,22 +153,25 @@ fun SettingsScreen(
                         value = serverUrl,
                         onValueChange = { serverUrl = it },
                         label = { Text("URL сервера") },
-                        placeholder = { Text("http://192.168.1.100") },
+                        placeholder = { Text("https://petrosyan.duckdns.org") },
                         leadingIcon = { Icon(Icons.Default.Home, contentDescription = null) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
 
-                    OutlinedTextField(
-                        value = serverPort,
-                        onValueChange = { serverPort = it.filter { c -> c.isDigit() } },
-                        label = { Text("Порт") },
-                        placeholder = { Text("8001") },
-                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
+                    // Порт не нужен для HTTPS (стандартный 443)
+                    if (!serverUrl.trimStart().startsWith("https://", ignoreCase = true)) {
+                        OutlinedTextField(
+                            value = serverPort,
+                            onValueChange = { serverPort = it.filter { c -> c.isDigit() } },
+                            label = { Text("Порт") },
+                            placeholder = { Text("8001") },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                    }
                 }
                 
                 Row(
@@ -1215,6 +1218,10 @@ private fun buildServerEndpointPreview(serverUrl: String, serverPort: String): S
 
     val port = serverPort.toIntOrNull() ?: 8001
     val urlWithoutScheme = baseUrl.substringAfter("://", baseUrl)
-    return if (urlWithoutScheme.contains(":")) baseUrl else "$baseUrl:$port"
+    return when {
+        urlWithoutScheme.contains(":") -> baseUrl  // Порт уже в URL
+        baseUrl.startsWith("https://") -> baseUrl  // HTTPS — стандартный 443
+        else -> "$baseUrl:$port"                   // HTTP — показываем порт
+    }
 }
 

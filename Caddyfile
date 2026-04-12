@@ -2,26 +2,64 @@
 # =======================================================
 #
 # Caddy автоматически получает и обновляет SSL сертификаты через Let's Encrypt.
-# Замените {$DOMAIN} на ваш домен (или задайте переменную окружения DOMAIN).
+# Используется с docker-compose.caddy.yml (standalone, API на хосте).
 #
-# Использование:
-#   docker-compose -f docker-compose.yml -f docker-compose.ssl.yml up -d
+# Запуск:
+#   DOMAIN=petrosyan.duckdns.org docker compose -f docker-compose.caddy.yml up -d
 
 {$DOMAIN:localhost} {
-    # Reverse proxy на FastAPI сервер
-    reverse_proxy api:8001
+    # Лимит размера запроса (аналог nginx client_max_body_size)
+    request_body {
+        max_size 20MB
+    }
 
-    # WebSocket поддержка
+    # Корень → редирект на портал
+    redir / /portal/ 302
+    redir /portal /portal/ 301
+
+    # Портал — SPA с раздачей статики
+    handle_path /portal/* {
+        root * /srv/portal
+
+        # Кэширование assets (Vite хешированные файлы)
+        @assets path /assets/*
+        header @assets Cache-Control "public, max-age=31536000, immutable"
+
+        # index.html без кэша (для обновлений SPA)
+        @html path /index.html
+        header @html Cache-Control "no-cache"
+
+        # SPA fallback — любой несуществующий путь → index.html
+        try_files {path} /index.html
+        file_server
+    }
+
+    # Favicon
+    handle /favicon.ico {
+        root * /srv/portal
+        rewrite * /favicon.ico
+        file_server
+    }
+
+    # WebSocket
     @websocket {
+        path /ws
         header Connection *Upgrade*
         header Upgrade websocket
     }
-    reverse_proxy @websocket api:8001
+    reverse_proxy @websocket localhost:8001 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
 
-    # Логи в JSON формате
-    log {
-        output stdout
-        format json
+    # API — проксирование на FastAPI (работает на хосте)
+    handle /api/* {
+        reverse_proxy localhost:8001 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 
     # Заголовки безопасности
@@ -36,4 +74,10 @@
 
     # Сжатие
     encode gzip zstd
+
+    # Логи
+    log {
+        output stdout
+        format json
+    }
 }

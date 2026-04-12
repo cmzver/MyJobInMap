@@ -1,0 +1,42 @@
+# FieldWorker Docker Compose — Standalone Caddy SSL
+# ==================================================
+# Caddy с автоматическим Let's Encrypt сертификатом.
+# Используется ОТДЕЛЬНО от docker-compose.yml, т.к. API работает на хосте напрямую.
+#
+# Caddy автоматически:
+# - Получает SSL сертификат от Let's Encrypt
+# - Обновляет сертификат до истечения (каждые ~60 дней)
+# - Перенаправляет HTTP → HTTPS
+# - Проксирует /api/ и /ws на localhost:8001
+# - Раздаёт /portal/ статику
+#
+# Запуск:
+#   DOMAIN=petrosyan.duckdns.org docker compose -f docker-compose.caddy.yml up -d
+#
+# Остановка:
+#   docker compose -f docker-compose.caddy.yml down
+#
+# Логи:
+#   docker compose -f docker-compose.caddy.yml logs -f
+#
+# ВАЖНО: nginx должен быть остановлен перед запуском (порты 80/443).
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: fieldworker-caddy
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - DOMAIN=${DOMAIN:-petrosyan.duckdns.org}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data          # SSL сертификаты (persistent)
+      - caddy_config:/config      # Runtime конфигурация
+      - /var/www/fw:/srv/portal:ro  # Portal static files
+
+volumes:
+  caddy_data:
+    name: fieldworker_caddy_data
+  caddy_config:
+    name: fieldworker_caddy_config

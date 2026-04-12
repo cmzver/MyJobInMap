@@ -115,17 +115,19 @@ class AppPreferences @Inject constructor(
     }
     
     /**
-     * Получить полный URL сервера
+     * Получить полный URL сервера.
+     * Для https:// порт не добавляется (Caddy использует стандартный 443).
+     * Для http:// добавляется порт из настроек.
      */
     fun getFullServerUrl(): String {
         val url = getServerUrl().trimEnd('/')
         val port = getServerPort()
         // Проверяем, есть ли уже порт в URL (после схемы ://)
         val urlWithoutScheme = url.substringAfter("://")
-        return if (urlWithoutScheme.contains(":")) {
-            url // Порт уже включен
-        } else {
-            "$url:$port"
+        return when {
+            urlWithoutScheme.contains(":") -> url // Порт уже включен
+            url.startsWith("https://") -> url    // HTTPS — стандартный порт 443
+            else -> "$url:$port"                 // HTTP — добавляем порт
         }
     }
     

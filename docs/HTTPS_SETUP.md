@@ -42,7 +42,64 @@ https://10.0.2.2:8000
 
 ---
 
-## Production Setup (Let's Encrypt)
+## Production Setup — Caddy (рекомендуется) ✅
+
+Самый простой вариант: Caddy в Docker с автоматическим Let's Encrypt.
+Caddy сам получает и обновляет сертификат, перенаправляет HTTP → HTTPS.
+
+### Требования
+- Docker и Docker Compose V2 на сервере
+- Порт 80 и 443 доступны из интернета
+- DNS домена указывает на IP сервера
+- API запущен на `localhost:8001` (не в Docker)
+- Portal собран в `/var/www/fw/`
+
+### Запуск
+
+```bash
+# На сервере:
+cd /opt/fieldworker
+bash scripts/enable-ssl.sh
+```
+
+Или вручную:
+```bash
+# 1. Остановить nginx
+sudo systemctl stop nginx
+sudo systemctl disable nginx
+
+# 2. Запустить Caddy
+DOMAIN=petrosyan.duckdns.org docker compose -f docker-compose.caddy.yml up -d
+
+# 3. Проверить
+curl -I https://petrosyan.duckdns.org/api/health
+```
+
+### Файлы
+- `Caddyfile` — конфигурация (проксирование API, раздача портала, WebSocket)
+- `docker-compose.caddy.yml` — Docker Compose для Caddy (network_mode: host)
+- `scripts/enable-ssl.sh` — скрипт активации
+
+### Управление
+```bash
+# Логи
+docker compose -f docker-compose.caddy.yml logs -f
+
+# Перезапуск (после изменения Caddyfile)
+docker compose -f docker-compose.caddy.yml restart
+
+# Остановка + откат на nginx
+docker compose -f docker-compose.caddy.yml down
+sudo systemctl enable nginx && sudo systemctl start nginx
+```
+
+### Как работает автообновление
+Caddy автоматически обновляет сертификат за ~30 дней до истечения.
+Сертификаты хранятся в Docker volume `fieldworker_caddy_data` и переживают перезапуски.
+
+---
+
+## Production Setup (Let's Encrypt — ручной вариант)
 
 ### Вариант 1: Certbot (рекомендуется)
 
