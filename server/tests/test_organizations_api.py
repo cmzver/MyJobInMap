@@ -81,6 +81,21 @@ class TestOrganizationsAPI:
         assert users[0]["role"] == "admin"
         assert users[0]["organization_id"] == org_id
 
+    def test_create_organization_rejects_cyrillic_admin_username(self, client_with_auth):
+        """Initial admin login must stay ASCII-only."""
+        data = {
+            "name": "Bootstrap Org",
+            "initial_admin": {
+                "username": "админ",
+                "password": "secret123",
+            },
+        }
+
+        response = client_with_auth.post("/api/admin/organizations", json=data)
+
+        assert response.status_code == 422
+        assert "username" in str(response.json())
+
     def test_create_organization_with_initial_admin_rejects_duplicate_username(
         self, client_with_auth, admin_user
     ):

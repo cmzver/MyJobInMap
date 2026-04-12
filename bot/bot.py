@@ -3,8 +3,13 @@ Telegram-бот диспетчер заявок для FieldWorker.
 
 Бот читает сообщения в групповом чате и отправляет их на сервер для парсинга
 и создания заявок. Вся логика парсинга находится на сервере.
+
+Поддержка автоназначения: бот в группе "заявки Иванов" автоматически
+назначает заявки пользователю ivanov. Маппинг задаётся через
+переменную окружения GROUP_WORKER_MAP (JSON).
 """
 
+import json
 import os
 import logging
 import threading
@@ -33,6 +38,24 @@ API_PASSWORD = os.getenv("API_PASSWORD", "")
 API_TOKEN_LOCK = threading.Lock()
 # Минимальная длина сообщения для обработки
 MIN_MESSAGE_LENGTH = int(os.getenv("MIN_MESSAGE_LENGTH", "20"))
+
+# Маппинг "подстрока названия группы" → "username работника"
+# Загружается из серверного API, с фолбэком на env-переменную GROUP_WORKER_MAP
+_group_worker_raw = os.getenv("GROUP_WORKER_MAP", "")
+_ENV_GROUP_WORKER_MAP: dict[str, str] = {}
+if _group_worker_raw:
+    try:
+        _ENV_GROUP_WORKER_MAP = {
+            k.lower().strip(): v.strip()
+            for k, v in json.loads(_group_worker_raw).items()
+        }
+    except (json.JSONDecodeError, AttributeError) as exc:
+        logging.warning(f"GROUP_WORKER_MAP — невалидный JSON, маппинг пуст: {exc}")
+
+# Кэш маппинга, загруженного с сервера
+_CACHED_BOT_SETTINGS: dict = {}
+_CACHE_TIMESTAMP: float = 0.0
+CACHE_TTL_SECONDS = int(os.getenv("BOT_CACHE_TTL", "300"))  # 5 минут
 # ==========================================
 
 # Настройка логирования
@@ -87,6 +110,59 @@ def get_api_headers(force_refresh: bool = False) -> dict | None:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _fetch_bot_settings() -> dict:
+    """
+    Загружает настройки бота с сервера (маппинг групп, флаги).
+    Кэширует на CACHE_TTL_SECONDS секунд.
+    При ошибке возвращает последний кэш или env-фолбэк.
+    """
+    import time
+
+    global _CACHED_BOT_SETTINGS, _CACHE_TIMESTAMP
+
+    now = time.time()
+    if _CACHED_BOT_SETTINGS and (now - _CACHE_TIMESTAMP) < CACHE_TTL_SECONDS:
+        return _CACHED_BOT_SETTINGS
+
+    try:
+        headers = get_api_headers()
+        if not headers:
+            raise RuntimeError("No auth headers")
+        resp = requests.get(
+            f"{API_BASE_URL}/api/public/telegram-bot/mappings",
+            headers=headers,
+            timeout=10,
+        )
+        if resp.status_code == 401:
+            headers = get_api_headers(force_refresh=True)
+            if not headers:
+                raise RuntimeError("Token refresh failed")
+            resp = requests.get(
+                f"{API_BASE_URL}/api/public/telegram-bot/mappings",
+                headers=headers,
+                timeout=10,
+            )
+        resp.raise_for_status()
+        data = resp.json()
+        _CACHED_BOT_SETTINGS = data
+        _CACHE_TIMESTAMP = now
+        logger.debug(f"Настройки бота обновлены из сервера: {len(data.get('mappings', {}))} маппингов")
+        return data
+    except Exception as exc:
+        logger.warning(f"Не удалось загрузить настройки бота с сервера: {exc}")
+        # Если кэш есть — используем
+        if _CACHED_BOT_SETTINGS:
+            return _CACHED_BOT_SETTINGS
+        # Фолбэк на env
+        return {"enabled": True, "mappings": _ENV_GROUP_WORKER_MAP, "dedup_enabled": True}
+
+
+def get_group_worker_map() -> dict[str, str]:
+    """Получить текущий маппинг группа → работник (из сервера или env)."""
+    settings = _fetch_bot_settings()
+    return settings.get("mappings", _ENV_GROUP_WORKER_MAP)
+
+
 def is_potential_task(text: str) -> bool:
     """
     Быстрая проверка, похоже ли сообщение на заявку.
@@ -114,7 +190,25 @@ def is_potential_task(text: str) -> bool:
     return False
 
 
-def send_to_server(text: str, sender: str) -> dict:
+def resolve_worker_username(chat_title: str | None) -> str | None:
+    """
+    Определяет username работника по названию Telegram-группы.
+    Ищет совпадение ключей маппинга как подстрок в названии чата.
+    Маппинг загружается с сервера (с кэшем) или из env.
+    """
+    if not chat_title:
+        return None
+    mapping = get_group_worker_map()
+    if not mapping:
+        return None
+    title_lower = chat_title.lower()
+    for key, username in mapping.items():
+        if key in title_lower:
+            return username
+    return None
+
+
+def send_to_server(text: str, sender: str, assigned_username: str | None = None) -> dict:
     """
     Отправляет текст на сервер для парсинга и создания заявки.
     
@@ -128,6 +222,8 @@ def send_to_server(text: str, sender: str) -> dict:
         "source": "telegram",
         "sender": sender
     }
+    if assigned_username:
+        payload["assigned_username"] = assigned_username
     
     try:
         headers = get_api_headers()
@@ -180,12 +276,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Определяем отправителя
     sender = user.username or user.first_name or str(user.id)
     
+    # Определяем работника для автоназначения по названию группы
+    assigned_username = resolve_worker_username(chat.title)
+    
     logger.info(
         f"📝 Потенциальная заявка от {sender} в чате {chat.title or chat.id}"
+        + (f" → назначение: {assigned_username}" if assigned_username else "")
     )
     
     # Отправляем на сервер для парсинга и создания
-    result = send_to_server(text, sender)
+    result = send_to_server(text, sender, assigned_username=assigned_username)
     
     # Формируем ответ
     if result.get("success"):
@@ -194,13 +294,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         address = task.get("raw_address", "")
         lat = task.get("lat")
         lon = task.get("lon")
+        assigned_name = task.get("assigned_user_name")
         
         # Показываем распознанные данные
         parsed = result.get("parsed_data", {})
         ext_id = parsed.get("external_id")
         ext_id_info = f" (внеш. №{ext_id})" if ext_id else ""
         
-        if lat and lon and lat != 0 and lon != 0:
+        # Дополнение существующей заявки или создание новой
+        if result.get("updated_existing"):
+            reply = f"📝 Заявка {task_number}{ext_id_info} дополнена комментарием"
+        elif lat and lon and lat != 0 and lon != 0:
             reply = (
                 f"✅ Заявка {task_number}{ext_id_info} принята!\n"
                 f"📍 Адрес: {address}\n"
@@ -212,6 +316,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 f"📍 Адрес: {address}\n"
                 f"⚠️ Координаты не определены"
             )
+        
+        # Добавляем информацию о назначении
+        if assigned_name:
+            reply += f"\n👷 Назначена: {assigned_name}"
         
         # Добавляем контактную информацию
         phone = parsed.get("contact_phone")

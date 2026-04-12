@@ -73,6 +73,12 @@ class AppPreferences @Inject constructor(
     
     private val _showMyLocation = MutableStateFlow(getShowMyLocation())
     val showMyLocation: StateFlow<Boolean> = _showMyLocation.asStateFlow()
+
+    fun statusFilterUpdates(): StateFlow<Set<TaskStatus>> = statusFilter
+
+    fun priorityFilterUpdates(): StateFlow<Set<Priority>> = priorityFilter
+
+    fun showMyLocationUpdates(): StateFlow<Boolean> = showMyLocation
     
     /**
      * SharedFlow для события принудительного логаута.

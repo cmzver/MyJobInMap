@@ -62,6 +62,21 @@ class TestAdminUsers:
         assert response.status_code == 400
         assert "already exists" in response.json()["detail"].lower()
 
+    def test_create_user_rejects_cyrillic_username(
+        self, client: TestClient, auth_headers: dict
+    ):
+        """Username must remain ASCII-only."""
+        new_user = {
+            "username": "админ",
+            "password": "pass123",
+            "full_name": "Cyrillic Username",
+        }
+
+        response = client.post("/api/admin/users", json=new_user, headers=auth_headers)
+
+        assert response.status_code == 422
+        assert "username" in str(response.json())
+
     # Note: GET /api/admin/users/{id} endpoint does not exist
     # Users are managed via list and update endpoints only
 

@@ -1,6 +1,71 @@
 {
   "version": 1,
   "skills": {
+    "android-clean-architecture": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "908c1ce8aff32a560bc3b2315c9124cc530683deac578877de69a91febbdf36a"
+    },
+    "backend-patterns": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "4872c9e2d4b474620f350c5bc625f7d34fc4a4fa5cfa2ff90637ee8b3f4ca143"
+    },
+    "codebase-onboarding": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "36f2599ce3332c1758f22d877c763a79d412ddd861a22305598212ba2d63fa07"
+    },
+    "coding-standards": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "ee931407b246fbc4c2316b0e6a982666b58b312db908f3a556890afcad18e9df"
+    },
+    "docker-patterns": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "a028783213034aee06d0aa0487c7e6096ae755d24bdd05de9475425306057fcd"
+    },
+    "kotlin-coroutines-flows": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "b6bb6a1966e6dfe830112d741c96101f4cf3f69796b8c1c72aec9dae823290cc"
+    },
+    "kotlin-exposed-patterns": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "cf1be341311622e00718e54895e07bbae2032b0898f9c0b59fcc9509a040e19c"
+    },
+    "kotlin-ktor-patterns": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "40f89ab61ceebe23825d8d5836ea9266b190f5b6c41c877088321dfe41220e89"
+    },
+    "kotlin-patterns": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "5fc6cf22b6e4028c7fa0b4e0814b1c9bce4c0d1c2defb17511efd170da7bc064"
+    },
+    "mcp-server-patterns": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "83a3d8d28fe6c24b8afccd483166d05bb2b5423e0cb6155bf2f0ab230b27eeff"
+    },
+    "prompt-optimizer": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "eac7e4542b5cd1613ccf46e1d85ffd154cebf2de91e279bdf6508a7f66e04dcc"
+    },
+    "python-patterns": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "fb08a3345b09766c7423a837cd8a3e416abc4b71a51ff8c1901622bb73b999ef"
+    },
+    "skill-comply": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "1fcb8c3dda32ed2727193d03286555c7bd08358287bd35cf66c96721f7c28320"
+    },
     "uncodixfy": {
       "source": "cyxzdev/Uncodixfy",
       "sourceType": "github",

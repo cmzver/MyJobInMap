@@ -493,6 +493,8 @@ async def create_task_from_text(
     Создание заявки из текстового сообщения (для ботов и импорта).
 
     Парсит текст, извлекает данные и создаёт заявку одним запросом.
+    Если заявка с таким номером уже существует — добавляет комментарий
+    с дополненным текстом вместо создания дубликата.
 
     Поддерживаемые форматы:
     - Диспетчерский: №1173544 Текущая. Адрес, подъезд 1. Категория. Описание. кв.45 +79110000000
@@ -503,15 +505,18 @@ async def create_task_from_text(
         source: Источник (telegram, web)
         sender: Отправитель (для логирования)
         assigned_user_id: ID исполнителя для назначения
+        assigned_username: Username исполнителя (альтернатива ID)
 
     Returns:
-        Созданная заявка или ошибка парсинга
+        Созданная/дополненная заявка или ошибка парсинга
     """
     if not request.text or len(request.text.strip()) < 5:
         return CreateTaskFromTextResponse(
             success=False, error="Текст сообщения слишком короткий"
         )
-    if request.assigned_user_id and not check_permission(db, user, "assign_tasks"):
+
+    has_assign = request.assigned_user_id or request.assigned_username
+    if has_assign and not check_permission(db, user, "assign_tasks"):
         raise HTTPException(status_code=403, detail="Нет прав на назначение задач")
 
     # Парсим текст
@@ -524,7 +529,100 @@ async def create_task_from_text(
         )
 
     parsed = parse_result["data"]
+    external_id = parsed.get("external_id")
+    tenant = TenantFilter(user)
 
+    # --- Резолвим исполнителя (по ID или username) ---
+    assigned_id = request.assigned_user_id
+    if not assigned_id and request.assigned_username:
+        assigned_user = (
+            db.query(UserModel)
+            .filter(
+                UserModel.username == request.assigned_username,
+                UserModel.is_active.is_(True),
+            )
+            .first()
+        )
+        if assigned_user:
+            try:
+                tenant.enforce_access(
+                    assigned_user,
+                    detail="Нельзя назначить пользователя из другой организации",
+                )
+                assigned_id = assigned_user.id
+            except HTTPException:
+                logger.warning(
+                    f"Пользователь {request.assigned_username} из другой организации, "
+                    "назначение пропущено"
+                )
+        else:
+            logger.warning(
+                f"Пользователь {request.assigned_username} не найден, "
+                "назначение пропущено"
+            )
+    elif assigned_id:
+        assigned_user = db.query(UserModel).filter(UserModel.id == assigned_id).first()
+        if not assigned_user:
+            assigned_id = None
+        else:
+            tenant.enforce_access(
+                assigned_user,
+                detail="Нельзя назначить пользователя из другой организации",
+            )
+
+    # --- Дедупликация: ищем существующую заявку по external_id ---
+    if external_id:
+        existing_query = db.query(TaskModel).filter(
+            TaskModel.task_number == external_id,
+        )
+        existing_query = tenant.apply(existing_query, TaskModel)
+        existing_task = existing_query.first()
+
+        if existing_task:
+            # Заявка с таким номером уже есть — добавляем комментарий
+            comment_author = f"Telegram: {request.sender}" if request.sender else "Telegram бот"
+            comment = CommentModel(
+                task_id=existing_task.id,
+                text=request.text,
+                author=comment_author,
+            )
+            db.add(comment)
+
+            # Если заявка ещё не назначена, а мы знаем исполнителя — назначаем
+            if assigned_id and not existing_task.assigned_user_id:
+                existing_task.assigned_user_id = assigned_id
+                assigned_user_obj = (
+                    db.query(UserModel).filter(UserModel.id == assigned_id).first()
+                )
+                assign_name = (
+                    assigned_user_obj.full_name or assigned_user_obj.username
+                    if assigned_user_obj
+                    else str(assigned_id)
+                )
+                assign_comment = CommentModel(
+                    task_id=existing_task.id,
+                    text=f"Автоназначение: → {assign_name}",
+                    author="Система",
+                    new_assignee=assign_name,
+                )
+                db.add(assign_comment)
+
+            db.commit()
+            db.refresh(existing_task)
+
+            source_log = f" [{request.source}]" if request.source else ""
+            logger.info(
+                f"📝 Заявка №{existing_task.task_number} дополнена комментарием{source_log}"
+            )
+
+            return CreateTaskFromTextResponse(
+                success=True,
+                task=task_to_response(existing_task),
+                parsed_data=parsed,
+                updated_existing=True,
+            )
+
+    # --- Создание новой заявки ---
     # Добавляем информацию об источнике в описание
     description = parsed.get("description", "")
     if request.source or request.sender:
@@ -539,22 +637,7 @@ async def create_task_from_text(
     address = parsed.get("address", "")
     lat, lon = geocoding_service.geocode(address)
 
-    # Определяем номер заявки
-    external_id = parsed.get("external_id")
-    task_number = external_id  # Используем номер из диспетчерской если есть
-
-    # Проверяем исполнителя
-    assigned_id = request.assigned_user_id
-    tenant = TenantFilter(user)
-    if assigned_id:
-        assigned_user = db.query(UserModel).filter(UserModel.id == assigned_id).first()
-        if not assigned_user:
-            assigned_id = None
-        else:
-            tenant.enforce_access(
-                assigned_user,
-                detail="Нельзя назначить пользователя из другой организации",
-            )
+    task_number = external_id
 
     # Создаём заявку
     db_task = TaskModel(

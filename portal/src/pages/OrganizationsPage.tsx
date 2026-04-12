@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { mutationToast } from '@/utils/apiError'
 import { formatDateOnly } from '@/utils/dateFormat'
+import { buildAdminUsernameSeed, sanitizeUsername } from '@/utils/organization'
 import { getLoginUrl } from '@/config/appConfig'
 import {
   ArrowRight,
@@ -100,18 +101,6 @@ function generateAdminPassword(length = 14): string {
   return Array.from(array, (value) => alphabet[value % alphabet.length]).join('')
 }
 
-function buildAdminUsernameSeed(name: string): string {
-  const base = name
-    .toLowerCase()
-    .trim()
-    .replace(/[^\\p{L}\\p{N}\\s-]/gu, '')
-    .replace(/[\s-]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 84)
-
-  return base ? `${base}_admin` : 'org_admin'
-}
-
 export default function OrganizationsPage() {
   const navigate = useNavigate()
   const [showModal, setShowModal] = useState(false)
@@ -197,7 +186,7 @@ export default function OrganizationsPage() {
 
   const handleInitialAdminUsernameChange = (value: string) => {
     setIsAdminUsernameDirty(true)
-    setInitialAdmin((current) => ({ ...current, username: value }))
+    setInitialAdmin((current) => ({ ...current, username: sanitizeUsername(value) }))
   }
 
   const handleGenerateAdminPassword = () => {
@@ -828,14 +817,14 @@ export default function OrganizationsPage() {
                     </div>
                   </div>
                   <div className="md:col-span-2 -mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
-                    <span>Логин генерируется из названия организации, но его можно изменить вручную.</span>
+                    <span>Логин генерируется латиницей. Разрешены буквы a-z, цифры и символы `.`, `_`, `-`.</span>
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
                         onClick={handleResetAdminUsername}
                         className="font-medium text-primary-600 transition hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
                       >
-                        Сбросить логин по slug
+                        Сбросить логин
                       </button>
                       <button
                         type="button"

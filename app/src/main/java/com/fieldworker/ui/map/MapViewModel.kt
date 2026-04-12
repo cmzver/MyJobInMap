@@ -79,6 +79,10 @@ data class MapUiState(
             if (statusFilter.isNotEmpty()) {
                 result = result.filter { it.status in statusFilter }
             }
+
+            if (priorityFilter.isNotEmpty()) {
+                result = result.filter { it.priority in priorityFilter }
+            }
             
             // Поиск по тексту (включая номер заявки)
             if (searchQuery.isNotBlank()) {
@@ -171,12 +175,17 @@ class MapViewModel @Inject constructor(
      */
     private fun observePreferencesChanges() {
         viewModelScope.launch {
-            preferences.statusFilter.collect { statusFilter ->
+            preferences.statusFilterUpdates().collect { statusFilter ->
                 _uiState.update { it.copy(statusFilter = statusFilter) }
             }
         }
         viewModelScope.launch {
-            preferences.showMyLocation.collect { showMyLocation ->
+            preferences.priorityFilterUpdates().collect { priorityFilter ->
+                _uiState.update { it.copy(priorityFilter = priorityFilter) }
+            }
+        }
+        viewModelScope.launch {
+            preferences.showMyLocationUpdates().collect { showMyLocation ->
                 _uiState.update { it.copy(showMyLocation = showMyLocation) }
             }
         }
@@ -231,11 +240,10 @@ class MapViewModel @Inject constructor(
         _uiState.update { 
             it.copy(
                 statusFilter = preferences.getStatusFilter(),
-                priorityFilter = emptySet(),
+                priorityFilter = preferences.getPriorityFilter(),
                 showMyLocation = preferences.getShowMyLocation()
             )
         }
-        preferences.setPriorityFilter(emptySet())
     }
     
     /**

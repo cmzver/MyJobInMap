@@ -575,6 +575,7 @@ class CreateTaskFromTextRequest(BaseModel):
     source: Optional[str] = None  # telegram, web
     sender: Optional[str] = None  # Отправитель (имя/номер)
     assigned_user_id: Optional[int] = None  # Назначить исполнителя
+    assigned_username: Optional[str] = None  # Назначить по username (альтернатива ID)
 
 
 class CreateTaskFromTextResponse(BaseModel):
@@ -584,3 +585,4 @@ class CreateTaskFromTextResponse(BaseModel):
     task: Optional[TaskResponse] = None
     parsed_data: Optional[dict] = None
     error: Optional[str] = None
+    updated_existing: bool = False  # True если дополнена существующая заявка

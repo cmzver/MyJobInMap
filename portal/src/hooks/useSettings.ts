@@ -158,3 +158,52 @@ export function useDeleteDefectType() {
     },
   })
 }
+
+// ============================================
+// Telegram Bot Settings
+// ============================================
+
+export interface TelegramGroupMapping {
+  group_name: string
+  username: string
+}
+
+export interface TelegramBotSettings {
+  enabled: boolean
+  group_worker_map: TelegramGroupMapping[]
+  dedup_enabled: boolean
+}
+
+export const telegramBotApi = {
+  async getSettings(): Promise<TelegramBotSettings> {
+    const { data } = await apiClient.get<TelegramBotSettings>('/admin/telegram-bot')
+    return data
+  },
+
+  async updateSettings(settings: TelegramBotSettings): Promise<void> {
+    await apiClient.patch('/admin/telegram-bot', settings)
+  },
+}
+
+const telegramBotKeys = {
+  settings: ['telegram-bot-settings'] as const,
+}
+
+export function useTelegramBotSettings() {
+  return useQuery({
+    queryKey: telegramBotKeys.settings,
+    queryFn: () => telegramBotApi.getSettings(),
+    staleTime: 300000,
+  })
+}
+
+export function useUpdateTelegramBotSettings() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (settings: TelegramBotSettings) => telegramBotApi.updateSettings(settings),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: telegramBotKeys.settings })
+    },
+  })
+}

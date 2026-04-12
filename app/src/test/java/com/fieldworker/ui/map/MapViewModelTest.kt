@@ -1,9 +1,8 @@
 package com.fieldworker.ui.map
 
-import android.content.Context
-import android.content.SharedPreferences
 import com.fieldworker.data.network.NetworkMonitor
 import com.fieldworker.data.preferences.AppPreferences
+import com.fieldworker.data.repository.AddressRepository
 import com.fieldworker.data.repository.AuthRepository
 import com.fieldworker.data.sync.SyncManager
 import com.fieldworker.domain.model.*
@@ -46,6 +45,7 @@ class MapViewModelTest {
     private lateinit var updateTaskStatusUseCase: UpdateTaskStatusUseCase
     private lateinit var taskPhotosUseCase: TaskPhotosUseCase
     private lateinit var taskCommentsUseCase: TaskCommentsUseCase
+    private lateinit var addressRepository: AddressRepository
     private lateinit var networkMonitor: NetworkMonitor
     private lateinit var syncManager: SyncManager
     private lateinit var preferences: AppPreferences
@@ -82,62 +82,43 @@ class MapViewModelTest {
      * поэтому используем реальный экземпляр с фейковым хранилищем.
      */
     private fun createRealPreferences(): AppPreferences {
-        val storage = mutableMapOf<String, Any?>()
-        val mockEditor = mockk<SharedPreferences.Editor>(relaxed = true)
-        val mockSharedPrefs = mockk<SharedPreferences>(relaxed = true)
-        val mockContext = mockk<Context>(relaxed = true)
+        val preferences = mockk<AppPreferences>(relaxed = true)
+        val statusFilterFlow = MutableStateFlow(
+            setOf(TaskStatus.NEW, TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED)
+        )
+        val priorityFilterFlow = MutableStateFlow(emptySet<Priority>())
+        val showMyLocationFlow = MutableStateFlow(true)
+        var authToken: String? = "token"
 
-        // SharedPreferences.Editor — запись в storage
-        every { mockEditor.putString(any(), any()) } answers {
-            storage[firstArg()] = secondArg<String?>()
-            mockEditor
-        }
-        every { mockEditor.putStringSet(any(), any()) } answers {
-            storage[firstArg()] = secondArg<Set<String>?>()
-            mockEditor
-        }
-        every { mockEditor.putBoolean(any(), any()) } answers {
-            storage[firstArg()] = secondArg<Boolean>()
-            mockEditor
-        }
-        every { mockEditor.putInt(any(), any()) } answers {
-            storage[firstArg()] = secondArg<Int>()
-            mockEditor
-        }
-        every { mockEditor.putLong(any(), any()) } answers {
-            storage[firstArg()] = secondArg<Long>()
-            mockEditor
-        }
-        every { mockEditor.remove(any()) } answers {
-            storage.remove(firstArg<String>())
-            mockEditor
-        }
-        every { mockEditor.clear() } answers {
-            storage.clear()
-            mockEditor
+        every { preferences.statusFilterUpdates() } returns statusFilterFlow
+        every { preferences.priorityFilterUpdates() } returns priorityFilterFlow
+        every { preferences.showMyLocationUpdates() } returns showMyLocationFlow
+
+        every { preferences.getStatusFilter() } answers { statusFilterFlow.value }
+        every { preferences.setStatusFilter(any()) } answers {
+            statusFilterFlow.value = firstArg()
+            Unit
         }
 
-        // SharedPreferences — чтение из storage
-        every { mockSharedPrefs.getString(any(), any()) } answers {
-            storage[firstArg()] as? String ?: secondArg()
+        every { preferences.getPriorityFilter() } answers { priorityFilterFlow.value }
+        every { preferences.setPriorityFilter(any()) } answers {
+            priorityFilterFlow.value = firstArg()
+            Unit
         }
-        @Suppress("UNCHECKED_CAST")
-        every { mockSharedPrefs.getStringSet(any(), any()) } answers {
-            storage[firstArg()] as? Set<String> ?: secondArg()
-        }
-        every { mockSharedPrefs.getBoolean(any(), any()) } answers {
-            storage[firstArg()] as? Boolean ?: secondArg()
-        }
-        every { mockSharedPrefs.getInt(any(), any()) } answers {
-            storage[firstArg()] as? Int ?: secondArg()
-        }
-        every { mockSharedPrefs.getLong(any(), any()) } answers {
-            storage[firstArg()] as? Long ?: secondArg()
-        }
-        every { mockSharedPrefs.edit() } returns mockEditor
-        every { mockContext.getSharedPreferences(any(), any()) } returns mockSharedPrefs
 
-        return AppPreferences(mockContext)
+        every { preferences.getShowMyLocation() } answers { showMyLocationFlow.value }
+        every { preferences.setShowMyLocation(any()) } answers {
+            showMyLocationFlow.value = firstArg()
+            Unit
+        }
+
+        every { preferences.getAuthToken() } answers { authToken }
+        every { preferences.triggerLogout() } answers {
+            authToken = null
+            Unit
+        }
+
+        return preferences
     }
 
     @Before
@@ -151,14 +132,14 @@ class MapViewModelTest {
         updateTaskStatusUseCase = mockk(relaxed = true)
         taskPhotosUseCase = mockk(relaxed = true)
         taskCommentsUseCase = mockk(relaxed = true)
+        addressRepository = mockk(relaxed = true)
+        coEvery { addressRepository.findAddressForTask(any()) } returns Result.success(null)
         
         networkMonitor = mockk(relaxed = true)
         every { networkMonitor.isOnline } returns networkOnlineFlow
         
         syncManager = mockk(relaxed = true)
         
-        // Реальный AppPreferences с фейковым SharedPreferences хранилищем
-        // (MockK не может мокать этот final-класс на JDK 21)
         preferences = createRealPreferences()
         
         authRepository = mockk(relaxed = true)
@@ -175,7 +156,7 @@ class MapViewModelTest {
         
         return MapViewModel(
             getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
-            taskCommentsUseCase, networkMonitor, syncManager, preferences, authRepository
+            taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository
         )
     }
 
@@ -216,13 +197,13 @@ class MapViewModelTest {
 
         val viewModel = MapViewModel(
             getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
-            taskCommentsUseCase, networkMonitor, syncManager, preferences, authRepository
+            taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository
         )
         advanceUntilIdle()
 
         coVerify { getTasksUseCase.clearCache() }
         // AppPreferences — реальный экземпляр, проверяем эффект triggerLogout()
-        assertTrue(preferences.forcedLogoutRequested)
+        verify { preferences.triggerLogout() }
         assertNull(preferences.getAuthToken())
         assertTrue(viewModel.uiState.value.tasks.isEmpty())
     }
@@ -234,7 +215,7 @@ class MapViewModelTest {
 
         val viewModel = MapViewModel(
             getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
-            taskCommentsUseCase, networkMonitor, syncManager, preferences, authRepository
+            taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository
         )
         advanceUntilIdle()
 
@@ -289,11 +270,11 @@ class MapViewModelTest {
 
         val viewModel = MapViewModel(
             getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
-            taskCommentsUseCase, networkMonitor, syncManager, preferences, authRepository
+            taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository
         )
         advanceUntilIdle()
 
-        assertTrue(preferences.forcedLogoutRequested)
+        verify { preferences.triggerLogout() }
         assertNull(preferences.getAuthToken())
     }
 
@@ -416,7 +397,7 @@ class MapViewModelTest {
         viewModel.setStatusFilter(filter)
 
         assertEquals(filter, viewModel.uiState.value.statusFilter)
-        assertEquals(filter, preferences.statusFilter.value)
+        assertEquals(filter, preferences.getStatusFilter())
     }
 
     @Test
@@ -428,7 +409,7 @@ class MapViewModelTest {
         viewModel.setPriorityFilter(filter)
 
         assertEquals(filter, viewModel.uiState.value.priorityFilter)
-        assertEquals(filter, preferences.priorityFilter.value)
+        assertEquals(filter, preferences.getPriorityFilter())
     }
 
     @Test
@@ -489,7 +470,7 @@ class MapViewModelTest {
         viewModel.toggleShowMyLocation(false)
 
         assertFalse(viewModel.uiState.value.showMyLocation)
-        assertFalse(preferences.showMyLocation.value)
+        assertFalse(preferences.getShowMyLocation())
     }
 
     // ==================== Статус диалог ====================

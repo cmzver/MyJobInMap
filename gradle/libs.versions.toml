@@ -54,6 +54,7 @@ osmdroid = "6.1.18"
 
 # Google Services Plugin
 googleServices = "4.4.0"
+desugarJdkLibs = "2.1.4"
 
 # Testing
 junit = "4.13.2"
@@ -118,6 +119,7 @@ androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version
 
 # Google Play Services
 play-services-base = { module = "com.google.android.gms:play-services-base", version.ref = "playServicesBase" }
+desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 
 # Room
 room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }

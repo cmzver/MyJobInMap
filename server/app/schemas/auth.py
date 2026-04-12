@@ -7,7 +7,7 @@ Auth Schemas
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import UserRole
 
@@ -19,7 +19,7 @@ class Token(BaseModel):
     refresh_token: str
     token_type: str
     user_id: int
-    username: str
+    username: str = Field(min_length=3, max_length=50, pattern=r"^[A-Za-z0-9._-]+$")
     role: str
     full_name: str
     avatar_url: Optional[str] = None
@@ -36,7 +36,12 @@ class RefreshRequest(BaseModel):
 class TokenData(BaseModel):
     """Данные из токена"""
 
-    username: Optional[str] = None
+    username: Optional[str] = Field(
+        default=None,
+        min_length=3,
+        max_length=50,
+        pattern=r"^[A-Za-z0-9._-]+$",
+    )
     user_id: Optional[int] = None
     role: Optional[str] = None
 
@@ -44,7 +49,7 @@ class TokenData(BaseModel):
 class UserCreate(BaseModel):
     """Создание пользователя"""
 
-    username: str
+    username: str = Field(min_length=3, max_length=50, pattern=r"^[A-Za-z0-9._-]+$")
     password: str
     full_name: str = ""
     email: Optional[str] = None
@@ -56,7 +61,12 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     """Обновление пользователя"""
 
-    username: Optional[str] = None
+    username: Optional[str] = Field(
+        default=None,
+        min_length=3,
+        max_length=50,
+        pattern=r"^[A-Za-z0-9._-]+$",
+    )
     password: Optional[str] = None
     full_name: Optional[str] = None
     email: Optional[str] = None

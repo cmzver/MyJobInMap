@@ -38,7 +38,12 @@ class OrganizationCreate(BaseModel):
 
 
 class InitialAdminCreate(BaseModel):
-    username: str = Field(..., min_length=3, max_length=100)
+    username: str = Field(
+        ...,
+        min_length=3,
+        max_length=50,
+        pattern=r"^[A-Za-z0-9._-]+$",
+    )
     password: str = Field(..., min_length=4, max_length=128)
     full_name: str = Field(default="", max_length=200)
     email: Optional[str] = None

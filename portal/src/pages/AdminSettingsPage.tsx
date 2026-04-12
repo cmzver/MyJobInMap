@@ -28,6 +28,7 @@ import {
   User,
   Clock,
   RotateCcw,
+  Bot,
 } from 'lucide-react'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
@@ -36,7 +37,10 @@ import Spinner from '@/components/Spinner'
 import EmptyState from '@/components/EmptyState'
 import apiClient from '@/api/client'
 import { useDevices, useSendTestNotification, useDeleteDevice } from '@/hooks/useDevices'
+import { useUsers } from '@/hooks/useUsers'
 import { useSetting, useSettings, useUpdateSetting } from '@/hooks/useSettings'
+import { useTelegramBotSettings, useUpdateTelegramBotSettings } from '@/hooks/useSettings'
+import type { TelegramGroupMapping } from '@/hooks/useSettings'
 import { formatDateTime as formatDate } from '@/utils/dateFormat'
 import { cn } from '@/utils/cn'
 import { UpdatesManagementSection } from '@/pages/UpdatesPage'
@@ -88,6 +92,7 @@ type SettingsPanelId =
   | 'task-fields'
   | 'task-layout'
   | 'permissions-matrix'
+  | 'telegram-bot'
 
 type SettingsMenuGroup = {
   id: string
@@ -136,6 +141,13 @@ const settingsMenuGroups: SettingsMenuGroup[] = [
     label: 'Права доступа',
     items: [
       { id: 'permissions-matrix', label: 'Матрица прав', description: 'Разрешения по ролям и доступам', icon: UserCog },
+    ],
+  },
+  {
+    id: 'integrations',
+    label: 'Интеграции',
+    items: [
+      { id: 'telegram-bot', label: 'Telegram бот', description: 'Маппинг групп, автоназначение, дедупликация', icon: Bot },
     ],
   },
 ]
@@ -281,6 +293,7 @@ export default function AdminSettingsPage() {
           {activePanel === 'task-fields' && <CustomFieldsTab />}
           {activePanel === 'task-layout' && <CardBuilderTab />}
           {activePanel === 'permissions-matrix' && <PermissionsTab />}
+          {activePanel === 'telegram-bot' && <TelegramBotSettingsTab />}
         </div>
       </section>
     </div>
@@ -1999,6 +2012,188 @@ function DevicesTab() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ============= Telegram Bot Settings Tab =============
+function TelegramBotSettingsTab() {
+  const { data: botSettings, isLoading } = useTelegramBotSettings()
+  const { data: users } = useUsers()
+  const updateMutation = useUpdateTelegramBotSettings()
+
+  const [enabled, setEnabled] = useState(true)
+  const [dedupEnabled, setDedupEnabled] = useState(true)
+  const [mappings, setMappings] = useState<TelegramGroupMapping[]>([])
+  const [newGroupName, setNewGroupName] = useState('')
+  const [newUsername, setNewUsername] = useState('')
+
+  // Фильтруем активных работников и диспетчеров
+  const workers = (users ?? []).filter(
+    (u) => u.is_active && (u.role === 'worker' || u.role === 'dispatcher')
+  )
+
+  useEffect(() => {
+    if (botSettings) {
+      setEnabled(botSettings.enabled)
+      setDedupEnabled(botSettings.dedup_enabled)
+      setMappings(botSettings.group_worker_map)
+    }
+  }, [botSettings])
+
+  const handleAddMapping = () => {
+    const trimmedGroup = newGroupName.trim()
+    const trimmedUsername = newUsername.trim()
+    if (!trimmedGroup || !trimmedUsername) return
+    if (mappings.some((m) => m.group_name.toLowerCase() === trimmedGroup.toLowerCase())) {
+      toast.error('Маппинг для этой группы уже существует')
+      return
+    }
+    setMappings([...mappings, { group_name: trimmedGroup, username: trimmedUsername }])
+    setNewGroupName('')
+    setNewUsername('')
+  }
+
+  const handleRemoveMapping = (index: number) => {
+    setMappings(mappings.filter((_, i) => i !== index))
+  }
+
+  const handleSave = async () => {
+    try {
+      await updateMutation.mutateAsync({
+        enabled,
+        dedup_enabled: dedupEnabled,
+        group_worker_map: mappings,
+      })
+      showApiSuccess('Настройки Telegram-бота сохранены')
+    } catch (error) {
+      showApiError(error, 'Не удалось сохранить настройки')
+    }
+  }
+
+  const getUserDisplayName = (username: string) => {
+    const user = workers.find((u) => u.username === username)
+    return user ? `${user.full_name || user.username}` : username
+  }
+
+  return (
+    <div className="space-y-6">
+      {isLoading ? (
+        <div className="flex justify-center py-8"><Spinner /></div>
+      ) : (
+        <>
+          <CompactGroupLabel icon={Bot} title="Основные настройки" />
+
+          <CompactToggleRow
+            title="Бот включён"
+            description="Разрешить боту создавать заявки из Telegram-групп"
+            checked={enabled}
+            onChange={setEnabled}
+          />
+
+          <CompactToggleRow
+            title="Дедупликация заявок"
+            description="При повторной заявке с тем же номером — добавлять комментарий вместо дубликата"
+            checked={dedupEnabled}
+            onChange={setDedupEnabled}
+          />
+
+          <CompactGroupLabel icon={User} title="Маппинг групп → работники" className="pt-4" />
+
+          <CompactNotice>
+            Подстрока названия Telegram-группы (в нижнем регистре) сопоставляется с username работника.
+            Например: группа «Заявки Иванов» → работник «ivanov».
+          </CompactNotice>
+
+          {mappings.length > 0 && (
+            <div className="space-y-2">
+              {mappings.map((m, index) => (
+                <div
+                  key={index}
+                  className="grid grid-cols-[1fr_1fr_auto] gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-800 dark:bg-gray-900/70"
+                >
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Группа</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{m.group_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Работник</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{getUserDisplayName(m.username)}</p>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveMapping(index)}
+                    className="self-center rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
+                    title="Удалить"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {mappings.length === 0 && (
+            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 py-6 text-center dark:border-gray-700 dark:bg-gray-900/50">
+              <Bot className="mx-auto h-8 w-8 text-gray-400" />
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Маппинги не настроены</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Добавьте соответствие Telegram-группы и работника</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-800 dark:bg-gray-900/70">
+            <div>
+              <Input
+                placeholder="Подстрока группы, напр. заявки иванов"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddMapping()}
+              />
+            </div>
+            <div>
+              {workers.length > 0 ? (
+                <select
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  className="h-full w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                >
+                  <option value="">Выберите работника</option>
+                  {workers.map((w) => (
+                    <option key={w.id} value={w.username}>
+                      {w.full_name || w.username} ({w.username})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  placeholder="Username работника"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddMapping()}
+                />
+              )}
+            </div>
+            <button
+              onClick={handleAddMapping}
+              disabled={!newGroupName.trim() || !newUsername.trim()}
+              className="self-center rounded-md bg-blue-600 p-2 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Добавить маппинг"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+
+          <CompactActionRow
+            title="Сохранить настройки бота"
+            description="Применяет флаги и маппинг групп"
+            actions={
+              <Button onClick={handleSave} disabled={updateMutation.isPending}>
+                <Save className="h-4 w-4 mr-2" />
+                {updateMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+              </Button>
+            }
+          />
+        </>
+      )}
     </div>
   )
 }
