@@ -2067,12 +2067,31 @@ function TelegramBotSettingsTab() {
     setMappings(mappings.filter((_, i) => i !== index))
   }
 
+  const handleChangeWorker = (index: number, username: string) => {
+    setMappings(mappings.map((m, i) => (i === index ? { ...m, username } : m)))
+  }
+
   const handleSave = async () => {
+    // Автоматически добавляем незавершённый маппинг, если пользователь заполнил поля но не нажал "+"
+    let finalMappings = [...mappings]
+    const effectiveGroup = newGroupName === '__custom__' ? customGroupName : newGroupName
+    const pendingGroup = effectiveGroup.trim()
+    const pendingUsername = newUsername.trim()
+    if (pendingGroup && pendingUsername) {
+      if (!finalMappings.some((m) => m.group_name.toLowerCase() === pendingGroup.toLowerCase())) {
+        finalMappings = [...finalMappings, { group_name: pendingGroup, username: pendingUsername }]
+        setMappings(finalMappings)
+        setNewGroupName('')
+        setCustomGroupName('')
+        setNewUsername('')
+      }
+    }
+
     try {
       await updateMutation.mutateAsync({
         enabled,
         dedup_enabled: dedupEnabled,
-        group_worker_map: mappings,
+        group_worker_map: finalMappings,
       })
       showApiSuccess('Настройки Telegram-бота сохранены')
     } catch (error) {
@@ -2128,7 +2147,21 @@ function TelegramBotSettingsTab() {
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Работник</p>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{getUserDisplayName(m.username)}</p>
+                    {workers.length > 0 ? (
+                      <select
+                        value={m.username}
+                        onChange={(e) => handleChangeWorker(index, e.target.value)}
+                        className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                      >
+                        {workers.map((w) => (
+                          <option key={w.id} value={w.username}>
+                            {w.full_name || w.username} ({w.username})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{getUserDisplayName(m.username)}</p>
+                    )}
                   </div>
                   <button
                     onClick={() => handleRemoveMapping(index)}
