@@ -163,6 +163,44 @@ def get_group_worker_map() -> dict[str, str]:
     return settings.get("mappings", _ENV_GROUP_WORKER_MAP)
 
 
+# Кэш уже отправленных групп (chat_id → title), чтобы не слать повторно
+_REPORTED_GROUPS: dict[int, str] = {}
+
+
+def _report_group(chat_id: int, title: str) -> None:
+    """
+    Сообщить серверу о группе, в которой бот находится.
+    Отправляет только если группа новая или название изменилось.
+    """
+    if _REPORTED_GROUPS.get(chat_id) == title:
+        return
+    try:
+        headers = get_api_headers()
+        if not headers:
+            return
+        resp = requests.post(
+            f"{API_BASE_URL}/api/public/telegram-bot/report-group",
+            json={"chat_id": chat_id, "title": title},
+            headers=headers,
+            timeout=5,
+        )
+        if resp.status_code == 401:
+            headers = get_api_headers(force_refresh=True)
+            if not headers:
+                return
+            resp = requests.post(
+                f"{API_BASE_URL}/api/public/telegram-bot/report-group",
+                json={"chat_id": chat_id, "title": title},
+                headers=headers,
+                timeout=5,
+            )
+        if resp.ok:
+            _REPORTED_GROUPS[chat_id] = title
+            logger.debug(f"Группа зарегистрирована: {title} ({chat_id})")
+    except Exception as exc:
+        logger.debug(f"Не удалось зарегистрировать группу: {exc}")
+
+
 def is_potential_task(text: str) -> bool:
     """
     Быстрая проверка, похоже ли сообщение на заявку.
@@ -272,6 +310,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Быстрая проверка — похоже ли на заявку
     if not is_potential_task(text):
         return
+    
+    # Регистрируем группу на сервере (если ещё не отправляли)
+    if chat.title and chat.id:
+        _report_group(chat.id, chat.title)
     
     # Определяем отправителя
     sender = user.username or user.first_name or str(user.id)

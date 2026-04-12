@@ -180,7 +180,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   )
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-gray-50 transition-colors dark:bg-gray-900">
+    <div className="min-h-screen overflow-x-clip bg-gray-50 transition-colors dark:bg-gray-900">
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 transition-colors">
         <div className="px-4 sm:px-6 lg:px-8">

@@ -394,6 +394,7 @@ async def update_settings_bulk(
 # ============================================
 
 TELEGRAM_SETTINGS_KEY = "telegram_group_worker_map"
+TELEGRAM_KNOWN_GROUPS_KEY = "telegram_known_groups"
 
 
 class TelegramGroupMapping(BaseModel):
@@ -419,12 +420,20 @@ class TelegramGroupMapping(BaseModel):
         return v
 
 
+class TelegramKnownGroup(BaseModel):
+    """Группа, в которой бот был замечен"""
+    chat_id: int
+    title: str
+    last_seen: Optional[str] = None
+
+
 class TelegramBotSettingsResponse(BaseModel):
     """Полные настройки Telegram-бота"""
 
     enabled: bool
     group_worker_map: List[TelegramGroupMapping]
     dedup_enabled: bool
+    known_groups: List[TelegramKnownGroup] = []
 
 
 def _get_bot_mappings(db: Session) -> list:
@@ -466,6 +475,45 @@ def _save_bot_mappings(db: Session, mappings: list, updated_by: str) -> None:
     db.commit()
 
 
+def _get_known_groups(db: Session) -> list:
+    """Получить список известных групп из БД."""
+    raw = get_setting(db, TELEGRAM_KNOWN_GROUPS_KEY)
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, list) else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+    return []
+
+
+def _save_known_groups(db: Session, groups: list) -> None:
+    """Сохранить список известных групп в БД."""
+    setting = (
+        db.query(SystemSettingModel)
+        .filter(SystemSettingModel.key == TELEGRAM_KNOWN_GROUPS_KEY)
+        .first()
+    )
+    value = json.dumps(groups, ensure_ascii=False)
+    if setting:
+        setting.value = value
+        setting.value_type = "json"
+    else:
+        setting = SystemSettingModel(
+            key=TELEGRAM_KNOWN_GROUPS_KEY,
+            value=value,
+            value_type="json",
+            group="telegram",
+            label="Известные Telegram-группы",
+            description="Группы, в которых бот обнаружил активность",
+            is_hidden=True,
+        )
+        db.add(setting)
+    db.commit()
+
+
 @router.get("/telegram-bot", response_model=TelegramBotSettingsResponse)
 async def get_telegram_bot_settings(
     db: Session = Depends(get_db),
@@ -475,10 +523,12 @@ async def get_telegram_bot_settings(
     mappings = _get_bot_mappings(db)
     enabled = bool(get_setting(db, "telegram_bot_enabled", True))
     dedup = bool(get_setting(db, "telegram_bot_dedup_enabled", True))
+    known_groups = _get_known_groups(db)
     return TelegramBotSettingsResponse(
         enabled=enabled,
         group_worker_map=[TelegramGroupMapping(**m) for m in mappings if "group_name" in m and "username" in m],
         dedup_enabled=dedup,
+        known_groups=[TelegramKnownGroup(**g) for g in known_groups if "chat_id" in g and "title" in g],
     )
 
 
@@ -527,3 +577,33 @@ async def get_bot_mappings_public(
         if gn and un:
             result[gn] = un
     return {"enabled": True, "mappings": result, "dedup_enabled": dedup}
+
+
+class _ReportGroupBody(BaseModel):
+    chat_id: int
+    title: str
+
+
+@public_router.post("/telegram-bot/report-group")
+async def report_bot_group(
+    body: _ReportGroupBody,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(require_permission("create_tasks")),
+):
+    """
+    Бот сообщает о группе, в которой он находится.
+    Обновляет last_seen если группа уже известна, иначе добавляет.
+    """
+    groups = _get_known_groups(db)
+    now = datetime.utcnow().isoformat()
+    found = False
+    for g in groups:
+        if g.get("chat_id") == body.chat_id:
+            g["title"] = body.title
+            g["last_seen"] = now
+            found = True
+            break
+    if not found:
+        groups.append({"chat_id": body.chat_id, "title": body.title, "last_seen": now})
+    _save_known_groups(db, groups)
+    return {"status": "ok"}

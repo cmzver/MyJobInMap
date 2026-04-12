@@ -40,7 +40,7 @@ import { useDevices, useSendTestNotification, useDeleteDevice } from '@/hooks/us
 import { useUsers } from '@/hooks/useUsers'
 import { useSetting, useSettings, useUpdateSetting } from '@/hooks/useSettings'
 import { useTelegramBotSettings, useUpdateTelegramBotSettings } from '@/hooks/useSettings'
-import type { TelegramGroupMapping } from '@/hooks/useSettings'
+import type { TelegramGroupMapping, TelegramKnownGroup } from '@/hooks/useSettings'
 import { formatDateTime as formatDate } from '@/utils/dateFormat'
 import { cn } from '@/utils/cn'
 import { UpdatesManagementSection } from '@/pages/UpdatesPage'
@@ -2026,11 +2026,18 @@ function TelegramBotSettingsTab() {
   const [dedupEnabled, setDedupEnabled] = useState(true)
   const [mappings, setMappings] = useState<TelegramGroupMapping[]>([])
   const [newGroupName, setNewGroupName] = useState('')
+  const [customGroupName, setCustomGroupName] = useState('')
   const [newUsername, setNewUsername] = useState('')
 
   // Фильтруем активных работников и диспетчеров
   const workers = (users ?? []).filter(
     (u) => u.is_active && (u.role === 'worker' || u.role === 'dispatcher')
+  )
+
+  // Известные группы бота, исключая уже добавленные в маппинг
+  const knownGroups: TelegramKnownGroup[] = botSettings?.known_groups ?? []
+  const availableGroups = knownGroups.filter(
+    (g) => !mappings.some((m) => m.group_name.toLowerCase() === g.title.toLowerCase())
   )
 
   useEffect(() => {
@@ -2042,7 +2049,8 @@ function TelegramBotSettingsTab() {
   }, [botSettings])
 
   const handleAddMapping = () => {
-    const trimmedGroup = newGroupName.trim()
+    const effectiveGroup = newGroupName === '__custom__' ? customGroupName : newGroupName
+    const trimmedGroup = effectiveGroup.trim()
     const trimmedUsername = newUsername.trim()
     if (!trimmedGroup || !trimmedUsername) return
     if (mappings.some((m) => m.group_name.toLowerCase() === trimmedGroup.toLowerCase())) {
@@ -2051,6 +2059,7 @@ function TelegramBotSettingsTab() {
     }
     setMappings([...mappings, { group_name: trimmedGroup, username: trimmedUsername }])
     setNewGroupName('')
+    setCustomGroupName('')
     setNewUsername('')
   }
 
@@ -2103,6 +2112,7 @@ function TelegramBotSettingsTab() {
           <CompactNotice>
             Подстрока названия Telegram-группы (в нижнем регистре) сопоставляется с username работника.
             Например: группа «Заявки Иванов» → работник «ivanov».
+            {knownGroups.length > 0 && ' Группы, в которых бот уже работает, доступны для выбора.'}
           </CompactNotice>
 
           {mappings.length > 0 && (
@@ -2142,12 +2152,38 @@ function TelegramBotSettingsTab() {
 
           <div className="grid grid-cols-[1fr_1fr_auto] gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-800 dark:bg-gray-900/70">
             <div>
-              <Input
-                placeholder="Подстрока группы, напр. заявки иванов"
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddMapping()}
-              />
+              {availableGroups.length > 0 ? (
+                <select
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  className="h-full w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                >
+                  <option value="">Выберите группу</option>
+                  {availableGroups.map((g) => (
+                    <option key={g.chat_id} value={g.title}>
+                      {g.title}
+                    </option>
+                  ))}
+                  <option value="__custom__">Ввести вручную...</option>
+                </select>
+              ) : (
+                <Input
+                  placeholder="Подстрока группы, напр. заявки иванов"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddMapping()}
+                />
+              )}
+              {newGroupName === '__custom__' && (
+                <Input
+                  className="mt-1"
+                  placeholder="Подстрока группы, напр. заявки иванов"
+                  value={customGroupName}
+                  onChange={(e) => setCustomGroupName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddMapping()}
+                  autoFocus
+                />
+              )}
             </div>
             <div>
               {workers.length > 0 ? (
@@ -2174,7 +2210,7 @@ function TelegramBotSettingsTab() {
             </div>
             <button
               onClick={handleAddMapping}
-              disabled={!newGroupName.trim() || !newUsername.trim()}
+              disabled={!(newGroupName === '__custom__' ? customGroupName.trim() : newGroupName.trim()) || !newUsername.trim()}
               className="self-center rounded-md bg-blue-600 p-2 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
               title="Добавить маппинг"
             >

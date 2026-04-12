@@ -168,10 +168,17 @@ export interface TelegramGroupMapping {
   username: string
 }
 
+export interface TelegramKnownGroup {
+  chat_id: number
+  title: string
+  last_seen?: string
+}
+
 export interface TelegramBotSettings {
   enabled: boolean
   group_worker_map: TelegramGroupMapping[]
   dedup_enabled: boolean
+  known_groups?: TelegramKnownGroup[]
 }
 
 export const telegramBotApi = {
