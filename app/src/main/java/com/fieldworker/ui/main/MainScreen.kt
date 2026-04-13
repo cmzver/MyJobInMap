@@ -32,6 +32,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.paging.compose.collectAsLazyPagingItems
+import com.fieldworker.ui.components.OfflineBanner
 import com.fieldworker.ui.components.PhotoUploadConfirmDialog
 import com.fieldworker.ui.chat.ChatViewModel
 import com.fieldworker.ui.chat.ChatScreen
@@ -176,7 +177,7 @@ fun MainScreen(
         }
     }
     
-    val showMainTopBar = currentScreen != Screen.Map && currentScreen != Screen.TaskList && currentScreen != Screen.Chat && currentScreen != Screen.Developer && currentScreen != Screen.ObjectCard
+    val showMainTopBar = false
     val showBottomBar = currentScreen != Screen.Developer &&
         currentScreen != Screen.ObjectCard &&
         !isChatConversationOpen
@@ -340,6 +341,14 @@ fun MainScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Баннер офлайн-режима (занимает место сверху, сдвигает контент)
+            OfflineBanner(
+                isOffline = uiState.isOffline,
+                pendingActionsCount = uiState.pendingActionsCount
+            )
+
+            Box(modifier = Modifier.weight(1f)) {
             NavHost(
                 navController = navController,
                 startDestination = Screen.Map.route
@@ -497,7 +506,6 @@ fun MainScreen(
                             onCreateDirectConversation = { chatViewModel.createDirectConversation(it) },
                             onCreateGroupConversation = { name, userIds -> chatViewModel.createGroupConversation(name, userIds) },
                             onRefresh = { chatViewModel.loadConversations() },
-                            onArchiveConversation = { chatViewModel.archiveConversationFromList(it) },
                         )
                     }
                     }
@@ -506,7 +514,6 @@ fun MainScreen(
                 composable(Screen.Settings.route) {
                     SettingsScreen(
                         preferences = viewModel.preferences,
-                        authRepository = viewModel.authRepository,
                         onTestConnection = { url -> viewModel.testConnection(url) },
                         connectionStatus = connectionStatus,
                         onCheckForUpdates = onCheckForUpdates,
@@ -535,9 +542,11 @@ fun MainScreen(
                     )
                 }
             }
-            
-            // Диалог выхода
-            if (showLogoutDialog) {
+            } // Box(weight)
+        } // Column
+
+        // Диалог выхода
+        if (showLogoutDialog) {
                 AlertDialog(
                     onDismissRequest = { showLogoutDialog = false },
                     icon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null) },

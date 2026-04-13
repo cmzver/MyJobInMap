@@ -25,6 +25,7 @@ import com.fieldworker.ui.utils.sortedBy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -152,8 +153,9 @@ class MapViewModel @Inject constructor(
         // Подписываемся на изменения данных из Room
         observeTasksFromDatabase()
         
-        // Подписываемся на состояние сети
+        // Подписываемся на состояние сети + доступность сервера
         observeNetworkStatus()
+        startServerReachabilityCheck()
         
         // Подписываемся на pending actions
         observePendingActions()
@@ -212,13 +214,63 @@ class MapViewModel @Inject constructor(
     private fun observeNetworkStatus() {
         viewModelScope.launch {
             networkMonitor.isOnline.collect { isOnline ->
-                _uiState.update { it.copy(isOffline = !isOnline) }
-                
-                // При появлении сети запускаем синхронизацию
-                if (isOnline) {
-                    syncManager.triggerImmediateSync()
+                if (!isOnline) {
+                    // Нет сети — точно офлайн
+                    _uiState.update { it.copy(isOffline = true) }
+                } else {
+                    // Сеть появилась — проверяем доступность сервера
+                    val reachable = checkServerReachable()
+                    _uiState.update { it.copy(isOffline = !reachable) }
+                    if (reachable) {
+                        syncManager.triggerImmediateSync()
+                    }
                 }
             }
+        }
+    }
+
+    /**
+     * Периодическая проверка доступности сервера (каждые 30с пока офлайн).
+     * Когда онлайн — проверяет реже (каждые 60с).
+     */
+    private fun startServerReachabilityCheck() {
+        viewModelScope.launch {
+            // Начальная проверка с задержкой 2с (дать UI загрузиться)
+            delay(2_000L)
+            while (true) {
+                if (networkMonitor.isCurrentlyOnline()) {
+                    val reachable = checkServerReachable()
+                    val wasOffline = _uiState.value.isOffline
+                    _uiState.update { it.copy(isOffline = !reachable) }
+                    if (reachable && wasOffline) {
+                        syncManager.triggerImmediateSync()
+                    }
+                }
+                val interval = if (_uiState.value.isOffline) 15_000L else 60_000L
+                delay(interval)
+            }
+        }
+    }
+
+    /**
+     * Быстрая проверка доступности сервера через /health (таймаут 3с).
+     */
+    private suspend fun checkServerReachable(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val baseUrl = preferences.getFullServerUrl().trimEnd('/')
+            val healthUrl = "$baseUrl/health"
+            val connection = URL(healthUrl).openConnection() as HttpURLConnection
+            connection.connectTimeout = 3_000
+            connection.readTimeout = 3_000
+            connection.requestMethod = "GET"
+            try {
+                connection.connect()
+                connection.responseCode == HttpURLConnection.HTTP_OK
+            } finally {
+                connection.disconnect()
+            }
+        } catch (_: Exception) {
+            false
         }
     }
     

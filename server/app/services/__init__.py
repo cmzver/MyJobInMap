@@ -19,7 +19,8 @@ from app.services.geocoding import GeocodingService, geocoding_service
 from app.services.image_optimizer import (ImageOptimizationService,
                                           image_optimizer)
 from app.services.notification_service import (
-    create_notification, create_task_assignment_notification,
+    create_comment_notification, create_notification,
+    create_task_assignment_notification,
     create_task_status_notification)
 from app.services.push import (_send_push_sync, init_firebase,
                                send_push_background, send_push_notification)

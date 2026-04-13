@@ -36,10 +36,15 @@ export default function DevicesPage() {
 
   const handleSendTest = async (userId?: number) => {
     try {
-      await sendNotification.mutateAsync(userId)
+      const result = await sendNotification.mutateAsync(userId)
+      const parts: string[] = []
+      if (result.sent_fcm > 0) parts.push(`FCM: ${result.sent_fcm}`)
+      if (result.sent_ws > 0) parts.push(`WebSocket: ${result.sent_ws}`)
+      if (result.failed_fcm > 0) parts.push(`Ошибки FCM: ${result.failed_fcm}`)
+      const detail = parts.length > 0 ? ` (${parts.join(', ')})` : ''
       toast.success(userId 
-        ? 'Тестовое уведомление отправлено' 
-        : 'Уведомление отправлено всем устройствам'
+        ? `Тестовое уведомление отправлено${detail}` 
+        : `Уведомление отправлено всем устройствам${detail}`
       )
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Ошибка отправки')

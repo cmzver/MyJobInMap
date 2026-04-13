@@ -31,6 +31,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import com.fieldworker.data.network.NetworkMonitor
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.AuthRepository
 import com.fieldworker.data.repository.OfflineFirstTasksRepository
@@ -42,6 +43,7 @@ import com.fieldworker.ui.update.UpdateViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import javax.inject.Inject
 
@@ -67,6 +69,9 @@ class MainActivity : ComponentActivity() {
     
     @Inject
     lateinit var authRepository: AuthRepository
+    
+    @Inject
+    lateinit var networkMonitor: NetworkMonitor
     
     private val updateViewModel: UpdateViewModel by viewModels()
     
@@ -137,9 +142,21 @@ class MainActivity : ComponentActivity() {
                             return@LaunchedEffect
                         }
                         
-                        // Есть токен - проверяем сессию на сервере
+                        // Быстрая проверка: если нет сети — сразу в офлайн-режим
+                        if (!networkMonitor.isCurrentlyOnline()) {
+                            Log.w(TAG, "No network detected, skipping validation → offline cached mode")
+                            authState = AuthState.LoggedIn
+                            return@LaunchedEffect
+                        }
+                        
+                        // Есть токен и сеть - проверяем сессию с таймаутом 5с
                         Log.d(TAG, "Token found, validating session on server...")
-                        val validationResult = authRepository.validateCurrentUser()
+                        val validationResult = withTimeoutOrNull(5_000L) {
+                            authRepository.validateCurrentUser()
+                        } ?: run {
+                            Log.w(TAG, "Validation timed out (5s), allowing cached mode")
+                            AuthRepository.ValidationResult.UNKNOWN
+                        }
                         Log.d(TAG, "Validation result: $validationResult")
                         
                         when (validationResult) {
@@ -241,6 +258,9 @@ class MainActivity : ComponentActivity() {
                                         tasksRepository.clearCache()
                                         Log.d(TAG, "Task cache cleared on logout")
                                     }
+                                    // Останавливаем WebSocket fallback сервис
+                                    com.fieldworker.data.realtime.RealtimePushService.stopService(this@MainActivity)
+                                    appPreferences.setRealtimeFallbackEnabled(false)
                                     appPreferences.logout()
                                     // Перезапускаем Activity для полного сброса состояния
                                     val intent = Intent(this@MainActivity, MainActivity::class.java)

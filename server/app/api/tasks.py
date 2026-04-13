@@ -9,7 +9,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import case, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, subqueryload
 
 from app.api.address_extended import build_task_filters_for_address
 from app.api.deps import TaskAccess, require_task_access
@@ -209,14 +209,17 @@ async def get_tasks(
             TaskModel.created_at.desc(),
         ]
 
-    # Применяем пагинацию
-    tasks = query.order_by(*order_by).offset((page - 1) * size).limit(size).all()
-    task_service = TaskService(db)
-    did_repair_coordinates = False
-    for task in tasks:
-        did_repair_coordinates = task_service.repair_task_coordinates(task) or did_repair_coordinates
-    if did_repair_coordinates:
-        db.commit()
+    # Применяем пагинацию + eager loading для устранения N+1
+    tasks = (
+        query.options(
+            joinedload(TaskModel.assigned_user),
+            subqueryload(TaskModel.comments),
+        )
+        .order_by(*order_by)
+        .offset((page - 1) * size)
+        .limit(size)
+        .all()
+    )
 
     return PaginatedResponse(
         items=[task_to_list_response(t) for t in tasks],
@@ -366,9 +369,11 @@ async def add_comment(
     db.commit()
     db.refresh(db_comment)
 
-    # Send push notification to assigned user (if not the author)
+    # In-app уведомление + FCM push
+    from app.services.notification_service import create_comment_notification
     from app.utils import send_comment_notification
 
+    create_comment_notification(db, task, comment.text, user)
     send_comment_notification(task, comment.text, user.id)
 
     return db_comment

@@ -16,17 +16,14 @@ import androidx.work.WorkManager
 import com.fieldworker.data.api.TasksApi
 import com.fieldworker.data.dto.FCMTokenDto
 import com.fieldworker.data.notification.FCMService
-import com.fieldworker.data.notification.TaskPollingWorker
 import com.fieldworker.data.preferences.AppPreferences
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
-import com.google.firebase.messaging.FirebaseMessaging
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration as OsmConfiguration
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 /**
@@ -73,16 +70,10 @@ class FieldWorkerApplication : Application(), Configuration.Provider {
         if (isGooglePlayServicesAvailable()) {
             Log.d(TAG, "Google Play Services available, using FCM")
             registerFCMToken()
-            
-            // Если polling был включен вручную - запускаем его тоже
-            if (preferences.isPollingEnabled()) {
-                Log.d(TAG, "Polling is manually enabled, starting...")
-                startPolling()
-            }
         } else {
-            Log.w(TAG, "Google Play Services NOT available, using polling")
-            preferences.setPollingEnabled(true)
-            startPolling()
+            Log.w(TAG, "Google Play Services NOT available, using WebSocket fallback")
+            preferences.setRealtimeFallbackEnabled(true)
+            startRealtimeFallback()
         }
     }
     
@@ -184,12 +175,12 @@ class FieldWorkerApplication : Application(), Configuration.Provider {
     private fun registerFCMToken() {
         Log.d(TAG, "Attempting to get FCM token...")
         
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+        com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (!task.isSuccessful) {
                 Log.e(TAG, "❌ Failed to get FCM token", task.exception)
-                // Включаем polling как fallback
-                preferences.setPollingEnabled(true)
-                startPolling()
+                // Включаем WebSocket fallback
+                preferences.setRealtimeFallbackEnabled(true)
+                startRealtimeFallback()
                 return@addOnCompleteListener
             }
             
@@ -216,9 +207,9 @@ class FieldWorkerApplication : Application(), Configuration.Provider {
                     val response = tasksApi.registerDevice(dto)
                     if (response.isSuccessful) {
                         Log.d(TAG, "✅ Device registered on server successfully")
-                        // FCM работает, выключаем polling
-                        preferences.setPollingEnabled(false)
-                        stopPolling()
+                        // FCM работает, выключаем WebSocket fallback
+                        preferences.setRealtimeFallbackEnabled(false)
+                        stopRealtimeFallback()
                     } else {
                         Log.e(TAG, "❌ Failed to register device: ${response.code()} ${response.message()}")
                         Log.e(TAG, "   Error body: ${response.errorBody()?.string()}")
@@ -231,17 +222,17 @@ class FieldWorkerApplication : Application(), Configuration.Provider {
     }
     
     /**
-     * Запускает фоновый сервис для устройств без GMS
+     * Запускает фоновый WebSocket сервис для устройств без GMS
      */
-    private fun startPolling() {
-        Log.d(TAG, "Starting Realtime Push Service (without GMS)")
+    fun startRealtimeFallback() {
+        Log.d(TAG, "Starting Realtime Push Service (WebSocket fallback)")
         com.fieldworker.data.realtime.RealtimePushService.startService(this)
     }
     
     /**
-     * Останавливает фоновый сервис
+     * Останавливает фоновый WebSocket сервис
      */
-    private fun stopPolling() {
+    fun stopRealtimeFallback() {
         Log.d(TAG, "Stopping Realtime Push Service")
         com.fieldworker.data.realtime.RealtimePushService.stopService(this)
     }

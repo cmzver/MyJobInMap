@@ -15,19 +15,26 @@ export interface SendTestNotificationPayload {
   user_ids?: number[]
 }
 
+export interface NotificationResult {
+  success: boolean
+  sent_fcm: number
+  failed_fcm: number
+  sent_ws: number
+}
+
 export const devicesApi = {
   list: async (): Promise<Device[]> => {
     const { data } = await apiClient.get<Device[]>('/devices')
     return data
   },
 
-  sendTestNotification: async (userId?: number): Promise<{ success: boolean }> => {
+  sendTestNotification: async (userId?: number): Promise<NotificationResult> => {
     const payload: SendTestNotificationPayload = {
       title: 'Test notification',
       body: 'Push notification check',
       user_ids: userId ? [userId] : undefined,
     }
-    const { data } = await apiClient.post<{ success: boolean }>('/notifications/send', payload)
+    const { data } = await apiClient.post<NotificationResult>('/notifications/send', payload)
     return data
   },
 

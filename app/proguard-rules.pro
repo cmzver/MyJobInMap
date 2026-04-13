@@ -89,7 +89,6 @@
 -keep class * extends androidx.work.Worker { *; }
 -keep class * extends androidx.work.ListenableWorker { *; }
 -keep class com.fieldworker.data.sync.SyncWorker { *; }
--keep class com.fieldworker.data.notification.TaskPollingWorker { *; }
 
 # ==================== Compose ====================
 # Keep Compose stability annotations

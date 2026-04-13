@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from fastapi import Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, subqueryload
 
 from app.models import TaskModel, UserModel, get_db
 from app.services import (check_permission, enforce_worker_task_access,
@@ -11,7 +11,15 @@ from app.services.tenant_filter import TenantFilter
 
 
 def get_task_or_404(task_id: int, db: Session = Depends(get_db)) -> TaskModel:
-    task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
+    task = (
+        db.query(TaskModel)
+        .options(
+            joinedload(TaskModel.assigned_user),
+            subqueryload(TaskModel.comments),
+        )
+        .filter(TaskModel.id == task_id)
+        .first()
+    )
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task

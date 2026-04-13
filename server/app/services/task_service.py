@@ -490,9 +490,7 @@ class TaskService:
 
         # Уведомление новому исполнителю
         if task.assigned_user_id and task.assigned_user_id != old_assignee_id:
-            self._notify_assignment(task)
-
-            # Создание уведомления в БД
+            # Создание уведомления в БД (+ FCM push)
             assigned_to = (
                 self.db.query(UserModel)
                 .filter(UserModel.id == task.assigned_user_id)

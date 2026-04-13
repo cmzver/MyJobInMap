@@ -104,10 +104,10 @@ class TestTaskRetrieval:
         assert len(tasks) >= 1
         assert any(t["title"] == "Test task" for t in tasks)
 
-    def test_get_tasks_repairs_invalid_coordinates_from_known_address(
+    def test_get_tasks_does_not_repair_coordinates_on_list(
         self, client, admin_token, db_session, monkeypatch
     ):
-        """List response should auto-repair legacy 0,0 coordinates when an address card exists."""
+        """List endpoint should NOT repair coordinates (moved to create/update for performance)."""
         from app.models import AddressModel, TaskModel
 
         known_address = AddressModel(
@@ -144,8 +144,9 @@ class TestTaskRetrieval:
         assert response.status_code == 200
         items = response.json()["items"]
         matched_task = next(item for item in items if item["id"] == broken_task.id)
-        assert matched_task["lat"] == pytest.approx(59.9386)
-        assert matched_task["lon"] == pytest.approx(30.3141)
+        # Coordinates should remain unrepaired in list view (performance optimization)
+        assert matched_task["lat"] == pytest.approx(0.0)
+        assert matched_task["lon"] == pytest.approx(0.0)
 
     def test_get_tasks_sorted_by_created_at_asc(self, client, admin_token):
         """Test getting tasks sorted by creation date ascending."""

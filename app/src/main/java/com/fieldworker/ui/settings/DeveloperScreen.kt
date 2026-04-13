@@ -18,17 +18,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationCompat
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
 import com.fieldworker.R
 import com.fieldworker.data.notification.FCMService
-import com.fieldworker.data.notification.TaskPollingWorker
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.ui.MainActivity
 import kotlinx.coroutines.launch
-import java.util.concurrent.TimeUnit
 
 /**
  * Экран для разработчиков с отладочными функциями
@@ -43,9 +37,7 @@ fun DeveloperScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     
-    var lastCheckedId by remember { mutableStateOf(preferences.getLastCheckedTaskId()) }
-    var pollingEnabled by remember { mutableStateOf(preferences.isPollingEnabled()) }
-    var pollingInterval by remember { mutableStateOf(preferences.getPollingIntervalMinutes()) }
+    var realtimeFallbackEnabled by remember { mutableStateOf(preferences.isRealtimeFallbackEnabled()) }
     
     Scaffold(
         topBar = {
@@ -84,9 +76,7 @@ fun DeveloperScreen(
                     
                     InfoRow("Сервер", preferences.getFullServerUrl())
                     InfoRow("FCM токен", preferences.getFcmToken()?.take(30)?.plus("...") ?: "Нет")
-                    InfoRow("Polling включен", if (pollingEnabled) "Да" else "Нет")
-                    InfoRow("Интервал polling", "$pollingInterval мин")
-                    InfoRow("Last checked ID", lastCheckedId.toString())
+                    InfoRow("WebSocket fallback", if (realtimeFallbackEnabled) "Активен" else "Выкл.")
                 }
             }
             
@@ -115,144 +105,6 @@ fun DeveloperScreen(
                 }
             }
             
-            // ==================== Polling ====================
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "Polling (проверка задач)",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = {
-                                preferences.setLastCheckedTaskId(0)
-                                lastCheckedId = 0
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Счётчик сброшен на 0")
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.Clear, contentDescription = null)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Сброс ID")
-                        }
-                        
-                        Button(
-                            onClick = {
-                                OneTimeWorkRequestBuilder<TaskPollingWorker>()
-                                    .build()
-                                    .let { request ->
-                                        WorkManager.getInstance(context).enqueue(request)
-                                    }
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Polling запущен, смотрите Logcat")
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = null)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Запустить")
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Управление периодическим polling
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = {
-                                WorkManager.getInstance(context)
-                                    .cancelUniqueWork(TaskPollingWorker.WORK_NAME)
-                                preferences.setPollingEnabled(false)
-                                pollingEnabled = false
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Периодический polling остановлен")
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.error
-                            )
-                        ) {
-                            Text("Остановить")
-                        }
-                        
-                        Button(
-                            onClick = {
-                                val request = PeriodicWorkRequestBuilder<TaskPollingWorker>(
-                                    pollingInterval.toLong(), TimeUnit.MINUTES
-                                ).build()
-                                
-                                WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-                                    TaskPollingWorker.WORK_NAME,
-                                    ExistingPeriodicWorkPolicy.UPDATE,
-                                    request
-                                )
-                                preferences.setPollingEnabled(true)
-                                pollingEnabled = true
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Polling запущен каждые $pollingInterval мин")
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Запустить периодически")
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text(
-                        "Last Checked ID: $lastCheckedId",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            
-            // ==================== Интервалы ====================
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "Интервал polling",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        AppPreferences.POLLING_INTERVALS.forEach { minutes ->
-                            FilterChip(
-                                selected = pollingInterval == minutes,
-                                onClick = {
-                                    pollingInterval = minutes
-                                    preferences.setPollingIntervalMinutes(minutes)
-                                },
-                                label = { 
-                                    Text(
-                                        if (minutes >= 60) "${minutes/60}ч" else "${minutes}м"
-                                    ) 
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-            }
-            
             // ==================== Сброс ====================
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -266,9 +118,7 @@ fun DeveloperScreen(
                     OutlinedButton(
                         onClick = {
                             preferences.resetToDefaults()
-                            lastCheckedId = 0
-                            pollingEnabled = false
-                            pollingInterval = AppPreferences.DEFAULT_POLLING_INTERVAL
+                            realtimeFallbackEnabled = false
                             scope.launch {
                                 snackbarHostState.showSnackbar("Все настройки сброшены")
                             }

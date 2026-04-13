@@ -88,21 +88,37 @@ def _send_push_sync(
         payload_data = {
             "type": notification_type,
             "task_id": str(task_id) if task_id else "",
+            "title": title,
+            "body": body,
         }
         if extra_data:
             for k, v in extra_data.items():
                 payload_data[k] = str(v)
 
+        # Map notification type to Android channel_id
+        channel_map = {
+            "new_task": "fieldworker_tasks",
+            "task_assigned": "fieldworker_tasks",
+            "task_created": "fieldworker_tasks",
+            "status_change": "fieldworker_status",
+            "chat": "fieldworker_chat",
+            "chat_message": "fieldworker_chat",
+            "alert": "fieldworker_emergency",
+            "emergency": "fieldworker_emergency",
+        }
+        android_channel_id = channel_map.get(notification_type, "fieldworker_tasks")
+
+        # Data-only message: no 'notification' field so that
+        # onMessageReceived() is called even when the app is in
+        # background/killed.  The Android client builds the
+        # heads-up notification with sound itself.
         message = messaging.MulticastMessage(
-            notification=messaging.Notification(title=title, body=body),
             data=payload_data,
             tokens=tokens,
             android=messaging.AndroidConfig(
                 priority="high",
                 notification=messaging.AndroidNotification(
-                    icon="ic_notification",
-                    color="#6200EE",
-                    sound="default",
+                    channel_id=android_channel_id,
                 ),
             ),
         )

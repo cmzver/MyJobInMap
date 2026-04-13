@@ -239,30 +239,14 @@ class AppPreferences @Inject constructor(
         prefs.edit().putString(KEY_FCM_TOKEN, token).apply()
     }
     
-    // ==================== Polling (для устройств без GMS) ====================
+    // ==================== Realtime fallback (для устройств без GMS) ====================
     
-    fun getLastCheckedTaskId(): Int {
-        return prefs.getInt(KEY_LAST_CHECKED_TASK_ID, 0)
+    fun isRealtimeFallbackEnabled(): Boolean {
+        return prefs.getBoolean(KEY_REALTIME_FALLBACK_ENABLED, false)
     }
     
-    fun setLastCheckedTaskId(id: Int) {
-        prefs.edit().putInt(KEY_LAST_CHECKED_TASK_ID, id).apply()
-    }
-    
-    fun isPollingEnabled(): Boolean {
-        return prefs.getBoolean(KEY_POLLING_ENABLED, false)
-    }
-    
-    fun setPollingEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_POLLING_ENABLED, enabled).apply()
-    }
-    
-    fun getPollingIntervalMinutes(): Int {
-        return prefs.getInt(KEY_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)
-    }
-    
-    fun setPollingIntervalMinutes(minutes: Int) {
-        prefs.edit().putInt(KEY_POLLING_INTERVAL, minutes).apply()
+    fun setRealtimeFallbackEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_REALTIME_FALLBACK_ENABLED, enabled).apply()
     }
     
     // ==================== Сброс настроек ====================
@@ -461,9 +445,7 @@ class AppPreferences @Inject constructor(
         private const val KEY_NOTIFY_STATUS_CHANGE = "notify_status_change"
         private const val KEY_NOTIFY_CHAT_MESSAGES = "notify_chat_messages"
         private const val KEY_FCM_TOKEN = "fcm_token"
-        private const val KEY_LAST_CHECKED_TASK_ID = "last_checked_task_id"
-        private const val KEY_POLLING_ENABLED = "polling_enabled"
-        private const val KEY_POLLING_INTERVAL = "polling_interval_minutes"
+        private const val KEY_REALTIME_FALLBACK_ENABLED = "realtime_fallback_enabled"
         
         // Авторизация
         private const val KEY_AUTH_TOKEN = "auth_token"
@@ -477,9 +459,5 @@ class AppPreferences @Inject constructor(
         // Значения по умолчанию
         const val DEFAULT_SERVER_URL = "http://10.0.2.2"
         const val DEFAULT_SERVER_PORT = 8001
-        const val DEFAULT_POLLING_INTERVAL = 15 // минуты
-        
-        // Доступные интервалы polling (в минутах)
-        val POLLING_INTERVALS = listOf(5, 10, 15, 30, 60)
     }
 }

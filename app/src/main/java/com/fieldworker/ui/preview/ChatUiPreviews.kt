@@ -246,7 +246,6 @@ private fun ChatListLightPreview() {
                 onCreateDirectConversation = {},
                 onCreateGroupConversation = { _, _ -> },
                 onRefresh = {},
-                onArchiveConversation = {},
             )
         }
     }
@@ -273,7 +272,6 @@ private fun ChatListDarkPreview() {
                 onCreateDirectConversation = {},
                 onCreateGroupConversation = { _, _ -> },
                 onRefresh = {},
-                onArchiveConversation = {},
             )
         }
     }

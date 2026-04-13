@@ -68,11 +68,15 @@ function removeTaskFromMyTaskLists(queryClient: QueryClient, taskId: number) {
 }
 
 // Get paginated tasks list
-export function useTasks(filters?: TaskFilters) {
+export function useTasks(
+  filters?: TaskFilters,
+  options?: { refetchInterval?: number | false },
+) {
   return useQuery({
     queryKey: taskKeys.list(filters),
     queryFn: () => tasksApi.getTasks(filters),
     staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchInterval: options?.refetchInterval,
   })
 }
 

@@ -3,12 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { showApiError } from '@/utils/apiError'
 import { Search, Plus, RefreshCw, MapPin, Calendar, User, AlertTriangle, Clock, ChevronDown, SlidersHorizontal, X } from 'lucide-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useUnreadTaskNotifications } from '@/hooks/useNotifications'
 import { useTasks } from '@/hooks/useTasks'
+import { usePortalInterfaceSettings } from '@/hooks/useSettings'
 import { useUsers } from '@/hooks/useUsers'
 import { tasksApi } from '@/api/tasks'
-import apiClient from '@/api/client'
 import type { TaskStatus, TaskPriority, TaskFilters, Task, TaskSort } from '@/types/task'
 import { formatDateTime, getSla } from '@/utils/dateFormat'
 import {
@@ -43,11 +43,6 @@ type ColumnKey = 'select' | 'number' | 'title' | 'address' | 'status' | 'priorit
 type ToggleableColumnKey = Exclude<ColumnKey, 'select'>
 
 const getColumnWidthCssVar = (key: ColumnKey) => `--tasks-col-${key}`
-
-interface InterfaceSettings {
-  enable_resizable_columns: boolean
-  compact_table_view: boolean
-}
 
 const defaultColumnWidths: Record<ColumnKey, number> = {
   select: 44,
@@ -327,10 +322,12 @@ export default function TasksPage() {
   const tableContainerRef = useRef<HTMLDivElement | null>(null)
   const tableRef = useRef<HTMLTableElement | null>(null)
   const [tableContainerWidth, setTableContainerWidth] = useState(0)
+  // Flag to prevent URL→state effect from firing when we just pushed state→URL
+  const isSyncingToUrl = useRef(false)
   const initialPage = Number(searchParams.get('page') || 1)
   const [page, setPage] = useState(() => (Number.isFinite(initialPage) && initialPage > 0 ? initialPage : 1))
   const initialSize = Number(searchParams.get('size') || PAGE_SIZE)
-  const [pageSize, setPageSize] = useState(() => (PAGE_SIZE_OPTIONS.includes(initialSize) ? initialSize : PAGE_SIZE))
+  const [pageSize, setPageSize] = useState(() => (Number.isFinite(initialSize) && initialSize > 0 ? Math.trunc(initialSize) : PAGE_SIZE))
   const [searchInput, setSearchInput] = useState(() => searchParams.get('search') || '')
   const [search, setSearch] = useState(() => searchParams.get('search') || '')
   const [statusFilter, setStatusFilter] = useState<TaskStatus[]>(() => sanitizeTaskStatuses(searchParams.getAll('status')))
@@ -368,17 +365,21 @@ export default function TasksPage() {
     ...(assigneeFilter.length > 0 && { assignee_ids: assigneeFilter.map(Number).filter((value) => Number.isFinite(value)) }),
   }), [page, pageSize, sortBy, search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter])
 
-  const { data, isLoading, isError, error, refetch, isFetching } = useTasks(filters)
-  const { data: unreadTaskNotifications = [] } = useUnreadTaskNotifications({ enabled: Boolean(user) })
-  const { data: interfaceSettings } = useQuery({
-    queryKey: ['interface-settings'],
-    queryFn: async () => {
-      const response = await apiClient.get<InterfaceSettings>('/admin/settings/interface')
-      return response.data
-    },
-    staleTime: 300000,
-    retry: false,
+  const { data: interfaceSettings } = usePortalInterfaceSettings()
+  const defaultPageSize = Math.max(1, Number(interfaceSettings?.tasks_per_page ?? PAGE_SIZE))
+  const pageSizeOptions = useMemo(
+    () => Array.from(new Set([PAGE_SIZE, defaultPageSize, ...PAGE_SIZE_OPTIONS])).sort((a, b) => a - b),
+    [defaultPageSize],
+  )
+  const autoRefreshIntervalMs = useMemo(() => {
+    const seconds = Number(interfaceSettings?.auto_refresh_interval ?? 0)
+    if (!Number.isFinite(seconds) || seconds <= 0) return false
+    return Math.trunc(seconds) * 1000
+  }, [interfaceSettings?.auto_refresh_interval])
+  const { data, isLoading, isError, error, refetch, isFetching } = useTasks(filters, {
+    refetchInterval: autoRefreshIntervalMs,
   })
+  const { data: unreadTaskNotifications = [] } = useUnreadTaskNotifications({ enabled: Boolean(user) })
   const isResizableEnabled = interfaceSettings?.enable_resizable_columns ?? true
   const isCompactView = interfaceSettings?.compact_table_view ?? false
   const cellPadding = isCompactView ? 'px-4 py-2' : 'px-4 py-3'
@@ -386,6 +387,7 @@ export default function TasksPage() {
   const assignableUsers = users.filter(
     (user) => user.is_active && isAssignableRole(user.role)
   )
+  const prevUnreadRef = useRef<Record<number, number>>({})
   const unreadByTaskId = useMemo(() => {
     const map: Record<number, number> = {}
 
@@ -394,6 +396,14 @@ export default function TasksPage() {
       map[notification.task_id] = (map[notification.task_id] ?? 0) + 1
     }
 
+    // Stabilize reference: return previous object if values are the same
+    const prev = prevUnreadRef.current
+    const keys = Object.keys(map)
+    const prevKeys = Object.keys(prev)
+    if (keys.length === prevKeys.length && keys.every((k) => prev[Number(k)] === map[Number(k)])) {
+      return prev
+    }
+    prevUnreadRef.current = map
     return map
   }, [unreadTaskNotifications])
   const visibleDataColumnCount = useMemo(
@@ -1125,16 +1135,22 @@ export default function TasksPage() {
     if (addressTitleFilter) nextParams.set('address_title', addressTitleFilter)
     if (sortBy !== 'created_at_desc') nextParams.set('sort', sortBy)
     if (page > 1) nextParams.set('page', String(page))
-    if (pageSize !== PAGE_SIZE) nextParams.set('size', String(pageSize))
+    if (pageSize !== defaultPageSize) nextParams.set('size', String(pageSize))
 
     const next = nextParams.toString()
     const current = searchParams.toString()
     if (next !== current) {
+      isSyncingToUrl.current = true
       setSearchParams(nextParams, { replace: true })
     }
-  }, [search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter, addressTitleFilter, sortBy, page, pageSize, searchParams, setSearchParams])
+  }, [search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter, addressTitleFilter, sortBy, page, pageSize, defaultPageSize, searchParams, setSearchParams])
 
   useEffect(() => {
+    // Skip if this update was triggered by the state→URL sync above
+    if (isSyncingToUrl.current) {
+      isSyncingToUrl.current = false
+      return
+    }
     const urlSearch = searchParams.get('search') || ''
     const urlStatuses = sanitizeTaskStatuses(searchParams.getAll('status'))
     const urlPriorities = sanitizeTaskPriorities(searchParams.getAll('priority'))
@@ -1144,8 +1160,8 @@ export default function TasksPage() {
     const urlSort = searchParams.get('sort') === 'created_at_asc' ? 'created_at_asc' : 'created_at_desc'
     const rawPage = Number(searchParams.get('page') || 1)
     const urlPage = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
-    const rawSize = Number(searchParams.get('size') || PAGE_SIZE)
-    const urlSize = PAGE_SIZE_OPTIONS.includes(rawSize) ? rawSize : PAGE_SIZE
+    const rawSize = Number(searchParams.get('size') || defaultPageSize)
+    const urlSize = Number.isFinite(rawSize) && rawSize > 0 ? Math.trunc(rawSize) : defaultPageSize
 
     setSearch((prev) => (prev === urlSearch ? prev : urlSearch))
     setSearchInput((prev) => (prev === urlSearch ? prev : urlSearch))
@@ -1157,7 +1173,7 @@ export default function TasksPage() {
     setSortBy((prev) => (prev === urlSort ? prev : urlSort))
     setPage((prev) => (prev === urlPage ? prev : urlPage))
     setPageSize((prev) => (prev === urlSize ? prev : urlSize))
-  }, [searchParams])
+  }, [searchParams, defaultPageSize])
 
   return (
     <div>
@@ -1314,174 +1330,6 @@ export default function TasksPage() {
           </div>
         )}
       </div>
-      {false && (
-      <div className="mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm transition-colors dark:border-gray-700 dark:bg-gray-800">
-        <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-4 dark:border-gray-700 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <Search className="h-4 w-4 text-primary-500 dark:text-primary-400" />
-              <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-700 dark:text-gray-200">
-                Фильтры и поиск
-              </h2>
-            </div>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Уточните список по поиску, статусу, приоритету, исполнителю и способу отображения.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {hasActiveFilters ? (
-              <span className="rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
-                Активно: {activeFilters.length}
-              </span>
-            ) : (
-              <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-300">
-                Все заявки
-              </span>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearFilters}
-              disabled={!hasActiveFilters}
-              className="h-9 px-3"
-            >
-              Сбросить
-            </Button>
-          </div>
-        </div>
-
-        <div className="space-y-4 p-4">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]">
-            <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-700 dark:bg-gray-900/30">
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
-                Поиск по заявкам
-              </label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
-                <input
-                  type="text"
-                  placeholder="Номер, адрес, клиент или название"
-                  value={searchInput}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault()
-                      commitSearch(searchInput)
-                    }
-                  }}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-500"
-                />
-              </div>
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                Ищет по номеру, названию, адресу и клиенту. Нажмите Enter, чтобы применить сразу.
-              </p>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Select
-                label="Сортировка"
-                options={sortOptions}
-                value={sortBy}
-                onChange={handleSortChange}
-                placeholder="Сортировка"
-                className="h-11"
-              />
-              <Select
-                label="Группировка"
-                options={groupOptions}
-                value={groupBy}
-                onChange={(value) => {
-                  setGroupBy(value)
-                  setCollapsedGroups(new Set())
-                }}
-                placeholder="Без группировки"
-                className="h-11"
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <Select
-              label="Статус"
-              options={statusOptions}
-              value={statusFilter[0] ?? ''}
-              onChange={(value) => handleStatusFilterChange(value ? [value] : [])}
-              placeholder="Все статусы"
-              className="h-11"
-            />
-            <Select
-              label="Приоритет"
-              options={priorityOptions}
-              value={priorityFilter[0] ?? ''}
-              onChange={(value) => handlePriorityFilterChange(value ? [value] : [])}
-              placeholder="Все приоритеты"
-              className="h-11"
-            />
-            <Select
-              label="Исполнитель"
-              options={[
-                { value: '', label: 'Все исполнители' },
-                ...assignableUsers.map((user) => ({
-                  value: String(user.id),
-                  label: user.full_name || user.username,
-                })),
-              ]}
-              value={assigneeFilter[0] ?? ''}
-              onChange={(value) => handleAssigneeFilterChange(value ? [value] : [])}
-              placeholder="Все исполнители"
-              className="h-11"
-            />
-          </div>
-
-          {hasActiveFilters && (
-            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50/80 px-4 py-3 dark:border-gray-600 dark:bg-gray-900/20">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Активные фильтры
-                  </span>
-                  {activeFilters.map((filter) => (
-                    <button
-                      key={filter.id}
-                      onClick={() => clearSingleFilter(filter)}
-                      className="flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-700 transition hover:border-primary-200 hover:bg-primary-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-primary-800 dark:hover:bg-primary-900/20"
-                    >
-                      <span className="text-gray-500 dark:text-gray-400">{filter.label}:</span>
-                      <span className="text-gray-900 dark:text-white">{filter.value}</span>
-                      <X size={12} className="text-gray-400" />
-                    </button>
-                  ))}
-                </div>
-                <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 self-start lg:self-auto">
-                  Очистить все
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {data && (
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-3 dark:border-blue-900/40 dark:bg-blue-950/20">
-                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-blue-700 dark:text-blue-300">Без исполнителя</p>
-                <p className="mt-2 text-2xl font-bold text-blue-700 dark:text-blue-200">{summary.unassigned}</p>
-              </div>
-              <div className="rounded-xl border border-red-200 bg-red-50/80 px-4 py-3 dark:border-red-900/40 dark:bg-red-950/20">
-                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-red-700 dark:text-red-300">Просроченные</p>
-                <p className="mt-2 text-2xl font-bold text-red-700 dark:text-red-200">{summary.overdue}</p>
-              </div>
-              <div className="rounded-xl border border-orange-200 bg-orange-50/80 px-4 py-3 dark:border-orange-900/40 dark:bg-orange-950/20">
-                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-orange-700 dark:text-orange-300">Срок &lt; 24ч</p>
-                <p className="mt-2 text-2xl font-bold text-orange-700 dark:text-orange-200">{summary.dueSoon}</p>
-              </div>
-              <div className="rounded-xl border border-primary-200 bg-primary-50/80 px-4 py-3 dark:border-primary-900/40 dark:bg-primary-950/20">
-                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-primary-700 dark:text-primary-300">Срочные</p>
-                <p className="mt-2 text-2xl font-bold text-primary-700 dark:text-primary-200">{summary.urgent}</p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-      )}
 
       {/* Content */}
       {isLoading ? (
@@ -1945,7 +1793,7 @@ export default function TasksPage() {
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
               <span>Показывать по:</span>
-              {PAGE_SIZE_OPTIONS.map((size) => (
+              {pageSizeOptions.map((size) => (
                 <button
                   key={size}
                   onClick={() => { setPageSize(size); setPage(1) }}

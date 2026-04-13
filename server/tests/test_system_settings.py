@@ -383,6 +383,19 @@ class TestSystemSettingsApi:
         assert data["supportHours"] == "Пн-Пт, 09:00-18:00"
         assert data["supportEmail"] is None
 
+    def test_get_interface_settings_returns_portal_defaults(
+        self, client: TestClient
+    ):
+        response = client.get("/api/admin/settings/interface")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["enable_resizable_columns"] is True
+        assert data["compact_table_view"] is False
+        assert data["tasks_per_page"] == 20
+        assert data["auto_refresh_interval"] == 30
+        assert data["default_task_priority"] == "PLANNED"
+
     def test_get_login_branding_public_uses_saved_settings(
         self, client: TestClient, auth_headers: dict[str, str]
     ):

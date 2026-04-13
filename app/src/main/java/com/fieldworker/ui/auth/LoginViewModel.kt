@@ -1,8 +1,10 @@
 package com.fieldworker.ui.auth
 
+import android.app.Application
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fieldworker.FieldWorkerApplication
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.AuthRepository
 import com.fieldworker.data.repository.DeviceRepository
@@ -30,6 +32,7 @@ data class LoginState(
  */
 @HiltViewModel
 class LoginViewModel @Inject constructor(
+    private val application: Application,
     private val authRepository: AuthRepository,
     private val deviceRepository: DeviceRepository,
     val preferences: AppPreferences
@@ -90,6 +93,8 @@ class LoginViewModel @Inject constructor(
                     )
                     // Регистрируем устройство после успешного входа
                     registerDevice()
+                    // Запускаем WebSocket fallback если нужен (устройства без GMS)
+                    startRealtimeFallbackIfNeeded()
                 },
                 onFailure = { exception ->
                     _state.value = _state.value.copy(
@@ -105,6 +110,13 @@ class LoginViewModel @Inject constructor(
         viewModelScope.launch {
             Log.d(TAG, "Registering device after login...")
             deviceRepository.registerDevice()
+        }
+    }
+
+    private fun startRealtimeFallbackIfNeeded() {
+        if (preferences.isRealtimeFallbackEnabled()) {
+            Log.d(TAG, "Starting WebSocket fallback service after login")
+            (application as? FieldWorkerApplication)?.startRealtimeFallback()
         }
     }
     

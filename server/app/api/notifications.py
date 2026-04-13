@@ -10,6 +10,7 @@ from app.models import (NotificationModel, SupportTicketModel, TaskModel,
 from app.schemas import NotificationResponse, PushNotificationRequest
 from app.services import (_send_push_sync, enforce_worker_task_access,
                           get_current_admin, get_current_user_required)
+from app.services.notification_service import create_notification
 from app.services.role_utils import is_superadmin_user
 from app.services.tenant_filter import TenantFilter
 
@@ -229,21 +230,33 @@ async def send_notification(
     admin: UserModel = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """Send a push notification."""
+    """Send a push notification via FCM and WebSocket."""
     tenant = TenantFilter(admin)
-    if request.user_ids and not tenant.is_superadmin:
-        users = db.query(UserModel).filter(UserModel.id.in_(request.user_ids)).all()
-        if len(users) != len(request.user_ids):
-            raise HTTPException(
-                status_code=404, detail="Некоторые пользователи не найдены"
-            )
-        for target_user in users:
-            tenant.enforce_access(
-                target_user,
-                detail="Нельзя отправить уведомление пользователю из другой организации",
-            )
 
-    result = _send_push_sync(
+    # Determine target users
+    target_user_ids: List[int] = []
+    if request.user_ids:
+        if not tenant.is_superadmin:
+            users = db.query(UserModel).filter(UserModel.id.in_(request.user_ids)).all()
+            if len(users) != len(request.user_ids):
+                raise HTTPException(
+                    status_code=404, detail="Некоторые пользователи не найдены"
+                )
+            for target_user in users:
+                tenant.enforce_access(
+                    target_user,
+                    detail="Нельзя отправить уведомление пользователю из другой организации",
+                )
+        target_user_ids = list(request.user_ids)
+    else:
+        # All active users in org
+        q = db.query(UserModel.id).filter(UserModel.is_active == True)  # noqa: E712
+        if admin.organization_id is not None and not tenant.is_superadmin:
+            q = q.filter(UserModel.organization_id == admin.organization_id)
+        target_user_ids = [uid for (uid,) in q.all()]
+
+    # 1. FCM path
+    fcm_result = _send_push_sync(
         title=request.title,
         body=request.body,
         notification_type=request.notification_type,
@@ -252,20 +265,61 @@ async def send_notification(
         organization_id=admin.organization_id,
     )
 
-    if not result["success"]:
-        raise HTTPException(status_code=500, detail=result.get("message"))
+    # 2. WebSocket path — create persistent notification for each user
+    ws_sent = 0
+    for uid in target_user_ids:
+        create_notification(
+            db=db,
+            user_id=uid,
+            title=request.title,
+            message=request.body,
+            notification_type=request.notification_type or "general",
+            task_id=request.task_id,
+        )
+        ws_sent += 1
 
-    return result
+    return {
+        "success": True,
+        "sent_fcm": fcm_result.get("sent", 0),
+        "failed_fcm": fcm_result.get("failed", 0),
+        "sent_ws": ws_sent,
+    }
 
 
 @router.post("/test")
 async def send_test_notification(
     admin: UserModel = Depends(get_current_admin),
+    db: Session = Depends(get_db),
 ):
-    """Send a test push notification."""
-    return _send_push_sync(
+    """Send a test push notification via FCM and WebSocket."""
+    # 1. FCM path
+    fcm_result = _send_push_sync(
         title="🔔 Тестовое уведомление",
         body="Push-уведомления работают!",
         notification_type="general",
         organization_id=admin.organization_id,
     )
+
+    # 2. WebSocket path — all active users in org
+    q = db.query(UserModel).filter(UserModel.is_active == True)  # noqa: E712
+    if admin.organization_id is not None:
+        q = q.filter(UserModel.organization_id == admin.organization_id)
+    users = q.all()
+
+    ws_sent = 0
+    for user in users:
+        create_notification(
+            db=db,
+            user_id=user.id,
+            title="🔔 Тестовое уведомление",
+            message="Push-уведомления работают!",
+            notification_type="general",
+        )
+        ws_sent += 1
+
+    return {
+        "success": True,
+        "sent_fcm": fcm_result.get("sent", 0),
+        "failed_fcm": fcm_result.get("failed", 0),
+        "sent_ws": ws_sent,
+    }

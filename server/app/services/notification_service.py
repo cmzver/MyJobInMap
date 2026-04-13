@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 
 from app.models import NotificationModel, TaskModel, UserModel
 from app.services.websocket_manager import _event, ws_manager
-from app.utils import get_priority_rank
+from app.services.push import send_push_notification
+from app.utils import get_priority_display_name, get_priority_rank
 
 
 def create_notification(
@@ -68,6 +69,7 @@ def create_notification(
                         "notification_id": notification.id,
                         "type": notification.type,
                         "title": notification.title,
+                        "message": notification.message,
                         "task_id": notification.task_id,
                         "support_ticket_id": notification.support_ticket_id,
                     },
@@ -182,3 +184,66 @@ def create_task_assignment_notification(
         notification_type=notification_type,
         task_id=task.id,
     )
+
+    # FCM push уведомление
+    priority_name = get_priority_display_name(task.priority)
+    push_title = (
+        f"Новая заявка ({priority_name})"
+        if get_priority_rank(task.priority) >= 3
+        else "Вам назначена заявка"
+    )
+    send_push_notification(
+        title=push_title,
+        body=f"№{task.task_number}: {task.title[:50]}...",
+        notification_type="task_assigned",
+        task_id=task.id,
+        user_ids=[assigned_to.id],
+    )
+
+
+def create_comment_notification(
+    db: Session,
+    task: TaskModel,
+    comment_text: str,
+    author: UserModel,
+) -> None:
+    """
+    Создать уведомление при новом комментарии к заявке.
+
+    Уведомляет:
+    - Назначенного исполнителя (если не автор)
+    - Админов/диспетчеров организации (кроме автора)
+    """
+    title = "💬 Новый комментарий"
+    message = f"Заявка №{task.task_number or task.id} - {task.title}\n"
+    message += f"{author.full_name or author.username}: {comment_text[:100]}"
+
+    notify_user_ids: set[int] = set()
+
+    # Назначенный исполнитель
+    if task.assigned_user_id and task.assigned_user_id != author.id:
+        notify_user_ids.add(task.assigned_user_id)
+
+    # Админы/диспетчеры организации (кроме автора)
+    admins = (
+        db.query(UserModel)
+        .filter(
+            UserModel.role.in_(["admin", "dispatcher", "superadmin"]),
+            UserModel.is_active == True,  # noqa: E712
+            UserModel.id != author.id,
+            UserModel.organization_id == task.organization_id,
+        )
+        .all()
+    )
+    for admin in admins:
+        notify_user_ids.add(admin.id)
+
+    for user_id in notify_user_ids:
+        create_notification(
+            db=db,
+            user_id=user_id,
+            title=title,
+            message=message,
+            notification_type="task",
+            task_id=task.id,
+        )

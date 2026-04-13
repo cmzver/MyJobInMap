@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
@@ -72,10 +73,11 @@ class RealtimePushService : Service() {
         createNotificationChannel()
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("FieldWorker")
-            .setContentText("Активен")
+            .setContentText("Фоновый сервис уведомлений")
             .setSmallIcon(R.drawable.ic_notification)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setSilent(true)
+            .setOngoing(true)
             .build()
             
         startForeground(NOTIFICATION_ID, notification)
@@ -83,7 +85,8 @@ class RealtimePushService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (!preferences.isPollingEnabled()) {
+        // Если нет авторизации — останавливаемся
+        if (preferences.getAuthToken().isNullOrBlank()) {
             stopSelf()
             return START_NOT_STICKY
         }
@@ -219,6 +222,26 @@ class RealtimePushService : Service() {
                         )
                     }
                 }
+                "notification_created" -> {
+                    val title = data.get("title")?.asString ?: "FieldWorker"
+                    val message = data.get("message")?.asString ?: ""
+                    val notifType = data.get("type")?.asString ?: "general"
+                    val taskId = data.get("task_id")?.asLong?.toString()
+                    val notifId = data.get("notification_id")?.asInt ?: title.hashCode()
+                    
+                    val channelId = when (notifType) {
+                        "task" -> FCMService.CHANNEL_ID_TASKS
+                        "alert" -> FCMService.CHANNEL_ID_EMERGENCY
+                        else -> FCMService.CHANNEL_ID_TASKS
+                    }
+                    showNotification(
+                        channelId = channelId,
+                        title = title,
+                        body = message,
+                        id = notifId,
+                        taskId = taskId
+                    )
+                }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to handle websocket message", e)
@@ -238,6 +261,7 @@ class RealtimePushService : Service() {
         }
         val pendingIntent = PendingIntent.getActivity(this, id, intent, pendingIntentFlags)
 
+        val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         val notification = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
@@ -245,6 +269,9 @@ class RealtimePushService : Service() {
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setSound(defaultSoundUri)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(id, notification.build())
@@ -255,7 +282,7 @@ class RealtimePushService : Service() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Фоновая служба уведомлений",
-                NotificationManager.IMPORTANCE_MIN
+                NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Поддержание соединения для получения мгновенных уведомлений"
                 setShowBadge(false)

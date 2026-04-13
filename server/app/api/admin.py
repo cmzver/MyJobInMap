@@ -125,10 +125,15 @@ async def admin_update_task(
     db.commit()
     db.refresh(task)
 
-    # Send push notification to newly assigned user
-    from app.utils import send_task_assignment_notification
+    # Уведомление при назначении
+    if new_assigned_user_id and new_assigned_user_id != old_assigned_user_id:
+        from app.services.notification_service import create_task_assignment_notification
 
-    send_task_assignment_notification(task, new_assigned_user_id, old_assigned_user_id)
+        assigned_to = db.query(UserModel).filter(UserModel.id == new_assigned_user_id).first()
+        if assigned_to:
+            create_task_assignment_notification(
+                db=db, task=task, assigned_to=assigned_to, assigned_by=admin
+            )
 
     return task_to_response(task)
 

@@ -25,6 +25,8 @@ export function useUnreadNotifications(options?: { enabled?: boolean }) {
     queryKey: ['notifications', 'unread'],
     queryFn: getUnreadNotifications,
     enabled: options?.enabled ?? true,
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -34,6 +36,8 @@ export function useUnreadSupportNotifications(options?: { enabled?: boolean }) {
     queryFn: getUnreadNotifications,
     select: (notifications) => notifications.filter((notification) => notification.type === 'support'),
     enabled: options?.enabled ?? true,
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -43,6 +47,8 @@ export function useUnreadTaskNotifications(options?: { enabled?: boolean }) {
     queryFn: getUnreadNotifications,
     select: (notifications) => notifications.filter((notification) => notification.task_id != null),
     enabled: options?.enabled ?? true,
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
   })
 }
 

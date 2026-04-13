@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import apiClient from '@/api/client'
+import type { TaskPriority } from '@/types/task'
 
 export interface DefectType {
   id: string
@@ -38,6 +39,14 @@ export interface PublicLoginBranding {
   supportHours: string
 }
 
+export interface PortalInterfaceSettings {
+  enable_resizable_columns: boolean
+  compact_table_view: boolean
+  tasks_per_page: number
+  auto_refresh_interval: number
+  default_task_priority: TaskPriority
+}
+
 export const settingsApi = {
   // Получить все системные настройки
   async getSettings(): Promise<SettingsGroup[]> {
@@ -68,6 +77,11 @@ export const settingsApi = {
     return data
   },
 
+  async getPortalInterfaceSettings(): Promise<PortalInterfaceSettings> {
+    const { data } = await apiClient.get<PortalInterfaceSettings>('/admin/settings/interface')
+    return data
+  },
+
   // Добавить тип неисправности
   async addDefectType(name: string, description?: string): Promise<DefectType> {
     const { data } = await apiClient.post<DefectType>('/admin/settings/defect-types', {
@@ -88,6 +102,7 @@ const queryKeys = {
   setting: (key: string) => ['setting', key],
   defectTypes: ['defect-types'],
   publicLoginBranding: ['public-login-branding'],
+  portalInterfaceSettings: ['portal-interface-settings'],
 }
 
 export function useSettings() {
@@ -116,6 +131,12 @@ export function useUpdateSetting() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.settings })
       queryClient.invalidateQueries({ queryKey: queryKeys.setting(data.key) })
+      if (data.group === 'interface') {
+        queryClient.invalidateQueries({ queryKey: queryKeys.portalInterfaceSettings })
+      }
+      if (data.group === 'branding') {
+        queryClient.invalidateQueries({ queryKey: queryKeys.publicLoginBranding })
+      }
     },
   })
 }
@@ -133,6 +154,15 @@ export function usePublicLoginBranding() {
     queryKey: queryKeys.publicLoginBranding,
     queryFn: () => settingsApi.getPublicLoginBranding(),
     staleTime: 300000,
+  })
+}
+
+export function usePortalInterfaceSettings() {
+  return useQuery({
+    queryKey: queryKeys.portalInterfaceSettings,
+    queryFn: () => settingsApi.getPortalInterfaceSettings(),
+    staleTime: 300000,
+    retry: false,
   })
 }
 

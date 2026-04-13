@@ -5,6 +5,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -108,6 +110,12 @@ class FCMService : FirebaseMessagingService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             
+            val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val audioAttributes = AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .build()
+            
             // Канал для новых задач
             val tasksChannel = NotificationChannel(
                 CHANNEL_ID_TASKS,
@@ -116,7 +124,22 @@ class FCMService : FirebaseMessagingService() {
             ).apply {
                 description = "Уведомления о новых назначенных задачах"
                 enableVibration(true)
+                vibrationPattern = longArrayOf(0, 300, 200, 300)
                 enableLights(true)
+                setSound(defaultSoundUri, audioAttributes)
+            }
+
+            // Канал для аварийных заявок
+            val emergencyChannel = NotificationChannel(
+                CHANNEL_ID_EMERGENCY,
+                "Аварийные заявки",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Срочные уведомления об аварийных заявках"
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 500, 200, 500, 200, 500)
+                enableLights(true)
+                setSound(defaultSoundUri, audioAttributes)
             }
             
             // Канал для изменения статуса
@@ -126,9 +149,24 @@ class FCMService : FirebaseMessagingService() {
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "Уведомления об изменении статуса задач"
+                setSound(defaultSoundUri, audioAttributes)
+            }
+
+            // Канал для чата
+            val chatChannel = NotificationChannel(
+                CHANNEL_ID_CHAT,
+                "Сообщения в чате",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Уведомления о новых сообщениях в чатах"
+                enableVibration(true)
+                enableLights(true)
+                setSound(defaultSoundUri, audioAttributes)
             }
             
-            notificationManager.createNotificationChannels(listOf(tasksChannel, statusChannel))
+            notificationManager.createNotificationChannels(
+                listOf(tasksChannel, emergencyChannel, statusChannel, chatChannel)
+            )
         }
     }
     
@@ -154,12 +192,15 @@ class FCMService : FirebaseMessagingService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
+        val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         val notification = NotificationCompat.Builder(this, CHANNEL_ID_TASKS)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setSound(defaultSoundUri)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
@@ -194,11 +235,14 @@ class FCMService : FirebaseMessagingService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
+        val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         val notification = NotificationCompat.Builder(this, CHANNEL_ID_STATUS)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setSound(defaultSoundUri)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .build()
@@ -232,12 +276,15 @@ class FCMService : FirebaseMessagingService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
+        val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         val notification = NotificationCompat.Builder(this, CHANNEL_ID_CHAT)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setSound(defaultSoundUri)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
@@ -272,7 +319,8 @@ class FCMService : FirebaseMessagingService() {
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .build()

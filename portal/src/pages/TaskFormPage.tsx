@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { showApiError, showApiSuccess, mutationToast } from '@/utils/apiError'
 import { ArrowLeft, Save } from 'lucide-react'
 import { useTask, useCreateTask, useUpdateTask, useAssignTask } from '@/hooks/useTasks'
+import { usePortalInterfaceSettings } from '@/hooks/useSettings'
 import { useUsers } from '@/hooks/useUsers'
 import { addressesApi } from '@/api/addresses'
 import Button from '@/components/Button'
@@ -195,6 +196,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
 
   // Fetch task data for edit mode
   const { data: task, isLoading: taskLoading } = useTask(taskId || 0)
+  const { data: portalInterfaceSettings } = usePortalInterfaceSettings()
   
   // Fetch users for assignee dropdown
   const { data: users = [] } = useUsers()
@@ -230,6 +232,31 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
       sessionStorage.removeItem('task-form-return')
     }
   }, [location.pathname])
+
+  useEffect(() => {
+    if (restoredDraftRef.current || mode !== 'create') {
+      return
+    }
+
+    const defaultPriority = normalizePriority(
+      portalInterfaceSettings?.default_task_priority ?? initialFormData.priority,
+    )
+
+    setFormData((current) => {
+      if (current.priority !== initialFormData.priority) {
+        return current
+      }
+
+      if (current.priority === defaultPriority) {
+        return current
+      }
+
+      return {
+        ...current,
+        priority: defaultPriority,
+      }
+    })
+  }, [mode, portalInterfaceSettings?.default_task_priority])
 
   // Populate form when editing
   useEffect(() => {

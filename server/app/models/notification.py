@@ -2,7 +2,7 @@
 
 import enum
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base, utcnow
@@ -21,6 +21,9 @@ class NotificationModel(Base):
     """Notification ORM model."""
 
     __tablename__ = "notifications"
+    __table_args__ = (
+        Index("ix_notifications_user_task_read", "user_id", "task_id", "is_read"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)

@@ -811,76 +811,56 @@ function TaskDefaultsCard() {
 
 // ============= Image Settings Tab =============
 function ImageSettingsTab() {
-  const [settings, setSettings] = useState({
-    maxWidth: 1920,
-    maxHeight: 1080,
-    quality: 85,
-    format: 'webp',
-  })
+  const { data: optimizationEnabled, isLoading: optLoading } = useSetting('image_optimization_enabled')
+  const { data: qualitySetting, isLoading: qualityLoading } = useSetting('image_quality')
+  const { data: maxDimensionSetting, isLoading: dimLoading } = useSetting('image_max_dimension')
+  const { data: convertWebpSetting, isLoading: webpLoading } = useSetting('image_convert_to_webp')
+  const updateSetting = useUpdateSetting()
 
-  const handleSave = () => {
-    toast.success('Настройки изображений сохранены')
+  const isLoading = optLoading || qualityLoading || dimLoading || webpLoading
+
+  if (isLoading) {
+    return <div className="flex justify-center py-8"><Spinner /></div>
   }
+
+  const isEnabled = optimizationEnabled?.value === 'true'
+  const quality = Number(qualitySetting?.value ?? 85)
+  const maxDimension = Number(maxDimensionSetting?.value ?? 1920)
+  const convertToWebp = convertWebpSetting?.value === 'true'
 
   return (
     <div className="space-y-3">
-      <CompactFieldRow
-        label="Максимальная ширина"
-        description="Ограничение по ширине для загружаемых изображений после оптимизации."
-        control={
-          <Input
-            type="number"
-            value={settings.maxWidth}
-            onChange={(e) => setSettings({ ...settings, maxWidth: Number(e.target.value) })}
-            className="sm:w-36"
-          />
-        }
-      />
-      <CompactFieldRow
-        label="Максимальная высота"
-        description="Ограничение по высоте, применяемое перед сохранением файла."
-        control={
-          <Input
-            type="number"
-            value={settings.maxHeight}
-            onChange={(e) => setSettings({ ...settings, maxHeight: Number(e.target.value) })}
-            className="sm:w-36"
-          />
-        }
-      />
-      <CompactFieldRow
-        label="Формат сохранения"
-        description="Формат целевого файла после оптимизации и конвертации."
-        control={
-          <select
-            value={settings.format}
-            onChange={(e) => setSettings({ ...settings, format: e.target.value })}
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white sm:w-56"
-          >
-            <option value="webp">WebP (рекомендуется)</option>
-            <option value="jpeg">JPEG</option>
-            <option value="png">PNG</option>
-            <option value="original">Оригинал</option>
-          </select>
-        }
+      <CompactToggleRow
+        title="Оптимизация изображений"
+        description="Автоматически сжимать и оптимизировать загружаемые фотографии."
+        checked={isEnabled}
+        onChange={(checked) => updateSetting.mutate({ key: 'image_optimization_enabled', value: String(checked) })}
       />
       <CompactSliderRow
         label="Качество изображения"
         description="Баланс между степенью сжатия и сохранением визуального качества файла."
-        value={settings.quality}
+        value={quality}
         min={10}
         max={100}
-        onChange={(value) => setSettings({ ...settings, quality: value })}
+        onChange={(value) => updateSetting.mutate({ key: 'image_quality', value: String(value) })}
       />
-      <CompactActionRow
-        title="Сохранить параметры изображений"
-        description="Применяет ограничения размеров, качества и формата для новых загрузок."
-        actions={
-          <Button onClick={handleSave}>
-            <Save className="h-4 w-4 mr-2" />
-            Сохранить
-          </Button>
+      <CompactFieldRow
+        label="Максимальный размер (px)"
+        description="Ограничение по наибольшей стороне загружаемых изображений."
+        control={
+          <Input
+            type="number"
+            value={maxDimension}
+            onChange={(e) => updateSetting.mutate({ key: 'image_max_dimension', value: e.target.value })}
+            className="sm:w-36"
+          />
         }
+      />
+      <CompactToggleRow
+        title="Конвертация в WebP"
+        description="Автоматически конвертировать загружаемые изображения в формат WebP."
+        checked={convertToWebp}
+        onChange={(checked) => updateSetting.mutate({ key: 'image_convert_to_webp', value: String(checked) })}
       />
     </div>
   )
@@ -1141,10 +1121,17 @@ function NotificationSettingsTab() {
   const updateSettingMutation = useUpdateSetting()
   const testPushMutation = useMutation({
     mutationFn: async () => {
-      const { data } = await apiClient.post<{ success: boolean; message?: string }>('/notifications/test')
+      const { data } = await apiClient.post<{ success: boolean; sent_fcm: number; failed_fcm: number; sent_ws: number }>('/notifications/test')
       return data
     },
-    onSuccess: () => showApiSuccess('Тестовое уведомление отправлено'),
+    onSuccess: (data) => {
+      const parts: string[] = []
+      if (data.sent_fcm > 0) parts.push(`FCM: ${data.sent_fcm}`)
+      if (data.sent_ws > 0) parts.push(`WebSocket: ${data.sent_ws}`)
+      if (data.failed_fcm > 0) parts.push(`Ошибки FCM: ${data.failed_fcm}`)
+      const detail = parts.length > 0 ? ` (${parts.join(', ')})` : ''
+      showApiSuccess(`Тестовое уведомление отправлено${detail}`)
+    },
     onError: (error) => showApiError(error, 'Не удалось отправить тестовое уведомление'),
   })
   const isSaving = updateSettingMutation.isPending
@@ -1630,41 +1617,28 @@ function CardBuilderTab() {
             {availableFields.map((field) => (
               <div
                 key={field.id}
-                className="flex items-center justify-between rounded-xl border border-gray-200 bg-slate-50/80 p-3 transition-colors hover:bg-slate-100 dark:border-gray-800 dark:bg-gray-800/50 dark:hover:bg-gray-800 cursor-move"
+                className="flex items-center justify-between rounded-xl border border-gray-200 bg-slate-50/80 p-3 transition-colors hover:bg-slate-100 dark:border-gray-800 dark:bg-gray-800/50 dark:hover:bg-gray-800"
               >
                 <div className="flex items-center gap-2">
-                  <GripVertical className="h-4 w-4 text-gray-400" />
                   <span className="text-sm text-gray-700 dark:text-gray-300">{field.label}</span>
                 </div>
-                <Plus className="h-4 w-4 text-gray-400" />
               </div>
             ))}
           </div>
         </div>
         
-        <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-900/40 dark:bg-blue-950/20">
-          <p className="text-sm text-blue-700 dark:text-blue-400">
-            <strong>Подсказка:</strong> Перетащите поля в нужные зоны карточки справа
-          </p>
-        </div>
+
       </div>
 
       <div className="lg:col-span-2">
         <div className="rounded-2xl border border-gray-200 bg-white/90 p-3.5 shadow-sm dark:border-gray-800 dark:bg-gray-900/70">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Предпросмотр карточки</h4>
-            <div className="flex gap-2">
-              <Button size="sm" variant="secondary" onClick={() => toast.success('Сброшено')}>
-                <RefreshCw className="h-4 w-4 mr-1" />
-                Сброс
-              </Button>
-              <Button size="sm" onClick={() => toast.success('Макет сохранён')}>
-                <Save className="h-4 w-4 mr-1" />
-                Сохранить
-              </Button>
-            </div>
           </div>
-          <div className="min-h-[500px] space-y-3 rounded-xl bg-gray-100 p-3.5 dark:bg-gray-800">
+          <CompactNotice tone="warning">
+            Макет карточки пока не сохраняется и не применяется в портале. Здесь только визуальный черновик компоновки.
+          </CompactNotice>
+          <div className="mt-3 min-h-[500px] space-y-3 rounded-xl bg-gray-100 p-3.5 dark:bg-gray-800">
             {zones.map((zone) => (
               <div key={zone.id} className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3">
                 <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1">
@@ -1681,7 +1655,7 @@ function CardBuilderTab() {
                           className="px-2 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 text-xs rounded flex items-center gap-1"
                         >
                           {field.label}
-                          <X className="h-3 w-3 cursor-pointer hover:text-red-500" />
+
                         </span>
                       ) : null
                     })}
@@ -1825,8 +1799,13 @@ function DevicesTab() {
 
   const handleSendTest = async (userId?: number) => {
     try {
-      await sendNotification.mutateAsync(userId)
-      toast.success(userId ? 'Тестовое уведомление отправлено' : 'Уведомление отправлено всем устройствам')
+      const result = await sendNotification.mutateAsync(userId)
+      const parts: string[] = []
+      if (result.sent_fcm > 0) parts.push(`FCM: ${result.sent_fcm}`)
+      if (result.sent_ws > 0) parts.push(`WebSocket: ${result.sent_ws}`)
+      if (result.failed_fcm > 0) parts.push(`Ошибки FCM: ${result.failed_fcm}`)
+      const detail = parts.length > 0 ? ` (${parts.join(', ')})` : ''
+      toast.success(userId ? `Тестовое уведомление отправлено${detail}` : `Уведомление отправлено всем устройствам${detail}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Ошибка отправки')
     }
@@ -2483,7 +2462,7 @@ function CompactInfoTile({
 
 function CompactToggleRow({
   title,
-  description: _description,
+  description,
   checked,
   onChange,
   disabled,
@@ -2498,6 +2477,7 @@ function CompactToggleRow({
     <div className="grid gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:border-gray-800 dark:bg-gray-900/70">
       <div className="pr-2">
         <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
+        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{description}</p>
       </div>
       <ToggleSwitch checked={checked} disabled={disabled} onChange={onChange} />
     </div>
@@ -2506,7 +2486,7 @@ function CompactToggleRow({
 
 function CompactFieldRow({
   label,
-  description: _description,
+  description,
   control,
 }: {
   label: string
@@ -2517,6 +2497,7 @@ function CompactFieldRow({
     <div className="grid gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:border-gray-800 dark:bg-gray-900/70">
       <div className="pr-2">
         <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
+        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{description}</p>
       </div>
       <div className="sm:flex sm:justify-end">
         <div className="min-w-[136px] rounded-md bg-gray-50 p-0.5 dark:bg-gray-800">{control}</div>
@@ -2527,7 +2508,7 @@ function CompactFieldRow({
 
 function CompactActionRow({
   title,
-  description: _description,
+  description,
   actions,
 }: {
   title: string
@@ -2538,6 +2519,7 @@ function CompactActionRow({
     <div className="grid gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:border-gray-800 dark:bg-gray-900/70">
       <div className="pr-2">
         <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
+        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{description}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2 sm:justify-end">{actions}</div>
     </div>
@@ -2546,7 +2528,7 @@ function CompactActionRow({
 
 function CompactActionTile({
   title,
-  description: _description,
+  description,
   actions,
 }: {
   title: string
@@ -2557,6 +2539,7 @@ function CompactActionTile({
     <div className="flex h-full flex-col justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 dark:border-gray-800 dark:bg-gray-800/40">
       <div>
         <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
+        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{description}</p>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">{actions}</div>
     </div>
@@ -2565,7 +2548,7 @@ function CompactActionTile({
 
 function CompactSliderRow({
   label,
-  description: _description,
+  description,
   value,
   min,
   max,
@@ -2583,6 +2566,7 @@ function CompactSliderRow({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="pr-2">
           <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{description}</p>
         </div>
         <div className="min-w-[210px] rounded-md bg-gray-50 p-1.5 dark:bg-gray-800">
           <div className="mb-1 flex items-center justify-between text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -2627,7 +2611,7 @@ function CompactNotice({
 
 function CompactEmptyPanel({
   title,
-  description: _description,
+  description,
   icon: Icon,
 }: {
   title: string
@@ -2641,6 +2625,7 @@ function CompactEmptyPanel({
           <Icon className="h-4 w-4" />
         </div>
         <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{description}</p>
       </div>
     </div>
   )

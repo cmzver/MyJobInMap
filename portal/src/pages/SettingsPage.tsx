@@ -4,7 +4,6 @@ import { showApiError, showApiSuccess } from '@/utils/apiError'
 import { 
   User, 
   Lock, 
-  Bell, 
   Save,
   Eye,
   EyeOff
@@ -41,7 +40,7 @@ export default function SettingsPage() {
     setProfileLoading(true)
     
     try {
-      await apiClient.put('/auth/profile', profileData)
+      await apiClient.patch('/auth/profile', profileData)
       showApiSuccess('Профиль обновлён')
     } catch (error) {
       showApiError(error, 'Ошибка обновления профиля')
@@ -66,7 +65,7 @@ export default function SettingsPage() {
     setPasswordLoading(true)
     
     try {
-      await apiClient.put('/auth/password', {
+      await apiClient.patch('/auth/password', {
         current_password: passwordData.current_password,
         new_password: passwordData.new_password
       })
@@ -198,49 +197,6 @@ export default function SettingsPage() {
               </Button>
             </div>
           </form>
-        </Card>
-
-        {/* Notifications */}
-        <Card 
-          title="Уведомления"
-          action={<Bell className="h-5 w-5 text-gray-400" />}
-        >
-          <div className="space-y-4">
-            <label className="flex items-center justify-between cursor-pointer">
-              <div>
-                <p className="font-medium text-gray-900 dark:text-white">Push-уведомления</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Получать уведомления о новых заявках</p>
-              </div>
-              <input
-                type="checkbox"
-                defaultChecked
-                className="w-5 h-5 text-primary-500 border-gray-300 dark:border-gray-600 rounded focus:ring-primary-500 bg-white dark:bg-gray-700"
-              />
-            </label>
-            
-            <label className="flex items-center justify-between cursor-pointer">
-              <div>
-                <p className="font-medium text-gray-900 dark:text-white">Email-уведомления</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Дублировать важные уведомления на email</p>
-              </div>
-              <input
-                type="checkbox"
-                className="w-5 h-5 text-primary-500 border-gray-300 dark:border-gray-600 rounded focus:ring-primary-500 bg-white dark:bg-gray-700"
-              />
-            </label>
-            
-            <label className="flex items-center justify-between cursor-pointer">
-              <div>
-                <p className="font-medium text-gray-900 dark:text-white">Звуковые уведомления</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Воспроизводить звук при новых событиях</p>
-              </div>
-              <input
-                type="checkbox"
-                defaultChecked
-                className="w-5 h-5 text-primary-500 border-gray-300 dark:border-gray-600 rounded focus:ring-primary-500 bg-white dark:bg-gray-700"
-              />
-            </label>
-          </div>
         </Card>
 
       </div>

@@ -79,6 +79,9 @@ class InterfaceSettingsResponse(BaseModel):
 
     enable_resizable_columns: bool
     compact_table_view: bool
+    tasks_per_page: int
+    auto_refresh_interval: int
+    default_task_priority: str
 
 
 class LoginBrandingResponse(BaseModel):
@@ -120,6 +123,29 @@ def _clean_optional_string(value: Any) -> Optional[str]:
         return None
     normalized = str(value).strip()
     return normalized or None
+
+
+def _get_int_setting(db: Session, key: str, default: int, minimum: int) -> int:
+    value = get_setting(db, key, default)
+    try:
+        return max(minimum, int(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_task_priority(value: Any, default: str = "PLANNED") -> str:
+    normalized = str(value or "").strip().upper()
+    mapping = {
+        "1": "PLANNED",
+        "2": "CURRENT",
+        "3": "URGENT",
+        "4": "EMERGENCY",
+        "PLANNED": "PLANNED",
+        "CURRENT": "CURRENT",
+        "URGENT": "URGENT",
+        "EMERGENCY": "EMERGENCY",
+    }
+    return mapping.get(normalized, default)
 
 
 def _build_login_branding_response(db: Session) -> LoginBrandingResponse:
@@ -209,6 +235,13 @@ async def get_interface_settings(db: Session = Depends(get_db)):
     init_default_settings(db)
     enable_resizable_columns = get_setting(db, "enable_resizable_columns")
     compact_table_view = get_setting(db, "compact_table_view")
+    tasks_per_page = _get_int_setting(db, "tasks_per_page", default=20, minimum=1)
+    auto_refresh_interval = _get_int_setting(
+        db, "auto_refresh_interval", default=30, minimum=0
+    )
+    default_task_priority = _normalize_task_priority(
+        get_setting(db, "default_task_priority", "PLANNED")
+    )
     if enable_resizable_columns is None:
         enable_resizable_columns = True
     if compact_table_view is None:
@@ -217,6 +250,9 @@ async def get_interface_settings(db: Session = Depends(get_db)):
     return InterfaceSettingsResponse(
         enable_resizable_columns=bool(enable_resizable_columns),
         compact_table_view=bool(compact_table_view),
+        tasks_per_page=tasks_per_page,
+        auto_refresh_interval=auto_refresh_interval,
+        default_task_priority=default_task_priority,
     )
 
 

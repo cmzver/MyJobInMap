@@ -428,7 +428,7 @@ def init_default_settings(db: Session):
         # === Интерфейс ===
         {
             "key": "tasks_per_page",
-            "value": "50",
+            "value": "20",
             "value_type": "int",
             "group": "interface",
             "label": "Заявок на странице",
