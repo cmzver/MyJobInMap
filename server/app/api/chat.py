@@ -435,6 +435,8 @@ async def send_message(
                 "id": result.id,
                 "text": result.text,
                 "sender_id": current_user.id,
+                "sender_name": current_user.full_name or current_user.username,
+                "conversation_name": conv.name if conv and conv.name else None,
             },
             sender_id=current_user.id,
         )

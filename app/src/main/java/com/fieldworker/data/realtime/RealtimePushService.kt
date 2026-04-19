@@ -185,9 +185,12 @@ class RealtimePushService : Service() {
                         
                         val convId = data.get("conversation_id")?.asLong?.toString() ?: return
                         val textStr = data.get("text")?.asString ?: "Новое сообщение"
+                        val senderName = data.get("sender_name")?.asString
+                        val convName = data.get("conversation_name")?.takeIf { !it.isJsonNull }?.asString
+                        val title = convName ?: senderName ?: "Новое сообщение"
                         showNotification(
                             channelId = FCMService.CHANNEL_ID_CHAT,
-                            title = "Новое сообщение",
+                            title = title,
                             body = textStr,
                             id = convId.hashCode(),
                             chatId = convId

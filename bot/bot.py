@@ -345,16 +345,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         
         # Дополнение существующей заявки или создание новой
         if result.get("updated_existing"):
-            reply = f"📝 Заявка {task_number}{ext_id_info} дополнена комментарием"
+            reply = f"📝 Заявка {task_number} дополнена комментарием"
         elif lat and lon and lat != 0 and lon != 0:
             reply = (
-                f"✅ Заявка {task_number}{ext_id_info} принята!\n"
+                f"✅ Заявка {task_number} принята!\n"
                 f"📍 Адрес: {address}\n"
                 f"🗺 Координаты: {lat:.5f}, {lon:.5f}"
             )
         else:
             reply = (
-                f"✅ Заявка {task_number}{ext_id_info} принята!\n"
+                f"✅ Заявка {task_number} принята!\n"
                 f"📍 Адрес: {address}\n"
                 f"⚠️ Координаты не определены"
             )
@@ -423,26 +423,25 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if not headers:
             await update.message.reply_text("❌ API token is not configured for bot")
             return
-        response = requests.get(f"{API_BASE_URL}/api/tasks", headers=headers, timeout=5)
+        response = requests.get(f"{API_BASE_URL}/api/dashboard/stats", headers=headers, timeout=5)
         if response.status_code == 401:
             headers = get_api_headers(force_refresh=True)
             if not headers:
                 await update.message.reply_text("❌ API token is not configured for bot")
                 return
-            response = requests.get(f"{API_BASE_URL}/api/tasks", headers=headers, timeout=5)
+            response = requests.get(f"{API_BASE_URL}/api/dashboard/stats", headers=headers, timeout=5)
         if response.ok:
-            tasks = response.json()
-            new_count = sum(1 for t in tasks if t.get("status") == "NEW")
-            in_progress = sum(1 for t in tasks if t.get("status") == "IN_PROGRESS")
-            done_count = sum(1 for t in tasks if t.get("status") == "DONE")
+            stats = response.json()
             
             await update.message.reply_text(
                 f"✅ Сервер доступен ({API_BASE_URL})\n\n"
                 f"📊 <b>Статистика заявок:</b>\n"
-                f"🔴 Новых: {new_count}\n"
-                f"🟠 В работе: {in_progress}\n"
-                f"🟢 Выполнено: {done_count}\n"
-                f"📋 Всего: {len(tasks)}",
+                f"🔴 Новых: {stats.get('newTasks', 0)}\n"
+                f"🟠 В работе: {stats.get('inProgressTasks', 0)}\n"
+                f"🟢 Выполнено: {stats.get('completedTasks', 0)}\n"
+                f"📋 Всего: {stats.get('totalTasks', 0)}\n\n"
+                f"👷 Работников: {stats.get('totalWorkers', 0)} "
+                f"(активных: {stats.get('activeWorkers', 0)})",
                 parse_mode="HTML"
             )
         else:

@@ -80,7 +80,7 @@ class FCMService : FirebaseMessagingService() {
             val taskId = data["task_id"]
             
             when (type) {
-                "new_task" -> {
+                "new_task", "task_assigned", "task_created" -> {
                     if (preferences.getNotifyNewTasks()) {
                         showNewTaskNotification(title, body, taskId)
                     }

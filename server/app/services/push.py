@@ -90,6 +90,7 @@ def _send_push_sync(
             "task_id": str(task_id) if task_id else "",
             "title": title,
             "body": body,
+            "channel_id": android_channel_id,
         }
         if extra_data:
             for k, v in extra_data.items():
@@ -112,14 +113,14 @@ def _send_push_sync(
         # onMessageReceived() is called even when the app is in
         # background/killed.  The Android client builds the
         # heads-up notification with sound itself.
+        # NOTE: AndroidConfig.notification OMITTED intentionally —
+        # including it causes Firebase to auto-display an empty
+        # system notification alongside the one built by the app.
         message = messaging.MulticastMessage(
             data=payload_data,
             tokens=tokens,
             android=messaging.AndroidConfig(
                 priority="high",
-                notification=messaging.AndroidNotification(
-                    channel_id=android_channel_id,
-                ),
             ),
         )
 

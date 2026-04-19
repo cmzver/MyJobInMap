@@ -539,6 +539,7 @@ async def create_task_from_text(
 
     # --- Резолвим исполнителя (по ID или username) ---
     assigned_id = request.assigned_user_id
+    resolved_assignee: Optional[UserModel] = None
     if not assigned_id and request.assigned_username:
         assigned_user = (
             db.query(UserModel)
@@ -555,6 +556,7 @@ async def create_task_from_text(
                     detail="Нельзя назначить пользователя из другой организации",
                 )
                 assigned_id = assigned_user.id
+                resolved_assignee = assigned_user
             except HTTPException:
                 logger.warning(
                     f"Пользователь {request.assigned_username} из другой организации, "
@@ -574,6 +576,7 @@ async def create_task_from_text(
                 assigned_user,
                 detail="Нельзя назначить пользователя из другой организации",
             )
+            resolved_assignee = assigned_user
 
     # --- Дедупликация: ищем существующую заявку по external_id ---
     if external_id:
@@ -594,9 +597,10 @@ async def create_task_from_text(
             db.add(comment)
 
             # Если заявка ещё не назначена, а мы знаем исполнителя — назначаем
+            auto_assigned = False
             if assigned_id and not existing_task.assigned_user_id:
                 existing_task.assigned_user_id = assigned_id
-                assigned_user_obj = (
+                assigned_user_obj = resolved_assignee or (
                     db.query(UserModel).filter(UserModel.id == assigned_id).first()
                 )
                 assign_name = (
@@ -611,9 +615,35 @@ async def create_task_from_text(
                     new_assignee=assign_name,
                 )
                 db.add(assign_comment)
+                auto_assigned = True
 
             db.commit()
             db.refresh(existing_task)
+
+            # Уведомления при автоназначении
+            if auto_assigned and assigned_user_obj:
+                from app.services.notification_service import (
+                    create_task_assignment_notification,
+                )
+
+                create_task_assignment_notification(
+                    db=db,
+                    task=existing_task,
+                    assigned_to=assigned_user_obj,
+                    assigned_by=user,
+                )
+                import asyncio
+
+                asyncio.ensure_future(
+                    broadcast_task_assigned(
+                        task_id=existing_task.id,
+                        task_number=existing_task.task_number or "",
+                        assigned_user_id=assigned_id,
+                        assigned_user_name=assign_name,
+                        user_id=user.id,
+                        organization_id=existing_task.organization_id,
+                    )
+                )
 
             source_log = f" [{request.source}]" if request.source else ""
             logger.info(
@@ -671,6 +701,44 @@ async def create_task_from_text(
 
     source_log = f" [{request.source}]" if request.source else ""
     logger.info(f"✅ Заявка №{db_task.task_number} создана из текста{source_log}")
+
+    # WebSocket broadcast о новой заявке
+    import asyncio
+
+    asyncio.ensure_future(
+        broadcast_task_created(
+            task_id=db_task.id,
+            task_number=db_task.task_number or "",
+            title=db_task.title or "",
+            user_id=user.id,
+            organization_id=db_task.organization_id,
+        )
+    )
+
+    # Уведомление исполнителю (DB + FCM push)
+    if assigned_id and resolved_assignee:
+        from app.services.notification_service import (
+            create_task_assignment_notification,
+        )
+
+        create_task_assignment_notification(
+            db=db,
+            task=db_task,
+            assigned_to=resolved_assignee,
+            assigned_by=user,
+        )
+        asyncio.ensure_future(
+            broadcast_task_assigned(
+                task_id=db_task.id,
+                task_number=db_task.task_number or "",
+                assigned_user_id=assigned_id,
+                assigned_user_name=(
+                    resolved_assignee.full_name or resolved_assignee.username
+                ),
+                user_id=user.id,
+                organization_id=db_task.organization_id,
+            )
+        )
 
     return CreateTaskFromTextResponse(
         success=True, task=task_to_response(db_task), parsed_data=parsed
