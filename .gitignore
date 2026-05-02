@@ -113,3 +113,5 @@ chat_results.txt
 .vscode/
 .idea/
 .github/
+.obsidian/
+**/.obsidian/

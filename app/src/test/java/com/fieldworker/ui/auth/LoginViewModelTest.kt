@@ -1,5 +1,6 @@
 package com.fieldworker.ui.auth
 
+import android.app.Application
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.AuthRepository
 import com.fieldworker.data.repository.DeviceRepository
@@ -30,6 +31,7 @@ class LoginViewModelTest {
     }
 
     private val testDispatcher = StandardTestDispatcher()
+    private lateinit var application: Application
     private lateinit var authRepository: AuthRepository
     private lateinit var deviceRepository: DeviceRepository
     private lateinit var preferences: AppPreferences
@@ -37,6 +39,7 @@ class LoginViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        application = mockk(relaxed = true)
         authRepository = mockk(relaxed = true)
         deviceRepository = mockk(relaxed = true)
         preferences = mockk(relaxed = true)
@@ -50,7 +53,7 @@ class LoginViewModelTest {
     private fun createViewModel(): LoginViewModel {
         // По умолчанию не авторизован
         every { authRepository.isLoggedIn() } returns false
-        return LoginViewModel(authRepository, deviceRepository, preferences)
+        return LoginViewModel(application, authRepository, deviceRepository, preferences)
     }
 
     // ==================== Инициализация ====================
@@ -72,7 +75,7 @@ class LoginViewModelTest {
         every { authRepository.isLoggedIn() } returns true
         every { authRepository.getUserFullName() } returns "Иванов Иван"
 
-        val viewModel = LoginViewModel(authRepository, deviceRepository, preferences)
+        val viewModel = LoginViewModel(application, authRepository, deviceRepository, preferences)
         advanceUntilIdle()
 
         assertTrue(viewModel.state.value.isLoggedIn)

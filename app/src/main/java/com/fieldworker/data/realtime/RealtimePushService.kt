@@ -30,6 +30,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Named
 
@@ -52,6 +53,8 @@ class RealtimePushService : Service() {
         private const val TAG = "RealtimePushService"
         private const val CHANNEL_ID = "realtime_push_service"
         private const val NOTIFICATION_ID = 4001
+        private const val DEDUP_WINDOW_MS = 5000L
+        private val recentNotifications = ConcurrentHashMap<String, Long>()
         
         fun startService(context: Context) {
             val intent = Intent(context, RealtimePushService::class.java)
@@ -231,6 +234,7 @@ class RealtimePushService : Service() {
                     val notifType = data.get("type")?.asString ?: "general"
                     val taskId = data.get("task_id")?.asLong?.toString()
                     val notifId = data.get("notification_id")?.asInt ?: title.hashCode()
+                    val resolvedNotificationId = taskId?.hashCode() ?: notifId
                     
                     val channelId = when (notifType) {
                         "task" -> FCMService.CHANNEL_ID_TASKS
@@ -241,7 +245,7 @@ class RealtimePushService : Service() {
                         channelId = channelId,
                         title = title,
                         body = message,
-                        id = notifId,
+                        id = resolvedNotificationId,
                         taskId = taskId
                     )
                 }
@@ -252,16 +256,18 @@ class RealtimePushService : Service() {
     }
 
     private fun showNotification(channelId: String, title: String, body: String, id: Int, taskId: String? = null, chatId: String? = null) {
+        val dedupKey = "$channelId|${taskId ?: "-"}|${chatId ?: "-"}|$title|$body"
+        if (!shouldShowNotification(dedupKey)) {
+            Log.d(TAG, "Skipping duplicate notification: $dedupKey")
+            return
+        }
+
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             taskId?.let { putExtra("task_id", it) }
             chatId?.let { putExtra("chat_id", it) }
         }
-        val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
+        val pendingIntentFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         val pendingIntent = PendingIntent.getActivity(this, id, intent, pendingIntentFlags)
 
         val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
@@ -278,6 +284,20 @@ class RealtimePushService : Service() {
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(id, notification.build())
+    }
+
+    private fun shouldShowNotification(key: String): Boolean {
+        val now = System.currentTimeMillis()
+        val lastShownAt = recentNotifications[key]
+        if (lastShownAt != null && now - lastShownAt < DEDUP_WINDOW_MS) {
+            return false
+        }
+
+        recentNotifications[key] = now
+        if (recentNotifications.size > 200) {
+            recentNotifications.entries.removeIf { now - it.value > DEDUP_WINDOW_MS }
+        }
+        return true
     }
 
     private fun createNotificationChannel() {

@@ -13,9 +13,16 @@ import androidx.core.app.NotificationCompat
 import com.fieldworker.ui.MainActivity
 import com.fieldworker.R
 import com.fieldworker.data.preferences.AppPreferences
+import com.fieldworker.data.repository.DeviceRepository
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
@@ -23,9 +30,14 @@ import javax.inject.Inject
  */
 @AndroidEntryPoint
 class FCMService : FirebaseMessagingService() {
-    
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     @Inject
     lateinit var preferences: AppPreferences
+
+    @Inject
+    lateinit var deviceRepository: DeviceRepository
     
     companion object {
         private const val TAG = "FCMService"
@@ -43,6 +55,11 @@ class FCMService : FirebaseMessagingService() {
         super.onCreate()
         createNotificationChannels()
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceScope.cancel()
+    }
     
     /**
      * Вызывается при получении нового FCM токена
@@ -53,9 +70,14 @@ class FCMService : FirebaseMessagingService() {
         
         // Сохраняем токен локально
         preferences.setFcmToken(token)
-        
-        // TODO: Отправить токен на сервер для регистрации устройства
-        // Это нужно сделать когда пользователь авторизован
+
+        if (preferences.isLoggedIn()) {
+            serviceScope.launch {
+                deviceRepository.registerDevice().onFailure {
+                    Log.e(TAG, "Failed to register rotated FCM token", it)
+                }
+            }
+        }
     }
     
     /**
@@ -78,6 +100,7 @@ class FCMService : FirebaseMessagingService() {
             val title = data["title"] ?: remoteMessage.notification?.title ?: "FieldWorker"
             val body = data["body"] ?: remoteMessage.notification?.body ?: ""
             val taskId = data["task_id"]
+            val messageId = data["message_id"]
             
             when (type) {
                 "new_task", "task_assigned", "task_created" -> {
@@ -93,7 +116,7 @@ class FCMService : FirebaseMessagingService() {
                 "chat", "chat_message" -> {
                     if (preferences.getNotifyChatMessages()) {
                         val chatId = data["chat_id"] ?: data["conversation_id"]
-                        showChatNotification(title, body, chatId)
+                        showChatNotification(title, body, chatId, messageId)
                     }
                 }
                 else -> {
@@ -170,162 +193,88 @@ class FCMService : FirebaseMessagingService() {
         }
     }
     
-    /**
-     * Показывает уведомление о новой задаче
-     */
-    private fun showNewTaskNotification(
+    private fun showNewTaskNotification(title: String, body: String, taskId: String?) {
+        showNotification(
+            channelId = CHANNEL_ID_TASKS,
+            title = title,
+            body = body,
+            id = taskId?.hashCode() ?: NOTIFICATION_ID_NEW_TASK,
+            priority = NotificationCompat.PRIORITY_HIGH,
+            withBigText = true,
+            taskId = taskId
+        )
+    }
+
+    private fun showStatusChangeNotification(title: String, body: String, taskId: String?) {
+        showNotification(
+            channelId = CHANNEL_ID_STATUS,
+            title = title,
+            body = body,
+            id = taskId?.hashCode() ?: NOTIFICATION_ID_STATUS_CHANGE,
+            priority = NotificationCompat.PRIORITY_DEFAULT,
+            taskId = taskId
+        )
+    }
+
+    private fun showChatNotification(title: String, body: String, chatId: String?, messageId: String? = null) {
+        showNotification(
+            channelId = CHANNEL_ID_CHAT,
+            title = title,
+            body = body,
+            id = chatId?.hashCode() ?: NOTIFICATION_ID_CHAT,
+            priority = NotificationCompat.PRIORITY_HIGH,
+            withBigText = true,
+            chatId = chatId,
+            chatMessageId = messageId
+        )
+    }
+
+    private fun showGeneralNotification(title: String, body: String) {
+        showNotification(
+            channelId = CHANNEL_ID_TASKS,
+            title = title,
+            body = body,
+            id = System.currentTimeMillis().toInt(),
+            priority = NotificationCompat.PRIORITY_HIGH
+        )
+    }
+
+    private fun showNotification(
+        channelId: String,
         title: String,
         body: String,
-        taskId: String?
+        id: Int,
+        priority: Int = NotificationCompat.PRIORITY_HIGH,
+        withBigText: Boolean = false,
+        taskId: String? = null,
+        chatId: String? = null,
+        chatMessageId: String? = null,
     ) {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             taskId?.let { putExtra(MainActivity.EXTRA_TASK_ID, it) }
-        }
-
-        val requestCode = taskId?.hashCode() ?: NOTIFICATION_ID_NEW_TASK
-        
-        val pendingIntent = PendingIntent.getActivity(
-            this, 
-            requestCode, 
-            intent, 
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
-        val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID_TASKS)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
-            .setSound(defaultSoundUri)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-            .build()
-        
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(
-            taskId?.hashCode() ?: NOTIFICATION_ID_NEW_TASK,
-            notification
-        )
-    }
-    
-    /**
-     * Показывает уведомление об изменении статуса
-     */
-    private fun showStatusChangeNotification(
-        title: String,
-        body: String,
-        taskId: String?
-    ) {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            taskId?.let { putExtra(MainActivity.EXTRA_TASK_ID, it) }
-        }
-
-        val requestCode = taskId?.hashCode() ?: NOTIFICATION_ID_STATUS_CHANGE
-        
-        val pendingIntent = PendingIntent.getActivity(
-            this, 
-            requestCode, 
-            intent, 
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
-        val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID_STATUS)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
-            .setSound(defaultSoundUri)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .build()
-        
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(
-            taskId?.hashCode() ?: NOTIFICATION_ID_STATUS_CHANGE,
-            notification
-        )
-    }
-    
-    /**
-     * Показывает уведомление о сообщении в чате
-     */
-    private fun showChatNotification(
-        title: String,
-        body: String,
-        chatId: String?
-    ) {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             chatId?.let { putExtra(MainActivity.EXTRA_CHAT_ID, it) }
+            chatMessageId?.let { putExtra(MainActivity.EXTRA_CHAT_MESSAGE_ID, it) }
         }
-
-        val requestCode = chatId?.hashCode() ?: NOTIFICATION_ID_CHAT
-        
         val pendingIntent = PendingIntent.getActivity(
-            this, 
-            requestCode, 
-            intent, 
+            this, id, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        
         val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID_CHAT)
+        val builder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(priority)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setSound(defaultSoundUri)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-            .build()
-        
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(
-            chatId?.hashCode() ?: NOTIFICATION_ID_CHAT,
-            notification
-        )
-    }
-    
-    /**
-     * Показывает общее уведомление
-     */
-    private fun showGeneralNotification(
-        title: String,
-        body: String
-    ) {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        if (withBigText) {
+            builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            builder.setCategory(NotificationCompat.CATEGORY_MESSAGE)
         }
-        
-        val pendingIntent = PendingIntent.getActivity(
-            this, 
-            0, 
-            intent, 
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID_TASKS)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .build()
-        
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
+        notificationManager.notify(id, builder.build())
     }
 }

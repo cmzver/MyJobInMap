@@ -10,13 +10,24 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import java.util.Locale
 import kotlin.math.*
 
 /**
  * Утилиты для работы с задачами
  */
 object TaskUtils {
-    
+
+    private val DATE_FORMATTERS = listOf(
+        DateTimeFormatter.ISO_DATE_TIME,
+        DateTimeFormatter.ISO_LOCAL_DATE_TIME,
+        DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSS"),
+        DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"),
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
+        DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"),
+        DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"),
+    )
+
     /**
      * Форматирует дату в относительный формат ("2 часа назад", "вчера", и т.д.)
      */
@@ -55,19 +66,10 @@ object TaskUtils {
      * Парсит дату из строки
      */
     private fun parseDateTime(dateString: String): LocalDateTime? {
-        val formatters = listOf(
-            DateTimeFormatter.ISO_DATE_TIME,
-            DateTimeFormatter.ISO_LOCAL_DATE_TIME,
-            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSS"),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
-            DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"),
-            DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
-        )
-        
-        for (formatter in formatters) {
+        val normalized = dateString.substringBefore("+").substringBefore("Z")
+        for (formatter in DATE_FORMATTERS) {
             try {
-                return LocalDateTime.parse(dateString.substringBefore("+").substringBefore("Z"), formatter)
+                return LocalDateTime.parse(normalized, formatter)
             } catch (e: DateTimeParseException) {
                 continue
             }
@@ -84,6 +86,47 @@ object TaskUtils {
             dateTime.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
         } catch (e: Exception) {
             dateString
+        }
+    }
+
+    fun formatShortTime(dateString: String): String {
+        return try {
+            val dateTime = parseDateTime(dateString) ?: return ""
+            dateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    fun isDateOverdue(dateString: String?): Boolean {
+        if (dateString.isNullOrBlank()) return false
+        val dateTime = parseDateTime(dateString) ?: return false
+        return dateTime.toLocalDate().isBefore(java.time.LocalDate.now())
+    }
+
+    enum class DateBucket(val label: String, val order: Int) {
+        TODAY("Сегодня", 0),
+        YESTERDAY("Вчера", 1),
+        THIS_WEEK("Эта неделя", 2),
+        THIS_MONTH("Этот месяц", 3),
+        OLDER("Старее", 4),
+        UNKNOWN("Без даты", 5),
+    }
+
+    fun pluralizeTasks(count: Int): String =
+        pluralize(count, "заявка", "заявки", "заявок")
+
+    fun dateBucket(dateString: String?): DateBucket {
+        if (dateString.isNullOrBlank()) return DateBucket.UNKNOWN
+        val dateTime = parseDateTime(dateString) ?: return DateBucket.UNKNOWN
+        val date = dateTime.toLocalDate()
+        val today = java.time.LocalDate.now()
+        return when {
+            date.isEqual(today) -> DateBucket.TODAY
+            date.isEqual(today.minusDays(1)) -> DateBucket.YESTERDAY
+            date.isAfter(today.minusDays(7)) -> DateBucket.THIS_WEEK
+            date.isAfter(today.minusDays(30)) -> DateBucket.THIS_MONTH
+            else -> DateBucket.OLDER
         }
     }
     
@@ -126,7 +169,7 @@ object TaskUtils {
         
         return when {
             distanceMeters < 1000 -> "${distanceMeters.toInt()} м"
-            distanceMeters < 10000 -> String.format("%.1f км", distanceMeters / 1000)
+            distanceMeters < 10000 -> String.format(Locale.getDefault(), "%.1f км", distanceMeters / 1000)
             else -> "${(distanceMeters / 1000).toInt()} км"
         }
     }
@@ -241,5 +284,38 @@ fun List<Task>.sortedBy(
                 this
             }
         }
+    }
+}
+
+fun extractPhoneNumber(text: String): String? {
+    val phoneRegex = Regex("""\+?[78]\d{10}""")
+    return phoneRegex.find(text)?.value
+}
+
+fun extractApartment(text: String): String? {
+    val aptRegex = Regex("""(?:кв\.?\s*|квартира\s*)(\d+)""", RegexOption.IGNORE_CASE)
+    return aptRegex.find(text)?.groupValues?.get(1)
+}
+
+fun extractAdditionalInfo(task: Task): String? {
+    val description = task.description
+    if (description.isBlank()) return null
+    var info = description
+        .replace(Regex("""\+?[78]\d{10}"""), "")
+        .replace(Regex("""(?:кв\.?\s*|квартира\s*)\d+""", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("""\s*,\s*,\s*"""), ", ")
+        .replace(Regex("""^\s*,\s*"""), "")
+        .replace(Regex("""\s*,\s*$"""), "")
+        .trim()
+    return info.ifBlank { null }
+}
+
+fun normalizePhoneForDial(phone: String): String {
+    val compact = phone.replace(Regex("""[^+\d]"""), "")
+    return when {
+        compact.startsWith("8") && compact.length == 11 -> "+7${compact.drop(1)}"
+        compact.startsWith("+") -> compact
+        compact.isNotBlank() -> "+$compact"
+        else -> compact
     }
 }

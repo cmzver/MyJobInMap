@@ -34,6 +34,7 @@ import androidx.lifecycle.lifecycleScope
 import com.fieldworker.data.network.NetworkMonitor
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.AuthRepository
+import com.fieldworker.data.repository.DeviceRepository
 import com.fieldworker.data.repository.OfflineFirstTasksRepository
 import com.fieldworker.ui.auth.LoginScreen
 import com.fieldworker.ui.components.UpdateDialog
@@ -59,6 +60,7 @@ class MainActivity : ComponentActivity() {
         private const val TAG = "MainActivity"
         const val EXTRA_TASK_ID = "task_id"
         const val EXTRA_CHAT_ID = "chat_id"
+        const val EXTRA_CHAT_MESSAGE_ID = "chat_message_id"
     }
     
     @Inject
@@ -72,6 +74,9 @@ class MainActivity : ComponentActivity() {
     
     @Inject
     lateinit var networkMonitor: NetworkMonitor
+
+    @Inject
+    lateinit var deviceRepository: DeviceRepository
     
     private val updateViewModel: UpdateViewModel by viewModels()
     
@@ -79,6 +84,7 @@ class MainActivity : ComponentActivity() {
     private var isAppReady = false
     private var pendingNotificationTaskId by mutableStateOf<Long?>(null)
     private var pendingNotificationChatId by mutableStateOf<Long?>(null)
+    private var pendingNotificationChatMessageId by mutableStateOf<Long?>(null)
     
     // Запрос разрешения на уведомления для Android 13+
     private val requestPermissionLauncher = registerForActivityResult(
@@ -98,6 +104,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         pendingNotificationTaskId = extractTaskIdFromIntent(intent)
         pendingNotificationChatId = extractChatIdFromIntent(intent)
+        pendingNotificationChatMessageId = extractChatMessageIdFromIntent(intent)
         
         // Контролируем, когда скрыть Splash Screen
         splashScreen.setKeepOnScreenCondition { !isAppReady }
@@ -241,9 +248,12 @@ class MainActivity : ComponentActivity() {
                                     intent?.removeExtra(EXTRA_TASK_ID)
                                 },
                                 notificationChatId = pendingNotificationChatId,
+                                notificationChatMessageId = pendingNotificationChatMessageId,
                                 onNotificationChatHandled = {
                                     pendingNotificationChatId = null
+                                    pendingNotificationChatMessageId = null
                                     intent?.removeExtra(EXTRA_CHAT_ID)
+                                    intent?.removeExtra(EXTRA_CHAT_MESSAGE_ID)
                                 },
                                 onCheckForUpdates = {
                                     updateViewModel.checkForUpdate(
@@ -255,18 +265,25 @@ class MainActivity : ComponentActivity() {
                                 isCheckingForUpdates = updateState is com.fieldworker.ui.components.UpdateState.Checking,
                                 onLogout = {
                                     lifecycleScope.launch {
+                                        // Пытаемся снять серверную регистрацию токена до очистки auth.
+                                        withTimeoutOrNull(2_000L) {
+                                            deviceRepository.unregisterDevice()
+                                        }
                                         tasksRepository.clearCache()
                                         Log.d(TAG, "Task cache cleared on logout")
+                                        Log.d(TAG, "Push token unregistration attempted on logout")
+
+                                        // Останавливаем WebSocket fallback сервис
+                                        com.fieldworker.data.realtime.RealtimePushService.stopService(this@MainActivity)
+                                        appPreferences.setRealtimeFallbackEnabled(false)
+                                        appPreferences.logout()
+
+                                        // Перезапускаем Activity для полного сброса состояния
+                                        val intent = Intent(this@MainActivity, MainActivity::class.java)
+                                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                        startActivity(intent)
+                                        finish()
                                     }
-                                    // Останавливаем WebSocket fallback сервис
-                                    com.fieldworker.data.realtime.RealtimePushService.stopService(this@MainActivity)
-                                    appPreferences.setRealtimeFallbackEnabled(false)
-                                    appPreferences.logout()
-                                    // Перезапускаем Activity для полного сброса состояния
-                                    val intent = Intent(this@MainActivity, MainActivity::class.java)
-                                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                    startActivity(intent)
-                                    finish()
                                 }
                             )
                             
@@ -303,6 +320,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         pendingNotificationTaskId = extractTaskIdFromIntent(intent)
         pendingNotificationChatId = extractChatIdFromIntent(intent)
+        pendingNotificationChatMessageId = extractChatMessageIdFromIntent(intent)
     }
     
     /**
@@ -361,6 +379,11 @@ class MainActivity : ComponentActivity() {
     private fun extractChatIdFromIntent(intent: Intent?): Long? {
         val rawChatId = intent?.getStringExtra(EXTRA_CHAT_ID) ?: return null
         return rawChatId.toLongOrNull()
+    }
+
+    private fun extractChatMessageIdFromIntent(intent: Intent?): Long? {
+        val rawMessageId = intent?.getStringExtra(EXTRA_CHAT_MESSAGE_ID) ?: return null
+        return rawMessageId.toLongOrNull()
     }
 
     @androidx.compose.runtime.Composable

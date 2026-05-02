@@ -16,6 +16,17 @@ logger = logging.getLogger(__name__)
 # Firebase инициализация
 firebase_app = None
 
+ANDROID_CHANNEL_MAP = {
+    "new_task": "fieldworker_tasks",
+    "task_assigned": "fieldworker_tasks",
+    "task_created": "fieldworker_tasks",
+    "status_change": "fieldworker_status",
+    "chat": "fieldworker_chat",
+    "chat_message": "fieldworker_chat",
+    "alert": "fieldworker_emergency",
+    "emergency": "fieldworker_emergency",
+}
+
 
 def init_firebase() -> bool:
     """Инициализация Firebase Admin SDK"""
@@ -85,6 +96,10 @@ def _send_push_sync(
 
         tokens = [d.fcm_token for d in devices]
 
+        android_channel_id = ANDROID_CHANNEL_MAP.get(
+            notification_type, "fieldworker_tasks"
+        )
+
         payload_data = {
             "type": notification_type,
             "task_id": str(task_id) if task_id else "",
@@ -95,19 +110,6 @@ def _send_push_sync(
         if extra_data:
             for k, v in extra_data.items():
                 payload_data[k] = str(v)
-
-        # Map notification type to Android channel_id
-        channel_map = {
-            "new_task": "fieldworker_tasks",
-            "task_assigned": "fieldworker_tasks",
-            "task_created": "fieldworker_tasks",
-            "status_change": "fieldworker_status",
-            "chat": "fieldworker_chat",
-            "chat_message": "fieldworker_chat",
-            "alert": "fieldworker_emergency",
-            "emergency": "fieldworker_emergency",
-        }
-        android_channel_id = channel_map.get(notification_type, "fieldworker_tasks")
 
         # Data-only message: no 'notification' field so that
         # onMessageReceived() is called even when the app is in

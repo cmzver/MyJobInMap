@@ -12,6 +12,10 @@ allOpen {
     annotation("javax.inject.Singleton")
 }
 
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 android {
     namespace = "com.fieldworker"
     compileSdk = 34
@@ -20,8 +24,8 @@ android {
         applicationId = "com.fieldworker"
         minSdk = 24
         targetSdk = 34
-        versionCode = 22120
-        versionName = "2.21.2"
+        versionCode = 23100
+        versionName = "2.31.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

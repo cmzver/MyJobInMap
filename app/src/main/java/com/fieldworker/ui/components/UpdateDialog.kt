@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fieldworker.data.dto.UpdateInfoDto
+import java.util.Locale
 
 /**
  * Состояние процесса обновления
@@ -246,6 +247,6 @@ private fun formatFileSize(bytes: Long): String {
     return when {
         bytes < 1024 -> "$bytes Б"
         bytes < 1024 * 1024 -> "${bytes / 1024} КБ"
-        else -> String.format("%.1f МБ", bytes / (1024.0 * 1024.0))
+        else -> String.format(Locale.getDefault(), "%.1f МБ", bytes / (1024.0 * 1024.0))
     }
 }

@@ -61,6 +61,7 @@ import com.fieldworker.ui.settings.SettingsScreen
 fun MainScreen(
     notificationTaskId: Long? = null,
     notificationChatId: Long? = null,
+    notificationChatMessageId: Long? = null,
     onNotificationChatHandled: () -> Unit = {},
     onNotificationTaskHandled: () -> Unit = {},
     onLogout: () -> Unit = {},
@@ -76,6 +77,7 @@ fun MainScreen(
     
     var showLogoutDialog by remember { mutableStateOf(false) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val filteredTasks by viewModel.filteredTasks.collectAsStateWithLifecycle()
     val chatListState by chatViewModel.listState.collectAsStateWithLifecycle()
     val chatState by chatViewModel.chatState.collectAsStateWithLifecycle()
     val pagingItems = viewModel.tasksPagingFlow.collectAsLazyPagingItems()
@@ -93,8 +95,12 @@ fun MainScreen(
         chatListState.conversations.sumOf { it.unreadCount }
     }
     val topTitle = mainTitleFor(currentScreen)
-    val topSubtitle = mainSubtitleFor(currentScreen, uiState.newTasksCount, connectionStatus)
-    val isChatConversationOpen = currentScreen == Screen.Chat && chatState.conversationId != null
+    val topSubtitle = remember(currentScreen, uiState.newTasksCount, connectionStatus) {
+        mainSubtitleFor(currentScreen, uiState.newTasksCount, connectionStatus)
+    }
+    val isChatConversationOpen = remember(currentScreen, chatState.conversationId) {
+        currentScreen == Screen.Chat && chatState.conversationId != null
+    }
     
     // Получаем baseUrl из preferences (полный URL с портом)
     val baseUrl = viewModel.preferences.getFullServerUrl()
@@ -195,7 +201,7 @@ fun MainScreen(
         onNotificationTaskHandled()
     }
     
-    LaunchedEffect(notificationChatId) {
+    LaunchedEffect(notificationChatId, notificationChatMessageId) {
         val chatId = notificationChatId ?: return@LaunchedEffect
         navController.navigate(Screen.Chat.route) {
             popUpTo(navController.graph.findStartDestination().id) {
@@ -204,7 +210,7 @@ fun MainScreen(
             launchSingleTop = true
             restoreState = true
         }
-        chatViewModel.openConversation(chatId)
+        chatViewModel.openConversation(chatId, notificationChatMessageId)
         onNotificationChatHandled()
     }
     
@@ -272,6 +278,17 @@ fun MainScreen(
                         tonalElevation = 0.dp
                     ) {
                         Screen.bottomNavItems.forEach { screen ->
+                            val onNavClick = remember(screen.route) {
+                                {
+                                    navController.navigate(screen.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                            }
                             NavigationBarItem(
                                 icon = {
                                     if (screen == Screen.TaskList || screen == Screen.Chat) {
@@ -313,15 +330,7 @@ fun MainScreen(
                                     )
                                 },
                                 selected = currentRoute == screen.route,
-                                onClick = {
-                                    navController.navigate(screen.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
+                                onClick = onNavClick,
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = MaterialTheme.colorScheme.primary,
                                     selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -345,7 +354,8 @@ fun MainScreen(
             // Баннер офлайн-режима (занимает место сверху, сдвигает контент)
             OfflineBanner(
                 isOffline = uiState.isOffline,
-                pendingActionsCount = uiState.pendingActionsCount
+                pendingActionsCount = uiState.pendingActionsCount,
+                onSyncClick = { viewModel.forceSync() }
             )
 
             Box(modifier = Modifier.weight(1f)) {
@@ -364,7 +374,7 @@ fun MainScreen(
                 
                 composable(Screen.TaskList.route) {
                     TaskListScreen(
-                        tasks = uiState.filteredTasks,
+                        tasks = filteredTasks,
                         comments = uiState.comments,
                         isLoading = uiState.isLoading,
                         isLoadingComments = uiState.isLoadingComments,
@@ -459,6 +469,9 @@ fun MainScreen(
                             replyTo = chatState.replyTo,
                             typingText = typingText,
                             readReceipts = chatState.readReceipts,
+                            messageSendStatuses = chatState.messageSendStatuses,
+                            messageSendErrors = chatState.messageSendErrors,
+                            pinnedMessageIds = chatState.pinnedMessageIds,
                             recipientCount = recipientCount,
                             availableUsers = listState.availableUsers,
                             isLoadingUsers = listState.isLoadingUsers,
@@ -483,6 +496,8 @@ fun MainScreen(
                             onMessageInputChanged = { chatViewModel.onMessageInputChanged(it) },
                             onLoadMore = { chatViewModel.loadMoreMessages() },
                             onDeleteMessage = { chatViewModel.deleteMessage(it) },
+                            onRetryMessage = { chatViewModel.retryMessage(it) },
+                            onTogglePinnedMessage = { chatViewModel.togglePinnedMessage(it) },
                             onToggleReaction = { msgId, emoji -> chatViewModel.toggleReaction(msgId, emoji) },
                             onSetReplyTo = { chatViewModel.setReplyTo(it) },
                             onOpenAttachment = { chatViewModel.openAttachment(it) },

@@ -179,8 +179,8 @@ fun SettingsScreen(
             SectionLabel("Отображение")
 
             MinimalSwitch(
-                title = "Скрывать выполненные",
-                subtitle = "Не показывать заявки со статусом «Выполнена»",
+                title = "Скрывать завершённые",
+                subtitle = "Не показывать заявки со статусом «Выполнена» и «Отменена»",
                 checked = hideDoneTasks,
                 onCheckedChange = { hideDoneTasks = it; preferences.setHideDoneTasks(it) }
             )

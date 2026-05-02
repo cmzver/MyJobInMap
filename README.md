@@ -185,6 +185,7 @@ make help           # Справка
 | [GETTING_STARTED.md](GETTING_STARTED.md) | Быстрый старт (5 мин) |
 | [CHANGELOG.md](CHANGELOG.md) | История версий |
 | [AGENTS.md](AGENTS.md) | Инструкции для AI |
+| [docs/brain/README.md](docs/brain/README.md) | Obsidian-friendly knowledge vault |
 | [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) | Push-уведомления |
 | [docs/HTTPS_SETUP.md](docs/HTTPS_SETUP.md) | SSL сертификаты |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Развертывание |

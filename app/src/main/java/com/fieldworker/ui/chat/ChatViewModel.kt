@@ -33,8 +33,23 @@ data class ConversationListState(
 
 enum class ConversationListFilter {
     ACTIVE,
+    UNREAD,
     ARCHIVED,
 }
+
+enum class ChatSendStatus {
+    SENDING,
+    SENT,
+    READ,
+    FAILED,
+}
+
+private data class PendingSend(
+    val conversationId: Long,
+    val text: String? = null,
+    val replyToId: Long? = null,
+    val attachmentUri: Uri? = null,
+)
 
 data class ChatScreenState(
     val conversationId: Long? = null,
@@ -48,6 +63,9 @@ data class ChatScreenState(
     val replyTo: ChatMessage? = null,
     val typingUsers: Map<Long, String> = emptyMap(),
     val readReceipts: Map<Long, Long> = emptyMap(),
+    val messageSendStatuses: Map<Long, ChatSendStatus> = emptyMap(),
+    val messageSendErrors: Map<Long, String> = emptyMap(),
+    val pinnedMessageIds: Set<Long> = emptySet(),
     val isSavingConversation: Boolean = false,
     val activeManagementUserId: Long? = null,
     val error: String? = null,
@@ -60,11 +78,13 @@ class ChatViewModel @Inject constructor(
     private val preferences: AppPreferences,
 ) : ViewModel() {
 
-    private val typingTimeoutJobs = mutableMapOf<Long, Job>()
+    private val typingTimeoutJobs = java.util.concurrent.ConcurrentHashMap<Long, Job>()
     private val locallyReadMessageIds = mutableMapOf<Long, Long>()
     private var unreadAnchorLoadJob: Job? = null
     private var shouldResolveInitialUnreadAnchor = false
     private var unreadAnchorLoadAttempts = 0
+    private var pendingFocusMessageId: Long? = null
+    private val pendingSends = mutableMapOf<Long, PendingSend>()
     private var localTypingResetJob: Job? = null
     private var sentTypingActive = false
 
@@ -92,11 +112,7 @@ class ChatViewModel @Inject constructor(
 
     fun loadConversations(showLoading: Boolean = true) {
         viewModelScope.launch {
-            if (showLoading) {
-                _listState.update { it.copy(isLoading = true, error = null) }
-            } else {
-                _listState.update { it.copy(error = null) }
-            }
+            _listState.update { it.copy(isLoading = showLoading, error = null) }
             chatRepository.getConversations(includeArchived = true).fold(
                 onSuccess = { list ->
                     _listState.update { it.copy(conversations = list, isLoading = false) }
@@ -110,6 +126,17 @@ class ChatViewModel @Inject constructor(
 
     fun setConversationListFilter(filter: ConversationListFilter) {
         _listState.update { it.copy(selectedFilter = filter) }
+    }
+
+    fun togglePinnedMessage(messageId: Long) {
+        _chatState.update { state ->
+            val nextPins = if (messageId in state.pinnedMessageIds) {
+                state.pinnedMessageIds - messageId
+            } else {
+                state.pinnedMessageIds + messageId
+            }
+            state.copy(pinnedMessageIds = nextPins)
+        }
     }
 
     fun loadAvailableUsers(force: Boolean = false) {
@@ -165,11 +192,12 @@ class ChatViewModel @Inject constructor(
     // Open / close conversation
     // ========================================================================
 
-    fun openConversation(conversationId: Long) {
+    fun openConversation(conversationId: Long, focusMessageId: Long? = null) {
         clearTypingUsers()
         unreadAnchorLoadJob?.cancel()
         unreadAnchorLoadAttempts = 0
-        shouldResolveInitialUnreadAnchor = unreadCountForConversation(conversationId) > 0
+        pendingFocusMessageId = focusMessageId
+        shouldResolveInitialUnreadAnchor = focusMessageId == null && unreadCountForConversation(conversationId) > 0
         _chatState.update {
             ChatScreenState(
                 conversationId = conversationId,
@@ -240,6 +268,17 @@ class ChatViewModel @Inject constructor(
                 _chatState.update { state ->
                     state.copy(messages = combined, hasMore = hasMore, isLoadingMessages = false)
                 }
+                pendingFocusMessageId?.let { focusMessageId ->
+                    if (combined.any { it.id == focusMessageId }) {
+                        pendingFocusMessageId = null
+                        _chatState.update {
+                            it.copy(
+                                pendingUnreadAnchorMessageId = focusMessageId,
+                                isPreparingUnreadAnchor = false,
+                            )
+                        }
+                    }
+                }
                 maybeResolveInitialUnreadAnchor(conversationId)
             },
             onFailure = { e ->
@@ -276,44 +315,97 @@ class ChatViewModel @Inject constructor(
 
     fun sendMessage(text: String) {
         val convId = _chatState.value.conversationId ?: return
+        val trimmedText = text.trim()
+        if (trimmedText.isBlank()) return
         val replyId = _chatState.value.replyTo?.id
+        val tempId = nextTempMessageId()
+        val pendingMessage = ChatMessage(
+            id = tempId,
+            conversationId = convId,
+            senderId = preferences.getUserId(),
+            senderName = preferences.getUsername(),
+            text = trimmedText,
+            messageType = MessageType.TEXT,
+            isEdited = false,
+            isDeleted = false,
+            replyTo = _chatState.value.replyTo?.let {
+                ReplyPreview(
+                    id = it.id,
+                    text = it.text,
+                    senderName = it.senderName,
+                )
+            },
+            attachments = emptyList(),
+            reactions = emptyList(),
+            createdAt = java.time.LocalDateTime.now(),
+            editedAt = null,
+        )
+        pendingSends[tempId] = PendingSend(
+            conversationId = convId,
+            text = trimmedText,
+            replyToId = replyId,
+        )
         sendTypingStopped()
-        _chatState.update { it.copy(isSending = true, replyTo = null) }
-        viewModelScope.launch {
-            chatRepository.sendMessage(convId, text, replyToId = replyId).fold(
-                onSuccess = { msg ->
-                    _chatState.update { state ->
-                        state.copy(
-                            messages = listOf(msg) + state.messages,
-                            isSending = false,
-                        )
-                    }
-                },
-                onFailure = { e ->
-                    _chatState.update { it.copy(error = e.message, isSending = false) }
-                }
+        _chatState.update { state ->
+            state.copy(
+                messages = listOf(pendingMessage) + state.messages,
+                messageSendStatuses = state.messageSendStatuses + (tempId to ChatSendStatus.SENDING),
+                messageSendErrors = state.messageSendErrors - tempId,
+                isSending = true,
+                replyTo = null,
             )
+        }
+        viewModelScope.launch {
+            sendPendingMessage(tempId)
         }
     }
 
     fun sendAttachment(fileUri: android.net.Uri) {
         val convId = _chatState.value.conversationId ?: return
+        val tempId = nextTempMessageId()
+        val pendingMessage = ChatMessage(
+            id = tempId,
+            conversationId = convId,
+            senderId = preferences.getUserId(),
+            senderName = preferences.getUsername(),
+            text = "Вложение отправляется...",
+            messageType = MessageType.ATTACHMENT,
+            isEdited = false,
+            isDeleted = false,
+            replyTo = null,
+            attachments = emptyList(),
+            reactions = emptyList(),
+            createdAt = java.time.LocalDateTime.now(),
+            editedAt = null,
+        )
+        pendingSends[tempId] = PendingSend(
+            conversationId = convId,
+            attachmentUri = fileUri,
+        )
         sendTypingStopped()
-        _chatState.update { it.copy(isSending = true) }
-        viewModelScope.launch {
-            chatRepository.sendAttachment(convId, fileUri).fold(
-                onSuccess = { msg ->
-                    _chatState.update { state ->
-                        state.copy(
-                            messages = listOf(msg) + state.messages,
-                            isSending = false,
-                        )
-                    }
-                },
-                onFailure = { e ->
-                    _chatState.update { it.copy(error = e.message, isSending = false) }
-                }
+        _chatState.update { state ->
+            state.copy(
+                messages = listOf(pendingMessage) + state.messages,
+                messageSendStatuses = state.messageSendStatuses + (tempId to ChatSendStatus.SENDING),
+                messageSendErrors = state.messageSendErrors - tempId,
+                isSending = true,
             )
+        }
+        viewModelScope.launch {
+            sendPendingMessage(tempId)
+        }
+    }
+
+    fun retryMessage(messageId: Long) {
+        if (!pendingSends.containsKey(messageId)) return
+        _chatState.update { state ->
+            state.copy(
+                messageSendStatuses = state.messageSendStatuses + (messageId to ChatSendStatus.SENDING),
+                messageSendErrors = state.messageSendErrors - messageId,
+            )
+        }
+        viewModelScope.launch {
+            sendPendingMessage(messageId)
         }
     }
 
@@ -743,6 +835,47 @@ class ChatViewModel @Inject constructor(
         loadConversations(showLoading = false)
     }
 
+    private suspend fun sendPendingMessage(tempId: Long) {
+        val pending = pendingSends[tempId] ?: return
+        val result = if (pending.attachmentUri != null) {
+            chatRepository.sendAttachment(pending.conversationId, pending.attachmentUri)
+        } else {
+            chatRepository.sendMessage(
+                conversationId = pending.conversationId,
+                text = pending.text,
+                replyToId = pending.replyToId,
+            )
+        }
+
+        result.fold(
+            onSuccess = { sentMessage ->
+                pendingSends.remove(tempId)
+                _chatState.update { state ->
+                    state.copy(
+                        messages = state.messages.map { message ->
+                            if (message.id == tempId) sentMessage else message
+                        }.distinctBy { it.id },
+                        messageSendStatuses = (state.messageSendStatuses - tempId) +
+                            (sentMessage.id to ChatSendStatus.SENT),
+                        messageSendErrors = state.messageSendErrors - tempId,
+                        isSending = false,
+                    )
+                }
+            },
+            onFailure = { e ->
+                _chatState.update { state ->
+                    state.copy(
+                        messageSendStatuses = state.messageSendStatuses + (tempId to ChatSendStatus.FAILED),
+                        messageSendErrors = state.messageSendErrors + (tempId to (e.message ?: "Не удалось отправить")),
+                        isSending = false,
+                    )
+                }
+            },
+        )
+    }
+
+    private fun nextTempMessageId(): Long = -System.nanoTime()
+
     private fun unreadCountForConversation(conversationId: Long): Int =
         _listState.value.conversations.firstOrNull { it.id == conversationId }?.unreadCount ?: 0
 
@@ -885,7 +1018,10 @@ class ChatViewModel @Inject constructor(
                             member
                         }
                     }
-                )
+                ),
+                messageSendStatuses = state.messageSendStatuses + state.messages
+                    .filter { it.senderId == currentUserId && it.id <= effectiveLastReadMessageId }
+                    .associate { it.id to ChatSendStatus.READ }
             )
         }
     }

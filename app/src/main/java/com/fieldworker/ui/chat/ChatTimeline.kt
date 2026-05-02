@@ -20,7 +20,7 @@ internal fun buildChatTimelineItems(
     currentUserId: Long,
     lastReadMessageId: Long?,
 ): List<ChatTimelineItem> {
-    val sortedMessages = messages.sortedByDescending { it.createdAt }
+    val sortedMessages = compactSystemMessages(messages.sortedByDescending { it.createdAt })
     val unreadMessages = sortedMessages.filter { message ->
         !message.isDeleted &&
             message.senderId != currentUserId &&
@@ -53,6 +53,27 @@ internal fun buildChatTimelineItems(
     }
 
     return items
+}
+
+private fun compactSystemMessages(messages: List<ChatMessage>): List<ChatMessage> {
+    val result = mutableListOf<ChatMessage>()
+    messages.forEach { message ->
+        val previous = result.lastOrNull()
+        if (
+            message.isSystem &&
+            previous?.isSystem == true &&
+            previous.createdAt.toLocalDate() == message.createdAt.toLocalDate()
+        ) {
+            result[result.lastIndex] = previous.copy(
+                text = listOfNotNull(previous.text, message.text)
+                    .filter { it.isNotBlank() }
+                    .joinToString("\n"),
+            )
+        } else {
+            result += message
+        }
+    }
+    return result
 }
 
 private fun canGroupMessages(upper: ChatMessage?, lower: ChatMessage?): Boolean {

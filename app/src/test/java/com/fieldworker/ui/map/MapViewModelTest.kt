@@ -77,9 +77,8 @@ class MapViewModelTest {
     )
 
     /**
-     * Создаёт реальный AppPreferences с мокнутым SharedPreferences.
-     * MockK не может мокать final-класс AppPreferences на JDK 21 (агент не работает),
-     * поэтому используем реальный экземпляр с фейковым хранилищем.
+     * Создаёт стаб AppPreferences на StateFlow.
+     * Не трогаем реальную Android-реализацию prefs в JVM unit tests.
      */
     private fun createRealPreferences(): AppPreferences {
         val preferences = mockk<AppPreferences>(relaxed = true)
@@ -88,33 +87,28 @@ class MapViewModelTest {
         )
         val priorityFilterFlow = MutableStateFlow(emptySet<Priority>())
         val showMyLocationFlow = MutableStateFlow(true)
-        var authToken: String? = "token"
+        val hideDoneTasksFlow = MutableStateFlow(true)
 
         every { preferences.statusFilterUpdates() } returns statusFilterFlow
         every { preferences.priorityFilterUpdates() } returns priorityFilterFlow
         every { preferences.showMyLocationUpdates() } returns showMyLocationFlow
+        every { preferences.hideDoneTasksUpdates() } returns hideDoneTasksFlow
+        every { preferences.getFullServerUrl() } returns "invalid-url"
 
-        every { preferences.getStatusFilter() } answers { statusFilterFlow.value }
         every { preferences.setStatusFilter(any()) } answers {
             statusFilterFlow.value = firstArg()
             Unit
         }
-
-        every { preferences.getPriorityFilter() } answers { priorityFilterFlow.value }
         every { preferences.setPriorityFilter(any()) } answers {
             priorityFilterFlow.value = firstArg()
             Unit
         }
-
-        every { preferences.getShowMyLocation() } answers { showMyLocationFlow.value }
         every { preferences.setShowMyLocation(any()) } answers {
             showMyLocationFlow.value = firstArg()
             Unit
         }
-
-        every { preferences.getAuthToken() } answers { authToken }
-        every { preferences.triggerLogout() } answers {
-            authToken = null
+        every { preferences.setHideDoneTasks(any()) } answers {
+            hideDoneTasksFlow.value = firstArg()
             Unit
         }
 
@@ -174,7 +168,7 @@ class MapViewModelTest {
 
     @Test
     fun `init validates session before loading tasks`() = runTest {
-        val viewModel = createViewModel()
+        createViewModel()
         advanceUntilIdle()
 
         coVerify { authRepository.validateCurrentUser() }
@@ -183,7 +177,7 @@ class MapViewModelTest {
 
     @Test
     fun `init starts periodic sync`() = runTest {
-        val viewModel = createViewModel()
+        createViewModel()
         advanceUntilIdle()
 
         verify { syncManager.startPeriodicSync() }
@@ -202,9 +196,7 @@ class MapViewModelTest {
         advanceUntilIdle()
 
         coVerify { getTasksUseCase.clearCache() }
-        // AppPreferences — реальный экземпляр, проверяем эффект triggerLogout()
         verify { preferences.triggerLogout() }
-        assertNull(preferences.getAuthToken())
         assertTrue(viewModel.uiState.value.tasks.isEmpty())
     }
 
@@ -213,7 +205,7 @@ class MapViewModelTest {
         coEvery { authRepository.validateCurrentUser() } returns AuthRepository.ValidationResult.UNKNOWN
         coEvery { getTasksUseCase.refreshTasks() } returns Result.success(listOf(sampleTask()))
 
-        val viewModel = MapViewModel(
+        MapViewModel(
             getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
             taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository
         )
@@ -268,14 +260,13 @@ class MapViewModelTest {
             Exception("Сессия истекла 401")
         )
 
-        val viewModel = MapViewModel(
+        MapViewModel(
             getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
             taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository
         )
         advanceUntilIdle()
 
         verify { preferences.triggerLogout() }
-        assertNull(preferences.getAuthToken())
     }
 
     // ==================== Выбор задачи ====================
@@ -397,7 +388,7 @@ class MapViewModelTest {
         viewModel.setStatusFilter(filter)
 
         assertEquals(filter, viewModel.uiState.value.statusFilter)
-        assertEquals(filter, preferences.getStatusFilter())
+        verify { preferences.setStatusFilter(filter) }
     }
 
     @Test
@@ -409,7 +400,7 @@ class MapViewModelTest {
         viewModel.setPriorityFilter(filter)
 
         assertEquals(filter, viewModel.uiState.value.priorityFilter)
-        assertEquals(filter, preferences.getPriorityFilter())
+        verify { preferences.setPriorityFilter(filter) }
     }
 
     @Test
@@ -470,7 +461,7 @@ class MapViewModelTest {
         viewModel.toggleShowMyLocation(false)
 
         assertFalse(viewModel.uiState.value.showMyLocation)
-        assertFalse(preferences.getShowMyLocation())
+        verify { preferences.setShowMyLocation(false) }
     }
 
     // ==================== Статус диалог ====================
@@ -501,15 +492,19 @@ class MapViewModelTest {
     }
 
     @Test
-    fun `going online triggers immediate sync`() = runTest {
-        networkOnlineFlow.value = false
+    fun `going online keeps offline when server unreachable`() = runTest(testDispatcher) {
         val viewModel = createViewModel()
         advanceUntilIdle()
+
+        networkOnlineFlow.value = false
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isOffline)
 
         networkOnlineFlow.value = true
         advanceUntilIdle()
 
-        verify(atLeast = 1) { syncManager.triggerImmediateSync() }
+        assertTrue(viewModel.uiState.value.isOffline)
+        verify(exactly = 0) { syncManager.triggerImmediateSync() }
     }
 
     // ==================== Подключение ====================

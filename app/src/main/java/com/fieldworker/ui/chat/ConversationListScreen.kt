@@ -97,6 +97,7 @@ fun ConversationListScreen(
         conversations.filter { conversation ->
             val matchesFilter = when (selectedFilter) {
                 ConversationListFilter.ACTIVE -> !conversation.isArchived
+                ConversationListFilter.UNREAD -> !conversation.isArchived && conversation.unreadCount > 0
                 ConversationListFilter.ARCHIVED -> conversation.isArchived
             }
             val q = searchQuery.trim()
@@ -127,6 +128,7 @@ fun ConversationListScreen(
                 searchQuery = searchQuery,
                 selectedFilter = selectedFilter,
                 activeCount = conversations.count { !it.isArchived },
+                unreadCount = conversations.count { !it.isArchived && it.unreadCount > 0 },
                 archivedCount = conversations.count { it.isArchived },
                 onSearchModeChange = { searchMode = it },
                 onSearchQueryChange = { searchQuery = it },
@@ -158,7 +160,7 @@ fun ConversationListScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(vertical = 4.dp),
                     ) {
-                        items(filteredConversations, key = { it.id }) { conversation ->
+                        items(filteredConversations, key = { it.id }, contentType = { "conversation" }) { conversation ->
                             ConversationItem(
                                 conversation = conversation,
                                 baseUrl = baseUrl,
@@ -218,6 +220,7 @@ private fun ConversationListHeader(
     searchQuery: String,
     selectedFilter: ConversationListFilter,
     activeCount: Int,
+    unreadCount: Int,
     archivedCount: Int,
     onSearchModeChange: (Boolean) -> Unit,
     onSearchQueryChange: (String) -> Unit,
@@ -266,7 +269,11 @@ private fun ConversationListHeader(
             }
         }
 
-        val selectedIndex = if (selectedFilter == ConversationListFilter.ACTIVE) 0 else 1
+        val selectedIndex = when (selectedFilter) {
+            ConversationListFilter.ACTIVE -> 0
+            ConversationListFilter.UNREAD -> 1
+            ConversationListFilter.ARCHIVED -> 2
+        }
         TabRow(
             selectedTabIndex = selectedIndex,
             containerColor = MaterialTheme.colorScheme.background,
@@ -278,6 +285,11 @@ private fun ConversationListHeader(
             )
             Tab(
                 selected = selectedIndex == 1,
+                onClick = { onFilterChange(ConversationListFilter.UNREAD) },
+                text = { Text("Непроч. ($unreadCount)") },
+            )
+            Tab(
+                selected = selectedIndex == 2,
                 onClick = { onFilterChange(ConversationListFilter.ARCHIVED) },
                 text = { Text("Архив ($archivedCount)") },
             )
@@ -413,11 +425,13 @@ private fun EmptyConversationState(
     val isSearching = searchQuery.isNotBlank()
     val title = when {
         isSearching -> "Ничего не найдено"
+        selectedFilter == ConversationListFilter.UNREAD -> "Нет непрочитанных"
         selectedFilter == ConversationListFilter.ARCHIVED -> "Архив пуст"
         else -> "Пока нет чатов"
     }
     val description = when {
         isSearching -> "Попробуйте изменить запрос."
+        selectedFilter == ConversationListFilter.UNREAD -> "Все сообщения уже разобраны."
         selectedFilter == ConversationListFilter.ARCHIVED -> "Архивированные диалоги появятся здесь."
         else -> "Создайте первый диалог."
     }

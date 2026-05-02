@@ -16,7 +16,10 @@ import androidx.compose.ui.unit.dp
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskStatus
+import com.fieldworker.ui.components.TaskCardBalancedVariant
 import com.fieldworker.ui.components.TaskCard
+import com.fieldworker.ui.components.TaskCardEditorialVariant
+import com.fieldworker.ui.components.TaskCardRailVariant
 import com.fieldworker.ui.list.*
 import com.fieldworker.ui.map.PriorityBadge
 import com.fieldworker.ui.map.StatusChangeDialog
@@ -117,6 +120,48 @@ private fun TaskCardDarkPreview() {
                 isSelected = false,
                 onClick = {}
             )
+        }
+    }
+}
+
+@Preview(name = "TaskCard - Variants", showBackground = true, backgroundColor = 0xFFF5F7FA)
+@Composable
+private fun TaskCardVariantsPreview() {
+    FieldWorkerTheme {
+        Surface {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TaskCard(
+                    task = PreviewData.taskCurrent,
+                    isSelected = false,
+                    onClick = {},
+                    userLat = 59.85,
+                    userLon = 30.26
+                )
+                TaskCardEditorialVariant(
+                    task = PreviewData.taskCurrent,
+                    isSelected = false,
+                    onClick = {},
+                    userLat = 59.85,
+                    userLon = 30.26
+                )
+                TaskCardBalancedVariant(
+                    task = PreviewData.taskCurrent,
+                    isSelected = false,
+                    onClick = {},
+                    userLat = 59.85,
+                    userLon = 30.26
+                )
+                TaskCardRailVariant(
+                    task = PreviewData.taskCurrent,
+                    isSelected = false,
+                    onClick = {},
+                    userLat = 59.85,
+                    userLon = 30.26
+                )
+            }
         }
     }
 }

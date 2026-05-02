@@ -131,8 +131,7 @@ fun PhotoGallery(
                     photo = photo,
                     baseUrl = baseUrl,
                     authToken = authToken,
-                    onClick = { selectedPhoto = photo },
-                    onDelete = { onDeletePhoto(photo.id) }
+                    onClick = { selectedPhoto = photo }
                 )
             }
         }
@@ -338,8 +337,7 @@ private fun PhotoThumbnail(
     photo: TaskPhoto,
     baseUrl: String,
     authToken: String?,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
+    onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier

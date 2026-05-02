@@ -201,6 +201,10 @@ def _report_group(chat_id: int, title: str) -> None:
         logger.debug(f"Не удалось зарегистрировать группу: {exc}")
 
 
+# Маркеры, с которых начинаются ответы самого бота — такие сообщения игнорируем
+_BOT_REPLY_PREFIXES = ("✅", "📝", "❌", "⚠️", "📊", "📖", "👋")
+
+
 def is_potential_task(text: str) -> bool:
     """
     Быстрая проверка, похоже ли сообщение на заявку.
@@ -208,11 +212,17 @@ def is_potential_task(text: str) -> bool:
     """
     if len(text) < MIN_MESSAGE_LENGTH:
         return False
+
+    stripped = text.strip()
+
+    # Игнорируем сообщения, которые выглядят как ответы бота
+    if stripped.startswith(_BOT_REPLY_PREFIXES):
+        return False
     
     text_lower = text.lower()
     
     # Признаки заявки диспетчерской
-    if text.strip().startswith("№"):
+    if stripped.startswith("№"):
         return True
     
     # Ключевые слова
@@ -301,6 +311,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     Проверяет похоже ли сообщение на заявку и отправляет на сервер.
     """
     if not update.message or not update.message.text:
+        return
+
+    # Игнорируем сообщения от самого бота
+    if update.message.from_user and update.message.from_user.is_bot:
         return
     
     text = update.message.text

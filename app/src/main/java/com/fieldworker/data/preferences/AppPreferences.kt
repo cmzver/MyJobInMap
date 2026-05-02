@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKeys
+import androidx.security.crypto.MasterKey
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.TaskStatus
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -37,15 +37,17 @@ class AppPreferences @Inject constructor(
      * fallback на обычные SharedPreferences.
      */
     private val securePrefs: SharedPreferences = try {
-        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
         EncryptedSharedPreferences.create(
-            SECURE_PREFS_NAME,
-            masterKeyAlias,
             context,
+            SECURE_PREFS_NAME,
+            masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         Log.e("AppPreferences", "Failed to create EncryptedSharedPreferences, using fallback", e)
         context.getSharedPreferences(SECURE_PREFS_NAME, Context.MODE_PRIVATE)
     }
@@ -74,11 +76,6 @@ class AppPreferences @Inject constructor(
     private val _showMyLocation = MutableStateFlow(getShowMyLocation())
     val showMyLocation: StateFlow<Boolean> = _showMyLocation.asStateFlow()
 
-    fun statusFilterUpdates(): StateFlow<Set<TaskStatus>> = statusFilter
-
-    fun priorityFilterUpdates(): StateFlow<Set<Priority>> = priorityFilter
-
-    fun showMyLocationUpdates(): StateFlow<Boolean> = showMyLocation
     
     /**
      * SharedFlow для события принудительного логаута.
@@ -284,7 +281,6 @@ class AppPreferences @Inject constructor(
     
     fun setUserId(id: Long) {
         securePrefs.edit().putLong(KEY_USER_ID, id).apply()
-        prefs.edit().putLong(KEY_USER_ID, id).apply()
     }
     
     fun getUsername(): String? {
@@ -422,7 +418,10 @@ class AppPreferences @Inject constructor(
     private fun setSecureValue(key: String, value: String?) {
         if (value != null) {
             securePrefs.edit().putString(key, value).apply()
-            prefs.edit().putString(key, value).apply()
+            // Пишем в plaintext только как fallback, когда зашифрованное хранилище недоступно
+            if (!secureStorageAvailable) {
+                prefs.edit().putString(key, value).apply()
+            }
         } else {
             securePrefs.edit().remove(key).apply()
             prefs.edit().remove(key).apply()
@@ -455,9 +454,36 @@ class AppPreferences @Inject constructor(
         private const val KEY_USER_FULLNAME = "user_fullname"
         private const val KEY_USER_ROLE = "user_role"
         private const val KEY_DISMISSED_UPDATE_VERSION_CODE = "dismissed_update_version_code"
-        
+
+        // Позиция карты
+        private const val KEY_MAP_LAT  = "map_lat"
+        private const val KEY_MAP_LON  = "map_lon"
+        private const val KEY_MAP_ZOOM = "map_zoom"
+
         // Значения по умолчанию
         const val DEFAULT_SERVER_URL = "http://10.0.2.2"
         const val DEFAULT_SERVER_PORT = 8001
+    }
+
+    /** Сохраняет последнюю позицию карты (центр + зум). */
+    fun saveMapPosition(lat: Double, lon: Double, zoom: Double) {
+        prefs.edit()
+            .putLong(KEY_MAP_LAT,  lat.toBits())
+            .putLong(KEY_MAP_LON,  lon.toBits())
+            .putLong(KEY_MAP_ZOOM, zoom.toBits())
+            .apply()
+    }
+
+    /**
+     * Возвращает сохранённую позицию карты или null если её ещё нет.
+     * Triple(lat, lon, zoom)
+     */
+    fun getSavedMapPosition(): Triple<Double, Double, Double>? {
+        if (!prefs.contains(KEY_MAP_LAT)) return null
+        return Triple(
+            Double.fromBits(prefs.getLong(KEY_MAP_LAT,  0L)),
+            Double.fromBits(prefs.getLong(KEY_MAP_LON,  0L)),
+            Double.fromBits(prefs.getLong(KEY_MAP_ZOOM, 0L)),
+        )
     }
 }

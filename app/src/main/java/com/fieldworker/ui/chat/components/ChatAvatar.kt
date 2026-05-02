@@ -64,7 +64,7 @@ fun ChatAvatar(
                         )
                     }
                 }
-                .crossfade(true)
+                .crossfade(false)
                 .build()
         }
     }

@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 
 package com.fieldworker.ui.list
 
@@ -26,6 +26,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -69,60 +70,12 @@ import com.fieldworker.ui.map.PriorityBadge
 import com.fieldworker.ui.map.StatusChangeDialog
 import com.fieldworker.ui.map.toColor
 import com.fieldworker.ui.map.toIcon
+import com.fieldworker.ui.utils.extractAdditionalInfo
+import com.fieldworker.ui.utils.extractApartment
+import com.fieldworker.ui.utils.extractPhoneNumber
 import kotlinx.coroutines.delay
 
-/**
- * Извлекает номер телефона из текста
- */
-fun extractPhoneNumber(text: String): String? {
-    // Ищем телефон в формате +7XXXXXXXXXX или 8XXXXXXXXXX
-    val phoneRegex = Regex("""\+?[78]\d{10}""")
-    return phoneRegex.find(text)?.value
-}
-
-/**
- * Извлекает номер квартиры из текста
- */
-fun extractApartment(text: String): String? {
-    val aptRegex = Regex("""(?:кв\.?\s*|квартира\s*)(\d+)""", RegexOption.IGNORE_CASE)
-    return aptRegex.find(text)?.groupValues?.get(1)
-}
-
-/**
- * Извлекает дополнительную информацию из описания
- * (всё после адреса и базовой информации)
- */
-fun extractAdditionalInfo(task: Task): String? {
-    val description = task.description
-    if (description.isBlank()) return null
-    
-    // Убираем телефон и квартиру из описания, оставляем остальное
-    var additionalInfo = description
-    
-    // Убираем телефон
-    additionalInfo = additionalInfo.replace(Regex("""\+?[78]\d{10}"""), "")
-    
-    // Убираем квартиру
-    additionalInfo = additionalInfo.replace(Regex("""(?:кв\.?\s*|квартира\s*)\d+""", RegexOption.IGNORE_CASE), "")
-    
-    // Убираем лишние пробелы и запятые
-    additionalInfo = additionalInfo.replace(Regex("""\s*,\s*,\s*"""), ", ")
-        .replace(Regex("""^\s*,\s*"""), "")
-        .replace(Regex("""\s*,\s*$"""), "")
-        .trim()
-    
-    return additionalInfo.ifBlank { null }
-}
-
-private fun normalizePhoneForDial(phone: String): String {
-    val compactPhone = phone.replace(Regex("""[^+\d]"""), "")
-    return when {
-        compactPhone.startsWith("8") && compactPhone.length == 11 -> "+7${compactPhone.drop(1)}"
-        compactPhone.startsWith("+") -> compactPhone
-        compactPhone.isNotBlank() -> "+$compactPhone"
-        else -> compactPhone
-    }
-}
+private fun normalizePhoneForDial(phone: String) = com.fieldworker.ui.utils.normalizePhoneForDial(phone)
 
 /**
  * Экран со списком задач и фильтрами
@@ -199,24 +152,24 @@ fun TaskListScreen(
             )
         }
         
-        // Счётчик результатов + сортировка
+        // Счётчик результатов
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             val displayCount = tasks.size
             Text(
-                text = "Найдено: $displayCount",
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
+                text = "$displayCount ${com.fieldworker.ui.utils.TaskUtils.pluralizeTasks(displayCount)}",
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                letterSpacing = 0.4.sp,
                 modifier = Modifier.weight(1f)
             )
-            
+
             if (isLoading && tasks.isNotEmpty()) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 1.5.dp)
             }
         }
         
@@ -263,33 +216,25 @@ fun TaskListScreen(
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(
-                                start = 16.dp,
-                                end = 16.dp,
-                                top = 8.dp,
+                                start = 12.dp,
+                                end = 12.dp,
+                                top = 6.dp,
                                 bottom = 80.dp  // Отступ для FAB
                             ),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             val pagedItems = activePagingItems
+                            val groupByDate = sortOrder == com.fieldworker.ui.utils.TaskSortOrder.BY_DATE_DESC ||
+                                sortOrder == com.fieldworker.ui.utils.TaskSortOrder.BY_DATE_ASC
                             if (pagedItems != null) {
-                                // Paging 3: постраничная загрузка из Room
-                                items(
-                                    count = pagedItems.itemCount,
-                                    key = { index -> pagedItems[index]?.id ?: index }
-                                ) { index ->
-                                    val task = pagedItems[index]
-                                    if (task != null) {
-                                        TaskCard(
-                                            task = task,
-                                            isSelected = selectedTask?.id == task.id,
-                                            onClick = { onTaskClick(task) },
-                                            userLat = userLat,
-                                            userLon = userLon
-                                        )
-                                    }
-                                }
-                                
-                                // Индикатор подгрузки следующей страницы
+                                pagedTaskItems(
+                                    pagedItems = pagedItems,
+                                    selectedTaskId = selectedTask?.id,
+                                    onTaskClick = onTaskClick,
+                                    userLat = userLat,
+                                    userLon = userLon,
+                                    groupByDate = true,
+                                )
                                 if (pagedItems.loadState.append is LoadState.Loading) {
                                     item {
                                         Box(
@@ -306,16 +251,14 @@ fun TaskListScreen(
                                     }
                                 }
                             } else {
-                                // Fallback: обычный список
-                                items(tasks, key = { it.id }) { task ->
-                                    TaskCard(
-                                        task = task,
-                                        isSelected = selectedTask?.id == task.id,
-                                        onClick = { onTaskClick(task) },
-                                        userLat = userLat,
-                                        userLon = userLon
-                                    )
-                                }
+                                listTaskItems(
+                                    tasks = tasks,
+                                    selectedTaskId = selectedTask?.id,
+                                    onTaskClick = onTaskClick,
+                                    userLat = userLat,
+                                    userLon = userLon,
+                                    groupByDate = groupByDate,
+                                )
                             }
                         }
                     }
@@ -401,30 +344,30 @@ fun SearchBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Поле поиска
         Surface(
             modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     Icons.Default.Search,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(18.dp)
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 
                 androidx.compose.foundation.text.BasicTextField(
                     value = localQuery,
@@ -464,16 +407,21 @@ fun SearchBar(
             }
         }
         
-        Spacer(modifier = Modifier.width(8.dp))
-        
+        Spacer(modifier = Modifier.width(6.dp))
+
         // Кнопка фильтров
         Surface(
-            shape = CircleShape,
-            color = if (hasActiveFilters) 
-                MaterialTheme.colorScheme.primaryContainer 
-            else 
+            modifier = Modifier.size(38.dp),
+            shape = RoundedCornerShape(12.dp),
+            color = if (hasActiveFilters)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+            else
                 MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp
+            border = BorderStroke(
+                1.dp,
+                if (hasActiveFilters) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+            ),
         ) {
             IconButton(onClick = onToggleFilters) {
                 BadgedBox(
@@ -481,7 +429,7 @@ fun SearchBar(
                         if (hasActiveFilters) {
                             Badge(
                                 containerColor = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(8.dp)
+                                modifier = Modifier.size(6.dp)
                             ) { }
                         }
                     }
@@ -489,6 +437,7 @@ fun SearchBar(
                     Icon(
                         Icons.Default.Settings,
                         contentDescription = "Фильтры",
+                        modifier = Modifier.size(18.dp),
                         tint = if (hasActiveFilters)
                             MaterialTheme.colorScheme.primary
                         else
@@ -749,23 +698,9 @@ fun TaskDetailBottomSheet(
         task.plannedDate?.let { com.fieldworker.ui.utils.TaskUtils.formatShortDate(it) }
     }
     
-    // Цвета приоритета
-    val priorityColor = when (task.priority) {
-        Priority.EMERGENCY -> Color(0xFFFF3B30)
-        Priority.URGENT -> Color(0xFFFF9500)
-        Priority.CURRENT -> Color(0xFF0A84FF)
-        Priority.PLANNED -> Color(0xFF34C759)
-    }
-    
-    val priorityBgColor = when (task.priority) {
-        Priority.EMERGENCY -> Color(0xFFFFEBEE)
-        Priority.URGENT -> Color(0xFFFFF3E0)
-        Priority.CURRENT -> Color(0xFFE3F2FD)
-        Priority.PLANNED -> Color(0xFFE8F5E9)
-    }
-    
-    // Оранжевый для акцентов
-    val orangeAccent = MaterialTheme.colorScheme.primary
+    val priorityColor = com.fieldworker.ui.utils.priorityColor(task.priority)
+    val priorityBgColor = com.fieldworker.ui.utils.priorityBackground(task.priority)
+    val accentColor = MaterialTheme.colorScheme.primary
     
     // Сортируем комментарии от новых к старым
     val sortedComments = remember(comments) {
@@ -843,7 +778,7 @@ fun TaskDetailBottomSheet(
                     assignedUserName = assignedUserName,
                     priorityColor = priorityColor,
                     priorityBgColor = priorityBgColor,
-                    orangeAccent = orangeAccent,
+                    accentColor = accentColor,
                     onStatusChange = onStatusChange,
                     onPlannedDateClick = if (onPlannedDateChange != null) {
                         { showDatePicker = true }
@@ -893,7 +828,7 @@ fun TaskDetailBottomSheet(
                     isExpanded = isPhotosExpanded,
                     isLoadingPhotos = isLoadingPhotos,
                     isUploadingPhoto = isUploadingPhoto,
-                    orangeAccent = orangeAccent,
+                    accentColor = accentColor,
                     baseUrl = baseUrl,
                     authToken = authToken,
                     onToggleExpanded = { isPhotosExpanded = !isPhotosExpanded },
@@ -905,7 +840,7 @@ fun TaskDetailBottomSheet(
             item {
                 TaskCommentComposer(
                     commentText = commentText,
-                    orangeAccent = orangeAccent,
+                    accentColor = accentColor,
                     onCommentTextChange = { commentText = it },
                     onSubmit = {
                         if (commentText.isNotBlank()) {
@@ -920,9 +855,10 @@ fun TaskDetailBottomSheet(
                 TaskHistorySection(
                     visibleComments = visibleComments,
                     hiddenComments = hiddenComments,
+                    photos = photos,
                     isLoadingComments = isLoadingComments,
                     isExpanded = isHistoryExpanded,
-                    orangeAccent = orangeAccent,
+                    accentColor = accentColor,
                     onToggleExpanded = { isHistoryExpanded = !isHistoryExpanded }
                 )
             }
@@ -1102,7 +1038,7 @@ private fun TaskSummaryCard(
     assignedUserName: String?,
     priorityColor: Color,
     priorityBgColor: Color,
-    orangeAccent: Color,
+    accentColor: Color,
     onStatusChange: () -> Unit,
     onPlannedDateClick: (() -> Unit)?,
     onOpenNavigation: () -> Unit,
@@ -1252,7 +1188,7 @@ private fun TaskSummaryCard(
                 iconRes = R.drawable.ic_calendar_deadline,
                 label = "Срок",
                 value = formattedPlannedDate ?: "Установить",
-                accentColor = orangeAccent,
+                accentColor = accentColor,
                 clickable = onPlannedDateClick != null,
                 onClick = onPlannedDateClick
             )
@@ -1404,7 +1340,7 @@ private fun TaskPhotosSection(
     isExpanded: Boolean,
     isLoadingPhotos: Boolean,
     isUploadingPhoto: Boolean,
-    orangeAccent: Color,
+    accentColor: Color,
     baseUrl: String,
     authToken: String?,
     onToggleExpanded: () -> Unit,
@@ -1438,7 +1374,7 @@ private fun TaskPhotosSection(
                     Icon(
                         painter = painterResource(id = R.drawable.ic_camera),
                         contentDescription = null,
-                        tint = orangeAccent,
+                        tint = accentColor,
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
@@ -1455,7 +1391,7 @@ private fun TaskPhotosSection(
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
                             strokeWidth = 2.dp,
-                            color = orangeAccent
+                            color = accentColor
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                     }
@@ -1487,7 +1423,7 @@ private fun TaskPhotosSection(
 @Composable
 private fun TaskCommentComposer(
     commentText: String,
-    orangeAccent: Color,
+    accentColor: Color,
     onCommentTextChange: (String) -> Unit,
     onSubmit: () -> Unit
 ) {
@@ -1505,14 +1441,14 @@ private fun TaskCommentComposer(
                     .background(Color.Transparent, RoundedCornerShape(22.dp))
                     .border(
                         width = 1.dp,
-                        color = if (commentText.isNotEmpty()) orangeAccent else MaterialTheme.colorScheme.outline,
+                        color = if (commentText.isNotEmpty()) accentColor else MaterialTheme.colorScheme.outline,
                         shape = RoundedCornerShape(22.dp)
                     ),
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
                     color = MaterialTheme.colorScheme.onSurface
                 ),
-                cursorBrush = androidx.compose.ui.graphics.SolidColor(orangeAccent),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(accentColor),
                 decorationBox = { innerTextField ->
                     Box(
                         contentAlignment = Alignment.CenterStart,
@@ -1535,7 +1471,7 @@ private fun TaskCommentComposer(
                 enabled = commentText.isNotBlank(),
                 modifier = Modifier.size(44.dp),
                 colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = orangeAccent,
+                    containerColor = accentColor,
                     contentColor = MaterialTheme.colorScheme.surface,
                     disabledContainerColor = Color.Gray.copy(alpha = 0.3f)
                 )
@@ -1554,34 +1490,54 @@ private fun TaskCommentComposer(
 private fun TaskHistorySection(
     visibleComments: List<Comment>,
     hiddenComments: List<Comment>,
+    photos: List<TaskPhoto>,
     isLoadingComments: Boolean,
     isExpanded: Boolean,
-    orangeAccent: Color,
+    accentColor: Color,
     onToggleExpanded: () -> Unit
 ) {
+    val photoEvents = remember(photos) {
+        photos.map { photo ->
+            Comment(
+                id = Long.MIN_VALUE + photo.id,
+                taskId = photo.taskId,
+                text = "Добавлено фото: ${photo.getPhotoTypeDisplayName()}",
+                author = photo.uploadedBy ?: "Сотрудник",
+                oldStatus = null,
+                newStatus = null,
+                createdAt = photo.createdAt
+            )
+        }
+    }
+    val timelineComments = remember(visibleComments, hiddenComments, photoEvents) {
+        (visibleComments + hiddenComments + photoEvents).sortedByDescending { it.createdAt }
+    }
+    val visibleTimeline = timelineComments.take(3)
+    val hiddenTimeline = timelineComments.drop(3)
+
     TaskSectionCard(
-        title = "История изменений",
+        title = "Лента работ",
         action = {
             if (isLoadingComments) {
                 CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
             }
         }
     ) {
-        if (visibleComments.isEmpty() && hiddenComments.isEmpty() && !isLoadingComments) {
+        if (timelineComments.isEmpty() && !isLoadingComments) {
             Text(
                 text = "Пока нет записей",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         } else {
-            visibleComments.forEachIndexed { index, comment ->
+            visibleTimeline.forEachIndexed { index, comment ->
                 HistoryTimelineItem(
                     comment = comment,
-                    isLast = index == visibleComments.lastIndex && hiddenComments.isEmpty() && !isExpanded
+                    isLast = index == visibleTimeline.lastIndex && hiddenTimeline.isEmpty() && !isExpanded
                 )
             }
 
-            if (hiddenComments.isNotEmpty()) {
+            if (hiddenTimeline.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier
@@ -1594,16 +1550,16 @@ private fun TaskHistorySection(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (isExpanded) "Скрыть" else "Показать ещё ${hiddenComments.size}",
+                        text = if (isExpanded) "Скрыть" else "Показать ещё ${hiddenTimeline.size}",
                         style = MaterialTheme.typography.labelMedium,
-                        color = orangeAccent,
+                        color = accentColor,
                         fontWeight = FontWeight.Medium
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
                         imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = null,
-                        tint = orangeAccent,
+                        tint = accentColor,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -1611,10 +1567,10 @@ private fun TaskHistorySection(
                 AnimatedVisibility(visible = isExpanded) {
                     Column {
                         Spacer(modifier = Modifier.height(12.dp))
-                        hiddenComments.forEachIndexed { index, comment ->
+                        hiddenTimeline.forEachIndexed { index, comment ->
                             HistoryTimelineItem(
                                 comment = comment,
-                                isLast = index == hiddenComments.lastIndex
+                                isLast = index == hiddenTimeline.lastIndex
                             )
                         }
                     }
@@ -1688,34 +1644,14 @@ private fun HistoryTimelineItem(
     comment: Comment,
     isLast: Boolean
 ) {
-    val statusColor = when {
-        comment.text.contains("Выполнен", ignoreCase = true) || 
-        comment.text.contains("DONE", ignoreCase = true) -> Color(0xFF34C759)
-        comment.text.contains("В работе", ignoreCase = true) || 
-        comment.text.contains("В пути", ignoreCase = true) ||
-        comment.text.contains("IN_PROGRESS", ignoreCase = true) -> Color(0xFF0A84FF)
-        comment.text.contains("Создан", ignoreCase = true) ||
-        comment.text.contains("NEW", ignoreCase = true) -> Color(0xFF9E9E9E)
-        else -> MaterialTheme.colorScheme.primary
-    }
-    
+    val statusColor = comment.newStatus?.toColor() ?: MaterialTheme.colorScheme.primary
+
     val formattedDate = remember(comment.createdAt) {
         com.fieldworker.ui.utils.TaskUtils.formatShortDate(comment.createdAt)
     }
-    
+
     val formattedTime = remember(comment.createdAt) {
-        try {
-            val formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
-            val dateTime = java.time.LocalDateTime.parse(
-                comment.createdAt.substringBefore("+").substringBefore("Z")
-                    .replace("T", " ")
-                    .substringBefore(".")
-                    .replace(" ", "T")
-            )
-            dateTime.format(formatter)
-        } catch (e: Exception) {
-            ""
-        }
+        com.fieldworker.ui.utils.TaskUtils.formatShortTime(comment.createdAt)
     }
     
     Row(
@@ -1766,48 +1702,6 @@ private fun HistoryTimelineItem(
 }
 
 @Composable
-fun CommentCard(comment: Comment) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = if (comment.isStatusChange) 
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            else 
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Icon(
-                imageVector = if (comment.isStatusChange) Icons.Default.Edit else Icons.Default.MailOutline,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = if (comment.isStatusChange) 
-                    MaterialTheme.colorScheme.primary 
-                else 
-                    MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Column {
-                Text(
-                    text = comment.text,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "${comment.author} • ${comment.createdAt.take(16).replace("T", " ")}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
 fun EmptyState(
     message: String,
     isFiltered: Boolean = false
@@ -1846,7 +1740,7 @@ fun EmptyState(
 }
 
 /**
- * Skeleton loading для карточки задачи
+ * Skeleton loading для карточки задачи (strict стиль).
  */
 @Composable
 fun TaskListItemSkeleton() {
@@ -1860,80 +1754,58 @@ fun TaskListItemSkeleton() {
         ),
         label = "shimmer"
     )
-    
+
     val shimmerBrush = Brush.linearGradient(
         colors = listOf(
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.20f),
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
         ),
         start = Offset(shimmerTranslate - 200f, 0f),
         end = Offset(shimmerTranslate, 0f)
     )
-    
-    Card(
+
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Круглый индикатор
+        Row(modifier = Modifier.height(IntrinsicSize.Min)) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
+                    .fillMaxHeight()
+                    .width(4.dp)
                     .background(shimmerBrush)
             )
-            
-            Spacer(modifier = Modifier.width(12.dp))
-            
-            Column(modifier = Modifier.weight(1f)) {
-                // Заголовок
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.7f)
-                        .height(16.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(shimmerBrush)
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // Адрес
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.9f)
+                        .fillMaxWidth(0.55f)
                         .height(12.dp)
                         .clip(RoundedCornerShape(4.dp))
                         .background(shimmerBrush)
                 )
-                
-                Spacer(modifier = Modifier.height(4.dp))
-                
-                // Статус
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.4f)
+                        .fillMaxWidth(0.85f)
+                        .height(14.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(shimmerBrush)
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
                         .height(12.dp)
                         .clip(RoundedCornerShape(4.dp))
                         .background(shimmerBrush)
                 )
             }
-            
-            // Стрелка
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(shimmerBrush)
-            )
         }
     }
 }
@@ -1942,19 +1814,113 @@ fun TaskListItemSkeleton() {
  * Список skeleton-элементов для загрузки
  */
 @Composable
-fun TaskListSkeleton(count: Int = 5) {
+fun TaskListSkeleton(count: Int = 6) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            start = 16.dp,
-            end = 16.dp,
-            top = 8.dp,
+            start = 12.dp,
+            end = 12.dp,
+            top = 6.dp,
             bottom = 80.dp
         ),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         items(count) {
             TaskListItemSkeleton()
+        }
+    }
+}
+
+@Composable
+private fun TaskGroupHeader(label: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.background,
+    ) {
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            letterSpacing = 0.8.sp,
+            modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp),
+        )
+    }
+}
+
+private fun LazyListScope.listTaskItems(
+    tasks: List<Task>,
+    selectedTaskId: Long?,
+    onTaskClick: (Task) -> Unit,
+    userLat: Double?,
+    userLon: Double?,
+    groupByDate: Boolean,
+) {
+    if (!groupByDate) {
+        items(tasks, key = { it.id }, contentType = { "task_card" }) { task ->
+            TaskCard(
+                task = task,
+                isSelected = selectedTaskId == task.id,
+                onClick = { onTaskClick(task) },
+                userLat = userLat,
+                userLon = userLon,
+            )
+        }
+        return
+    }
+
+    var previousBucket: com.fieldworker.ui.utils.TaskUtils.DateBucket? = null
+    tasks.forEachIndexed { index, task ->
+        val bucket = com.fieldworker.ui.utils.TaskUtils.dateBucket(task.createdAt)
+        if (bucket != previousBucket) {
+            stickyHeader(key = "h:$index:${bucket.name}") {
+                TaskGroupHeader(bucket.label)
+            }
+            previousBucket = bucket
+        }
+        item(key = task.id, contentType = "task_card") {
+            TaskCard(
+                task = task,
+                isSelected = selectedTaskId == task.id,
+                onClick = { onTaskClick(task) },
+                userLat = userLat,
+                userLon = userLon,
+            )
+        }
+    }
+}
+
+private fun LazyListScope.pagedTaskItems(
+    pagedItems: LazyPagingItems<Task>,
+    selectedTaskId: Long?,
+    onTaskClick: (Task) -> Unit,
+    userLat: Double?,
+    userLon: Double?,
+    groupByDate: Boolean,
+) {
+    var previousBucket: com.fieldworker.ui.utils.TaskUtils.DateBucket? = null
+    for (index in 0 until pagedItems.itemCount) {
+        val peeked = pagedItems.peek(index)
+        if (groupByDate && peeked != null) {
+            val bucket = com.fieldworker.ui.utils.TaskUtils.dateBucket(peeked.createdAt)
+            if (bucket != previousBucket) {
+                stickyHeader(key = "h:$index:${bucket.name}") {
+                    TaskGroupHeader(bucket.label)
+                }
+                previousBucket = bucket
+            }
+        }
+        item(key = peeked?.id ?: ("placeholder:$index")) {
+            val task = pagedItems[index]
+            if (task != null) {
+                TaskCard(
+                    task = task,
+                    isSelected = selectedTaskId == task.id,
+                    onClick = { onTaskClick(task) },
+                    userLat = userLat,
+                    userLon = userLon,
+                )
+            }
         }
     }
 }

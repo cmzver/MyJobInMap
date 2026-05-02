@@ -4,12 +4,11 @@ Tests for Push Notification Service.
 All Firebase interactions are mocked.
 """
 
-import threading
 import time
-from unittest.mock import MagicMock, PropertyMock, patch
+from types import ModuleType
+from unittest.mock import MagicMock, patch
 
-import pytest
-
+from app.models import DeviceModel
 import app.services.push as push_module
 
 
@@ -38,11 +37,7 @@ class TestInitFirebase:
                 "firebase_admin.credentials": MagicMock(),
             },
         ):
-            import importlib
-
-            # Need to reload to pick up mocked modules
             result = push_module.init_firebase()
-            # After successful call, firebase_app should be set
             assert result is True or push_module.firebase_app is not None
 
     def test_init_firebase_exception(self):
@@ -97,6 +92,66 @@ class TestSendPushSync:
 
         push_module.firebase_app = None
 
+    def test_send_push_includes_android_channel_id(self, db_session, worker_user):
+        """FCM payload includes the resolved Android channel_id before send."""
+        push_module.firebase_app = MagicMock()
+
+        db_session.add(
+            DeviceModel(
+                user_id=worker_user.id,
+                fcm_token="token-1",
+                device_name="Pixel 8",
+            )
+        )
+        db_session.commit()
+
+        sent_messages = []
+
+        class FakeAndroidConfig:
+            def __init__(self, priority):
+                self.priority = priority
+
+        class FakeMulticastMessage:
+            def __init__(self, data, tokens, android):
+                self.data = data
+                self.tokens = tokens
+                self.android = android
+
+        def mock_get_db():
+            yield db_session
+
+        def fake_send_each_for_multicast(message):
+            sent_messages.append(message)
+            return MagicMock(success_count=1, failure_count=0, responses=[])
+
+        mock_messaging = ModuleType("messaging")
+        mock_messaging.AndroidConfig = FakeAndroidConfig
+        mock_messaging.MulticastMessage = FakeMulticastMessage
+        mock_messaging.send_each_for_multicast = fake_send_each_for_multicast
+
+        mock_firebase_admin = ModuleType("firebase_admin")
+        mock_firebase_admin.messaging = mock_messaging
+
+        with patch("app.models.get_db", mock_get_db), patch.dict(
+            "sys.modules", {"firebase_admin": mock_firebase_admin}
+        ):
+            result = push_module._send_push_sync(
+                "New chat message",
+                "Body",
+                notification_type="chat_message",
+                user_ids=[worker_user.id],
+                extra_data={"conversation_id": 42},
+            )
+
+        assert result == {"success": True, "sent": 1, "failed": 0}
+        assert len(sent_messages) == 1
+        assert sent_messages[0].tokens == ["token-1"]
+        assert sent_messages[0].data["channel_id"] == "fieldworker_chat"
+        assert sent_messages[0].data["conversation_id"] == "42"
+        assert sent_messages[0].android.priority == "high"
+
+        push_module.firebase_app = None
+
 
 class TestSendPushNotification:
     """Tests for send_push_notification() public API."""
@@ -117,7 +172,9 @@ class TestSendPushNotification:
             push_module.send_push_notification(
                 "T", "B", notification_type="new_task", task_id=5, user_ids=[1, 2]
             )
-            mock_bg.assert_called_once_with("T", "B", "new_task", 5, [1, 2])
+            mock_bg.assert_called_once_with(
+                "T", "B", "new_task", 5, [1, 2], None, None
+            )
 
 
 class TestSendPushBackground:

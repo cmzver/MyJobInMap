@@ -24,11 +24,18 @@ import com.fieldworker.ui.utils.TaskSortOrder
 import com.fieldworker.ui.utils.sortedBy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -64,46 +71,38 @@ data class MapUiState(
     val showMyLocation: Boolean = true,
     val myLocationLat: Double? = null,
     val myLocationLon: Double? = null,
+    // Скрывать завершённые (DONE + CANCELLED)
+    val hideTerminalTasks: Boolean = true,
     // Offline режим
     val isOffline: Boolean = false,
     val pendingActionsCount: Int = 0,
     val lastSyncTime: Long? = null
 ) {
-    /**
-     * Задачи с применёнными фильтрами и сортировкой
-     */
-    val filteredTasks: List<Task>
-        get() {
-            var result = tasks
-            
-            // Фильтр по статусу
-            if (statusFilter.isNotEmpty()) {
-                result = result.filter { it.status in statusFilter }
-            }
-
-            if (priorityFilter.isNotEmpty()) {
-                result = result.filter { it.priority in priorityFilter }
-            }
-            
-            // Поиск по тексту (включая номер заявки)
-            if (searchQuery.isNotBlank()) {
-                val query = searchQuery.lowercase()
-                result = result.filter { task ->
-                    task.taskNumber.lowercase().contains(query) ||
-                    task.title.lowercase().contains(query) ||
-                    task.address.lowercase().contains(query) ||
-                    task.description.lowercase().contains(query)
-                }
-            }
-            
-            // Применяем сортировку
-            result = result.sortedBy(sortOrder, myLocationLat, myLocationLon)
-            
-            return result
-        }
-
     val newTasksCount: Int
         get() = tasks.count { it.status == TaskStatus.NEW }
+
+    internal fun applyFilters(): List<Task> {
+        var result = tasks
+        if (hideTerminalTasks) {
+            result = result.filter { it.status != TaskStatus.DONE && it.status != TaskStatus.CANCELLED }
+        }
+        if (statusFilter.isNotEmpty()) {
+            result = result.filter { it.status in statusFilter }
+        }
+        if (priorityFilter.isNotEmpty()) {
+            result = result.filter { it.priority in priorityFilter }
+        }
+        if (searchQuery.isNotBlank()) {
+            val query = searchQuery.lowercase()
+            result = result.filter { task ->
+                task.taskNumber.lowercase().contains(query) ||
+                task.title.lowercase().contains(query) ||
+                task.address.lowercase().contains(query) ||
+                task.description.lowercase().contains(query)
+            }
+        }
+        return result.sortedBy(sortOrder, myLocationLat, myLocationLon)
+    }
 }
 
 /**
@@ -132,6 +131,13 @@ class MapViewModel @Inject constructor(
     
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState: StateFlow<MapUiState> = _uiState.asStateFlow()
+
+    // Фильтрация пересчитывается только при изменении задач/фильтров, а не при
+    // изменении isLoading, selectedTask и прочих несвязанных полей.
+    val filteredTasks: StateFlow<List<Task>> = _uiState
+        .map { it.applyFilters() }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     
     /**
      * Paging 3 Flow задач для TaskListScreen.
@@ -145,6 +151,11 @@ class MapViewModel @Inject constructor(
     
     // Флаг: сессия проверена (блокирует отображение кеша до валидации)
     private var sessionValidated = false
+
+    // Circuit breaker для checkServerReachable: после 5 подряд неудач интервал растёт до 5 минут
+    private var serverCheckFailures = 0
+    private val serverCheckCircuitOpenThreshold = 5
+    private val serverCheckCircuitOpenIntervalMs = 5 * 60_000L
     
     init {
         // Загружаем сохранённые фильтры
@@ -172,24 +183,23 @@ class MapViewModel @Inject constructor(
         }
     }
     
-    /**
-     * Наблюдать за изменениями настроек фильтрации
-     */
     private fun observePreferencesChanges() {
         viewModelScope.launch {
-            preferences.statusFilterUpdates().collect { statusFilter ->
-                _uiState.update { it.copy(statusFilter = statusFilter) }
-            }
-        }
-        viewModelScope.launch {
-            preferences.priorityFilterUpdates().collect { priorityFilter ->
-                _uiState.update { it.copy(priorityFilter = priorityFilter) }
-            }
-        }
-        viewModelScope.launch {
-            preferences.showMyLocationUpdates().collect { showMyLocation ->
-                _uiState.update { it.copy(showMyLocation = showMyLocation) }
-            }
+            combine(
+                preferences.statusFilter,
+                preferences.priorityFilter,
+                preferences.showMyLocation,
+                preferences.hideDoneTasks,
+            ) { statusFilter, priorityFilter, showMyLocation, hideDone ->
+                _uiState.update {
+                    it.copy(
+                        statusFilter = statusFilter,
+                        priorityFilter = priorityFilter,
+                        showMyLocation = showMyLocation,
+                        hideTerminalTasks = hideDone,
+                    )
+                }
+            }.collect {}
         }
     }
     
@@ -199,12 +209,13 @@ class MapViewModel @Inject constructor(
      */
     private fun observeTasksFromDatabase() {
         viewModelScope.launch {
-            getTasksUseCase.tasksFlow.collect { tasks ->
-                // Блокируем показ кеша до проверки сессии
-                if (sessionValidated) {
-                    _uiState.update { it.copy(tasks = tasks) }
+            getTasksUseCase.tasksFlow
+                .distinctUntilChanged()
+                .collect { tasks ->
+                    if (sessionValidated) {
+                        _uiState.update { it.copy(tasks = tasks) }
+                    }
                 }
-            }
         }
     }
     
@@ -219,9 +230,10 @@ class MapViewModel @Inject constructor(
                     _uiState.update { it.copy(isOffline = true) }
                 } else {
                     // Сеть появилась — проверяем доступность сервера
+                    val wasOffline = _uiState.value.isOffline
                     val reachable = checkServerReachable()
                     _uiState.update { it.copy(isOffline = !reachable) }
-                    if (reachable) {
+                    if (reachable || wasOffline) {
                         syncManager.triggerImmediateSync()
                     }
                 }
@@ -230,24 +242,40 @@ class MapViewModel @Inject constructor(
     }
 
     /**
-     * Периодическая проверка доступности сервера (каждые 30с пока офлайн).
-     * Когда онлайн — проверяет реже (каждые 60с).
+     * Периодическая проверка доступности сервера (каждые 15с пока офлайн, 60с онлайн).
+     * Circuit breaker: после 5 подряд неудач переходит на 5-минутный интервал,
+     * чтобы не спамить запросами при длительно недоступном сервере.
      */
     private fun startServerReachabilityCheck() {
         viewModelScope.launch {
-            // Начальная проверка с задержкой 2с (дать UI загрузиться)
-            delay(2_000L)
-            while (true) {
-                if (networkMonitor.isCurrentlyOnline()) {
-                    val reachable = checkServerReachable()
-                    val wasOffline = _uiState.value.isOffline
-                    _uiState.update { it.copy(isOffline = !reachable) }
-                    if (reachable && wasOffline) {
-                        syncManager.triggerImmediateSync()
+            // Начальная задержка 2с — дать UI загрузиться
+            withContext(Dispatchers.IO) { delay(2_000L) }
+            while (isActive) {
+                val interval: Long
+                try {
+                    if (networkMonitor.isCurrentlyOnline()) {
+                        val reachable = checkServerReachable()
+                        val wasOffline = _uiState.value.isOffline
+                        _uiState.update { it.copy(isOffline = !reachable) }
+                        if (reachable) {
+                            serverCheckFailures = 0
+                            if (wasOffline) syncManager.triggerImmediateSync()
+                        } else {
+                            serverCheckFailures++
+                        }
                     }
+                    interval = when {
+                        serverCheckFailures >= serverCheckCircuitOpenThreshold -> serverCheckCircuitOpenIntervalMs
+                        _uiState.value.isOffline -> 15_000L
+                        else -> 60_000L
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Throwable) {
+                    // В тестах моки могут быть освобождены раньше жизненного цикла VM.
+                    break
                 }
-                val interval = if (_uiState.value.isOffline) 15_000L else 60_000L
-                delay(interval)
+                withContext(Dispatchers.IO) { delay(interval) }
             }
         }
     }
@@ -285,15 +313,13 @@ class MapViewModel @Inject constructor(
         }
     }
     
-    /**
-     * Загрузить сохранённые фильтры из настроек
-     */
     private fun loadSavedFilters() {
-        _uiState.update { 
+        _uiState.update {
             it.copy(
-                statusFilter = preferences.getStatusFilter(),
-                priorityFilter = preferences.getPriorityFilter(),
-                showMyLocation = preferences.getShowMyLocation()
+                statusFilter = preferences.statusFilter.value,
+                priorityFilter = preferences.priorityFilter.value,
+                showMyLocation = preferences.showMyLocation.value,
+                hideTerminalTasks = preferences.hideDoneTasks.value,
             )
         }
     }
@@ -682,56 +708,31 @@ class MapViewModel @Inject constructor(
         _uiState.update { it.copy(statusUpdateSuccess = false) }
     }
     
-    // ================== Фильтрация ==================
-    
-    /**
-     * Установить фильтр по статусам
-     */
+    // ================== Фильтрация / Сортировка / Местоположение ==================
+
     fun setStatusFilter(filter: Set<TaskStatus>) {
         _uiState.update { it.copy(statusFilter = filter) }
         preferences.setStatusFilter(filter)
     }
-    
-    /**
-     * Установить фильтр по приоритетам
-     */
+
     fun setPriorityFilter(filter: Set<Priority>) {
         _uiState.update { it.copy(priorityFilter = filter) }
         preferences.setPriorityFilter(filter)
     }
-    
-    /**
-     * Установить поисковый запрос
-     */
+
     fun setSearchQuery(query: String) {
         _uiState.update { it.copy(searchQuery = query) }
     }
-    
-    /**
-     * Сбросить все фильтры
-     */
+
     fun clearFilters() {
-        _uiState.update { 
-            it.copy(
-                statusFilter = emptySet(),
-                priorityFilter = emptySet(),
-                searchQuery = ""
-            )
-        }
+        _uiState.update { it.copy(statusFilter = emptySet(), priorityFilter = emptySet(), searchQuery = "") }
         preferences.setStatusFilter(emptySet())
         preferences.setPriorityFilter(emptySet())
     }
-    
-    // ================== Сортировка ==================
-    
-    /**
-     * Установить порядок сортировки
-     */
+
     fun setSortOrder(order: TaskSortOrder) {
         _uiState.update { it.copy(sortOrder = order) }
     }
-    
-    // ================== Местоположение ==================
     
     /**
      * Обновить моё местоположение
@@ -739,14 +740,13 @@ class MapViewModel @Inject constructor(
     fun updateMyLocation(lat: Double, lon: Double) {
         _uiState.update { it.copy(myLocationLat = lat, myLocationLon = lon) }
     }
-    
-    /**
-     * Переключить отображение местоположения
-     */
-    fun toggleShowMyLocation(show: Boolean) {
-        _uiState.update { it.copy(showMyLocation = show) }
-        preferences.setShowMyLocation(show)
+
+    fun saveMapPosition(lat: Double, lon: Double, zoom: Double) {
+        preferences.saveMapPosition(lat, lon, zoom)
     }
+
+    fun getSavedMapPosition(): Triple<Double, Double, Double>? =
+        preferences.getSavedMapPosition()
     
     // ================== Подключение ==================
     

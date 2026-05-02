@@ -114,9 +114,9 @@ fun <T> Result<T>.mapNetworkError(): Result<T> {
 fun Throwable.toUserMessage(): String {
     return when (this) {
         is NetworkError -> this.message ?: "Ошибка сети"
-        is UnknownHostException -> NetworkError.NoConnection.message!!
-        is SocketTimeoutException -> NetworkError.Timeout.message!!
-        is SSLException -> NetworkError.SSLError.message!!
+        is UnknownHostException -> NetworkError.NoConnection.message
+        is SocketTimeoutException -> NetworkError.Timeout.message
+        is SSLException -> NetworkError.SSLError.message
         is HttpException -> NetworkError.fromHttpCode(this.code()).message ?: "Ошибка HTTP"
         else -> this.message ?: "Неизвестная ошибка"
     }

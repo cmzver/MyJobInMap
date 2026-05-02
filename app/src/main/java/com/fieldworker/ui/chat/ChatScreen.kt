@@ -12,9 +12,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -26,7 +23,9 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -46,6 +45,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.*
@@ -58,8 +58,12 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -82,6 +86,7 @@ import com.fieldworker.domain.model.ChatMessage
 import com.fieldworker.domain.model.ChatReaction
 import com.fieldworker.domain.model.ConversationType
 import com.fieldworker.domain.model.User
+import java.util.Locale
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
@@ -112,6 +117,9 @@ fun ChatScreen(
     replyTo: ChatMessage?,
     typingText: String?,
     readReceipts: Map<Long, Long>,
+    messageSendStatuses: Map<Long, ChatSendStatus> = emptyMap(),
+    messageSendErrors: Map<Long, String> = emptyMap(),
+    pinnedMessageIds: Set<Long> = emptySet(),
     recipientCount: Int,
     availableUsers: List<User>,
     isLoadingUsers: Boolean,
@@ -136,6 +144,8 @@ fun ChatScreen(
     onMessageInputChanged: (String) -> Unit,
     onLoadMore: () -> Unit,
     onDeleteMessage: (Long) -> Unit,
+    onRetryMessage: (Long) -> Unit = {},
+    onTogglePinnedMessage: (Long) -> Unit = {},
     onToggleReaction: (Long, String) -> Unit,
     onSetReplyTo: (ChatMessage?) -> Unit,
     onOpenAttachment: (ChatAttachment) -> Unit,
@@ -152,6 +162,22 @@ fun ChatScreen(
         )
     }
     val conversationType = conversationDetail?.type
+    val senderAvatarUrls = remember(conversationDetail?.members) {
+        conversationDetail?.members
+            ?.associate { member -> member.userId to member.avatarUrl }
+            .orEmpty()
+    }
+    val sortedReadReceiptIds = remember(readReceipts) {
+        readReceipts.values.sorted()
+    }
+    val readCountsByMessageId = remember(messages, sortedReadReceiptIds) {
+        buildMap<Long, Int>(messages.size) {
+            messages.forEach { message ->
+                val firstReadIndex = sortedReadReceiptIds.lowerBound(message.id)
+                put(message.id, sortedReadReceiptIds.size - firstReadIndex)
+            }
+        }
+    }
     val headerSubtitle = remember(conversationDetail, recipientCount, isMuted, isArchived) {
         when (conversationType) {
             ConversationType.GROUP -> buildString {
@@ -210,8 +236,24 @@ fun ChatScreen(
     }
     var showConversationMenu by remember { mutableStateOf(false) }
     var showManagementDialog by remember { mutableStateOf(false) }
+    var showMessageSearch by remember { mutableStateOf(false) }
+    var messageSearchQuery by remember { mutableStateOf("") }
+    var searchResultIndex by remember { mutableStateOf(0) }
     var previewAttachmentId by remember { mutableStateOf<Long?>(null) }
     var highlightedMessageId by remember { mutableStateOf<Long?>(null) }
+    val pinnedMessages = remember(messages, pinnedMessageIds) {
+        messages.filter { it.id in pinnedMessageIds }.sortedByDescending { it.createdAt }
+    }
+    val messageSearchResults = remember(messages, messageSearchQuery) {
+        val query = messageSearchQuery.trim().lowercase()
+        if (query.isBlank()) {
+            emptyList()
+        } else {
+            messages
+                .filter { !it.isDeleted && it.text.orEmpty().lowercase().contains(query) }
+                .sortedByDescending { it.createdAt }
+        }
+    }
     val previewAttachmentIndex = remember(previewAttachmentId, imageAttachments) {
         previewAttachmentId?.let { selectedId ->
             imageAttachments.indexOfFirst { attachment -> attachment.id == selectedId }
@@ -229,6 +271,10 @@ fun ChatScreen(
         if (highlightedMessageId == targetId) {
             highlightedMessageId = null
         }
+    }
+
+    LaunchedEffect(messageSearchResults) {
+        searchResultIndex = 0
     }
 
     // Load more when approaching the end (messages are newest-first)
@@ -250,6 +296,7 @@ fun ChatScreen(
         }
         if (targetIndex >= 0) {
             listState.scrollToItem(targetIndex)
+            highlightedMessageId = targetMessageId
             onUnreadAnchorConsumed()
         }
     }
@@ -371,6 +418,13 @@ fun ChatScreen(
                                         )
                                     }
                                     DropdownMenuItem(
+                                        text = { Text("Поиск в чате") },
+                                        onClick = {
+                                            showConversationMenu = false
+                                            showMessageSearch = true
+                                        },
+                                    )
+                                    DropdownMenuItem(
                                         text = { Text(if (isMuted) "Включить уведомления" else "Отключить уведомления") },
                                         onClick = {
                                             showConversationMenu = false
@@ -388,6 +442,50 @@ fun ChatScreen(
                             }
                         }
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                        AnimatedVisibility(visible = showMessageSearch) {
+                            ChatSearchBar(
+                                query = messageSearchQuery,
+                                resultCount = messageSearchResults.size,
+                                currentIndex = searchResultIndex,
+                                onQueryChange = { messageSearchQuery = it },
+                                onPrevious = {
+                                    if (messageSearchResults.isNotEmpty()) {
+                                        searchResultIndex = (searchResultIndex + 1).coerceAtMost(messageSearchResults.lastIndex)
+                                        val targetId = messageSearchResults[searchResultIndex].id
+                                        highlightedMessageId = targetId
+                                        coroutineScope.launch {
+                                            scrollToMessage(timelineItems, listState, targetId)
+                                        }
+                                    }
+                                },
+                                onNext = {
+                                    if (messageSearchResults.isNotEmpty()) {
+                                        searchResultIndex = (searchResultIndex - 1).coerceAtLeast(0)
+                                        val targetId = messageSearchResults[searchResultIndex].id
+                                        highlightedMessageId = targetId
+                                        coroutineScope.launch {
+                                            scrollToMessage(timelineItems, listState, targetId)
+                                        }
+                                    }
+                                },
+                                onClose = {
+                                    showMessageSearch = false
+                                    messageSearchQuery = ""
+                                },
+                            )
+                        }
+                        if (pinnedMessages.isNotEmpty()) {
+                            PinnedMessagesBar(
+                                pinnedMessages = pinnedMessages,
+                                onMessageClick = { messageId ->
+                                    highlightedMessageId = messageId
+                                    coroutineScope.launch {
+                                        scrollToMessage(timelineItems, listState, messageId)
+                                    }
+                                },
+                                onUnpin = onTogglePinnedMessage,
+                            )
+                        }
                     }
                 }
             },
@@ -396,6 +494,7 @@ fun ChatScreen(
                     replyTo = replyTo,
                     typingText = typingText,
                     isSending = isSending,
+                    availableUsers = availableUsers,
                     onSend = onSendMessage,
                     onAttachFile = onAttachFile,
                     onTextChanged = onMessageInputChanged,
@@ -449,6 +548,13 @@ fun ChatScreen(
                                     is ChatTimelineItem.UnreadSeparator -> it.key
                                     is ChatTimelineItem.MessageEntry -> "message-${it.message.id}"
                                 }
+                            },
+                            contentType = {
+                                when (it) {
+                                    is ChatTimelineItem.DateSeparator -> "date_separator"
+                                    is ChatTimelineItem.UnreadSeparator -> "unread_separator"
+                                    is ChatTimelineItem.MessageEntry -> "message_entry"
+                                }
                             }
                         ) { item ->
                             when (item) {
@@ -462,34 +568,41 @@ fun ChatScreen(
 
                                 is ChatTimelineItem.MessageEntry -> {
                                     val message = item.message
-                                    val readCount = readReceipts.values.count { it >= message.id }
-                                    val senderAvatarUrl = conversationDetail?.members
-                                        ?.firstOrNull { it.userId == message.senderId }
-                                        ?.avatarUrl
-                                    AnimatedMessageEntry(
-                                        messageId = message.id,
-                                        isOwn = message.senderId == currentUserId,
-                                    ) {
-                                        MessageBubble(
-                                            message = message,
-                                            isHighlighted = highlightedMessageId == message.id,
-                                            isOwn = message.senderId == currentUserId,
-                                            conversationType = conversationType,
-                                            groupedWithPrevious = item.groupedWithPrevious,
-                                            groupedWithNext = item.groupedWithNext,
-                                            senderAvatarUrl = senderAvatarUrl,
-                                            readCount = readCount,
-                                            recipientCount = recipientCount,
-                                            currentUserId = currentUserId,
-                                            onReply = { onSetReplyTo(message) },
-                                            onDelete = { onDeleteMessage(message.id) },
-                                            onToggleReaction = { emoji -> onToggleReaction(message.id, emoji) },
-                                            baseUrl = baseUrl,
-                                            authToken = authToken,
-                                            onPreviewAttachment = { previewAttachmentId = it.id },
-                                            onOpenAttachment = onOpenAttachment,
-                                        )
+                                    val readCount = readCountsByMessageId[message.id] ?: 0
+                                    val sendStatus = messageSendStatuses[message.id]?.let { status ->
+                                        if (status == ChatSendStatus.SENT && readCount > 0) ChatSendStatus.READ else status
+                                    } ?: if (message.senderId == currentUserId && readCount > 0) {
+                                        ChatSendStatus.READ
+                                    } else if (message.senderId == currentUserId) {
+                                        ChatSendStatus.SENT
+                                    } else {
+                                        null
                                     }
+                                    val senderAvatarUrl = senderAvatarUrls[message.senderId]
+                                    MessageBubble(
+                                        message = message,
+                                        isHighlighted = highlightedMessageId == message.id,
+                                        isPinned = message.id in pinnedMessageIds,
+                                        isOwn = message.senderId == currentUserId,
+                                        conversationType = conversationType,
+                                        groupedWithPrevious = item.groupedWithPrevious,
+                                        groupedWithNext = item.groupedWithNext,
+                                        senderAvatarUrl = senderAvatarUrl,
+                                        readCount = readCount,
+                                        recipientCount = recipientCount,
+                                        sendStatus = sendStatus,
+                                        sendError = messageSendErrors[message.id],
+                                        currentUserId = currentUserId,
+                                        onReply = { onSetReplyTo(message) },
+                                        onDelete = { onDeleteMessage(message.id) },
+                                        onRetry = { onRetryMessage(message.id) },
+                                        onTogglePinned = { onTogglePinnedMessage(message.id) },
+                                        onToggleReaction = { emoji -> onToggleReaction(message.id, emoji) },
+                                        baseUrl = baseUrl,
+                                        authToken = authToken,
+                                        onPreviewAttachment = { previewAttachmentId = it.id },
+                                        onOpenAttachment = onOpenAttachment,
+                                    )
                                 }
                             }
                         }
@@ -671,6 +784,107 @@ private fun UnreadSeparatorChip(count: Int) {
 }
 
 @Composable
+private fun ChatSearchBar(
+    query: String,
+    resultCount: Int,
+    currentIndex: Int,
+    onQueryChange: (String) -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onClose: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.weight(1f),
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            placeholder = { Text("Поиск сообщений") },
+            supportingText = {
+                if (query.isNotBlank()) {
+                    Text(
+                        text = if (resultCount == 0) {
+                            "Нет совпадений"
+                        } else {
+                            "${currentIndex + 1} из $resultCount"
+                        }
+                    )
+                }
+            },
+        )
+        IconButton(onClick = onPrevious, enabled = resultCount > 0) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Предыдущее")
+        }
+        IconButton(onClick = onNext, enabled = resultCount > 0) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Следующее")
+        }
+        IconButton(onClick = onClose) {
+            Icon(Icons.Default.Close, contentDescription = "Закрыть поиск")
+        }
+    }
+}
+
+@Composable
+private fun PinnedMessagesBar(
+    pinnedMessages: List<ChatMessage>,
+    onMessageClick: (Long) -> Unit,
+    onUnpin: (Long) -> Unit,
+) {
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(pinnedMessages, key = { it.id }) { message ->
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                ),
+                modifier = Modifier.widthIn(min = 180.dp, max = 260.dp),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clickable { onMessageClick(message.id) }
+                        .padding(start = 12.dp, top = 8.dp, end = 6.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Закреплено",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            text = message.text?.takeIf { it.isNotBlank() } ?: "Вложение",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    IconButton(onClick = { onUnpin(message.id) }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Открепить", modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun HeaderTag(
     text: String,
     containerColor: Color,
@@ -836,31 +1050,6 @@ private fun EmptyChatState(
     }
 }
 
-@Composable
-private fun AnimatedMessageEntry(
-    messageId: Long,
-    isOwn: Boolean,
-    content: @Composable () -> Unit,
-) {
-    var isVisible by remember(messageId) { mutableStateOf(false) }
-
-    LaunchedEffect(messageId) {
-        isVisible = true
-    }
-
-    AnimatedVisibility(
-        visible = isVisible,
-        enter = fadeIn() +
-            slideInHorizontally(initialOffsetX = { fullWidth ->
-                if (isOwn) fullWidth / 7 else -fullWidth / 7
-            }) +
-            scaleIn(initialScale = 0.94f),
-        exit = fadeOut() + scaleOut(targetScale = 0.96f),
-    ) {
-        content()
-    }
-}
-
 private fun senderAccentColor(senderId: Long): Color {
     val palette = listOf(
         Color(0xFFCC4E92),
@@ -870,7 +1059,25 @@ private fun senderAccentColor(senderId: Long): Color {
         Color(0xFFE0802E),
         Color(0xFF0F9AA9),
     )
-    return palette[(senderId % palette.size).toInt()]
+    // Защита от отрицательного или нулевого senderId
+    if (senderId <= 0) {
+        return palette[0]
+    }
+    val index = (senderId % palette.size).toInt()
+    return palette[index]
+}
+
+private suspend fun scrollToMessage(
+    timelineItems: List<ChatTimelineItem>,
+    listState: LazyListState,
+    messageId: Long,
+) {
+    val targetIndex = timelineItems.indexOfFirst { item ->
+        item is ChatTimelineItem.MessageEntry && item.message.id == messageId
+    }
+    if (targetIndex >= 0) {
+        listState.animateScrollToItem(targetIndex)
+    }
 }
 
 private fun Modifier.chatWallpaperPattern(
@@ -894,6 +1101,79 @@ private fun Modifier.chatWallpaperPattern(
     val stroke = if (useTelegramLightStyle) 1.dp.toPx() else 1.2.dp.toPx()
     val cols = (size.width / spacing).toInt() + 2
     val rows = (size.height / spacing).toInt() + 2
+    val primaryStrokePath = Path()
+    val primaryFillPath = Path()
+    val secondaryStrokePath = Path()
+
+    for (row in 0 until rows) {
+        for (col in 0 until cols) {
+            val shiftX = if (row % 2 == 0) spacing * 0.28f else 0f
+            val center = Offset(
+                x = (col * spacing) + shiftX - (spacing * 0.2f),
+                y = (row * spacing) + symbol,
+            )
+            when ((row + col) % 4) {
+                0 -> {
+                    primaryStrokePath.addOval(
+                        Rect(
+                            left = center.x - symbol,
+                            top = center.y - symbol,
+                            right = center.x + symbol,
+                            bottom = center.y + symbol,
+                        )
+                    )
+                    primaryFillPath.addOval(
+                        Rect(
+                            left = center.x - (symbol * 0.26f),
+                            top = center.y - (symbol * 0.26f),
+                            right = center.x + (symbol * 0.26f),
+                            bottom = center.y + (symbol * 0.26f),
+                        )
+                    )
+                }
+
+                1 -> {
+                    secondaryStrokePath.moveTo(center.x - symbol, center.y - symbol)
+                    secondaryStrokePath.lineTo(center.x + symbol, center.y + symbol)
+                    secondaryStrokePath.moveTo(center.x + symbol, center.y - symbol)
+                    secondaryStrokePath.lineTo(center.x - symbol, center.y + symbol)
+                }
+
+                2 -> {
+                    primaryStrokePath.addRoundRect(
+                        RoundRect(
+                            left = center.x - (symbol * 1.2f),
+                            top = center.y - (symbol * 0.75f),
+                            right = center.x + (symbol * 1.2f),
+                            bottom = center.y + (symbol * 0.75f),
+                            cornerRadius = CornerRadius(symbol * 0.55f),
+                        )
+                    )
+                }
+
+                else -> {
+                    secondaryStrokePath.addArc(
+                        oval = Rect(
+                            left = center.x - symbol,
+                            top = center.y - symbol,
+                            right = center.x + symbol,
+                            bottom = center.y + symbol,
+                        ),
+                        startAngleDegrees = 22f,
+                        sweepAngleDegrees = 300f,
+                    )
+                    secondaryStrokePath.moveTo(
+                        center.x + (symbol * 0.45f),
+                        center.y - (symbol * 0.8f),
+                    )
+                    secondaryStrokePath.lineTo(
+                        center.x + (symbol * 1.15f),
+                        center.y - (symbol * 1.45f),
+                    )
+                }
+            }
+        }
+    }
 
     onDrawBehind {
         if (useTelegramLightStyle) {
@@ -908,73 +1188,9 @@ private fun Modifier.chatWallpaperPattern(
                 center = Offset(size.width * 0.16f, size.height * 0.66f),
             )
         }
-        for (row in 0 until rows) {
-            for (col in 0 until cols) {
-                val shiftX = if (row % 2 == 0) spacing * 0.28f else 0f
-                val center = Offset(
-                    x = (col * spacing) + shiftX - (spacing * 0.2f),
-                    y = (row * spacing) + symbol,
-                )
-                when ((row + col) % 4) {
-                    0 -> {
-                        drawCircle(
-                            color = patternPrimary,
-                            radius = symbol,
-                            center = center,
-                            style = Stroke(width = stroke),
-                        )
-                        drawCircle(
-                            color = patternPrimary,
-                            radius = symbol * 0.26f,
-                            center = center,
-                        )
-                    }
-
-                    1 -> {
-                        drawLine(
-                            color = patternSecondary,
-                            start = Offset(center.x - symbol, center.y - symbol),
-                            end = Offset(center.x + symbol, center.y + symbol),
-                            strokeWidth = stroke,
-                        )
-                        drawLine(
-                            color = patternSecondary,
-                            start = Offset(center.x + symbol, center.y - symbol),
-                            end = Offset(center.x - symbol, center.y + symbol),
-                            strokeWidth = stroke,
-                        )
-                    }
-
-                    2 -> {
-                        drawRoundRect(
-                            color = patternPrimary,
-                            topLeft = Offset(center.x - (symbol * 1.2f), center.y - (symbol * 0.75f)),
-                            size = Size(symbol * 2.4f, symbol * 1.5f),
-                            cornerRadius = CornerRadius(symbol * 0.55f),
-                            style = Stroke(width = stroke),
-                        )
-                    }
-
-                    else -> {
-                        drawArc(
-                            color = patternSecondary,
-                            startAngle = 22f,
-                            sweepAngle = 300f,
-                            useCenter = false,
-                            topLeft = Offset(center.x - symbol, center.y - symbol),
-                            size = Size(symbol * 2f, symbol * 2f),
-                            style = Stroke(width = stroke),
-                        )
-                        drawLine(
-                            color = patternSecondary,
-                            start = Offset(center.x + (symbol * 0.45f), center.y - (symbol * 0.8f)),
-                            end = Offset(center.x + (symbol * 1.15f), center.y - (symbol * 1.45f)),
-                            strokeWidth = stroke,
-                        )
-                    }
-                }
-            }
-        }
+        drawPath(primaryStrokePath, color = patternPrimary, style = Stroke(width = stroke))
+        drawPath(primaryFillPath, color = patternPrimary)
+        drawPath(secondaryStrokePath, color = patternSecondary, style = Stroke(width = stroke))
     }
 }
 
@@ -987,6 +1203,7 @@ private fun MessageMetaRow(
     bubbleMetaColor: Color,
     readCount: Int,
     recipientCount: Int,
+    sendStatus: ChatSendStatus? = null,
 ) {
     Row(
         modifier = modifier,
@@ -1006,6 +1223,22 @@ private fun MessageMetaRow(
             color = bubbleMetaColor,
         )
         if (isOwn) {
+            if (sendStatus == ChatSendStatus.SENDING) {
+                Text(
+                    text = "отпр.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = bubbleMetaColor,
+                )
+                return@Row
+            }
+            if (sendStatus == ChatSendStatus.FAILED) {
+                Text(
+                    text = "ошибка",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                return@Row
+            }
             val isRead = readCount > 0
             val checkColor = if (isRead) Color(0xFF4A90E2) else bubbleMetaColor
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1044,6 +1277,7 @@ private fun MessageMetaRow(
 private fun MessageBubble(
     message: ChatMessage,
     isHighlighted: Boolean,
+    isPinned: Boolean,
     isOwn: Boolean,
     conversationType: ConversationType?,
     groupedWithPrevious: Boolean,
@@ -1051,9 +1285,13 @@ private fun MessageBubble(
     senderAvatarUrl: String?,
     readCount: Int,
     recipientCount: Int,
+    sendStatus: ChatSendStatus?,
+    sendError: String?,
     currentUserId: Long,
     onReply: () -> Unit,
     onDelete: () -> Unit,
+    onRetry: () -> Unit,
+    onTogglePinned: () -> Unit,
     onToggleReaction: (String) -> Unit,
     baseUrl: String,
     authToken: String?,
@@ -1129,16 +1367,9 @@ private fun MessageBubble(
         animationSpec = spring(dampingRatio = 0.9f, stiffness = 560f),
         label = "messageHighlightAlpha",
     )
-    val replyHintScale by animateFloatAsState(
-        targetValue = 0.86f + (swipeProgress * 0.14f),
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = 650f),
-        label = "replyHintScale",
-    )
-    val replyHintColor by animateColorAsState(
-        targetValue = MaterialTheme.colorScheme.primaryContainer.copy(
-            alpha = 0.30f + (swipeProgress * 0.28f)
-        ),
-        label = "replyHintColor",
+    val replyHintScale = 0.86f + (swipeProgress * 0.14f)
+    val replyHintColor = MaterialTheme.colorScheme.primaryContainer.copy(
+        alpha = 0.30f + (swipeProgress * 0.28f)
     )
     val colorScheme = MaterialTheme.colorScheme
     val useTelegramLightStyle = colorScheme.usesTelegramLightChatStyle()
@@ -1412,6 +1643,7 @@ private fun MessageBubble(
                                 bubbleMetaColor = bubbleMetaColor,
                                 readCount = readCount,
                                 recipientCount = recipientCount,
+                                sendStatus = sendStatus,
                             )
                         }
                     } else {
@@ -1461,6 +1693,20 @@ private fun MessageBubble(
                         color = bubbleMetaColor,
                     )
                     if (isOwn) {
+                        if (sendStatus == ChatSendStatus.SENDING) {
+                            Text(
+                                text = "отпр.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = bubbleMetaColor,
+                            )
+                        }
+                        if (sendStatus == ChatSendStatus.FAILED) {
+                            Text(
+                                text = "ошибка",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
                         val isRead = readCount > 0
                         val checkColor = if (isRead) Color(0xFF4A90E2) else bubbleMetaColor
                         // ✓✓ Telegram-style
@@ -1505,6 +1751,24 @@ private fun MessageBubble(
                         onToggleReaction = onToggleReaction,
                     )
                 }
+                if (sendStatus == ChatSendStatus.FAILED) {
+                    Row(
+                        modifier = Modifier.padding(top = 4.dp, end = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = sendError ?: "Не отправлено",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        TextButton(onClick = onRetry) {
+                            Text("Повторить")
+                        }
+                    }
+                }
             }
 
         // Context menu
@@ -1538,6 +1802,15 @@ private fun MessageBubble(
                         },
                     )
                 }
+                MessageMenuAction(
+                    label = if (isPinned) "Открепить" else "Закрепить",
+                    icon = Icons.Default.CheckCircle,
+                    useTelegramLightStyle = useTelegramLightStyle,
+                    onClick = {
+                        showMenu = false
+                        onTogglePinned()
+                    },
+                )
                 if (isOwn) {
                     MessageMenuAction(
                         label = "Удалить",
@@ -2046,7 +2319,7 @@ private fun ImagePreviewDialog(
                                 },
                             )
                         }
-                        .pointerInput(attachment.id, scale, hasPrevious, hasNext) {
+                        .pointerInput(attachment.id, hasPrevious, hasNext) {
                             detectHorizontalDragGestures(
                                 onHorizontalDrag = { _, dragAmount ->
                                     if (scale <= 1f) {
@@ -2203,8 +2476,8 @@ private fun ImagePreviewDialog(
 
 private fun formatAttachmentSize(size: Long): String {
     if (size < 1024) return "$size Б"
-    if (size < 1024 * 1024) return String.format("%.1f КБ", size / 1024f)
-    return String.format("%.1f МБ", size / (1024f * 1024f))
+    if (size < 1024 * 1024) return String.format(Locale.getDefault(), "%.1f КБ", size / 1024f)
+    return String.format(Locale.getDefault(), "%.1f МБ", size / (1024f * 1024f))
 }
 
 private fun buildAttachmentPreviewUrl(baseUrl: String, attachment: ChatAttachment): String {
@@ -2241,7 +2514,7 @@ private fun buildAttachmentImageRequest(
 ): ImageRequest {
     val requestBuilder = ImageRequest.Builder(context)
         .data(buildAttachmentPreviewUrl(baseUrl, attachment))
-        .crossfade(true)
+        .crossfade(false)
 
     if (!authToken.isNullOrBlank()) {
         requestBuilder.headers(
@@ -2346,12 +2619,31 @@ private fun ChatInputBar(
     replyTo: ChatMessage?,
     typingText: String?,
     isSending: Boolean,
+    availableUsers: List<User>,
     onSend: (String) -> Unit,
     onAttachFile: () -> Unit,
     onTextChanged: (String) -> Unit,
     onCancelReply: () -> Unit,
 ) {
     var text by remember { mutableStateOf("") }
+    val mentionQuery = remember(text) {
+        Regex("""(?:^|\s)@([\p{L}\p{N}_-]*)$""").find(text)?.groupValues?.getOrNull(1).orEmpty()
+    }
+    val showMentionSuggestions = text.endsWith("@") || Regex("""(?:^|\s)@[\p{L}\p{N}_-]+$""").containsMatchIn(text)
+    val mentionSuggestions = remember(availableUsers, mentionQuery, showMentionSuggestions) {
+        if (!showMentionSuggestions) {
+            emptyList()
+        } else {
+            val query = mentionQuery.lowercase()
+            availableUsers
+                .filter { user ->
+                    val name = user.fullName.lowercase()
+                    val username = user.username.lowercase()
+                    query.isBlank() || name.contains(query) || username.contains(query)
+                }
+                .take(5)
+        }
+    }
     val useTelegramLightStyle = MaterialTheme.colorScheme.usesTelegramLightChatStyle()
     val canSend = remember(text) { text.trim().isNotEmpty() }
     val sendButtonScale by animateFloatAsState(
@@ -2383,8 +2675,7 @@ private fun ChatInputBar(
     ) {
         Column(
             modifier = Modifier
-                .navigationBarsPadding()
-                .animateContentSize(),
+                .navigationBarsPadding(),
         ) {
             HorizontalDivider(
                 color = if (useTelegramLightStyle) Color(0x66C8D6C7) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
@@ -2405,6 +2696,30 @@ private fun ChatInputBar(
                         fontStyle = FontStyle.Italic,
                         modifier = Modifier.padding(horizontal = 6.dp),
                     )
+                }
+
+            AnimatedVisibility(
+                    visible = mentionSuggestions.isNotEmpty(),
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp),
+                    ) {
+                        items(mentionSuggestions, key = { it.id }) { user ->
+                            AssistChip(
+                                onClick = {
+                                    text = text.replace(
+                                        Regex("""(?:^|\s)@[\p{L}\p{N}_-]*$"""),
+                                        " @${user.username} "
+                                    ).trimStart()
+                                    onTextChanged(text)
+                                },
+                                label = { Text(user.getDisplayName(), maxLines = 1) },
+                            )
+                        }
+                    }
                 }
 
             AnimatedVisibility(
@@ -2469,7 +2784,7 @@ private fun ChatInputBar(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
-                        verticalAlignment = Alignment.Bottom,
+                        verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         FilledTonalIconButton(
@@ -2485,29 +2800,37 @@ private fun ChatInputBar(
                         ) {
                             Icon(Icons.Default.Add, contentDescription = "Вложение")
                         }
-                        OutlinedTextField(
+                        BasicTextField(
                             value = text,
                             onValueChange = {
                                 text = it
                                 onTextChanged(it)
                             },
                             modifier = Modifier.weight(1f),
-                            placeholder = {
-                                Text(if (replyTo != null) "Напишите ответ..." else "Сообщение")
-                            },
-                            shape = RoundedCornerShape(22.dp),
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                color = MaterialTheme.colorScheme.onSurface,
+                            ),
                             minLines = 1,
                             maxLines = 5,
-                            singleLine = false,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color.Transparent,
-                                unfocusedBorderColor = Color.Transparent,
-                                disabledBorderColor = Color.Transparent,
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                disabledContainerColor = Color.Transparent,
-                                cursorColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            decorationBox = { innerTextField ->
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .defaultMinSize(minHeight = 40.dp)
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    contentAlignment = Alignment.CenterStart,
+                                ) {
+                                    if (text.isBlank()) {
+                                        Text(
+                                            text = if (replyTo != null) "Напишите ответ..." else "Сообщение",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            },
                         )
 
                         FilledIconButton(
@@ -2568,6 +2891,20 @@ private fun chatWallpaperBrush(colorScheme: ColorScheme): Brush {
             )
         )
     }
+}
+
+private fun List<Long>.lowerBound(target: Long): Int {
+    var low = 0
+    var high = size
+    while (low < high) {
+        val mid = (low + high) ushr 1
+        if (this[mid] < target) {
+            low = mid + 1
+        } else {
+            high = mid
+        }
+    }
+    return low
 }
 
 private val timeOnlyFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
