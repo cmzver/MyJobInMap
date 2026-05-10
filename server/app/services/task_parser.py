@@ -125,6 +125,19 @@ def parse_dispatcher_format(text: str) -> Optional[ParsedTask]:
     # Первая часть обычно категория работ
     category = parts[0] if parts else ""
 
+    # Чистим категорию от мусора: №номер, слова приоритета, лидирующие
+    # знаки препинания. external_id и priority уже извлечены в отдельные поля,
+    # их повторение в заголовке только мусорит карточки.
+    if category:
+        category = re.sub(r"№\s*\d+", "", category)
+        category = re.sub(
+            r"\b(Аварийная|Срочная|Текущая|Плановая)\b",
+            "",
+            category,
+            flags=re.IGNORECASE,
+        )
+        category = re.sub(r"\s+", " ", category).strip(" .,!-–—:·")
+
     # Остальное — описание (убираем телефон и квартиру)
     description_parts = parts[1:] if len(parts) > 1 else []
     description = ". ".join(description_parts)
@@ -148,9 +161,10 @@ def parse_dispatcher_format(text: str) -> Optional[ParsedTask]:
         ):
             contact_name = potential_name
 
-    # Формируем title из категории
+    # Формируем title из категории. Номер заявки уже хранится в external_id —
+    # дублировать его в заголовке не нужно.
     if category:
-        title = f"[{external_id}] {category}" if external_id else category
+        title = category
     else:
         title = f"Заявка №{external_id}" if external_id else "Новая заявка"
 

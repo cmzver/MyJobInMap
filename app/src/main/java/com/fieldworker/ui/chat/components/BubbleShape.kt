@@ -11,7 +11,12 @@ import kotlin.math.min
 fun BubbleShape(isOwn: Boolean, groupedWithNext: Boolean) = GenericShape { size, _ ->
     val w = size.width
     val h = size.height
-    val radius = min(w * 0.12f, h * 0.42f)
+    // Photo bubbles (tall) get a smaller radius so they don't look like pillows
+    val radius = if (h > w * 0.7f) {
+        min(w * 0.07f, h * 0.42f)
+    } else {
+        min(w * 0.12f, h * 0.42f)
+    }
     moveTo(radius, 0f)
     lineTo(w - radius, 0f)
     quadraticTo(w, 0f, w, radius)

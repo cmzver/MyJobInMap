@@ -7,7 +7,7 @@ Database Base
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -40,6 +40,19 @@ if settings.is_sqlite:
         poolclass=StaticPool,
         echo=False,
     )
+
+    # Встроенные lower/upper в SQLite не работают с не-ASCII символами
+    # (например, кириллицей), из-за чего ILIKE по русскому тексту находит
+    # подстроки только в той же раскладке. Перегружаем их Python-функциями,
+    # которые корректно сворачивают регистр Unicode.
+    @event.listens_for(engine, "connect")
+    def _register_unicode_case_functions(dbapi_connection, _connection_record):
+        dbapi_connection.create_function(
+            "lower", 1, lambda value: value.lower() if isinstance(value, str) else value
+        )
+        dbapi_connection.create_function(
+            "upper", 1, lambda value: value.upper() if isinstance(value, str) else value
+        )
 elif settings.is_postgres:
     engine = create_engine(
         SQLALCHEMY_DATABASE_URL,

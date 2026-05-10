@@ -264,7 +264,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="relative">
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className="flex items-center rounded-lg px-2 py-2 text-gray-700 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:px-3"
+                  aria-label="Меню пользователя"
+                  className="flex h-10 min-w-10 items-center rounded-lg px-1.5 text-gray-700 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:px-3"
                 >
                   <UserAvatar
                     fullName={user?.fullName}

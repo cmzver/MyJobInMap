@@ -234,7 +234,7 @@ class FCMService : FirebaseMessagingService() {
             channelId = CHANNEL_ID_TASKS,
             title = title,
             body = body,
-            id = System.currentTimeMillis().toInt(),
+            id = (System.currentTimeMillis() % Int.MAX_VALUE).toInt(),
             priority = NotificationCompat.PRIORITY_HIGH
         )
     }

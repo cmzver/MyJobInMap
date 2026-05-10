@@ -13,6 +13,8 @@ import androidx.work.Configuration
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import coil.ImageLoader
+import coil.ImageLoaderFactory
 import com.fieldworker.data.api.TasksApi
 import com.fieldworker.data.dto.FCMTokenDto
 import com.fieldworker.data.notification.FCMService
@@ -30,7 +32,7 @@ import javax.inject.Inject
  * Application класс с инициализацией Hilt и osmdroid.
  */
 @HiltAndroidApp
-class FieldWorkerApplication : Application(), Configuration.Provider {
+class FieldWorkerApplication : Application(), Configuration.Provider, ImageLoaderFactory {
     
     companion object {
         private const val TAG = "FieldWorkerApp"
@@ -44,7 +46,17 @@ class FieldWorkerApplication : Application(), Configuration.Provider {
     
     @Inject
     lateinit var tasksApi: TasksApi
-    
+
+    @Inject
+    lateinit var coilImageLoader: ImageLoader
+
+    /**
+     * Coil подхватывает этот фабричный метод автоматически — теперь все
+     * `AsyncImage` в приложении используют наш OkHttp с [AuthHeaderInterceptor],
+     * единый disk/memory cache и общий пул соединений.
+     */
+    override fun newImageLoader(): ImageLoader = coilImageLoader
+
     // Конфигурация WorkManager с HiltWorkerFactory
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()

@@ -36,7 +36,10 @@ data class TokenResponse(
     val role: String,
     
     @SerializedName("full_name")
-    val fullName: String
+    val fullName: String,
+
+    @SerializedName("avatar_url")
+    val avatarUrl: String? = null
 )
 
 /**
@@ -45,6 +48,42 @@ data class TokenResponse(
 data class RefreshTokenRequest(
     @SerializedName("refresh_token")
     val refreshToken: String
+)
+
+/**
+ * DTO для обновления профиля (PATCH /api/auth/profile)
+ */
+data class UpdateProfileRequest(
+    @SerializedName("full_name")
+    val fullName: String? = null,
+
+    @SerializedName("email")
+    val email: String? = null,
+
+    @SerializedName("phone")
+    val phone: String? = null
+)
+
+/**
+ * DTO для смены пароля (PATCH /api/auth/password)
+ */
+data class ChangePasswordRequest(
+    @SerializedName("current_password")
+    val currentPassword: String,
+
+    @SerializedName("new_password")
+    val newPassword: String
+)
+
+/**
+ * DTO ответа на смену пароля
+ */
+data class SimpleSuccessDto(
+    @SerializedName("success")
+    val success: Boolean = true,
+
+    @SerializedName("message")
+    val message: String? = null
 )
 
 /**
@@ -65,7 +104,10 @@ data class UserDto(
     
     @SerializedName("phone")
     val phone: String?,
-    
+
+    @SerializedName("avatar_url")
+    val avatarUrl: String? = null,
+
     @SerializedName("role")
     val role: String,
     

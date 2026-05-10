@@ -56,8 +56,13 @@ fun AppShell() {
     var currentTab by remember { mutableStateOf(RootTab.Tasks) }
 
     LaunchedEffect(Unit) {
-        restoreSessionUseCase()
-        isRestoring = false
+        try {
+            restoreSessionUseCase()
+        } catch (_: Exception) {
+            // restore failure is non-fatal: user will be shown login screen
+        } finally {
+            isRestoring = false
+        }
     }
 
     // Register push token whenever user becomes authenticated
@@ -107,8 +112,8 @@ fun AppShell() {
                     )
                     RootTab.Chat -> ChatListRoute(
                         modifier = Modifier.fillMaxSize(),
-                        onConversationSelected = { id ->
-                            selectedChat = id to "Чат #$id"
+                        onConversationSelected = { id, name ->
+                            selectedChat = id to name
                         },
                     )
                     RootTab.Profile -> ProfileRoute()

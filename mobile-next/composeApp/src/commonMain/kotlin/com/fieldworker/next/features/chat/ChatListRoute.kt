@@ -47,7 +47,7 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun ChatListRoute(
     modifier: Modifier = Modifier,
-    onConversationSelected: (Long) -> Unit = {},
+    onConversationSelected: (Long, String) -> Unit = { _, _ -> },
     viewModel: ChatListViewModel = koinViewModel(),
 ) {
     val conversations by viewModel.conversations.collectAsState()
@@ -125,7 +125,7 @@ fun ChatListRoute(
                     items(conversations, key = { it.id }) { conversation ->
                         ConversationItem(
                             conversation = conversation,
-                            onClick = { onConversationSelected(conversation.id) },
+                            onClick = { onConversationSelected(conversation.id, conversation.displayName()) },
                         )
                         HorizontalDivider(
                             color = FwTheme.extended.divider,

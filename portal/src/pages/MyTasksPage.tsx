@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
@@ -9,11 +9,11 @@ import {
   MapPin,
   Navigation,
   Phone,
+  Search,
+  X,
 } from 'lucide-react'
 import Select from '@/components/Select'
 import Spinner from '@/components/Spinner'
-import StatusBadge from '@/components/StatusBadge'
-import PriorityBadge from '@/components/PriorityBadge'
 import { useAuthStore } from '@/store/authStore'
 import apiClient from '@/api/client'
 import { myTaskKeys } from '@/hooks/useTasks'
@@ -32,19 +32,94 @@ const priorityOrder: Record<Task['priority'], number> = {
   PLANNED: 1,
 }
 
+const priorityStripe: Record<Task['priority'], string> = {
+  EMERGENCY: 'border-l-red-500',
+  URGENT: 'border-l-orange-500',
+  CURRENT: 'border-l-blue-500',
+  PLANNED: 'border-l-emerald-500',
+}
+
+const priorityLabel: Record<Task['priority'], string> = {
+  EMERGENCY: 'Аварийная',
+  URGENT: 'Срочная',
+  CURRENT: 'Текущая',
+  PLANNED: 'Плановая',
+}
+
+const statusTone: Record<Task['status'], string> = {
+  NEW: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  IN_PROGRESS: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+  DONE: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  CANCELLED: 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+}
+
+const statusShort: Record<Task['status'], string> = {
+  NEW: 'Новая',
+  IN_PROGRESS: 'В работе',
+  DONE: 'Готово',
+  CANCELLED: 'Отменена',
+}
+
+// Заголовки часто приходят с префиксами вида "[1190557] " и "№1190557" —
+// номер мы и так показываем отдельно слева, поэтому вычищаем дубли.
+function cleanTaskTitle(title: string, taskNumber?: string | null): string {
+  let result = (title ?? '').trim()
+  const numbers = [taskNumber, ...(result.match(/\d{4,}/g) ?? [])].filter(Boolean) as string[]
+
+  // Убираем повторяющиеся "[NUM] " и "№NUM " в любом порядке в начале строки.
+  let prevLength = -1
+  while (result.length !== prevLength) {
+    prevLength = result.length
+    for (const num of numbers) {
+      const escaped = num.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      result = result
+        .replace(new RegExp(`^\\[\\s*${escaped}\\s*\\]\\s*`), '')
+        .replace(new RegExp(`^№\\s*${escaped}\\s*`), '')
+    }
+    result = result.replace(/^[-–—:·.\s]+/, '')
+  }
+
+  return result || title
+}
+
 export default function MyTasksPage() {
   const { user } = useAuthStore()
   const [statusFilter, setStatusFilter] = useState<VisibleStatusFilter>('default')
   const [sortBy, setSortBy] = useState<SortOption>('priority_desc')
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    const handle = setTimeout(() => setSearch(searchInput.trim()), 300)
+    return () => clearTimeout(handle)
+  }, [searchInput])
 
   const { data, isLoading, error } = useQuery({
-    queryKey: myTaskKeys.list(user?.id),
+    queryKey: [...myTaskKeys.list(user?.id), { search }],
     queryFn: async () => {
-      const params = new URLSearchParams()
-      params.append('assignee_id', String(user?.id))
-      params.append('size', '100')
-      const response = await apiClient.get<{ items: Task[] }>(`/tasks?${params}`)
-      return response.data.items
+      const pageSize = 200
+      const all: Task[] = []
+      let page = 1
+
+      while (true) {
+        const params = new URLSearchParams()
+        params.append('assignee_id', String(user?.id))
+        params.append('page', String(page))
+        params.append('size', String(pageSize))
+        if (search) params.append('search', search)
+
+        const response = await apiClient.get<{ items: Task[]; pages: number }>(
+          `/tasks?${params}`,
+        )
+        all.push(...response.data.items)
+
+        if (page >= (response.data.pages ?? 0) || response.data.items.length < pageSize) {
+          break
+        }
+        page += 1
+      }
+
+      return all
     },
     enabled: !!user?.id,
     refetchOnMount: 'always',
@@ -148,6 +223,31 @@ export default function MyTasksPage() {
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="relative mb-4">
+          <Search
+            size={16}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          />
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Поиск по номеру, адресу, описанию или клиенту"
+            className="h-10 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-9 text-sm text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            aria-label="Поиск заявок"
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => setSearchInput('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+              aria-label="Очистить поиск"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-2">
             <p className="text-sm font-medium text-gray-900 dark:text-white">Показывать</p>
@@ -221,83 +321,100 @@ export default function MyTasksPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {sortedTasks.map((task) => {
             const hasNavigation = task.lat != null || task.lon != null || Boolean(task.raw_address)
+            const taskNumber = task.task_number || String(task.id)
+            const displayTitle = cleanTaskTitle(task.title, taskNumber)
+            const cardTitle = `${priorityLabel[task.priority]} · ${statusShort[task.status]} · №${taskNumber}`
 
             return (
               <div
                 key={task.id}
-                className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60"
+                title={cardTitle}
+                className={cn(
+                  'group relative rounded-lg border border-l-4 border-gray-200 bg-white px-3 py-2.5 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60',
+                  priorityStripe[task.priority],
+                )}
               >
-                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start">
-                  <div className="min-w-0 space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge status={task.status} className="shrink-0" />
-                      <PriorityBadge priority={task.priority} className="shrink-0" />
-                      <span className="rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 dark:border-gray-700 dark:text-gray-300">
-                        №{task.task_number || task.id}
+                <Link
+                  to={`/tasks/${task.id}`}
+                  aria-label={`Открыть заявку №${taskNumber}, ${priorityLabel[task.priority]}, ${statusShort[task.status]}`}
+                  className="absolute inset-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] leading-tight text-gray-500 dark:text-gray-400">
+                      <span className="font-semibold tabular-nums text-gray-700 dark:text-gray-200">
+                        №{taskNumber}
+                      </span>
+                      <span
+                        className={cn(
+                          'rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide',
+                          statusTone[task.status],
+                        )}
+                      >
+                        {statusShort[task.status]}
                       </span>
                       {task.planned_date && (
                         <span
                           title={`Срок: ${formatDate(task.planned_date)}`}
-                          className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 dark:border-gray-700 dark:text-gray-300"
+                          className="inline-flex items-center gap-1"
                         >
-                          <Clock size={12} />
+                          <Clock size={11} className="shrink-0" />
                           {formatDateShort(task.planned_date)}
                         </span>
                       )}
                     </div>
 
-                    <div className="space-y-1">
-                      <Link
-                        to={`/tasks/${task.id}`}
-                        title={task.title}
-                        className="block truncate text-base font-semibold text-gray-900 transition-colors hover:text-primary-600 dark:text-white dark:hover:text-primary-400"
+                    <p
+                      title={task.title}
+                      className="mt-1 truncate text-sm font-semibold text-gray-900 dark:text-white"
+                    >
+                      {displayTitle}
+                    </p>
+
+                    {task.raw_address && (
+                      <div
+                        title={task.raw_address}
+                        className="mt-0.5 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"
                       >
-                        {task.title}
-                      </Link>
-                      {task.raw_address && (
-                        <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
-                          <MapPin size={16} className="mt-0.5 shrink-0 text-gray-400 dark:text-gray-500" />
-                          <span className="min-w-0 truncate" title={task.raw_address}>
-                            {task.raw_address}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                        <MapPin size={12} className="shrink-0 text-gray-400 dark:text-gray-500" />
+                        <span className="min-w-0 truncate">{task.raw_address}</span>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                    <Link
-                      to={`/tasks/${task.id}`}
-                      className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
-                    >
-                      Открыть
-                    </Link>
-
+                  <div className="relative z-10 flex shrink-0 items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => openNavigation(task.lat ?? undefined, task.lon ?? undefined, task.raw_address)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        openNavigation(task.lat ?? undefined, task.lon ?? undefined, task.raw_address)
+                      }}
                       disabled={!hasNavigation}
+                      aria-label="Маршрут"
+                      title="Маршрут"
                       className={cn(
-                        'inline-flex h-9 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors',
+                        'inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-colors',
                         hasNavigation
-                          ? 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700'
+                          ? 'border-gray-200 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700'
                           : 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500',
                       )}
                     >
-                      <Navigation size={14} />
-                      Маршрут
+                      <Navigation size={15} />
                     </button>
 
                     {task.customer_phone && (
                       <a
                         href={`tel:${task.customer_phone}`}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                        onClick={(event) => event.stopPropagation()}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
                         aria-label={`Позвонить по номеру ${task.customer_phone}`}
+                        title={task.customer_phone}
                       >
-                        <Phone size={14} />
+                        <Phone size={15} />
                       </a>
                     )}
                   </div>

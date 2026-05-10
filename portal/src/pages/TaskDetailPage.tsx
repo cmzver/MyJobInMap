@@ -519,7 +519,7 @@ export default function TaskDetailPage() {
                         variant="outline"
                         size="sm"
                         className={cn(
-                          'h-auto rounded-md px-2.5 py-1 text-xs font-medium',
+                          'h-auto min-h-10 rounded-md px-3 py-2 text-xs font-medium',
                           status === 'CANCELLED'
                             ? 'border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/30'
                             : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
@@ -569,7 +569,7 @@ export default function TaskDetailPage() {
       <div className="space-y-5 min-w-0">
 
           <Card title="Описание" compact>
-            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
+            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
               {task.description || 'Описание не указано'}
             </p>
           </Card>
@@ -619,8 +619,8 @@ export default function TaskDetailPage() {
                 {photos.map((photo) => {
                   const photoUrl = photoUrls[photo.filename]
                   return (
-                  <div 
-                    key={photo.id} 
+                  <div
+                    key={photo.id}
                     className="relative group cursor-pointer"
                     onClick={() => photoUrl && setSelectedPhoto(photoUrl)}
                   >
@@ -628,11 +628,11 @@ export default function TaskDetailPage() {
                       <img
                         src={photoUrl}
                         alt={photo.original_name || 'Фото'}
-                        className="w-full h-24 object-cover rounded-lg"
+                        className="aspect-square w-full rounded-lg object-cover"
                         loading="lazy"
                       />
                     ) : (
-                      <div className="w-full h-24 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-500">
+                      <div className="flex aspect-square w-full items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-500 dark:bg-gray-700">
                         {isLoadingPhotoUrls ? 'Загрузка...' : 'Нет доступа'}
                       </div>
                     )}
@@ -645,9 +645,10 @@ export default function TaskDetailPage() {
                         e.stopPropagation()
                         handleDeletePhoto(photo.id)
                       }}
-                      className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute right-1 top-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-red-500 text-white shadow opacity-90 transition-opacity lg:opacity-0 lg:group-hover:opacity-100"
+                      aria-label="Удалить фото"
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-4 w-4" />
                     </button>
                   </div>
                   )
@@ -783,7 +784,7 @@ export default function TaskDetailPage() {
                           </div>
                         )}
                         {!isSystemComment && (
-                          <p className="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap">
+                          <p className="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                             {c.text}
                           </p>
                         )}

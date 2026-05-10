@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -68,6 +69,7 @@ data class ChatScreenState(
     val pinnedMessageIds: Set<Long> = emptySet(),
     val isSavingConversation: Boolean = false,
     val activeManagementUserId: Long? = null,
+    val pendingAttachmentUri: Uri? = null,
     val error: String? = null,
 )
 
@@ -101,9 +103,26 @@ class ChatViewModel @Inject constructor(
     val attachmentOpenEvents: SharedFlow<AttachmentOpenEvent> = _attachmentOpenEvents.asSharedFlow()
 
     init {
+        observeCachedConversations()
         loadConversations()
         chatRepository.connectRealtime()
         observeRealtimeEvents()
+    }
+
+    /**
+     * Подписываемся на список бесед из локального кэша. Это даёт мгновенный
+     * показ при холодном старте (даже офлайн) и автоматическое обновление UI,
+     * как только сетевой `loadConversations()` обновит таблицу.
+     */
+    private fun observeCachedConversations() {
+        viewModelScope.launch {
+            chatRepository.observeConversations().collect { cached ->
+                _listState.update { state ->
+                    // Не сбрасываем загруженных availableUsers / выбранный фильтр.
+                    state.copy(conversations = cached)
+                }
+            }
+        }
     }
 
     // ========================================================================
@@ -316,7 +335,16 @@ class ChatViewModel @Inject constructor(
     fun sendMessage(text: String) {
         val convId = _chatState.value.conversationId ?: return
         val trimmedText = text.trim()
-        if (trimmedText.isBlank()) return
+        val pendingUri = _chatState.value.pendingAttachmentUri
+        if (trimmedText.isBlank() && pendingUri == null) return
+
+        // Если есть прикреплённое фото — отправляем его с текстом-подписью одним сообщением
+        if (pendingUri != null) {
+            val replyId = _chatState.value.replyTo?.id
+            sendAttachment(pendingUri, caption = trimmedText, replyToId = replyId)
+            _chatState.update { it.copy(pendingAttachmentUri = null) }
+            return
+        }
         val replyId = _chatState.value.replyTo?.id
         val tempId = nextTempMessageId()
         val pendingMessage = ChatMessage(
@@ -360,19 +388,36 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun sendAttachment(fileUri: android.net.Uri) {
+    fun attachPhoto(uri: Uri) {
+        _chatState.update { it.copy(pendingAttachmentUri = uri) }
+    }
+
+    fun cancelAttachment() {
+        _chatState.update { it.copy(pendingAttachmentUri = null) }
+    }
+
+    fun sendAttachment(fileUri: Uri, caption: String? = null, replyToId: Long? = null) {
         val convId = _chatState.value.conversationId ?: return
         val tempId = nextTempMessageId()
+        val trimmedCaption = caption?.trim()?.takeIf { it.isNotEmpty() }
+        val replyPreview = _chatState.value.replyTo?.takeIf { replyToId != null && it.id == replyToId }
+            ?.let {
+                ReplyPreview(
+                    id = it.id,
+                    text = it.text,
+                    senderName = it.senderName,
+                )
+            }
         val pendingMessage = ChatMessage(
             id = tempId,
             conversationId = convId,
             senderId = preferences.getUserId(),
             senderName = preferences.getUsername(),
-            text = "Вложение отправляется...",
+            text = trimmedCaption ?: "Вложение отправляется...",
             messageType = MessageType.ATTACHMENT,
             isEdited = false,
             isDeleted = false,
-            replyTo = null,
+            replyTo = replyPreview,
             attachments = emptyList(),
             reactions = emptyList(),
             createdAt = java.time.LocalDateTime.now(),
@@ -380,6 +425,8 @@ class ChatViewModel @Inject constructor(
         )
         pendingSends[tempId] = PendingSend(
             conversationId = convId,
+            text = trimmedCaption,
+            replyToId = replyToId,
             attachmentUri = fileUri,
         )
         sendTypingStopped()
@@ -389,6 +436,7 @@ class ChatViewModel @Inject constructor(
                 messageSendStatuses = state.messageSendStatuses + (tempId to ChatSendStatus.SENDING),
                 messageSendErrors = state.messageSendErrors - tempId,
                 isSending = true,
+                replyTo = if (replyToId != null) null else state.replyTo,
             )
         }
         viewModelScope.launch {
@@ -493,13 +541,11 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun toggleConversationArchive() {
+    fun toggleConversationArchive(currentIsArchived: Boolean) {
         val conversationId = _chatState.value.conversationId ?: return
-        val currentMember = currentConversationMember() ?: return
-        val nextArchived = !currentMember.isArchived
 
         viewModelScope.launch {
-            chatRepository.archiveConversation(conversationId, nextArchived).fold(
+            chatRepository.archiveConversation(conversationId, !currentIsArchived).fold(
                 onSuccess = {
                     closeConversation()
                 },
@@ -838,7 +884,12 @@ class ChatViewModel @Inject constructor(
     private suspend fun sendPendingMessage(tempId: Long) {
         val pending = pendingSends[tempId] ?: return
         val result = if (pending.attachmentUri != null) {
-            chatRepository.sendAttachment(pending.conversationId, pending.attachmentUri)
+            chatRepository.sendAttachment(
+                conversationId = pending.conversationId,
+                fileUri = pending.attachmentUri,
+                text = pending.text,
+                replyToId = pending.replyToId,
+            )
         } else {
             chatRepository.sendMessage(
                 conversationId = pending.conversationId,

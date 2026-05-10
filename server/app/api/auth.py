@@ -23,7 +23,7 @@ from app.schemas import (RefreshRequest, ReportSettingsResponse,
                          ReportSettingsUpdate, Token, UserResponse)
 from app.services import (authenticate_user, create_access_token,
                           create_refresh_token, get_current_user_required,
-                          get_password_hash, verify_password,
+                          get_password_hash, image_optimizer, verify_password,
                           verify_refresh_token)
 from app.services.audit_log import audit_login_failed, audit_login_success
 from app.services.rate_limiter import login_rate_limiter
@@ -286,6 +286,11 @@ async def upload_avatar(
         raise HTTPException(
             status_code=400, detail="Поддерживаются JPG, PNG, WEBP и GIF"
         )
+
+    # Сжатие/ресайз через общий image_optimizer (как для фото заявок).
+    # GIF не оптимизируется (Pillow выдал бы первый кадр) — сохраняем как есть.
+    if extension != ".gif":
+        content, extension, _ = image_optimizer.optimize(content, extension, db)
 
     avatar_dir = settings.UPLOADS_DIR / "avatars" / str(user.id)
     avatar_dir.mkdir(parents=True, exist_ok=True)

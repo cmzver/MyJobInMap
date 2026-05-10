@@ -8,6 +8,10 @@ import com.fieldworker.data.api.AuthApi
 import com.fieldworker.data.api.ChatApi
 import com.fieldworker.data.api.TasksApi
 import com.fieldworker.data.api.UsersApi
+import coil.ImageLoader
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
+import com.fieldworker.data.network.AuthHeaderInterceptor
 import com.fieldworker.data.network.AuthInterceptor
 import com.fieldworker.data.network.RetryInterceptor
 import com.fieldworker.data.network.TokenAuthenticator
@@ -24,6 +28,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.io.File
 import java.util.concurrent.TimeUnit
 import javax.inject.Named
 import javax.inject.Singleton
@@ -213,5 +218,58 @@ object NetworkModule {
     @Singleton
     fun provideUsersApi(retrofit: Retrofit): UsersApi {
         return retrofit.create(UsersApi::class.java)
+    }
+
+    // ==================== Coil ImageLoader ====================
+
+    /**
+     * Отдельный OkHttpClient для Coil. Содержит только то, что нужно картинкам:
+     * - [AuthHeaderInterceptor]: автоматически добавляет Bearer-токен на запросы
+     *   к нашему API (если вызывающий не передал собственный заголовок).
+     * - LoggingInterceptor (только в DEBUG).
+     *
+     * Нет certificatePinner / tokenAuthenticator / dynamicUrlInterceptor — они
+     * либо не нужны для картинок, либо могут навредить (например, перенаправить
+     * картинку с CDN на наш бэкенд или разлогинить пользователя при 401 на
+     * случайный URL).
+     */
+    @Provides
+    @Singleton
+    @Named("image")
+    fun provideImageOkHttpClient(
+        loggingInterceptor: HttpLoggingInterceptor,
+        authHeaderInterceptor: AuthHeaderInterceptor,
+    ): OkHttpClient {
+        return OkHttpClient.Builder()
+            .addInterceptor(authHeaderInterceptor)
+            .addInterceptor(loggingInterceptor)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideImageLoader(
+        @ApplicationContext context: Context,
+        @Named("image") okHttpClient: OkHttpClient,
+    ): ImageLoader {
+        return ImageLoader.Builder(context)
+            .okHttpClient(okHttpClient)
+            .memoryCache {
+                MemoryCache.Builder(context)
+                    .maxSizePercent(0.25) // 25% от доступной RAM приложения
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(File(context.cacheDir, "image_cache"))
+                    .maxSizeBytes(128L * 1024 * 1024) // 128 МБ
+                    .build()
+            }
+            .crossfade(true)
+            .respectCacheHeaders(false) // сервер не шлёт Cache-Control — кэшируем по своим правилам
+            .build()
     }
 }

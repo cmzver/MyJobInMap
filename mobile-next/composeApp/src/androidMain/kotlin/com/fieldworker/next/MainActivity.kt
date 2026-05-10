@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.fieldworker.next.data.remote.store.SharedPrefsPortalSessionStore
+import com.fieldworker.next.features.settings.SharedPrefsThemeStore
 import com.fieldworker.next.push.FirebasePushTokenProvider
 
 class MainActivity : ComponentActivity() {
@@ -11,8 +12,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val sessionStore = SharedPrefsPortalSessionStore(applicationContext)
         val pushTokenProvider = FirebasePushTokenProvider()
+        val themeStore = SharedPrefsThemeStore(applicationContext)
         setContent {
-            App(sessionStore, pushTokenProvider)
+            App(sessionStore, pushTokenProvider, themeStore)
         }
     }
 }

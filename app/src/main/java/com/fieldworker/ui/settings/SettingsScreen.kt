@@ -1,20 +1,30 @@
 package com.fieldworker.ui.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.fieldworker.data.preferences.AppPreferences
 import kotlinx.coroutines.launch
 
@@ -30,6 +40,9 @@ fun SettingsScreen(
     onCheckForUpdates: () -> Unit = {},
     isCheckingForUpdates: Boolean = false,
     onOpenDeveloperScreen: () -> Unit = {},
+    onOpenUserSettings: () -> Unit = {},
+    baseUrl: String? = null,
+    authToken: String? = null,
     onLogout: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -87,18 +100,20 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             // === Профиль ===
+            val avatarUrl = preferences.getUserAvatarUrl()
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clickable(onClick = onOpenUserSettings)
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Icon(
-                    Icons.Default.AccountCircle,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(44.dp)
+                ProfileAvatar(
+                    avatarUrl = avatarUrl,
+                    fullName = userName,
+                    baseUrl = baseUrl,
+                    authToken = authToken,
                 )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -111,6 +126,11 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp))
@@ -383,6 +403,72 @@ sealed class ConnectionStatus {
     data object TESTING : ConnectionStatus()
     data object SUCCESS : ConnectionStatus()
     data class ERROR(val message: String) : ConnectionStatus()
+}
+
+@Composable
+private fun ProfileAvatar(
+    avatarUrl: String?,
+    fullName: String,
+    baseUrl: String?,
+    authToken: String?,
+) {
+    val context = LocalContext.current
+    val resolved = remember(avatarUrl, baseUrl) {
+        val a = avatarUrl?.trim().takeUnless { it.isNullOrBlank() }
+        when {
+            a == null -> null
+            a.startsWith("http://") || a.startsWith("https://") -> a
+            else -> {
+                val b = baseUrl?.trimEnd('/').takeUnless { it.isNullOrBlank() }
+                if (b != null) b + (if (a.startsWith("/")) a else "/$a") else null
+            }
+        }
+    }
+    // Bearer-токен подставляет AuthHeaderInterceptor в общем Coil ImageLoader.
+    val request = remember(resolved) {
+        resolved?.let { url ->
+            ImageRequest.Builder(context)
+                .data(url)
+                .crossfade(false)
+                .build()
+        }
+    }
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primaryContainer)
+            .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (request != null) {
+            AsyncImage(
+                model = request,
+                contentDescription = "Аватар",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize(),
+            )
+        } else {
+            val initials = fullName.trim().split(" ", limit = 2)
+                .mapNotNull { it.firstOrNull()?.uppercase() }
+                .joinToString("").take(2)
+            if (initials.isNotEmpty()) {
+                Text(
+                    text = initials,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                )
+            } else {
+                Icon(
+                    Icons.Default.AccountCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+        }
+    }
 }
 
 private fun roleLabel(role: String?): String {

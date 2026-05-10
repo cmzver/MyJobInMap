@@ -12,6 +12,7 @@ import com.fieldworker.next.domain.usecase.UploadTaskPhotoUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -36,9 +37,11 @@ class TaskDetailViewModel(
 
     fun loadTask(taskId: Long) {
         viewModelScope.launch {
-            observeTaskDetailUseCase(taskId).collect { detail ->
-                _state.update { it.copy(task = detail, isLoading = false) }
-            }
+            observeTaskDetailUseCase(taskId)
+                .catch { _state.update { it.copy(isLoading = false, error = "Не удалось загрузить заявку") } }
+                .collect { detail ->
+                    _state.update { it.copy(task = detail, isLoading = false) }
+                }
         }
     }
 

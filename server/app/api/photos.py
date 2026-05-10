@@ -81,7 +81,7 @@ async def upload_task_photo(
 
     # Оптимизация изображения (сжатие, ресайз)
     original_size = len(content)
-    content, file_ext, mime_type = image_optimizer.optimize(content, file_ext)
+    content, file_ext, mime_type = image_optimizer.optimize(content, file_ext, db)
     optimized_size = len(content)
 
     if original_size != optimized_size:

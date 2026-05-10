@@ -116,12 +116,10 @@ class TokenAuthenticator @Inject constructor(
             .build()
         
         // Используем прямой HTTP-запрос (без Retrofit/Authenticator) для refresh
+        val body = org.json.JSONObject().put("refresh_token", refreshToken).toString()
         val request = Request.Builder()
             .url("${baseUrl}api/auth/refresh")
-            .post(
-                """{"refresh_token":"$refreshToken"}"""
-                    .toRequestBody("application/json".toMediaType())
-            )
+            .post(body.toRequestBody("application/json".toMediaType()))
             .build()
         
         val response = client.newCall(request).execute()

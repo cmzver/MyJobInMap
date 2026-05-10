@@ -50,6 +50,9 @@ sealed class Screen(
     /** Экран разработчика (не в bottom nav) */
     data object Developer : Screen(route = "developer")
 
+    /** Настройки пользователя (имя, аватар, пароль) */
+    data object UserSettings : Screen(route = "user_settings")
+
     /** Полноэкранная карточка объекта */
     data object ObjectCard : Screen(route = "object_card")
     

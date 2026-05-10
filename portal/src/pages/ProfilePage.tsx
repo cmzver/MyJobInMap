@@ -210,7 +210,7 @@ export default function ProfilePage() {
           
           {/* Quick Stats */}
           {stats && (
-            <div className="hidden md:flex items-center space-x-6">
+            <div className="grid w-full grid-cols-3 gap-2 md:flex md:w-auto md:items-center md:gap-6 md:space-x-0">
               <div className="text-center">
                 <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total_tasks}</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">Всего заявок</div>

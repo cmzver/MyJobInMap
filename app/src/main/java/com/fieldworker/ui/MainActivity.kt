@@ -34,6 +34,7 @@ import androidx.lifecycle.lifecycleScope
 import com.fieldworker.data.network.NetworkMonitor
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.AuthRepository
+import com.fieldworker.data.repository.ChatRepository
 import com.fieldworker.data.repository.DeviceRepository
 import com.fieldworker.data.repository.OfflineFirstTasksRepository
 import com.fieldworker.ui.auth.LoginScreen
@@ -77,6 +78,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var deviceRepository: DeviceRepository
+
+    @Inject
+    lateinit var chatRepository: ChatRepository
     
     private val updateViewModel: UpdateViewModel by viewModels()
     
@@ -132,7 +136,7 @@ class MainActivity : ComponentActivity() {
                         if (appPreferences.forcedLogoutRequested) {
                             Log.w(TAG, "Forced logout flag detected, clearing")
                             appPreferences.clearForcedLogoutFlag()
-                            tasksRepository.clearCache()
+                            tasksRepository.clearCache(); chatRepository.clearChatCache()
                             authState = AuthState.NotLoggedIn
                             return@LaunchedEffect
                         }
@@ -173,7 +177,7 @@ class MainActivity : ComponentActivity() {
                             }
                             AuthRepository.ValidationResult.INVALID -> {
                                 Log.w(TAG, "Session INVALID (user deleted?), clearing and logout")
-                                tasksRepository.clearCache()
+                                tasksRepository.clearCache(); chatRepository.clearChatCache()
                                 appPreferences.logout()
                                 authState = AuthState.NotLoggedIn
                             }
@@ -191,7 +195,7 @@ class MainActivity : ComponentActivity() {
                         appPreferences.logoutEvent.collectLatest {
                             Log.w(TAG, "Received logout event (401 Unauthorized), clearing cache")
                             appPreferences.clearForcedLogoutFlag()
-                            tasksRepository.clearCache()
+                            tasksRepository.clearCache(); chatRepository.clearChatCache()
                             authState = AuthState.NotLoggedIn
                         }
                     }
@@ -269,7 +273,7 @@ class MainActivity : ComponentActivity() {
                                         withTimeoutOrNull(2_000L) {
                                             deviceRepository.unregisterDevice()
                                         }
-                                        tasksRepository.clearCache()
+                                        tasksRepository.clearCache(); chatRepository.clearChatCache()
                                         Log.d(TAG, "Task cache cleared on logout")
                                         Log.d(TAG, "Push token unregistration attempted on logout")
 

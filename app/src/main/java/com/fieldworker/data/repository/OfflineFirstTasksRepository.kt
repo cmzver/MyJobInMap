@@ -9,6 +9,7 @@ import androidx.paging.PagingData
 import androidx.paging.map
 import com.fieldworker.data.api.TasksApi
 import com.fieldworker.data.dto.CreateCommentDto
+import com.fieldworker.data.image.ImageCompressor
 import com.fieldworker.data.dto.UpdatePlannedDateDto
 import com.fieldworker.data.dto.UpdateStatusDto
 import com.fieldworker.data.local.dao.CommentDao
@@ -56,6 +57,7 @@ class OfflineFirstTasksRepository @Inject constructor(
     private val commentDao: CommentDao,
     private val pendingActionDao: PendingActionDao,
     private val networkMonitor: NetworkMonitor,
+    private val imageCompressor: ImageCompressor,
     @ApplicationContext private val context: Context
 ) {
     companion object {
@@ -326,7 +328,7 @@ class OfflineFirstTasksRepository @Inject constructor(
                     // Offline: создаём локальный комментарий
                     val tempId = UUID.randomUUID().toString()
                     val localComment = CommentEntity(
-                        id = -System.currentTimeMillis(), // Отрицательный временный ID
+                        id = -(UUID.randomUUID().mostSignificantBits and Long.MAX_VALUE), // Уникальный отрицательный временный ID
                         taskId = taskId,
                         text = text,
                         author = "Сотрудник",
@@ -530,22 +532,30 @@ class OfflineFirstTasksRepository @Inject constructor(
      * Загрузить фото к заявке
      */
     suspend fun uploadTaskPhoto(
-        taskId: Long, 
+        taskId: Long,
         imageUri: Uri,
         photoType: String = "completion"
     ): Result<TaskPhoto> = withContext(Dispatchers.IO) {
         try {
-            // Читаем файл из Uri
-            val inputStream = context.contentResolver.openInputStream(imageUri)
-                ?: return@withContext Result.failure(Exception("Не удалось открыть файл"))
-            
-            val bytes = inputStream.use { it.readBytes() }
-            
-            // Определяем MIME тип и имя файла
-            val mimeType = context.contentResolver.getType(imageUri) ?: "image/jpeg"
-            val fileName = "photo_${System.currentTimeMillis()}.jpg"
-            
-            // Создаём MultipartBody
+            // Сжимаем перед отправкой (ресайз до 1920px, JPEG q85). При неудаче
+            // декодирования (например, HEIC на старых API) — отправим как есть.
+            val compressed = imageCompressor.compress(imageUri, fileNamePrefix = "photo")
+
+            val bytes: ByteArray
+            val mimeType: String
+            val fileName: String
+            if (compressed != null) {
+                bytes = compressed.bytes
+                mimeType = compressed.mimeType
+                fileName = compressed.fileName
+            } else {
+                val inputStream = context.contentResolver.openInputStream(imageUri)
+                    ?: return@withContext Result.failure(Exception("Не удалось открыть файл"))
+                bytes = inputStream.use { it.readBytes() }
+                mimeType = context.contentResolver.getType(imageUri) ?: "image/jpeg"
+                fileName = "photo_${System.currentTimeMillis()}.jpg"
+            }
+
             val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
             val filePart = MultipartBody.Part.createFormData("file", fileName, requestBody)
             

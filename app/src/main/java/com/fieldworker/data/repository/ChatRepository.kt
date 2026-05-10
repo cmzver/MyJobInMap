@@ -5,12 +5,18 @@ import android.net.Uri
 import androidx.core.content.FileProvider
 import com.fieldworker.data.api.ChatApi
 import com.fieldworker.data.dto.*
+import com.fieldworker.data.image.ImageCompressor
+import com.fieldworker.data.local.dao.ConversationDao
+import com.fieldworker.data.local.dao.MessageDao
 import com.fieldworker.data.mapper.toDomain
 import com.fieldworker.data.mapper.toDomainMembers
+import com.fieldworker.data.mapper.toEntity
 import com.fieldworker.data.realtime.ChatRealtimeClient
 import com.fieldworker.data.realtime.ChatRealtimeEvent
 import com.fieldworker.domain.model.*
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.map
 import java.io.File
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -24,6 +30,9 @@ import javax.inject.Singleton
 class ChatRepository @Inject constructor(
     private val chatApi: ChatApi,
     private val chatRealtimeClient: ChatRealtimeClient,
+    private val imageCompressor: ImageCompressor,
+    private val conversationDao: ConversationDao,
+    private val messageDao: MessageDao,
     @ApplicationContext private val context: Context,
 ) {
     data class DownloadedAttachment(
@@ -48,9 +57,44 @@ class ChatRepository @Inject constructor(
         chatRealtimeClient.sendTypingIndicator(conversationId, isTyping)
     }
 
-    suspend fun getConversations(includeArchived: Boolean = false): Result<List<Conversation>> = apiCall {
-        chatApi.getConversations(includeArchived = includeArchived)
-    }.map { list -> list.map { it.toDomain() } }
+    /**
+     * Список бесед как реактивный поток из локального кэша. Подходит первичным
+     * источником для UI: данные есть сразу при холодном старте, а сетевой
+     * `getConversations()` лишь обновляет таблицу.
+     */
+    fun observeConversations(): Flow<List<Conversation>> =
+        conversationDao.observeAll().map { entities -> entities.map { it.toDomain() } }
+
+    suspend fun getConversations(includeArchived: Boolean = false): Result<List<Conversation>> {
+        val networkResult = apiCall {
+            chatApi.getConversations(includeArchived = includeArchived)
+        }.map { list -> list.map { it.toDomain() } }
+
+        return networkResult.fold(
+            onSuccess = { conversations ->
+                runCatching {
+                    conversationDao.upsertAll(conversations.map { it.toEntity() })
+                    // Когда запрашиваем includeArchived=true сервер возвращает все —
+                    // только тогда безопасно удалять пропавшие записи.
+                    if (includeArchived) {
+                        conversationDao.deleteNotIn(conversations.map { it.id })
+                    }
+                }
+                Result.success(conversations)
+            },
+            onFailure = { error ->
+                val cached = runCatching { conversationDao.getAll().map { it.toDomain() } }
+                    .getOrDefault(emptyList())
+                if (cached.isNotEmpty()) {
+                    Result.success(
+                        if (includeArchived) cached else cached.filterNot { it.isArchived }
+                    )
+                } else {
+                    Result.failure(error)
+                }
+            }
+        )
+    }
 
     suspend fun getConversationDetail(conversationId: Long): Result<ConversationDetail> = apiCall {
         chatApi.getConversationDetail(conversationId)
@@ -120,9 +164,42 @@ class ChatRepository @Inject constructor(
         conversationId: Long,
         beforeId: Long? = null,
         limit: Int = 30,
-    ): Result<Pair<List<ChatMessage>, Boolean>> = apiCall {
-        chatApi.getMessages(conversationId, beforeId, limit)
-    }.map { dto -> dto.items.map { it.toDomain() } to dto.hasMore }
+    ): Result<Pair<List<ChatMessage>, Boolean>> {
+        val networkResult = apiCall {
+            chatApi.getMessages(conversationId, beforeId, limit)
+        }.map { dto -> dto.items.map { it.toDomain() } to dto.hasMore }
+
+        return networkResult.fold(
+            onSuccess = { (messages, hasMore) ->
+                runCatching {
+                    if (messages.isNotEmpty()) {
+                        messageDao.upsertAll(messages.map { it.toEntity() })
+                    }
+                    // Бережём место: храним до MAX_CACHED_PER_CONVERSATION последних
+                    // сообщений на беседу.
+                    messageDao.trimToLast(conversationId, MAX_CACHED_PER_CONVERSATION)
+                }
+                Result.success(messages to hasMore)
+            },
+            onFailure = { error ->
+                val cached = runCatching {
+                    if (beforeId == null) {
+                        messageDao.getLatest(conversationId, limit)
+                    } else {
+                        messageDao.getBefore(conversationId, beforeId, limit)
+                    }
+                }.getOrDefault(emptyList()).map { it.toDomain() }
+
+                if (cached.isNotEmpty()) {
+                    // hasMore из кэша честно не определить — выставляем true, чтобы
+                    // UI попытался догрузить при появлении сети.
+                    Result.success(cached to true)
+                } else {
+                    Result.failure(error)
+                }
+            }
+        )
+    }
 
     suspend fun sendMessage(
         conversationId: Long,
@@ -132,17 +209,31 @@ class ChatRepository @Inject constructor(
     ): Result<ChatMessage> = apiCall {
         chatApi.sendMessage(conversationId, MessageCreateDto(text = text, replyToId = replyToId, messageType = messageType))
     }.map { it.toDomain() }
+        .onSuccess { cacheMessage(it) }
 
     suspend fun sendAttachment(
         conversationId: Long,
         fileUri: Uri,
+        text: String? = null,
+        replyToId: Long? = null,
     ): Result<ChatMessage> = runCatching {
-        val attachmentData = readAttachment(fileUri)
-        val messageType = if (attachmentData.mimeType.startsWith("image/")) "image" else "file"
+        val rawAttachment = readAttachment(fileUri)
+        val isImage = rawAttachment.mimeType.startsWith("image/")
+        val messageType = if (isImage) "image" else "file"
+
+        // Изображения сжимаем (1920px / JPEG q85), остальные файлы шлём как есть.
+        val attachmentData = if (isImage) {
+            imageCompressor.compress(fileUri, fileNamePrefix = "image")?.let { c ->
+                AttachmentUploadData(fileName = c.fileName, mimeType = c.mimeType, bytes = c.bytes)
+            } ?: rawAttachment
+        } else {
+            rawAttachment
+        }
 
         val message = sendMessage(
             conversationId = conversationId,
-            text = null,
+            text = text?.takeIf { it.isNotBlank() },
+            replyToId = replyToId,
             messageType = messageType,
         ).getOrElse { throw it }
 
@@ -150,6 +241,7 @@ class ChatRepository @Inject constructor(
         val filePart = MultipartBody.Part.createFormData("file", attachmentData.fileName, requestBody)
         apiCall { chatApi.uploadAttachment(message.id, filePart) }
             .map { it.toDomain() }
+            .onSuccess { cacheMessage(it) }
             .getOrElse { throw it }
     }.fold(
         onSuccess = { Result.success(it) },
@@ -190,10 +282,12 @@ class ChatRepository @Inject constructor(
     suspend fun editMessage(messageId: Long, text: String): Result<ChatMessage> = apiCall {
         chatApi.editMessage(messageId, MessageUpdateDto(text = text))
     }.map { it.toDomain() }
+        .onSuccess { cacheMessage(it) }
 
     suspend fun deleteMessage(messageId: Long): Result<ChatMessage> = apiCall {
         chatApi.deleteMessage(messageId)
     }.map { it.toDomain() }
+        .onSuccess { cacheMessage(it) /* сервер отдаёт сообщение с isDeleted=true */ }
 
     // ---- Reactions ----
 
@@ -254,4 +348,42 @@ class ChatRepository @Inject constructor(
         val mimeType: String,
         val bytes: ByteArray,
     )
+
+    /**
+     * Реактивный поток сообщений беседы из локального кэша.
+     */
+    fun observeMessages(conversationId: Long): Flow<List<ChatMessage>> =
+        messageDao.observeForConversation(conversationId).map { entities ->
+            entities.map { it.toDomain() }
+        }
+
+    /**
+     * Сохранить одно сообщение в кэш — например, после успешной отправки или
+     * прихода realtime-события.
+     */
+    suspend fun cacheMessage(message: ChatMessage) {
+        runCatching { messageDao.upsert(message.toEntity()) }
+    }
+
+    /**
+     * Удалить сообщение из кэша (когда сервер прислал hard-delete).
+     */
+    suspend fun removeCachedMessage(messageId: Long) {
+        runCatching { messageDao.deleteById(messageId) }
+    }
+
+    /**
+     * Очистить весь кэш чатов (например, при logout).
+     */
+    suspend fun clearChatCache() {
+        runCatching {
+            // Без FK-каскада нужно вручную очистить обе таблицы.
+            conversationDao.getAll().forEach { messageDao.deleteByConversation(it.id) }
+            conversationDao.deleteAll()
+        }
+    }
+
+    companion object {
+        private const val MAX_CACHED_PER_CONVERSATION = 200
+    }
 }

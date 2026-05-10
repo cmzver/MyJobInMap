@@ -295,7 +295,7 @@ export default function MapPage() {
   }
 
   return (
-    <div className="relative isolate h-[calc(100vh-8rem)]">
+    <div className="relative isolate h-[calc(100vh-8rem)] h-[calc(100dvh-8rem)]">
       <div className="pointer-events-none absolute left-[4.5rem] top-4 z-[1000] flex max-w-[320px] flex-col gap-2">
         <button
           onClick={() => setShowFilters((prev) => !prev)}
@@ -521,7 +521,10 @@ export default function MapPage() {
       )}
 
       {selectedTask && (
-        <div className="absolute bottom-0 left-0 right-0 z-10 rounded-t-xl border border-gray-200 bg-white p-4 shadow-lg lg:hidden dark:border-gray-700 dark:bg-gray-800">
+        <div
+          className="absolute bottom-0 left-0 right-0 z-10 max-h-[80vh] overflow-y-auto rounded-t-xl border border-gray-200 bg-white p-4 shadow-lg lg:hidden dark:border-gray-700 dark:bg-gray-800"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
+        >
           <button
             onClick={() => setSelectedTask(null)}
             className="absolute right-4 top-4 p-1 text-gray-500 transition-colors hover:text-gray-700 dark:hover:text-gray-300"

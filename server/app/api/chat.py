@@ -553,7 +553,7 @@ async def upload_attachment(
             from app.services import image_optimizer
 
             thumb_ext = os.path.splitext(safe_name)[1] or ".jpg"
-            optimized_bytes, new_ext, _ = image_optimizer.optimize(content, thumb_ext)
+            optimized_bytes, new_ext, _ = image_optimizer.optimize(content, thumb_ext, db)
             # Сохраняем оптимизированную версию как thumbnail
             thumb_name = f"thumb_{uuid.uuid4().hex}{new_ext}"
             thumb_full_path = os.path.join(upload_dir, thumb_name)

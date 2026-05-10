@@ -60,10 +60,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -76,6 +74,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
@@ -130,6 +129,8 @@ fun ChatScreen(
     isSavingConversation: Boolean,
     activeManagementUserId: Long?,
     currentUserId: Long,
+    currentUsername: String? = null,
+    currentUserFullName: String? = null,
     onBack: () -> Unit,
     onLoadUsers: (Boolean) -> Unit,
     onToggleMute: () -> Unit,
@@ -141,6 +142,8 @@ fun ChatScreen(
     onTransferOwnership: (Long) -> Unit,
     onSendMessage: (String) -> Unit,
     onAttachFile: () -> Unit,
+    onCancelAttachment: () -> Unit = {},
+    pendingAttachmentUri: android.net.Uri? = null,
     onMessageInputChanged: (String) -> Unit,
     onLoadMore: () -> Unit,
     onDeleteMessage: (Long) -> Unit,
@@ -301,6 +304,14 @@ fun ChatScreen(
         }
     }
 
+    // Auto-scroll to bottom when a new message is sent or received
+    val latestMessageId = messages.firstOrNull()?.id
+    LaunchedEffect(latestMessageId) {
+        if (latestMessageId != null && !isLoadingMessages) {
+            listState.animateScrollToItem(0)
+        }
+    }
+
     LaunchedEffect(timelineItems, currentUserId, lastReadMessageId, isPreparingUnreadAnchor) {
         snapshotFlow {
             if (isPreparingUnreadAnchor) {
@@ -357,46 +368,59 @@ fun ChatScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                .padding(horizontal = 4.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            FilledTonalIconButton(
-                                onClick = onBack,
-                                modifier = Modifier.size(40.dp),
-                                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                ),
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                            IconButton(onClick = onBack) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Назад",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                )
                             }
 
-                            ChatAvatar(
-                                name = title,
-                                id = conversationDetail?.id,
-                                type = conversationType ?: ConversationType.DIRECT,
-                                avatarUrl = conversationDetail?.avatarUrl,
-                                baseUrl = baseUrl,
-                                authToken = authToken,
-                                size = 42,
-                            )
+                            val isGroup = conversationType == ConversationType.GROUP
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .then(
+                                        if (isGroup) Modifier.clickable {
+                                            showManagementDialog = true
+                                            onLoadUsers(false)
+                                        } else Modifier
+                                    )
+                                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                ChatAvatar(
+                                    name = title,
+                                    id = conversationDetail?.id,
+                                    type = conversationType ?: ConversationType.DIRECT,
+                                    avatarUrl = conversationDetail?.avatarUrl,
+                                    baseUrl = baseUrl,
+                                    authToken = authToken,
+                                    size = 38,
+                                )
 
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = title,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    text = headerSubtitle,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = title,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        text = headerSubtitle,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
                             }
 
                             Box {
@@ -495,8 +519,10 @@ fun ChatScreen(
                     typingText = typingText,
                     isSending = isSending,
                     availableUsers = availableUsers,
+                    pendingAttachmentUri = pendingAttachmentUri,
                     onSend = onSendMessage,
                     onAttachFile = onAttachFile,
+                    onCancelAttachment = onCancelAttachment,
                     onTextChanged = onMessageInputChanged,
                     onCancelReply = { onSetReplyTo(null) },
                 )
@@ -579,11 +605,14 @@ fun ChatScreen(
                                         null
                                     }
                                     val senderAvatarUrl = senderAvatarUrls[message.senderId]
+                                    val isOwnMessage = (currentUserId > 0 && message.senderId == currentUserId) ||
+                                        (!currentUsername.isNullOrBlank() && message.senderName == currentUsername) ||
+                                        (!currentUserFullName.isNullOrBlank() && message.senderName == currentUserFullName)
                                     MessageBubble(
                                         message = message,
                                         isHighlighted = highlightedMessageId == message.id,
                                         isPinned = message.id in pinnedMessageIds,
-                                        isOwn = message.senderId == currentUserId,
+                                        isOwn = isOwnMessage,
                                         conversationType = conversationType,
                                         groupedWithPrevious = item.groupedWithPrevious,
                                         groupedWithNext = item.groupedWithNext,
@@ -718,25 +747,25 @@ private fun DateSeparatorChip(label: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Surface(
-            shape = RoundedCornerShape(999.dp),
-            tonalElevation = 0.dp,
-            color = if (useTelegramLightStyle) Color(0xA8E1F0ED) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            border = androidx.compose.foundation.BorderStroke(
-                width = 1.dp,
-                color = if (useTelegramLightStyle) Color(0x55A9C6C2) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+        Text(
+            text = label.uppercase(),
+            modifier = Modifier
+                .background(
+                    color = if (useTelegramLightStyle) Color(0x40FFFFFF)
+                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    shape = RoundedCornerShape(999.dp),
+                )
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall.copy(
+                letterSpacing = 0.6.sp,
+                fontWeight = FontWeight.Medium,
             ),
-        ) {
-            Text(
-                text = label,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                style = MaterialTheme.typography.labelSmall,
-                color = if (useTelegramLightStyle) Color(0xFF5F787A) else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+            color = if (useTelegramLightStyle) Color(0xFF5F787A)
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -837,49 +866,61 @@ private fun PinnedMessagesBar(
     onMessageClick: (Long) -> Unit,
     onUnpin: (Long) -> Unit,
 ) {
-    LazyRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        contentPadding = PaddingValues(horizontal = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    val current = pinnedMessages.firstOrNull() ?: return
+    val label = if (pinnedMessages.size > 1)
+        "Закреплённое сообщение · ${pinnedMessages.size}"
+    else "Закреплённое сообщение"
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
     ) {
-        items(pinnedMessages, key = { it.id }) { message ->
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
-                ),
-                modifier = Modifier.widthIn(min = 180.dp, max = 260.dp),
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onMessageClick(current.id) }
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
+                Box(
                     modifier = Modifier
-                        .clickable { onMessageClick(message.id) }
-                        .padding(start = 12.dp, top = 8.dp, end = 6.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Закреплено",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        Text(
-                            text = message.text?.takeIf { it.isNotBlank() } ?: "Вложение",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    IconButton(onClick = { onUnpin(message.id) }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "Открепить", modifier = Modifier.size(16.dp))
-                    }
+                        .width(3.dp)
+                        .height(34.dp)
+                        .background(
+                            MaterialTheme.colorScheme.primary,
+                            RoundedCornerShape(2.dp),
+                        ),
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = current.text?.takeIf { it.isNotBlank() } ?: "Вложение",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                IconButton(onClick = { onUnpin(current.id) }) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Открепить",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+            )
         }
     }
 }
@@ -1087,109 +1128,50 @@ private fun Modifier.chatWallpaperPattern(
 ): Modifier = drawWithCache {
     val useTelegramLightStyle = backgroundColor.luminance() > 0.7f
     val patternPrimary = if (useTelegramLightStyle) {
-        Color(0xFF76A968).copy(alpha = 0.15f)
+        Color(0xFF76A968).copy(alpha = 0.07f)
     } else {
-        primaryColor.copy(alpha = 0.06f)
+        primaryColor.copy(alpha = 0.035f)
     }
     val patternSecondary = if (useTelegramLightStyle) {
-        Color(0xFF5D9771).copy(alpha = 0.13f)
+        Color(0xFF5D9771).copy(alpha = 0.06f)
     } else {
-        secondaryColor.copy(alpha = 0.05f)
+        secondaryColor.copy(alpha = 0.03f)
     }
-    val spacing = if (useTelegramLightStyle) 76.dp.toPx() else 88.dp.toPx()
-    val symbol = if (useTelegramLightStyle) 10.dp.toPx() else 11.dp.toPx()
-    val stroke = if (useTelegramLightStyle) 1.dp.toPx() else 1.2.dp.toPx()
+    val spacing = if (useTelegramLightStyle) 140.dp.toPx() else 160.dp.toPx()
+    val symbol = if (useTelegramLightStyle) 8.dp.toPx() else 9.dp.toPx()
+    val stroke = 0.8.dp.toPx()
     val cols = (size.width / spacing).toInt() + 2
     val rows = (size.height / spacing).toInt() + 2
     val primaryStrokePath = Path()
-    val primaryFillPath = Path()
     val secondaryStrokePath = Path()
 
     for (row in 0 until rows) {
         for (col in 0 until cols) {
-            val shiftX = if (row % 2 == 0) spacing * 0.28f else 0f
+            val shiftX = if (row % 2 == 0) spacing * 0.5f else 0f
             val center = Offset(
                 x = (col * spacing) + shiftX - (spacing * 0.2f),
                 y = (row * spacing) + symbol,
             )
-            when ((row + col) % 4) {
-                0 -> {
-                    primaryStrokePath.addOval(
-                        Rect(
-                            left = center.x - symbol,
-                            top = center.y - symbol,
-                            right = center.x + symbol,
-                            bottom = center.y + symbol,
-                        )
+            if ((row + col) % 2 == 0) {
+                primaryStrokePath.addOval(
+                    Rect(
+                        left = center.x - symbol,
+                        top = center.y - symbol,
+                        right = center.x + symbol,
+                        bottom = center.y + symbol,
                     )
-                    primaryFillPath.addOval(
-                        Rect(
-                            left = center.x - (symbol * 0.26f),
-                            top = center.y - (symbol * 0.26f),
-                            right = center.x + (symbol * 0.26f),
-                            bottom = center.y + (symbol * 0.26f),
-                        )
-                    )
-                }
-
-                1 -> {
-                    secondaryStrokePath.moveTo(center.x - symbol, center.y - symbol)
-                    secondaryStrokePath.lineTo(center.x + symbol, center.y + symbol)
-                    secondaryStrokePath.moveTo(center.x + symbol, center.y - symbol)
-                    secondaryStrokePath.lineTo(center.x - symbol, center.y + symbol)
-                }
-
-                2 -> {
-                    primaryStrokePath.addRoundRect(
-                        RoundRect(
-                            left = center.x - (symbol * 1.2f),
-                            top = center.y - (symbol * 0.75f),
-                            right = center.x + (symbol * 1.2f),
-                            bottom = center.y + (symbol * 0.75f),
-                            cornerRadius = CornerRadius(symbol * 0.55f),
-                        )
-                    )
-                }
-
-                else -> {
-                    secondaryStrokePath.addArc(
-                        oval = Rect(
-                            left = center.x - symbol,
-                            top = center.y - symbol,
-                            right = center.x + symbol,
-                            bottom = center.y + symbol,
-                        ),
-                        startAngleDegrees = 22f,
-                        sweepAngleDegrees = 300f,
-                    )
-                    secondaryStrokePath.moveTo(
-                        center.x + (symbol * 0.45f),
-                        center.y - (symbol * 0.8f),
-                    )
-                    secondaryStrokePath.lineTo(
-                        center.x + (symbol * 1.15f),
-                        center.y - (symbol * 1.45f),
-                    )
-                }
+                )
+            } else {
+                secondaryStrokePath.moveTo(center.x - symbol, center.y - symbol)
+                secondaryStrokePath.lineTo(center.x + symbol, center.y + symbol)
+                secondaryStrokePath.moveTo(center.x + symbol, center.y - symbol)
+                secondaryStrokePath.lineTo(center.x - symbol, center.y + symbol)
             }
         }
     }
 
     onDrawBehind {
-        if (useTelegramLightStyle) {
-            drawCircle(
-                color = Color(0x30FFFFFF),
-                radius = size.minDimension * 0.45f,
-                center = Offset(size.width * 0.9f, size.height * 0.18f),
-            )
-            drawCircle(
-                color = Color(0x22A8C97D),
-                radius = size.minDimension * 0.38f,
-                center = Offset(size.width * 0.16f, size.height * 0.66f),
-            )
-        }
         drawPath(primaryStrokePath, color = patternPrimary, style = Stroke(width = stroke))
-        drawPath(primaryFillPath, color = patternPrimary)
         drawPath(secondaryStrokePath, color = patternSecondary, style = Stroke(width = stroke))
     }
 }
@@ -1385,9 +1367,9 @@ private fun MessageBubble(
         if (useTelegramLightStyle) Color(0xFF1F2428) else colorScheme.onSurface
     }
     val bubbleMetaColor = if (isOwn) {
-        if (useTelegramLightStyle) Color(0xFF738777) else colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+        if (useTelegramLightStyle) Color(0xFF8AA08D) else colorScheme.onPrimaryContainer.copy(alpha = 0.55f)
     } else {
-        if (useTelegramLightStyle) Color(0xFF87949A) else colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+        if (useTelegramLightStyle) Color(0xFF9CA8AE) else colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
     }
     val bubbleContainerColor = if (isOwn) {
         if (useTelegramLightStyle) Color(0xFFE4F7C7) else colorScheme.primaryContainer.copy(alpha = 0.84f)
@@ -1405,7 +1387,7 @@ private fun MessageBubble(
         message.attachments.all { it.isImage }
     val topGap = if (groupedWithPrevious) 1.dp else 3.dp
     val bottomGap = if (groupedWithNext) 1.dp else if (message.reactions.isNotEmpty()) 0.dp else 3.dp
-    val reactionOverlap = 11.dp
+    val reactionOverlap = 6.dp
     val copyableMessageText = message.text?.takeIf { it.isNotBlank() }
     val quickReactionEmojis = listOf(
         "\uD83D\uDC4D",
@@ -1519,7 +1501,7 @@ private fun MessageBubble(
                             null
                         },
                         modifier = Modifier
-                            .widthIn(min = 84.dp, max = 300.dp)
+                            .widthIn(min = 0.dp, max = 300.dp)
                             .combinedClickable(
                                 onClick = {},
                                 onLongClick = { showMenu = true },
@@ -1627,7 +1609,7 @@ private fun MessageBubble(
                 if (!message.text.isNullOrBlank()) {
                     if (canInlineMeta) {
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.Bottom,
                         ) {
                             Text(
@@ -1637,6 +1619,7 @@ private fun MessageBubble(
                                 maxLines = 1,
                             )
                             MessageMetaRow(
+                                modifier = Modifier.padding(bottom = 1.dp),
                                 isOwn = isOwn,
                                 isEdited = message.isEdited,
                                 createdAt = message.createdAt,
@@ -1775,174 +1758,79 @@ private fun MessageBubble(
         DropdownMenu(
             expanded = showMenu,
             onDismissRequest = { showMenu = false },
-            modifier = Modifier.widthIn(min = 196.dp, max = 232.dp),
+            modifier = Modifier.widthIn(min = 220.dp, max = 260.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+            // Quick reactions row (Telegram-style)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                MessageMenuAction(
-                    label = "Ответить",
-                    icon = Icons.Default.Refresh,
-                    useTelegramLightStyle = useTelegramLightStyle,
-                    onClick = {
-                        showMenu = false
-                        onReply()
-                    },
-                )
-                if (copyableMessageText != null) {
-                    MessageMenuAction(
-                        label = "Копировать",
-                        useTelegramLightStyle = useTelegramLightStyle,
-                        onClick = {
-                            showMenu = false
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("chat_message", copyableMessageText))
-                            Toast.makeText(context, "Сообщение скопировано", Toast.LENGTH_SHORT).show()
-                        },
-                    )
-                }
-                MessageMenuAction(
-                    label = if (isPinned) "Открепить" else "Закрепить",
-                    icon = Icons.Default.CheckCircle,
-                    useTelegramLightStyle = useTelegramLightStyle,
-                    onClick = {
-                        showMenu = false
-                        onTogglePinned()
-                    },
-                )
-                if (isOwn) {
-                    MessageMenuAction(
-                        label = "Удалить",
-                        icon = Icons.Default.Delete,
-                        useTelegramLightStyle = useTelegramLightStyle,
-                        destructive = true,
-                        onClick = {
-                            showMenu = false
-                            onDelete()
-                        },
-                    )
-                }
-                HorizontalDivider(
-                    thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    quickReactionEmojis.forEach { emoji ->
-                        QuickReactionMenuButton(
-                            emoji = emoji,
-                            useTelegramLightStyle = useTelegramLightStyle,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
+                quickReactionEmojis.forEach { emoji ->
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .clickable {
                                 showMenu = false
                                 onToggleReaction(emoji)
                             },
-                        )
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(emoji, style = MaterialTheme.typography.titleMedium)
                     }
                 }
             }
-        }
-}
-}
-}
-
-@Composable
-private fun MessageMenuAction(
-    label: String,
-    icon: ImageVector? = null,
-    useTelegramLightStyle: Boolean,
-    destructive: Boolean = false,
-    onClick: () -> Unit,
-) {
-    val containerColor = when {
-        destructive && useTelegramLightStyle -> Color(0xFFFFF1EF)
-        destructive -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.62f)
-        useTelegramLightStyle -> Color(0xFFF7FAF4)
-        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f)
-    }
-    val contentColor = when {
-        destructive -> MaterialTheme.colorScheme.error
-        useTelegramLightStyle -> Color(0xFF334145)
-        else -> MaterialTheme.colorScheme.onSurface
-    }
-    val borderColor = when {
-        destructive -> MaterialTheme.colorScheme.error.copy(alpha = 0.18f)
-        useTelegramLightStyle -> Color(0x66D5DEDB)
-        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.24f)
-    }
-
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
-        color = containerColor,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = contentColor,
-                    modifier = Modifier.size(18.dp),
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 8.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+            )
+            DropdownMenuItem(
+                text = { Text("Ответить") },
+                onClick = {
+                    showMenu = false
+                    onReply()
+                },
+            )
+            if (copyableMessageText != null) {
+                DropdownMenuItem(
+                    text = { Text("Копировать") },
+                    onClick = {
+                        showMenu = false
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("chat_message", copyableMessageText))
+                        Toast.makeText(context, "Сообщение скопировано", Toast.LENGTH_SHORT).show()
+                    },
                 )
             }
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                color = contentColor,
+            DropdownMenuItem(
+                text = { Text(if (isPinned) "Открепить" else "Закрепить") },
+                onClick = {
+                    showMenu = false
+                    onTogglePinned()
+                },
             )
+            if (isOwn) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            "Удалить",
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    },
+                    onClick = {
+                        showMenu = false
+                        onDelete()
+                    },
+                )
+            }
         }
-    }
+}
+}
 }
 
-@Composable
-private fun QuickReactionMenuButton(
-    emoji: String,
-    useTelegramLightStyle: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    val containerColor = if (useTelegramLightStyle) {
-        Color(0xFFF7FAF4)
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.44f)
-    }
-    val borderColor = if (useTelegramLightStyle) {
-        Color(0x66D5DEDB)
-    } else {
-        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.24f)
-    }
-
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
-        color = containerColor,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
-        modifier = modifier.height(42.dp),
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = emoji,
-                style = MaterialTheme.typography.titleMedium,
-            )
-        }
-    }
-}
 
 @Composable
 private fun PhotoMessageHeader(
@@ -1997,7 +1885,7 @@ private fun PhotoMessageAttachment(
         attachment = attachment,
     )
     val imageShape = if (hasRoundedBottom) {
-        RoundedCornerShape(bottomStart = 22.dp, bottomEnd = 22.dp)
+        RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp)
     } else {
         RoundedCornerShape(0.dp)
     }
@@ -2538,35 +2426,17 @@ private fun ReactionSummaryBubble(
     modifier: Modifier = Modifier,
     onToggleReaction: (String) -> Unit,
 ) {
-    val useTelegramLightStyle = MaterialTheme.colorScheme.usesTelegramLightChatStyle()
-
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = if (useTelegramLightStyle) Color(0xFFFFFFFF) else MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp,
-        shadowElevation = if (useTelegramLightStyle) 0.8.dp else 1.dp,
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (useTelegramLightStyle) {
-                Color(0x4DD6DCDD)
-            } else {
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.28f)
-            },
-        ),
+    Row(
         modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(1.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            reactions.forEach { reaction ->
-                ReactionSummaryItem(
-                    reaction = reaction,
-                    isSelected = reaction.isReactedBy(currentUserId),
-                    onClick = { onToggleReaction(reaction.emoji) },
-                )
-            }
+        reactions.forEach { reaction ->
+            ReactionSummaryItem(
+                reaction = reaction,
+                isSelected = reaction.isReactedBy(currentUserId),
+                onClick = { onToggleReaction(reaction.emoji) },
+            )
         }
     }
 }
@@ -2578,33 +2448,35 @@ private fun ReactionSummaryItem(
     onClick: () -> Unit,
 ) {
     val useTelegramLightStyle = MaterialTheme.colorScheme.usesTelegramLightChatStyle()
-    val contentColor = if (isSelected) {
-        if (useTelegramLightStyle) Color(0xFF4F6B4A) else MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        if (useTelegramLightStyle) Color(0xFF748289) else MaterialTheme.colorScheme.onSurfaceVariant
+    val containerColor = when {
+        isSelected && useTelegramLightStyle -> Color(0xCCCFE9AF)
+        isSelected -> MaterialTheme.colorScheme.primaryContainer
+        useTelegramLightStyle -> Color(0xCCFFFFFF)
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+    }
+    val contentColor = when {
+        isSelected && useTelegramLightStyle -> Color(0xFF345F32)
+        isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
+        useTelegramLightStyle -> Color(0xFF54707A)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
+            .background(containerColor)
             .clickable(onClick = onClick)
-            .background(
-                if (isSelected) {
-                    if (useTelegramLightStyle) Color(0x33CFE9AF) else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                } else {
-                    Color.Transparent
-                }
-            )
-            .padding(horizontal = if (reaction.count > 1) 5.dp else 4.dp, vertical = 1.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(reaction.emoji, style = MaterialTheme.typography.titleSmall)
+        Text(reaction.emoji, fontSize = 13.sp)
         if (reaction.count > 1) {
             Text(
                 text = "${reaction.count}",
                 style = MaterialTheme.typography.labelSmall,
                 color = contentColor,
+                fontWeight = FontWeight.Medium,
             )
         }
     }
@@ -2620,8 +2492,10 @@ private fun ChatInputBar(
     typingText: String?,
     isSending: Boolean,
     availableUsers: List<User>,
+    pendingAttachmentUri: android.net.Uri? = null,
     onSend: (String) -> Unit,
     onAttachFile: () -> Unit,
+    onCancelAttachment: () -> Unit = {},
     onTextChanged: (String) -> Unit,
     onCancelReply: () -> Unit,
 ) {
@@ -2645,7 +2519,9 @@ private fun ChatInputBar(
         }
     }
     val useTelegramLightStyle = MaterialTheme.colorScheme.usesTelegramLightChatStyle()
-    val canSend = remember(text) { text.trim().isNotEmpty() }
+    val canSend = remember(text, pendingAttachmentUri) {
+        text.trim().isNotEmpty() || pendingAttachmentUri != null
+    }
     val sendButtonScale by animateFloatAsState(
         targetValue = if (canSend && !isSending) 1f else 0.9f,
         animationSpec = spring(dampingRatio = 0.72f, stiffness = 520f),
@@ -2723,6 +2599,58 @@ private fun ChatInputBar(
                 }
 
             AnimatedVisibility(
+                    visible = pendingAttachmentUri != null,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
+                    pendingAttachmentUri?.let { uri ->
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (useTelegramLightStyle) Color(0xFFF3F5F6)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (useTelegramLightStyle) Color(0x66D4DCDD)
+                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                            ),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                coil.compose.AsyncImage(
+                                    model = uri,
+                                    contentDescription = "Прикреплённое изображение",
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(RoundedCornerShape(10.dp)),
+                                )
+                                Text(
+                                    text = "Изображение готово к отправке",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                IconButton(
+                                    onClick = onCancelAttachment,
+                                    modifier = Modifier.size(28.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Удалить",
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+            AnimatedVisibility(
                     visible = replyTo != null,
                     enter = fadeIn() + expandVertically(),
                     exit = fadeOut() + shrinkVertically(),
@@ -2772,33 +2700,36 @@ private fun ChatInputBar(
                     }
                 }
 
-            Surface(
-                shape = RoundedCornerShape(24.dp),
-                color = if (useTelegramLightStyle) Color(0xF4FFFFFF) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.44f),
-                border = androidx.compose.foundation.BorderStroke(
-                    width = 1.dp,
-                    color = if (useTelegramLightStyle) Color(0x66D1DAD8) else Color.Transparent,
-                ),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = if (useTelegramLightStyle) Color(0xF4FFFFFF) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.44f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        width = 1.dp,
+                        color = if (useTelegramLightStyle) Color(0x66D1DAD8) else Color.Transparent,
+                    ),
+                    modifier = Modifier.weight(1f),
+                ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+                            .padding(start = 4.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        FilledTonalIconButton(
+                        IconButton(
                             onClick = onAttachFile,
                             enabled = !isSending,
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = if (useTelegramLightStyle) Color(0xFFF7FAF4) else MaterialTheme.colorScheme.surface,
-                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            ),
-                            modifier = Modifier
-                                .size(40.dp)
-                                .align(Alignment.CenterVertically),
+                            modifier = Modifier.size(40.dp),
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "Вложение")
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = "Вложение",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                         BasicTextField(
                             value = text,
@@ -2818,7 +2749,7 @@ private fun ChatInputBar(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .defaultMinSize(minHeight = 40.dp)
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        .padding(end = 4.dp, top = 8.dp, bottom = 8.dp),
                                     contentAlignment = Alignment.CenterStart,
                                 ) {
                                     if (text.isBlank()) {
@@ -2832,41 +2763,47 @@ private fun ChatInputBar(
                                 }
                             },
                         )
+                    }
+                }
 
-                        FilledIconButton(
-                            onClick = {
-                                if (canSend) {
-                                    onSend(text.trim())
-                                    text = ""
-                                    onTextChanged("")
-                                }
-                            },
-                            enabled = canSend && !isSending,
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = sendButtonContainerColor,
-                                contentColor = sendButtonContentColor,
-                                disabledContainerColor = sendButtonContainerColor,
-                                disabledContentColor = sendButtonContentColor,
-                            ),
-                            modifier = Modifier
-                                .size(40.dp)
-                                .graphicsLayer {
-                                    scaleX = sendButtonScale
-                                    scaleY = sendButtonScale
-                                },
-                        ) {
-                            if (isSending) {
-                                CircularProgressIndicator(modifier = Modifier.size(18.dp))
-                            } else {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.Send,
-                                    contentDescription = "Отправить",
-                                )
-                            }
+                FilledIconButton(
+                    onClick = {
+                        if (canSend) {
+                            onSend(text.trim())
+                            text = ""
+                            onTextChanged("")
                         }
+                    },
+                    enabled = canSend && !isSending,
+                    shape = CircleShape,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = sendButtonContainerColor,
+                        contentColor = sendButtonContentColor,
+                        disabledContainerColor = sendButtonContainerColor,
+                        disabledContentColor = sendButtonContentColor,
+                    ),
+                    modifier = Modifier
+                        .size(48.dp)
+                        .graphicsLayer {
+                            scaleX = sendButtonScale
+                            scaleY = sendButtonScale
+                        },
+                ) {
+                    if (isSending) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = sendButtonContentColor,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "Отправить",
+                        )
                     }
                 }
             }
+        }
         }
     }
 }

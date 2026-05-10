@@ -199,18 +199,20 @@ export default function NotificationsPage() {
                       {!notification.is_read && (
                         <button
                           onClick={() => markAsReadMutation.mutate(notification.id)}
-                          className="p-1.5 text-gray-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition"
+                          className="inline-flex h-10 w-10 items-center justify-center rounded text-gray-400 transition hover:bg-primary-50 hover:text-primary-500 dark:hover:bg-primary-900/20"
                           title="Отметить как прочитанное"
+                          aria-label="Отметить как прочитанное"
                         >
-                          <Check size={16} />
+                          <Check size={18} />
                         </button>
                       )}
                       <button
                         onClick={() => deleteNotificationMutation.mutate(notification.id)}
-                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded text-gray-400 transition hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
                         title="Удалить"
+                        aria-label="Удалить уведомление"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={18} />
                       </button>
                     </div>
                   </div>

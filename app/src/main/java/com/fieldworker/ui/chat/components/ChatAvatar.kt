@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.fieldworker.domain.model.ConversationType
-import okhttp3.Headers
 import kotlin.math.abs
 
 @Composable
@@ -51,19 +50,11 @@ fun ChatAvatar(
             baseUrl = baseUrl,
         )
     }
-    val imageRequest = remember(resolvedAvatarUrl, authToken) {
+    // Bearer-токен подставляется AuthHeaderInterceptor в OkHttp клиенте Coil.
+    val imageRequest = remember(resolvedAvatarUrl) {
         resolvedAvatarUrl?.let { imageUrl ->
             ImageRequest.Builder(context)
                 .data(imageUrl)
-                .apply {
-                    if (!authToken.isNullOrBlank()) {
-                        headers(
-                            Headers.Builder()
-                                .add("Authorization", "Bearer $authToken")
-                                .build()
-                        )
-                    }
-                }
                 .crossfade(false)
                 .build()
         }

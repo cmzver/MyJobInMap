@@ -600,7 +600,10 @@ export default function ChatPage() {
   const recipientCount = (activeDetail?.members.filter((m) => m.user_id !== currentUserId).length ?? 0)
 
   return (
-    <div className="flex h-[calc(100vh-64px)] bg-white dark:bg-gray-900">
+    <div
+      className="flex h-[calc(100vh-64px)] h-[calc(100dvh-64px)] bg-white dark:bg-gray-900"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
       <div className={cn(
         'flex flex-col border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800',
         'w-full md:w-80 lg:w-96 flex-shrink-0',
@@ -619,7 +622,7 @@ export default function ChatPage() {
 
         <div className="px-4 py-2">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               placeholder="Поиск чатов..."
@@ -795,7 +798,7 @@ export default function ChatPage() {
             {isMessageSearchOpen && (
               <div className="border-b border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-800">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                   <input
                     type="text"
                     placeholder="Поиск по сообщениям..."

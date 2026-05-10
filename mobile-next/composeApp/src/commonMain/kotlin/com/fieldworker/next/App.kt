@@ -8,8 +8,10 @@ import com.fieldworker.next.core.designsystem.PortalNextTheme
 import com.fieldworker.next.data.push.PushTokenProvider
 import com.fieldworker.next.data.remote.store.PortalSessionStore
 import com.fieldworker.next.di.appModules
+import com.fieldworker.next.features.settings.InMemoryThemeStore
 import com.fieldworker.next.features.settings.ThemeManager
 import com.fieldworker.next.features.settings.ThemeMode
+import com.fieldworker.next.features.settings.ThemeStore
 import org.koin.compose.KoinApplication
 import org.koin.compose.koinInject
 
@@ -17,10 +19,11 @@ import org.koin.compose.koinInject
 fun App(
     sessionStore: PortalSessionStore? = null,
     pushTokenProvider: PushTokenProvider? = null,
+    themeStore: ThemeStore = InMemoryThemeStore(),
 ) {
     KoinApplication(application = {
         modules(
-            if (sessionStore != null) appModules(sessionStore, pushTokenProvider)
+            if (sessionStore != null) appModules(sessionStore, pushTokenProvider, themeStore)
             else appModules,
         )
     }) {

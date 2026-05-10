@@ -29,7 +29,9 @@ import com.fieldworker.next.features.chat.ChatListViewModel
 import com.fieldworker.next.features.chat.ChatViewModel
 import com.fieldworker.next.features.map.MapViewModel
 import com.fieldworker.next.features.profile.ProfileViewModel
+import com.fieldworker.next.features.settings.InMemoryThemeStore
 import com.fieldworker.next.features.settings.ThemeManager
+import com.fieldworker.next.features.settings.ThemeStore
 import com.fieldworker.next.features.tasks.TaskDetailViewModel
 import com.fieldworker.next.features.tasks.TaskListViewModel
 import org.koin.core.module.dsl.factoryOf
@@ -99,6 +101,19 @@ val domainModule = module {
 }
 
 val viewModelModule = module {
+    single<ThemeStore> { InMemoryThemeStore() }
+    singleOf(::ThemeManager)
+    factoryOf(::LoginViewModel)
+    factoryOf(::TaskListViewModel)
+    factoryOf(::TaskDetailViewModel)
+    factoryOf(::ProfileViewModel)
+    factoryOf(::ChatListViewModel)
+    factoryOf(::ChatViewModel)
+    factoryOf(::MapViewModel)
+}
+
+fun viewModelModule(themeStore: ThemeStore) = module {
+    single<ThemeStore> { themeStore }
     singleOf(::ThemeManager)
     factoryOf(::LoginViewModel)
     factoryOf(::TaskListViewModel)
@@ -114,5 +129,6 @@ val appModules = listOf(dataModule, domainModule, viewModelModule)
 fun appModules(
     sessionStore: PortalSessionStore,
     pushTokenProvider: PushTokenProvider? = null,
+    themeStore: ThemeStore = InMemoryThemeStore(),
 ) =
-    listOf(dataModule(sessionStore, pushTokenProvider), domainModule, viewModelModule)
+    listOf(dataModule(sessionStore, pushTokenProvider), domainModule, viewModelModule(themeStore))

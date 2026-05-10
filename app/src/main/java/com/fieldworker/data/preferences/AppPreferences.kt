@@ -302,9 +302,17 @@ class AppPreferences @Inject constructor(
     fun getUserRole(): String? {
         return getSecureValue(KEY_USER_ROLE)
     }
-    
+
     fun setUserRole(role: String?) {
         setSecureValue(KEY_USER_ROLE, role)
+    }
+
+    fun getUserAvatarUrl(): String? {
+        return getSecureValue(KEY_USER_AVATAR_URL)
+    }
+
+    fun setUserAvatarUrl(url: String?) {
+        setSecureValue(KEY_USER_AVATAR_URL, url)
     }
 
     fun getDismissedUpdateVersionCode(): Int {
@@ -331,6 +339,7 @@ class AppPreferences @Inject constructor(
             .remove(KEY_USERNAME)
             .remove(KEY_USER_FULLNAME)
             .remove(KEY_USER_ROLE)
+            .remove(KEY_USER_AVATAR_URL)
             .apply()
             prefs.edit()
                 .remove(KEY_AUTH_TOKEN)
@@ -339,6 +348,7 @@ class AppPreferences @Inject constructor(
                 .remove(KEY_USERNAME)
                 .remove(KEY_USER_FULLNAME)
                 .remove(KEY_USER_ROLE)
+                .remove(KEY_USER_AVATAR_URL)
                 .apply()
     }
     
@@ -453,6 +463,7 @@ class AppPreferences @Inject constructor(
         private const val KEY_USERNAME = "username"
         private const val KEY_USER_FULLNAME = "user_fullname"
         private const val KEY_USER_ROLE = "user_role"
+        private const val KEY_USER_AVATAR_URL = "user_avatar_url"
         private const val KEY_DISMISSED_UPDATE_VERSION_CODE = "dismissed_update_version_code"
 
         // Позиция карты

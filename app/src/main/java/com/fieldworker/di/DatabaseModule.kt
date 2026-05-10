@@ -7,6 +7,8 @@ import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.fieldworker.data.local.FieldWorkerDatabase
 import com.fieldworker.data.local.dao.CommentDao
+import com.fieldworker.data.local.dao.ConversationDao
+import com.fieldworker.data.local.dao.MessageDao
 import com.fieldworker.data.local.dao.PendingActionDao
 import com.fieldworker.data.local.dao.TaskDao
 import dagger.Module
@@ -43,7 +45,8 @@ object DatabaseModule {
             .addMigrations(
                 FieldWorkerDatabase.MIGRATION_1_2,
                 FieldWorkerDatabase.MIGRATION_2_3,
-                FieldWorkerDatabase.MIGRATION_3_4
+                FieldWorkerDatabase.MIGRATION_3_4,
+                FieldWorkerDatabase.MIGRATION_4_5,
             )
             // Для разработки: при изменении схемы БД будет пересоздана (если нет миграции)
             .fallbackToDestructiveMigration()
@@ -82,6 +85,18 @@ object DatabaseModule {
     @Singleton
     fun providePendingActionDao(database: FieldWorkerDatabase): PendingActionDao {
         return database.pendingActionDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideConversationDao(database: FieldWorkerDatabase): ConversationDao {
+        return database.conversationDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideMessageDao(database: FieldWorkerDatabase): MessageDao {
+        return database.messageDao()
     }
     
     // =================================================================================

@@ -73,6 +73,14 @@ fun ChatRoute(
         viewModel.load(conversationId, conversationName)
     }
 
+    // Auto-scroll to bottom when a new message arrives (sent or received)
+    val latestMessageId = state.messages.firstOrNull()?.id
+    LaunchedEffect(latestMessageId) {
+        if (latestMessageId != null && !state.isLoading) {
+            listState.animateScrollToItem(0)
+        }
+    }
+
     // Load more when approaching the end
     LaunchedEffect(listState.firstVisibleItemIndex, state.messages.size) {
         if (state.messages.isNotEmpty() &&

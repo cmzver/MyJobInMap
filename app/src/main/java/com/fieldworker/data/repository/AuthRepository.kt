@@ -1,11 +1,21 @@
 package com.fieldworker.data.repository
 
+import android.content.Context
+import android.net.Uri
 import com.fieldworker.data.api.AuthApi
+import com.fieldworker.data.dto.ChangePasswordRequest
+import com.fieldworker.data.image.ImageCompressor
 import com.fieldworker.data.dto.ReportSettingsDto
 import com.fieldworker.data.dto.TokenResponse
+import com.fieldworker.data.dto.UpdateProfileRequest
 import com.fieldworker.data.dto.UpdateReportSettingsDto
 import com.fieldworker.data.dto.UserDto
 import com.fieldworker.data.preferences.AppPreferences
+import dagger.hilt.android.qualifiers.ApplicationContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,7 +39,9 @@ sealed class AuthException : Exception() {
 @Singleton
 class AuthRepository @Inject constructor(
     private val authApi: AuthApi,
-    private val prefs: AppPreferences
+    private val prefs: AppPreferences,
+    private val imageCompressor: ImageCompressor,
+    @ApplicationContext private val context: Context
 ) {
     
     /**
@@ -48,6 +60,7 @@ class AuthRepository @Inject constructor(
                 prefs.setUsername(token.username)
                 prefs.setUserFullName(token.fullName)
                 prefs.setUserRole(token.role)
+                prefs.setUserAvatarUrl(token.avatarUrl)
                 
                 Result.success(token)
             } else {
@@ -79,8 +92,18 @@ class AuthRepository @Inject constructor(
             android.util.Log.d("AuthRepository", "getCurrentUser: Response code = ${response.code()}")
             
             if (response.isSuccessful && response.body() != null) {
-                android.util.Log.d("AuthRepository", "getCurrentUser: Success, user = ${response.body()?.username}")
-                Result.success(response.body()!!)
+                val user = response.body()!!
+                android.util.Log.d("AuthRepository", "getCurrentUser: Success, user = ${user.username}")
+                // Сохраняем актуальные данные пользователя в настройки
+                // (нужно для корректного определения «своих» сообщений в чате,
+                // если поля не были записаны при логине)
+                if (prefs.getUserId() <= 0) prefs.setUserId(user.id)
+                if (prefs.getUsername().isNullOrBlank()) prefs.setUsername(user.username)
+                if (prefs.getUserFullName().isNullOrBlank()) prefs.setUserFullName(user.fullName)
+                if (prefs.getUserRole().isNullOrBlank()) prefs.setUserRole(user.role)
+                // avatar_url синхронизируем всегда — он может меняться без перелогина
+                prefs.setUserAvatarUrl(user.avatarUrl)
+                Result.success(user)
             } else {
                 if (response.code() == 401) {
                     // Токен истёк или пользователь удалён
@@ -155,6 +178,115 @@ class AuthRepository @Inject constructor(
      * Получить роль пользователя
      */
     fun getUserRole(): String? = prefs.getUserRole()
+
+    /**
+     * Получить URL аватара пользователя (относительный путь от сервера).
+     */
+    fun getUserAvatarUrl(): String? = prefs.getUserAvatarUrl()
+
+    /**
+     * Обновить профиль (имя/email/телефон). Изменённые данные сохраняются в prefs.
+     */
+    suspend fun updateProfile(
+        fullName: String? = null,
+        email: String? = null,
+        phone: String? = null
+    ): Result<UserDto> {
+        return try {
+            val response = authApi.updateProfile(UpdateProfileRequest(fullName, email, phone))
+            if (response.isSuccessful && response.body() != null) {
+                val user = response.body()!!
+                prefs.setUserFullName(user.fullName)
+                prefs.setUserAvatarUrl(user.avatarUrl)
+                Result.success(user)
+            } else {
+                Result.failure(Exception(parseErrorDetail(response.errorBody()?.string()) ?: "Ошибка: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Ошибка подключения: ${e.message}"))
+        }
+    }
+
+    /**
+     * Загрузить новый аватар. Сервер вернёт обновлённого пользователя с avatar_url.
+     */
+    suspend fun uploadAvatar(uri: Uri): Result<UserDto> {
+        return try {
+            // Сжимаем (ресайз до 1920px, JPEG q85). При ошибке декодирования
+            // — отправляем оригинал, ограничивая размером 5 МБ как сервер.
+            val compressed = imageCompressor.compress(uri, fileNamePrefix = "avatar")
+
+            val bytes: ByteArray
+            val mimeType: String
+            val fileName: String
+            if (compressed != null) {
+                bytes = compressed.bytes
+                mimeType = compressed.mimeType
+                fileName = compressed.fileName
+            } else {
+                val resolver = context.contentResolver
+                bytes = resolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: return Result.failure(Exception("Не удалось открыть файл"))
+                if (bytes.size > 5 * 1024 * 1024) {
+                    return Result.failure(Exception("Размер файла не должен превышать 5 МБ"))
+                }
+                mimeType = resolver.getType(uri) ?: "image/jpeg"
+                val extension = when {
+                    mimeType.contains("png") -> "png"
+                    mimeType.contains("webp") -> "webp"
+                    mimeType.contains("gif") -> "gif"
+                    else -> "jpg"
+                }
+                fileName = "avatar_${System.currentTimeMillis()}.$extension"
+            }
+
+            val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+            val part = MultipartBody.Part.createFormData("avatar", fileName, requestBody)
+
+            val response = authApi.uploadAvatar(part)
+            if (response.isSuccessful && response.body() != null) {
+                val user = response.body()!!
+                prefs.setUserAvatarUrl(user.avatarUrl)
+                prefs.setUserFullName(user.fullName)
+                Result.success(user)
+            } else {
+                Result.failure(Exception(parseErrorDetail(response.errorBody()?.string()) ?: "Ошибка: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Ошибка загрузки: ${e.message}"))
+        }
+    }
+
+    /**
+     * Сменить пароль текущего пользователя.
+     */
+    suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit> {
+        return try {
+            val response = authApi.changePassword(
+                ChangePasswordRequest(currentPassword, newPassword)
+            )
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(parseErrorDetail(response.errorBody()?.string()) ?: "Ошибка: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Ошибка подключения: ${e.message}"))
+        }
+    }
+
+    /**
+     * Достаёт поле `detail` из FastAPI-ошибки, если возможно.
+     */
+    private fun parseErrorDetail(body: String?): String? {
+        if (body.isNullOrBlank()) return null
+        return try {
+            val detail = JSONObject(body).opt("detail")
+            detail?.toString()?.takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
+    }
     
     /**
      * Проверить валидность текущей сессии пользователя.

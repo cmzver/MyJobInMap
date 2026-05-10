@@ -46,6 +46,7 @@ import com.fieldworker.ui.objectcard.ObjectDetailsScreen
 import com.fieldworker.ui.settings.ConnectionStatus
 import com.fieldworker.ui.settings.DeveloperScreen
 import com.fieldworker.ui.settings.SettingsScreen
+import com.fieldworker.ui.settings.UserSettingsScreen
 
 /**
  * Главный экран приложения с Navigation Compose.
@@ -133,7 +134,7 @@ fun MainScreen(
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri: Uri? ->
             uri?.let {
-                chatViewModel.sendAttachment(it)
+                chatViewModel.attachPhoto(it)
             }
         }
     )
@@ -425,6 +426,8 @@ fun MainScreen(
                 composable(Screen.Chat.route) {
                     val listState by chatViewModel.listState.collectAsStateWithLifecycle()
                     val currentUserId = viewModel.preferences.getUserId()
+                    val currentUsername = viewModel.preferences.getUsername()
+                    val currentUserFullName = viewModel.preferences.getUserFullName()
 
                     AnimatedContent(
                         targetState = chatState.conversationId != null,
@@ -478,21 +481,34 @@ fun MainScreen(
                             baseUrl = baseUrl,
                             authToken = authToken,
                             isMuted = chatState.detail?.members?.firstOrNull { it.userId == currentUserId }?.isMuted == true,
-                            isArchived = chatState.detail?.members?.firstOrNull { it.userId == currentUserId }?.isArchived == true,
+                            isArchived = listState.conversations
+                                .firstOrNull { it.id == chatState.conversationId }?.isArchived
+                                ?: chatState.detail?.members?.firstOrNull { it.userId == currentUserId }?.isArchived
+                                ?: false,
                             isSavingConversation = chatState.isSavingConversation,
                             activeManagementUserId = chatState.activeManagementUserId,
                             currentUserId = currentUserId,
+                            currentUsername = currentUsername,
+                            currentUserFullName = currentUserFullName,
                             onBack = { chatViewModel.closeConversation() },
                             onLoadUsers = { force -> chatViewModel.loadAvailableUsers(force) },
                             onToggleMute = { chatViewModel.toggleConversationMute() },
-                            onToggleArchive = { chatViewModel.toggleConversationArchive() },
+                            onToggleArchive = {
+                                val isArchived = listState.conversations
+                                    .firstOrNull { it.id == chatState.conversationId }?.isArchived
+                                    ?: chatState.detail?.members?.firstOrNull { it.userId == currentUserId }?.isArchived
+                                    ?: false
+                                chatViewModel.toggleConversationArchive(isArchived)
+                            },
                             onRenameConversation = { chatViewModel.renameCurrentConversation(it) },
                             onAddMembers = { chatViewModel.addConversationMembers(it) },
                             onRemoveMember = { chatViewModel.removeConversationMember(it) },
                             onUpdateMemberRole = { userId, role -> chatViewModel.updateConversationMemberRole(userId, role) },
                             onTransferOwnership = { chatViewModel.transferConversationOwnership(it) },
                             onSendMessage = { chatViewModel.sendMessage(it) },
-                            onAttachFile = { chatAttachmentLauncher.launch("*/*") },
+                            onAttachFile = { chatAttachmentLauncher.launch("image/*") },
+                            onCancelAttachment = { chatViewModel.cancelAttachment() },
+                            pendingAttachmentUri = chatState.pendingAttachmentUri,
                             onMessageInputChanged = { chatViewModel.onMessageInputChanged(it) },
                             onLoadMore = { chatViewModel.loadMoreMessages() },
                             onDeleteMessage = { chatViewModel.deleteMessage(it) },
@@ -536,13 +552,26 @@ fun MainScreen(
                         onOpenDeveloperScreen = {
                             navController.navigate(Screen.Developer.route)
                         },
+                        onOpenUserSettings = {
+                            navController.navigate(Screen.UserSettings.route)
+                        },
+                        baseUrl = baseUrl,
+                        authToken = authToken,
                         onLogout = { showLogoutDialog = true }
                     )
                 }
-                
+
                 composable(Screen.Developer.route) {
                     DeveloperScreen(
                         preferences = viewModel.preferences,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable(Screen.UserSettings.route) {
+                    UserSettingsScreen(
+                        baseUrl = baseUrl,
+                        authToken = authToken,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -608,6 +637,7 @@ private fun mainTitleFor(screen: Screen): String {
         Screen.Settings -> "Настройки и профиль"
         Screen.Developer -> "Режим разработчика"
         Screen.ObjectCard -> "Карточка объекта"
+        Screen.UserSettings -> "Профиль пользователя"
     }
 }
 
@@ -623,6 +653,7 @@ private fun mainSubtitleFor(
         Screen.Settings -> "Сервер, уведомления, обновления и локальные настройки"
         Screen.Developer -> "Диагностика и служебные параметры приложения"
         Screen.ObjectCard -> "Сведения по адресу, оборудованию и истории объекта"
+        Screen.UserSettings -> "Имя, аватар, смена пароля"
     }
 }
 
