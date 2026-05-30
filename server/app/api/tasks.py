@@ -173,32 +173,29 @@ async def get_tasks(
     total = query.count()
 
     sort_value = (sort or "").strip().lower()
-    prioritize_unread_notifications = user.role in {
-        UserRole.ADMIN.value,
-        UserRole.DISPATCHER.value,
-    }
-    has_unread_task_notification = (
-        db.query(NotificationModel.id)
-        .filter(
-            NotificationModel.user_id == user.id,
-            NotificationModel.task_id == TaskModel.id,
-            NotificationModel.is_read.is_(False),
-        )
-        .exists()
-    )
 
     if sort_value == "created_at_asc":
+        # Явная сортировка по дате — без поднятия непрочитанных, чтобы
+        # порядок соответствовал выбранному пользователем «по дате».
         order_by = [TaskModel.created_at.asc()]
     elif sort_value == "created_at_desc":
-        order_by = [
-            *(
-                [case((has_unread_task_notification, 0), else_=1)]
-                if prioritize_unread_notifications
-                else []
-            ),
-            TaskModel.created_at.desc(),
-        ]
+        order_by = [TaskModel.created_at.desc()]
     else:
+        # Дефолтная (без явного sort) «умная» сортировка: заявки с
+        # непрочитанными уведомлениями и более высоким приоритетом — наверх.
+        prioritize_unread_notifications = user.role in {
+            UserRole.ADMIN.value,
+            UserRole.DISPATCHER.value,
+        }
+        has_unread_task_notification = (
+            db.query(NotificationModel.id)
+            .filter(
+                NotificationModel.user_id == user.id,
+                NotificationModel.task_id == TaskModel.id,
+                NotificationModel.is_read.is_(False),
+            )
+            .exists()
+        )
         order_by = [
             *(
                 [case((has_unread_task_notification, 0), else_=1)]
