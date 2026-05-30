@@ -115,3 +115,6 @@ chat_results.txt
 .github/
 .obsidian/
 **/.obsidian/
+
+# Playwright MCP artifacts
+.playwright-mcp/

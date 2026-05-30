@@ -191,12 +191,61 @@ def parse_dispatcher_format(text: str) -> Optional[ParsedTask]:
     )
 
 
+# Префиксы, с которых начинаются ответы самого бота — это не заявки.
+_BOT_REPLY_PREFIXES = ("✅", "📝", "❌", "⚠️", "📊", "📖", "👋")
+
+# Признаки реального адреса/заявки.
+_ADDRESS_MARKERS = ("ул.", "пр.", "д.", "корп.", "подъезд", "кв.", "бульвар", "пер.")
+_CITY_MARKERS = ("спб", "санкт-петербург", "лен. обл", "лен.обл", "ленинградская обл")
+_REQUEST_LABELS = ("адрес:", "клиент:", "задача:")
+
+
+def looks_like_request(text: str) -> bool:
+    """Похоже ли свободное сообщение на реальную заявку.
+
+    Нужно, чтобы обычная переписка диспетчеров («по заявкам можем что-то
+    прописать?») не превращалась в заявку через catch-all стандартного
+    формата. Заявка — это сообщение с внешним номером, телефоном, явной
+    меткой или адресом; простая фраза таких признаков не содержит.
+    """
+    stripped = text.strip()
+    if not stripped:
+        return False
+    # Ответы самого бота заявками не являются.
+    if stripped.startswith(_BOT_REPLY_PREFIXES):
+        return False
+
+    low = stripped.lower()
+    # Внешний номер диспетчерской (№123456) где угодно в тексте.
+    if re.search(r"№\s*\d{3,}", stripped):
+        return True
+    # Телефон.
+    if re.search(r"(\+7\d{10}|[78]\d{10})", stripped):
+        return True
+    # Явные метки запроса.
+    if any(label in low for label in _REQUEST_LABELS):
+        return True
+    # Город/регион.
+    if any(city in low for city in _CITY_MARKERS):
+        return True
+    # Минимум два адресных маркера (ул., д., подъезд и т.п.).
+    if sum(1 for marker in _ADDRESS_MARKERS if marker in low) >= 2:
+        return True
+    return False
+
+
 def parse_standard_format(text: str) -> Optional[ParsedTask]:
     """
     Парсит заявку в стандартном формате:
     Адрес
     Описание проблемы
+
+    Возвращает None, если сообщение не похоже на заявку (обычная переписка),
+    чтобы не плодить мусорные заявки из произвольных сообщений.
     """
+    if not looks_like_request(text):
+        return None
+
     lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
 
     if not lines:

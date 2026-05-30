@@ -2,9 +2,11 @@
 
 import pytest
 
-from app.services.task_parser import (ParsedTask, parse_dispatcher_format,
+from app.services.task_parser import (ParsedTask, looks_like_request,
+                                      parse_dispatcher_format,
                                       parse_dispatcher_message,
-                                      parse_standard_format)
+                                      parse_standard_format,
+                                      parse_task_message)
 
 
 class TestParseDispatcherFormat:
@@ -94,7 +96,8 @@ class TestParseDispatcherFormat:
         assert result.priority == "CURRENT"
         assert result.contact_phone == "+79110267493"
         assert result.apartment == "45"
-        assert "[1173544]" in result.title
+        # Номер хранится в external_id; заголовок — это категория работ.
+        assert "Брелки" in result.title
 
     def test_not_dispatcher_format(self):
         """Test that non-dispatcher messages return None."""
@@ -127,13 +130,17 @@ class TestParseStandardFormat:
         assert "домофон" in result.description
 
     def test_single_line(self):
-        """Test single line - used as both address and description."""
-        text = "Срочный ремонт на Невском проспекте"
+        """Test single line (with address signals) - used as both address and description."""
+        text = "ул. Невская, д.5, подъезд 1, не работает домофон"
         result = parse_standard_format(text)
 
         assert result is not None
         assert result.address == text
         assert result.description == text
+
+    def test_single_line_chatter_rejected(self):
+        """Свободная фраза без признаков адреса/заявки не должна стать заявкой."""
+        assert parse_standard_format("Срочный ремонт на Невском проспекте") is None
 
     def test_multiline(self):
         """Test multiline: first line is address, rest is description."""
@@ -157,12 +164,12 @@ class TestParseStandardFormat:
 
     def test_empty_lines_filtered(self):
         """Test that empty lines are filtered out."""
-        text = "Адрес\n\n\nОписание"
+        text = "ул. Ленина, д.5\n\n\nНе работает домофон"
         result = parse_standard_format(text)
 
         assert result is not None
-        assert result.address == "Адрес"
-        assert result.description == "Описание"
+        assert result.address == "ул. Ленина, д.5"
+        assert result.description == "Не работает домофон"
 
 
 class TestParseDispatcherMessage:
@@ -178,11 +185,11 @@ class TestParseDispatcherMessage:
 
     def test_standard_format_fallback(self):
         """Test fallback to standard format."""
-        text = "Обычный адрес\nОписание работы"
+        text = "ул. Обычная, д.1\nОписание работы"
         result = parse_dispatcher_message(text)
 
         assert result["success"] is True
-        assert result["data"]["address"] == "Обычный адрес"
+        assert result["data"]["address"] == "ул. Обычная, д.1"
 
     def test_empty_returns_error(self):
         """Test empty text returns error dict."""
@@ -250,3 +257,40 @@ class TestParsedTaskDataclass:
         assert task.contact_phone is None
         assert task.contact_name is None
         assert task.apartment is None
+
+
+# Реальная переписка диспетчеров — НЕ заявки (не должны создавать заявку).
+CHATTER_MESSAGES = [
+    "Вадим... что-то нам скажите по заявкам?)",
+    "Добрый вечер, по вашим заявкам можем что-то прописать?",
+    "По распоряжению Кристины - заявка переведена в текущую.",
+    "звонок клиента: волнуется очень, просит мастера позвонить и согласовать",
+    "заявка в приоритете!",
+    "Вадим Александрович, может напишите по заявкам ночному диспетчеру",
+    # Ответ самого бота тоже не должен превращаться в заявку.
+    "📝 Заявка 1187389 (внеш. №1187389) дополнена комментарием",
+]
+
+# Реальные заявки — даже с болтовнёй в начале или нестандартным префиксом.
+REAL_REQUEST_MESSAGES = [
+    "№1191386 Текущая. Невский пр., д.36, корп. 7, СПб, подъезд 1. Трубка. кв.45 +79110000000",
+    "Евгений сказал, что вы поедете. №1191004 Плановая. Белых Ночей ул., д.5, Лен. обл.",
+    "ОТМЕНА №1191235 Срочная. Невская ул., д.11/1, Лен. обл. гп. Новоселье, подъезд 2",
+    "Звонок клиента, ждут мастера, когда будет на адресе? №1190813 Срочная.",
+    "Центральная ул., д.18, Лен. обл. гп. Новоселье - ворота + Ленинский пр., д.5",
+]
+
+
+class TestChatterIsNotATask:
+    """Обычная переписка не должна превращаться в заявку через catch-all."""
+
+    @pytest.mark.parametrize("text", CHATTER_MESSAGES)
+    def test_chatter_rejected(self, text):
+        assert looks_like_request(text) is False
+        assert parse_task_message(text) is None
+        assert parse_dispatcher_message(text)["success"] is False
+
+    @pytest.mark.parametrize("text", REAL_REQUEST_MESSAGES)
+    def test_real_request_accepted(self, text):
+        assert looks_like_request(text) is True
+        assert parse_task_message(text) is not None

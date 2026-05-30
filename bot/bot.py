@@ -12,6 +12,7 @@ Telegram-бот диспетчер заявок для FieldWorker.
 import json
 import os
 import logging
+import re
 import threading
 
 import requests
@@ -220,21 +221,27 @@ def is_potential_task(text: str) -> bool:
         return False
     
     text_lower = text.lower()
-    
-    # Признаки заявки диспетчерской
-    if stripped.startswith("№"):
+
+    # Внешний номер диспетчерской (№123456) — где угодно в тексте,
+    # даже если сообщение начинается с приветствия.
+    if re.search(r"№\s*\d{3,}", stripped):
         return True
-    
-    # Ключевые слова
-    keywords = ["заявка", "#заявка", "адрес:", "клиент:"]
-    if any(kw in text_lower for kw in keywords):
+
+    # Явные метки заявки. Слово «заявка» — только как отдельное слово,
+    # чтобы переписка вроде «по заявкам можем прописать?» не считалась заявкой.
+    if (
+        re.search(r"\bзаявка\b", text_lower)
+        or "#заявка" in text_lower
+        or "адрес:" in text_lower
+        or "клиент:" in text_lower
+    ):
         return True
-    
+
     # Признаки адреса
     address_markers = ["ул.", "пр.", "д.", "корп.", "подъезд", "кв."]
     if sum(1 for m in address_markers if m in text_lower) >= 2:
         return True
-    
+
     return False
 
 
