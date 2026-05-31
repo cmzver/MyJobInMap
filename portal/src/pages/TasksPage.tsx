@@ -341,6 +341,7 @@ export default function TasksPage() {
   })
   const [groupBy, setGroupBy] = useState('')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkStatus, setBulkStatus] = useState('')
   const [showBulkStatusCommentModal, setShowBulkStatusCommentModal] = useState(false)
@@ -1237,7 +1238,25 @@ export default function TasksPage() {
             </div>
           </div>
 
-          <div className="grid flex-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {/* Mobile toggle for the filter controls */}
+          <button
+            type="button"
+            onClick={() => setShowMobileFilters((prev) => !prev)}
+            className="flex items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 lg:hidden"
+          >
+            <span className="flex items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4" />
+              Фильтры и сортировка
+              {hasActiveFilters && (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-100 px-1.5 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
+                  {activeFilters.length}
+                </span>
+              )}
+            </span>
+            <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${showMobileFilters ? 'rotate-180' : ''}`} />
+          </button>
+
+          <div className={`flex-1 gap-3 sm:grid-cols-2 xl:grid-cols-5 ${showMobileFilters ? 'grid' : 'hidden'} lg:grid`}>
             <Select
               label="Сортировка"
               options={sortOptions}
@@ -1283,7 +1302,7 @@ export default function TasksPage() {
             />
           </div>
 
-          <div className="flex items-end">
+          <div className={`items-end ${showMobileFilters ? 'flex' : 'hidden'} lg:flex`}>
             <Button
               variant="ghost"
               size="sm"
