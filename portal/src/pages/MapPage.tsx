@@ -19,8 +19,9 @@ import PriorityBadge from '@/components/PriorityBadge'
 import { useAuthStore } from '@/store/authStore'
 import { useTheme } from '@/hooks/useTheme'
 import apiClient from '@/api/client'
-import { Task } from '@/types/task'
+import { Task, PaginatedResponse } from '@/types/task'
 import { normalizeRoleForAccess } from '@/types/user'
+import { normalizePriority } from '@/config/taskConstants'
 import { formatDatePretty } from '@/utils/dateFormat'
 
 import 'leaflet/dist/leaflet.css'
@@ -79,11 +80,50 @@ const markerColors = {
   CANCELLED: '#6B7280',
 }
 
-const markerIcons = {
-  NEW: createMarkerIcon(markerColors.NEW),
-  IN_PROGRESS: createMarkerIcon(markerColors.IN_PROGRESS),
-  DONE: createMarkerIcon(markerColors.DONE),
-  CANCELLED: createMarkerIcon(markerColors.CANCELLED),
+// Маркеры красятся по приоритету — для диспетчера это главный сигнал.
+type PriorityKey = 'EMERGENCY' | 'URGENT' | 'CURRENT' | 'PLANNED'
+
+const priorityColors: Record<PriorityKey, string> = {
+  EMERGENCY: '#DC2626', // danger
+  URGENT: '#F59E0B', // warning
+  CURRENT: '#3B82F6', // info
+  PLANNED: '#22C55E', // success
+}
+
+const PRIORITY_RANK: Record<PriorityKey, number> = {
+  EMERGENCY: 4,
+  URGENT: 3,
+  CURRENT: 2,
+  PLANNED: 1,
+}
+
+const priorityLegend: { value: PriorityKey; label: string }[] = [
+  { value: 'EMERGENCY', label: 'Аварийная' },
+  { value: 'URGENT', label: 'Срочная' },
+  { value: 'CURRENT', label: 'Текущая' },
+  { value: 'PLANNED', label: 'Плановая' },
+]
+
+const priorityIcons: Record<PriorityKey, Icon> = {
+  EMERGENCY: createMarkerIcon(priorityColors.EMERGENCY),
+  URGENT: createMarkerIcon(priorityColors.URGENT),
+  CURRENT: createMarkerIcon(priorityColors.CURRENT),
+  PLANNED: createMarkerIcon(priorityColors.PLANNED),
+}
+
+// Цвет группы — по самому высокому приоритету среди заявок в точке.
+const getGroupPriority = (groupTasks: Task[]): PriorityKey => {
+  let best: PriorityKey = 'PLANNED'
+  let bestRank = 0
+  for (const task of groupTasks) {
+    const priority = normalizePriority(task.priority) as PriorityKey
+    const rank = PRIORITY_RANK[priority] ?? 0
+    if (rank > bestRank) {
+      bestRank = rank
+      best = priority
+    }
+  }
+  return best
 }
 
 const countIconCache = new Map<string, DivIcon>()
@@ -219,23 +259,37 @@ export default function MapPage() {
     { value: 'NEW', label: 'Новые', color: '#ef4444' },
     { value: 'IN_PROGRESS', label: 'В работе', color: '#f59e0b' },
   ] as const
-  const allStatusesSelected = statusFilter.length === statusDefs.length
   const isWorker = normalizeRoleForAccess(user?.role) === 'worker'
 
   const { data, isLoading } = useQuery({
     queryKey: ['map-tasks', statusQuery, isWorker ? user?.id : null],
     queryFn: async () => {
-      const params = new URLSearchParams()
-      if (!allStatusesSelected && sortedStatuses.length === 1) {
-        params.append('status', sortedStatuses[0]!)
+      const PAGE_SIZE = 200
+      const buildParams = (page: number) => {
+        const params = new URLSearchParams()
+        // Явно фильтруем по выбранным статусам на сервере, а не на клиенте,
+        // иначе лимит страницы «съедали» бы заявки других статусов.
+        sortedStatuses.forEach((status) => params.append('status', status))
+        if (isWorker && user?.id) {
+          params.append('assignee_id', String(user.id))
+        }
+        params.append('size', String(PAGE_SIZE))
+        params.append('page', String(page))
+        return params
       }
-      if (isWorker && user?.id) {
-        params.append('assignee_id', String(user.id))
+
+      const first = await apiClient.get<PaginatedResponse<Task>>(`/tasks?${buildParams(1)}`)
+      let items = first.data.items
+      const totalPages = first.data.pages ?? 1
+      if (totalPages > 1) {
+        const rest = await Promise.all(
+          Array.from({ length: totalPages - 1 }, (_, index) =>
+            apiClient.get<PaginatedResponse<Task>>(`/tasks?${buildParams(index + 2)}`),
+          ),
+        )
+        items = items.concat(...rest.map((response) => response.data.items))
       }
-      params.append('size', '200')
-      const response = await apiClient.get<{ items: Task[] }>(`/tasks?${params}`)
-      const items = response.data.items.filter(isTaskWithUsableCoordinates)
-      return items.filter((task) => statusFilter.includes(task.status))
+      return items.filter(isTaskWithUsableCoordinates)
     },
   })
 
@@ -270,13 +324,6 @@ export default function MapPage() {
 
     return Array.from(groups.values())
   }, [tasks])
-
-  const getGroupStatus = (groupTasks: Task[]) => {
-    if (groupTasks.some((task) => task.status === 'NEW')) return 'NEW'
-    if (groupTasks.some((task) => task.status === 'IN_PROGRESS')) return 'IN_PROGRESS'
-    if (groupTasks.some((task) => task.status === 'DONE')) return 'DONE'
-    return 'CANCELLED'
-  }
 
   const toggleStatus = (status: string) => {
     setStatusFilter((prev) => {
@@ -343,6 +390,20 @@ export default function MapPage() {
         </span>
       </div>
 
+      <div className="pointer-events-none absolute bottom-4 left-4 z-[1000] rounded-lg border border-gray-200 bg-white/95 px-3 py-2 shadow-sm dark:border-gray-700 dark:bg-gray-800/95">
+        <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+          Приоритет
+        </p>
+        <div className="flex flex-col gap-1">
+          {priorityLegend.map((item) => (
+            <span key={item.value} className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-200">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: priorityColors[item.value] }} />
+              {item.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="flex h-full items-center justify-center rounded-xl border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
           <Spinner size="lg" />
@@ -369,10 +430,11 @@ export default function MapPage() {
 
           {groupedTasks.map((group) => {
             const primaryTask = group.tasks[0]!
-            const groupStatus = getGroupStatus(group.tasks) as keyof typeof markerColors
+            const groupPriority = getGroupPriority(group.tasks)
+            const groupColor = priorityColors[groupPriority]
             const icon = group.tasks.length > 1
-              ? createCountMarkerIcon(markerColors[groupStatus], group.tasks.length)
-              : markerIcons[groupStatus] || markerIcons.NEW
+              ? createCountMarkerIcon(groupColor, group.tasks.length)
+              : priorityIcons[groupPriority]
             const isGrouped = group.tasks.length > 1
             const secondaryTitle = getTaskSecondaryTitle(primaryTask)
 
