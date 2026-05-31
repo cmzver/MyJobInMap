@@ -16,11 +16,13 @@ import {
 import Spinner from '@/components/Spinner'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
+import Select from '@/components/Select'
 import { useAuthStore } from '@/store/authStore'
 import { useTheme } from '@/hooks/useTheme'
+import { useUsers } from '@/hooks/useUsers'
 import apiClient from '@/api/client'
 import { Task, PaginatedResponse } from '@/types/task'
-import { normalizeRoleForAccess } from '@/types/user'
+import { normalizeRoleForAccess, isAssignableRole } from '@/types/user'
 import { normalizePriority } from '@/config/taskConstants'
 import { formatDatePretty } from '@/utils/dateFormat'
 
@@ -260,28 +262,42 @@ export default function MapPage() {
   const { user } = useAuthStore()
   const { resolvedTheme } = useTheme()
   const [statusFilter, setStatusFilter] = useState<string[]>(['NEW', 'IN_PROGRESS'])
+  const [priorityFilter, setPriorityFilter] = useState<string[]>([])
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('')
   const [showFilters, setShowFilters] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [zoom, setZoom] = useState(10)
   const sortedStatuses = useMemo(() => statusFilter.slice().sort(), [statusFilter])
   const statusQuery = useMemo(() => sortedStatuses.join(','), [sortedStatuses])
+  const sortedPriorities = useMemo(() => priorityFilter.slice().sort(), [priorityFilter])
+  const priorityQuery = useMemo(() => sortedPriorities.join(','), [sortedPriorities])
   const statusDefs = [
-    { value: 'NEW', label: 'Новые', color: '#ef4444' },
-    { value: 'IN_PROGRESS', label: 'В работе', color: '#f59e0b' },
+    { value: 'NEW', label: 'Новые', color: markerColors.NEW },
+    { value: 'IN_PROGRESS', label: 'В работе', color: markerColors.IN_PROGRESS },
+    { value: 'DONE', label: 'Выполненные', color: markerColors.DONE },
+    { value: 'CANCELLED', label: 'Отменённые', color: markerColors.CANCELLED },
   ] as const
   const isWorker = normalizeRoleForAccess(user?.role) === 'worker'
+  const { data: users = [] } = useUsers()
+  const assignableUsers = useMemo(
+    () => users.filter((candidate) => candidate.is_active && isAssignableRole(candidate.role)),
+    [users],
+  )
 
   const { data, isLoading } = useQuery({
-    queryKey: ['map-tasks', statusQuery, isWorker ? user?.id : null],
+    queryKey: ['map-tasks', statusQuery, priorityQuery, isWorker ? user?.id : assigneeFilter],
     queryFn: async () => {
       const PAGE_SIZE = 200
       const buildParams = (page: number) => {
         const params = new URLSearchParams()
-        // Явно фильтруем по выбранным статусам на сервере, а не на клиенте,
-        // иначе лимит страницы «съедали» бы заявки других статусов.
+        // Явно фильтруем по статусам/приоритету/исполнителю на сервере, а не на
+        // клиенте, иначе лимит страницы «съедали» бы заявки других статусов.
         sortedStatuses.forEach((status) => params.append('status', status))
+        sortedPriorities.forEach((priority) => params.append('priority', priority))
         if (isWorker && user?.id) {
           params.append('assignee_id', String(user.id))
+        } else if (assigneeFilter) {
+          params.append('assignee_id', assigneeFilter)
         }
         params.append('size', String(PAGE_SIZE))
         params.append('page', String(page))
@@ -310,9 +326,18 @@ export default function MapPage() {
       return acc
     }, {})
   }, [tasks])
-  const filterLabel = statusFilter.length === statusDefs.length
-    ? 'Новые и в работе'
+  const priorityCounts = useMemo(() => {
+    return tasks.reduce<Record<string, number>>((acc, task) => {
+      const priority = normalizePriority(task.priority)
+      acc[priority] = (acc[priority] || 0) + 1
+      return acc
+    }, {})
+  }, [tasks])
+  const statusLabel = statusFilter.length === statusDefs.length
+    ? 'Все статусы'
     : statusFilter.map((status) => statusDefs.find((def) => def.value === status)?.label || status).join(', ')
+  const extraFilterCount = priorityFilter.length + (assigneeFilter ? 1 : 0)
+  const filterLabel = extraFilterCount > 0 ? `${statusLabel} · +${extraFilterCount}` : statusLabel
 
   const groupedTasks = useMemo(() => {
     // Размер ячейки кластеризации зависит от зума: на мелком масштабе
@@ -352,6 +377,13 @@ export default function MapPage() {
     })
   }
 
+  // Приоритет: пустой выбор = показывать все приоритеты.
+  const togglePriority = (priority: string) => {
+    setPriorityFilter((prev) =>
+      prev.includes(priority) ? prev.filter((item) => item !== priority) : [...prev, priority],
+    )
+  }
+
   const defaultCenter: [number, number] = [55.7558, 37.6173]
 
   const openNavigation = (task: Task) => {
@@ -371,8 +403,8 @@ export default function MapPage() {
         </button>
 
         {showFilters && (
-          <div className="pointer-events-auto rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <p className="mb-3 text-sm font-medium text-gray-900 dark:text-white">Показывать на карте</p>
+          <div className="pointer-events-auto max-h-[72vh] w-[260px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <p className="mb-2 text-sm font-medium text-gray-900 dark:text-white">Статусы</p>
             <div className="flex flex-col gap-2">
               {statusDefs.map((status) => {
                 const checked = statusFilter.includes(status.value)
@@ -397,6 +429,61 @@ export default function MapPage() {
                 )
               })}
             </div>
+
+            <div className="mb-2 mt-4 flex items-center justify-between">
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Приоритет</p>
+              {priorityFilter.length > 0 && (
+                <button
+                  onClick={() => setPriorityFilter([])}
+                  className="text-xs text-primary-600 hover:underline dark:text-primary-400"
+                >
+                  Сбросить
+                </button>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              {priorityLegend.map((item) => {
+                const checked = priorityFilter.includes(item.value)
+                return (
+                  <label
+                    key={item.value}
+                    className={`flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors ${
+                      checked
+                        ? 'border-gray-300 bg-gray-50 dark:border-gray-600 dark:bg-gray-700'
+                        : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
+                    }`}
+                    onClick={() => togglePriority(item.value)}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="h-3 w-3 rounded-full" style={{ background: priorityColors[item.value] }} />
+                      <span className="text-sm text-gray-900 dark:text-gray-100">{item.label}</span>
+                    </span>
+                    <span className="min-w-[18px] text-right text-sm text-gray-500 dark:text-gray-400">
+                      {priorityCounts[item.value] || 0}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+
+            {!isWorker && (
+              <div className="mt-4">
+                <p className="mb-2 text-sm font-medium text-gray-900 dark:text-white">Исполнитель</p>
+                <Select
+                  options={[
+                    { value: '', label: 'Все исполнители' },
+                    ...assignableUsers.map((candidate) => ({
+                      value: String(candidate.id),
+                      label: candidate.full_name || candidate.username,
+                    })),
+                  ]}
+                  value={assigneeFilter}
+                  onChange={setAssigneeFilter}
+                  placeholder="Все исполнители"
+                  className="h-9 text-sm"
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
