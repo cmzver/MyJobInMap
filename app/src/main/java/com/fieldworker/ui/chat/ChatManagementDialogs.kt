@@ -31,7 +31,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.Checkbox
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
@@ -45,6 +44,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fieldworker.domain.model.ConversationDetail
 import com.fieldworker.domain.model.ConversationMember
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import com.fieldworker.domain.model.ConversationType
 import com.fieldworker.domain.model.User
 import com.fieldworker.ui.chat.components.ChatAvatar
@@ -572,39 +580,81 @@ private fun SelectableUserRow(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        tonalElevation = if (selected) 2.dp else 0.dp,
-        shape = MaterialTheme.shapes.medium,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .toggleable(
-                    value = selected,
-                    enabled = enabled,
-                    onValueChange = { onClick() },
-                )
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            ChatAvatar(
-                name = user.getDisplayName(),
-                id = user.id,
-                type = ConversationType.DIRECT,
-                size = 40,
+    val containerColor by animateColorAsState(
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+        } else {
+            Color.Transparent
+        },
+        label = "selectableRowBackground",
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(containerColor)
+            .toggleable(
+                value = selected,
+                enabled = enabled,
+                role = Role.Checkbox,
+                onValueChange = { onClick() },
             )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(user.getDisplayName(), style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    text = "@${user.username}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Checkbox(checked = selected, onCheckedChange = null, enabled = enabled)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        ChatAvatar(
+            name = user.getDisplayName(),
+            id = user.id,
+            type = ConversationType.DIRECT,
+            size = 44,
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = user.getDisplayName(),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+            )
+            Text(
+                text = "@${user.username}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
         }
+        SelectionIndicator(selected = selected)
+    }
+}
+
+@Composable
+private fun SelectionIndicator(selected: Boolean) {
+    if (selected) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(15.dp),
+            )
+        }
+    } else {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .border(
+                    width = 1.5.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                    shape = CircleShape,
+                ),
+        )
     }
 }
 
@@ -637,14 +687,14 @@ private fun MemberManagementRow(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        tonalElevation = 1.dp,
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
