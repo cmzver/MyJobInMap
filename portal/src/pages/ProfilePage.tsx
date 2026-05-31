@@ -495,7 +495,7 @@ export default function ProfilePage() {
               className="w-full"
             >
               <Lock size={18} className="mr-2" />
-              Рзменить пароль
+              Изменить пароль
             </Button>
           </form>
         </Card>

@@ -9,7 +9,7 @@
  * - chat_reaction, chat_read, chat_typing
  * 
  * Автоматически реконнектится при потере соединения.
- * Рнвалидирует React Query кэш при получении события.
+ * Инвалидирует React Query кэш при получении события.
  */
 
 import { useEffect, useRef, useCallback } from 'react'
@@ -70,7 +70,7 @@ export function useWebSocket() {
         const data = JSON.parse(event.data) as WsEvent
         if (data.type === 'pong') return
 
-        // Рнвалидируем кэш React Query при обновлении данных
+        // Инвалидируем кэш React Query при обновлении данных
         switch (data.type) {
           case 'task_created':
             queryClient.invalidateQueries({ queryKey: ['tasks'] })

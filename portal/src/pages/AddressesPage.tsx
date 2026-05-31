@@ -547,15 +547,15 @@ export default function AddressesPage() {
                       </div>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      💡 Рли заполните поля — при вводе появятся подсказки из базы адресов
+                      💡 Или заполните поля — при вводе появятся подсказки из базы адресов
                     </p>
                   </div>
                 </div>
 
-                {/* Рнформация о здании */}
+                {/* Информация о здании */}
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                    Рнформация о здании
+                    Информация о здании
                   </h4>
                   <div className="grid grid-cols-3 gap-4">
                     <Input

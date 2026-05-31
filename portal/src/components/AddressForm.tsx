@@ -289,7 +289,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
       .then((result) => {
         setEntrances(result)
         // Если есть только один подъезд, выбираем его автоматически
-        // Рспользуем переданные значения, а не value из замыкания
+        // Используем переданные значения, а не value из замыкания
         if (result.length === 1) {
           onChange({ 
             city, 

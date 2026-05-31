@@ -65,21 +65,21 @@ const parseAddress = (addressStr: string): AddressFormData => {
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i]!
     
-    // Рщем дом (д. или дом)
+    // Ищем дом (д. или дом)
     const buildingMatch = part.match(/^д\.?\s*(\S+)$/i) || part.match(/^дом\s*(\S+)$/i)
     if (buildingMatch) {
       result.building = buildingMatch[1] ?? ''
       continue
     }
     
-    // Рщем корпус (к. или корп.)
+    // Ищем корпус (к. или корп.)
     const corpusMatch = part.match(/^к\.?\s*(\S+)$/i) || part.match(/^корп\.?\s*(\S+)$/i)
     if (corpusMatch) {
       result.corpus = corpusMatch[1] ?? ''
       continue
     }
     
-    // Рщем подъезд (под. или подъезд)
+    // Ищем подъезд (под. или подъезд)
     const entranceMatch = part.match(/^под\.?\s*(\S+)$/i) || part.match(/^подъезд\s*(\S+)$/i)
     if (entranceMatch) {
       result.entrance = entranceMatch[1] ?? ''
@@ -658,7 +658,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         />
 
         {/* Остальные поля */}
-        <Card title="Рнформация о заявке">
+        <Card title="Информация о заявке">
           <div className="space-y-4">
             {/* Описание */}
             <Textarea
@@ -673,8 +673,8 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
             {/* Контакты клиента */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
-                label="Рмя клиента"
-                placeholder="Рван Петров"
+                label="Имя клиента"
+                placeholder="Иван Петров"
                 value={formData.customer_name}
                 onChange={(e) => handleFormChange('customer_name', e.target.value)}
               />
@@ -694,9 +694,9 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
               onChange={(value) => handleFormChange('priority', value as TaskPriority)}
             />
 
-            {/* Рсполнитель */}
+            {/* Исполнитель */}
             <Select
-              label="Рсполнитель"
+              label="Исполнитель"
               options={[
                 { value: '', label: 'Не назначен' },
                 ...assignableUsers.map(u => ({
