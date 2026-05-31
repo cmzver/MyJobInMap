@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
+import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import { DivIcon, Icon, LatLngBounds, divIcon } from 'leaflet'
 import {
   Calendar,
@@ -210,22 +210,31 @@ const isTaskWithUsableCoordinates = (task: Task): task is Task & { lat: number; 
 
 function FitBounds({ tasks }: { tasks: Task[] }) {
   const map = useMap()
+  // Фитим границы только один раз — при первой загрузке заявок, чтобы
+  // рефетч или смена фильтра не сбрасывали выбранный пользователем зум.
+  const hasFitted = useRef(false)
 
   useEffect(() => {
-    if (tasks.length > 0) {
-      const validTasks = tasks.filter(isTaskWithUsableCoordinates)
-      if (validTasks.length > 0) {
-        const bounds = new LatLngBounds(
-          validTasks.map((task) => [task.lat!, task.lon!] as [number, number]),
-        )
-        map.fitBounds(bounds, {
-          paddingTopLeft: [180, 88],
-          paddingBottomRight: [56, 56],
-        })
-      }
-    }
+    if (hasFitted.current) return
+    const validTasks = tasks.filter(isTaskWithUsableCoordinates)
+    if (validTasks.length === 0) return
+    const bounds = new LatLngBounds(
+      validTasks.map((task) => [task.lat!, task.lon!] as [number, number]),
+    )
+    map.fitBounds(bounds, {
+      paddingTopLeft: [180, 88],
+      paddingBottomRight: [56, 56],
+    })
+    hasFitted.current = true
   }, [tasks, map])
 
+  return null
+}
+
+function ZoomWatcher({ onZoomChange }: { onZoomChange: (zoom: number) => void }) {
+  const map = useMapEvents({
+    zoomend: () => onZoomChange(map.getZoom()),
+  })
   return null
 }
 
@@ -253,6 +262,7 @@ export default function MapPage() {
   const [statusFilter, setStatusFilter] = useState<string[]>(['NEW', 'IN_PROGRESS'])
   const [showFilters, setShowFilters] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [zoom, setZoom] = useState(10)
   const sortedStatuses = useMemo(() => statusFilter.slice().sort(), [statusFilter])
   const statusQuery = useMemo(() => sortedStatuses.join(','), [sortedStatuses])
   const statusDefs = [
@@ -305,11 +315,19 @@ export default function MapPage() {
     : statusFilter.map((status) => statusDefs.find((def) => def.value === status)?.label || status).join(', ')
 
   const groupedTasks = useMemo(() => {
+    // Размер ячейки кластеризации зависит от зума: на мелком масштабе
+    // близкие заявки объединяются в один маркер-счётчик, при приближении —
+    // расходятся. Так маркеры не накладываются друг на друга в центре города.
+    const CLUSTER_RADIUS_PX = 64
+    const TILE_SIZE_PX = 256
+    const cell = (360 / Math.pow(2, zoom)) * (CLUSTER_RADIUS_PX / TILE_SIZE_PX)
+    const cellKey = (value: number) => Math.round(value / cell)
+
     const groups = new Map<string, { key: string; lat: number; lon: number; latSum: number; lonSum: number; tasks: Task[] }>()
 
     tasks.forEach((task) => {
       if (!isTaskWithUsableCoordinates(task)) return
-      const key = `coord:${task.lat.toFixed(4)}|${task.lon.toFixed(4)}`
+      const key = `${cellKey(task.lat)}|${cellKey(task.lon)}`
       const existing = groups.get(key)
       if (existing) {
         existing.tasks.push(task)
@@ -323,7 +341,7 @@ export default function MapPage() {
     })
 
     return Array.from(groups.values())
-  }, [tasks])
+  }, [tasks, zoom])
 
   const toggleStatus = (status: string) => {
     setStatusFilter((prev) => {
@@ -426,6 +444,7 @@ export default function MapPage() {
           />
 
           <FitBounds tasks={tasks} />
+          <ZoomWatcher onZoomChange={setZoom} />
           <LocateControl />
 
           {groupedTasks.map((group) => {
