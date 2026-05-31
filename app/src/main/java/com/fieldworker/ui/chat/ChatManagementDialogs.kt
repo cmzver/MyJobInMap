@@ -17,18 +17,19 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -51,6 +52,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -714,98 +716,123 @@ private fun MemberManagementRow(
     onTransferOwnership: () -> Unit,
     onRemove: () -> Unit,
 ) {
-    val roleLabel = memberRoleLabel(member.role)
-    val roleColors = when (member.role) {
-        "owner" -> AssistChipDefaults.assistChipColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        )
-        "admin" -> AssistChipDefaults.assistChipColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            labelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        )
-        else -> AssistChipDefaults.assistChipColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    var menuOpen by remember { mutableStateOf(false) }
+    val isSelf = member.userId == currentUserId
+    val canRemove = isSelf || canManageOthers
+    val canToggleRole = canManageOthers && !isSelf && member.role != "owner"
+    val canTransfer = canTransferOwnership && !isSelf && member.role != "owner"
+    val hasActions = canRemove || canToggleRole || canTransfer
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+        ChatAvatar(
+            name = member.fullName.ifBlank { member.username },
+            id = member.userId,
+            type = ConversationType.DIRECT,
+            size = 42,
+        )
+        Column(modifier = Modifier.weight(1f)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                ChatAvatar(
-                    name = member.fullName.ifBlank { member.username },
-                    id = member.userId,
-                    type = ConversationType.DIRECT,
-                    size = 40,
+                Text(
+                    text = member.fullName.ifBlank { member.username },
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
                 )
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text(
-                        text = member.fullName.ifBlank { member.username },
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    Text(
-                        text = "@${member.username}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AssistChip(
-                            onClick = {},
-                            enabled = false,
-                            label = { Text(roleLabel) },
-                            colors = roleColors,
-                        )
-                        if (member.userId == currentUserId) {
-                            AssistChip(
-                                onClick = {},
-                                enabled = false,
-                                label = { Text("Вы") },
-                            )
-                        }
-                    }
+                if (member.role == "owner" || member.role == "admin") {
+                    RolePill(role = member.role)
                 }
             }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (canTransferOwnership && member.userId != currentUserId && member.role != "owner") {
-                    TextButton(onClick = onTransferOwnership, enabled = !isBusy) {
-                        Text("Сделать owner")
-                    }
+            Text(
+                text = if (isSelf) "@${member.username} · вы" else "@${member.username}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
+        if (hasActions) {
+            Box {
+                IconButton(onClick = { menuOpen = true }, enabled = !isBusy) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Действия с участником",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-
-                if (canManageOthers && member.userId != currentUserId && member.role != "owner") {
-                    TextButton(onClick = onToggleRole, enabled = !isBusy) {
-                        Text(if (member.role == "admin") "Сделать участником" else "Сделать admin")
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                ) {
+                    if (canTransfer) {
+                        DropdownMenuItem(
+                            text = { Text("Сделать владельцем") },
+                            onClick = {
+                                menuOpen = false
+                                onTransferOwnership()
+                            },
+                        )
                     }
-                }
-
-                if (member.userId == currentUserId || canManageOthers) {
-                    TextButton(onClick = onRemove, enabled = !isBusy) {
-                        Text(if (member.userId == currentUserId) "Выйти" else "Удалить")
+                    if (canToggleRole) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (member.role == "admin") "Снять администратора" else "Сделать администратором"
+                                )
+                            },
+                            onClick = {
+                                menuOpen = false
+                                onToggleRole()
+                            },
+                        )
+                    }
+                    if (canRemove) {
+                        DropdownMenuItem(
+                            text = { Text(if (isSelf) "Выйти из группы" else "Удалить из группы") },
+                            onClick = {
+                                menuOpen = false
+                                onRemove()
+                            },
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RolePill(role: String) {
+    val isOwner = role == "owner"
+    val background = if (isOwner) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.secondaryContainer
+    }
+    val foreground = if (isOwner) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    }
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(background)
+            .padding(horizontal = 6.dp, vertical = 1.dp),
+    ) {
+        Text(
+            text = if (isOwner) "владелец" else "админ",
+            style = MaterialTheme.typography.labelSmall,
+            color = foreground,
+        )
     }
 }
 
