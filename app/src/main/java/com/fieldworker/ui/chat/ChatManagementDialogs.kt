@@ -373,20 +373,22 @@ fun GroupManagementDialog(
                     fontWeight = FontWeight.SemiBold,
                 )
 
-                conversationDetail.members.forEach { member ->
-                    MemberManagementRow(
-                        member = member,
-                        currentUserId = currentUserId,
-                        canManageOthers = canManageOthers,
-                        canTransferOwnership = canTransferOwnership,
-                        isBusy = isSavingConversation || activeManagementUserId == member.userId,
-                        onToggleRole = {
-                            val nextRole = if (member.role == "admin") "member" else "admin"
-                            pendingRoleChange = PendingRoleChange(member = member, nextRole = nextRole)
-                        },
-                        onTransferOwnership = { pendingOwnershipMember = member },
-                        onRemove = { pendingRemovalMember = member },
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    conversationDetail.members.forEach { member ->
+                        MemberManagementRow(
+                            member = member,
+                            currentUserId = currentUserId,
+                            canManageOthers = canManageOthers,
+                            canTransferOwnership = canTransferOwnership,
+                            isBusy = isSavingConversation || activeManagementUserId == member.userId,
+                            onToggleRole = {
+                                val nextRole = if (member.role == "admin") "member" else "admin"
+                                pendingRoleChange = PendingRoleChange(member = member, nextRole = nextRole)
+                            },
+                            onTransferOwnership = { pendingOwnershipMember = member },
+                            onRemove = { pendingRemovalMember = member },
+                        )
+                    }
                 }
 
                 if (canManageOthers) {
@@ -606,7 +608,7 @@ private fun SelectableUserRow(
                 role = Role.Checkbox,
                 onValueChange = { onClick() },
             )
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -727,7 +729,7 @@ private fun MemberManagementRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
