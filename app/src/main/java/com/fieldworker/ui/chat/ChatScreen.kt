@@ -1228,23 +1228,16 @@ private fun MessageMetaRow(
                     imageVector = Icons.Default.Done,
                     contentDescription = "Отправлено",
                     tint = checkColor,
-                    modifier = Modifier.size(14.dp)
+                    modifier = Modifier.size(12.dp)
                 )
                 if (isRead) {
                     Icon(
                         imageVector = Icons.Default.Done,
                         contentDescription = "Прочитано",
                         tint = checkColor,
-                        modifier = Modifier.size(14.dp).offset(x = (-6).dp)
+                        modifier = Modifier.size(12.dp).offset(x = (-5).dp)
                     )
                 }
-            }
-            if (isRead && recipientCount > 1) {
-                Text(
-                    text = "$readCount",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = checkColor,
-                )
             }
         }
     }
@@ -1681,67 +1674,17 @@ private fun MessageBubble(
                 }
 
                 if (!canInlineMeta) {
-                Spacer(Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.align(Alignment.End),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (message.isEdited) {
-                        Text(
-                            text = "ред.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = bubbleMetaColor,
-                        )
-                    }
-                    Text(
-                        text = message.createdAt.format(timeOnlyFormatter),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = bubbleMetaColor,
+                    Spacer(Modifier.height(4.dp))
+                    MessageMetaRow(
+                        modifier = Modifier.align(Alignment.End),
+                        isOwn = isOwn,
+                        isEdited = message.isEdited,
+                        createdAt = message.createdAt,
+                        bubbleMetaColor = bubbleMetaColor,
+                        readCount = readCount,
+                        recipientCount = recipientCount,
+                        sendStatus = sendStatus,
                     )
-                    if (isOwn) {
-                        if (sendStatus == ChatSendStatus.SENDING) {
-                            Text(
-                                text = "отпр.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = bubbleMetaColor,
-                            )
-                        }
-                        if (sendStatus == ChatSendStatus.FAILED) {
-                            Text(
-                                text = "ошибка",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                        val isRead = readCount > 0
-                        val checkColor = if (isRead) Color(0xFF4A90E2) else bubbleMetaColor
-                        // ✓✓ Telegram-style
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Done,
-                                contentDescription = "Отправлено",
-                                tint = checkColor,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            if (isRead) {
-                                Icon(
-                                    imageVector = Icons.Default.Done,
-                                    contentDescription = "Прочитано",
-                                    tint = checkColor,
-                                    modifier = Modifier.size(14.dp).offset(x = (-6).dp)
-                                )
-                            }
-                        }
-                        if (isRead && recipientCount > 1) {
-                            Text(
-                                text = "$readCount",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = checkColor,
-                            )
-                        }
-                    }
-                }
                 }
                 }
                         }
