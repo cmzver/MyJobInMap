@@ -26,7 +26,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
@@ -50,8 +51,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import com.fieldworker.domain.model.ConversationType
 import com.fieldworker.domain.model.User
@@ -98,6 +101,7 @@ fun NewConversationDialog(
         onDismissRequest = {
             if (!isSubmitting) onDismiss()
         },
+        containerColor = MaterialTheme.colorScheme.surface,
         title = { Text("Новый чат") },
         text = {
             Column(
@@ -121,23 +125,22 @@ fun NewConversationDialog(
                 }
 
                 if (mode == NewConversationMode.GROUP) {
-                    OutlinedTextField(
+                    SoftTextField(
                         value = groupName,
                         onValueChange = { groupName = it },
-                        label = { Text("Название группы") },
-                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = "Название группы",
                         enabled = !isSubmitting,
-                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
 
-                OutlinedTextField(
+                SoftTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    label = { Text("Поиск пользователей") },
-                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = "Поиск",
                     enabled = !isSubmitting,
-                    singleLine = true,
+                    leadingIcon = Icons.Default.Search,
+                    modifier = Modifier.fillMaxWidth(),
                 )
 
                 when {
@@ -285,6 +288,7 @@ fun GroupManagementDialog(
         },
         sheetState = sheetState,
         dragHandle = null,
+        containerColor = MaterialTheme.colorScheme.surface,
         contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {
         Column(
@@ -339,13 +343,12 @@ fun GroupManagementDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        OutlinedTextField(
+                        SoftTextField(
                             value = groupName,
                             onValueChange = { groupName = it },
-                            label = { Text("Название группы") },
-                            modifier = Modifier.weight(1f),
+                            placeholder = "Название группы",
                             enabled = !isSavingConversation,
-                            singleLine = true,
+                            modifier = Modifier.weight(1f),
                         )
                         Button(
                             onClick = { onRenameConversation(groupName.trim()) },
@@ -392,13 +395,13 @@ fun GroupManagementDialog(
                         fontWeight = FontWeight.SemiBold,
                     )
 
-                    OutlinedTextField(
+                    SoftTextField(
                         value = memberSearchQuery,
                         onValueChange = { memberSearchQuery = it },
-                        label = { Text("Поиск по пользователям") },
-                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = "Поиск",
                         enabled = !isSavingConversation,
-                        singleLine = true,
+                        leadingIcon = Icons.Default.Search,
+                        modifier = Modifier.fillMaxWidth(),
                     )
 
                     if (selectedUserIds.isNotEmpty()) {
@@ -658,6 +661,46 @@ private fun SelectionIndicator(selected: Boolean) {
                 ),
         )
     }
+}
+
+@Composable
+private fun SoftTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    leadingIcon: ImageVector? = null,
+) {
+    val fill = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    TextField(
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = {
+            Text(placeholder, style = MaterialTheme.typography.bodyMedium)
+        },
+        leadingIcon = leadingIcon?.let { icon ->
+            {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        singleLine = true,
+        enabled = enabled,
+        shape = RoundedCornerShape(14.dp),
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = fill,
+            unfocusedContainerColor = fill,
+            disabledContainerColor = fill.copy(alpha = 0.3f),
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            disabledIndicatorColor = Color.Transparent,
+        ),
+        modifier = modifier,
+    )
 }
 
 @Composable
