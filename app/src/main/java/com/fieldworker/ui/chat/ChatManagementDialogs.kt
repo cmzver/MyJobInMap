@@ -184,7 +184,7 @@ fun NewConversationDialog(
                             }
                         }
 
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             availableUsers.forEach { user ->
                                 SelectableUserRow(
                                     user = user,
@@ -449,19 +449,21 @@ fun GroupManagementDialog(
                         }
 
                         else -> {
-                            candidateUsers.forEach { user ->
-                                SelectableUserRow(
-                                    user = user,
-                                    selected = selectedUserIds.contains(user.id),
-                                    enabled = !isSavingConversation,
-                                    onClick = {
-                                        selectedUserIds = if (selectedUserIds.contains(user.id)) {
-                                            selectedUserIds - user.id
-                                        } else {
-                                            selectedUserIds + user.id
-                                        }
-                                    },
-                                )
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                candidateUsers.forEach { user ->
+                                    SelectableUserRow(
+                                        user = user,
+                                        selected = selectedUserIds.contains(user.id),
+                                        enabled = !isSavingConversation,
+                                        onClick = {
+                                            selectedUserIds = if (selectedUserIds.contains(user.id)) {
+                                                selectedUserIds - user.id
+                                            } else {
+                                                selectedUserIds + user.id
+                                            }
+                                        },
+                                    )
+                                }
                             }
 
                             Button(
@@ -599,7 +601,7 @@ private fun SelectableUserRow(
                 role = Role.Checkbox,
                 onValueChange = { onClick() },
             )
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -607,7 +609,7 @@ private fun SelectableUserRow(
             name = user.getDisplayName(),
             id = user.id,
             type = ConversationType.DIRECT,
-            size = 44,
+            size = 42,
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
