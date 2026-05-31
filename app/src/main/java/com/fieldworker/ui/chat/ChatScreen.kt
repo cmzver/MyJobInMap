@@ -1520,30 +1520,54 @@ private fun MessageBubble(
                             }
                         ) {
                 if (hasOnlyImageAttachments) {
-                    val headerTitle = if (!isOwn && !groupedWithPrevious) {
-                        message.senderName ?: "Фото"
-                    } else {
-                        "Фото"
-                    }
-                    val headerTitleColor = if (!isOwn && !groupedWithPrevious) senderAccent else bubbleMetaColor
-                    PhotoMessageHeader(
-                        title = headerTitle,
-                        titleColor = headerTitleColor,
-                        isOwn = isOwn,
-                        isEdited = message.isEdited,
-                        createdAt = message.createdAt,
-                        bubbleMetaColor = bubbleMetaColor,
-                        readCount = readCount,
-                        recipientCount = recipientCount,
-                    )
                     message.attachments.forEachIndexed { index, attachment ->
-                        PhotoMessageAttachment(
-                            attachment = attachment,
-                            baseUrl = baseUrl,
-                            authToken = authToken,
-                            hasRoundedBottom = index == message.attachments.lastIndex,
-                            onPreview = { onPreviewAttachment(attachment) },
-                        )
+                        val isLastImage = index == message.attachments.lastIndex
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            PhotoMessageAttachment(
+                                attachment = attachment,
+                                baseUrl = baseUrl,
+                                authToken = authToken,
+                                hasRoundedBottom = isLastImage,
+                                onPreview = { onPreviewAttachment(attachment) },
+                            )
+                            // Имя отправителя — на первом фото (входящие в группе).
+                            if (index == 0 && !isOwn && !groupedWithPrevious) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopStart)
+                                        .padding(8.dp)
+                                        .background(Color(0x73000000), RoundedCornerShape(999.dp))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                                ) {
+                                    Text(
+                                        text = message.senderName ?: "",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                            // Время + галочки — поверх нижнего угла последнего фото.
+                            if (isLastImage) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(8.dp)
+                                        .background(Color(0x8A000000), RoundedCornerShape(999.dp))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                                ) {
+                                    MessageMetaRow(
+                                        isOwn = isOwn,
+                                        isEdited = message.isEdited,
+                                        createdAt = message.createdAt,
+                                        bubbleMetaColor = Color.White,
+                                        readCount = readCount,
+                                        recipientCount = recipientCount,
+                                    )
+                                }
+                            }
+                        }
                     }
                 } else {
                 // Sender name (for group chats, not own messages)
@@ -1833,43 +1857,6 @@ private fun MessageBubble(
 
 
 @Composable
-private fun PhotoMessageHeader(
-    title: String,
-    titleColor: Color,
-    isOwn: Boolean,
-    isEdited: Boolean,
-    createdAt: LocalDateTime,
-    bubbleMetaColor: Color,
-    readCount: Int,
-    recipientCount: Int,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-            color = titleColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        MessageMetaRow(
-            isOwn = isOwn,
-            isEdited = isEdited,
-            createdAt = createdAt,
-            bubbleMetaColor = bubbleMetaColor,
-            readCount = readCount,
-            recipientCount = recipientCount,
-        )
-    }
-}
-
-@Composable
 private fun PhotoMessageAttachment(
     attachment: ChatAttachment,
     baseUrl: String,
@@ -1943,48 +1930,6 @@ private fun AttachmentCard(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color(0x20000000),
-                                Color(0xB0000000),
-                            )
-                        )
-                    )
-            )
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = attachment.fileName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = Color(0x33000000),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x24FFFFFF)),
-                ) {
-                    Text(
-                        text = formatAttachmentSize(attachment.fileSize),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    )
-                }
-            }
         }
         return
     }
