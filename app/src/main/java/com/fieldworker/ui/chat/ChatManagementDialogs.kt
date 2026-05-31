@@ -45,7 +45,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fieldworker.domain.model.ConversationDetail
 import com.fieldworker.domain.model.ConversationMember
+import com.fieldworker.domain.model.ConversationType
 import com.fieldworker.domain.model.User
+import com.fieldworker.ui.chat.components.ChatAvatar
 
 private data class PendingRoleChange(
     val member: ConversationMember,
@@ -587,7 +589,12 @@ private fun SelectableUserRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Checkbox(checked = selected, onCheckedChange = null, enabled = enabled)
+            ChatAvatar(
+                name = user.getDisplayName(),
+                id = user.id,
+                type = ConversationType.DIRECT,
+                size = 40,
+            )
             Column(modifier = Modifier.weight(1f)) {
                 Text(user.getDisplayName(), style = MaterialTheme.typography.bodyMedium)
                 Text(
@@ -596,6 +603,7 @@ private fun SelectableUserRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Checkbox(checked = selected, onCheckedChange = null, enabled = enabled)
         }
     }
 }
@@ -638,30 +646,44 @@ private fun MemberManagementRow(
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = member.fullName.ifBlank { member.username },
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                ChatAvatar(
+                    name = member.fullName.ifBlank { member.username },
+                    id = member.userId,
+                    type = ConversationType.DIRECT,
+                    size = 40,
                 )
-                Text(
-                    text = "@${member.username}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AssistChip(
-                        onClick = {},
-                        enabled = false,
-                        label = { Text(roleLabel) },
-                        colors = roleColors,
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = member.fullName.ifBlank { member.username },
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
                     )
-                    if (member.userId == currentUserId) {
+                    Text(
+                        text = "@${member.username}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         AssistChip(
                             onClick = {},
                             enabled = false,
-                            label = { Text("Вы") },
+                            label = { Text(roleLabel) },
+                            colors = roleColors,
                         )
+                        if (member.userId == currentUserId) {
+                            AssistChip(
+                                onClick = {},
+                                enabled = false,
+                                label = { Text("Вы") },
+                            )
+                        }
                     }
                 }
             }
