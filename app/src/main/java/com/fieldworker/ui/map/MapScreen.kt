@@ -709,6 +709,14 @@ fun TaskStatus.toColor(): Color = when (this) {
     TaskStatus.UNKNOWN -> Color(0xFF8E8E93)
 }
 
+// Маркеры на карте красятся по приоритету (как на портале) — аварии выделяются.
+fun Priority.toColor(): Color = when (this) {
+    Priority.EMERGENCY -> Color(0xFFFF3B30) // Аварийная — красный
+    Priority.URGENT -> Color(0xFFFF9500)    // Срочная — оранжевый
+    Priority.CURRENT -> Color(0xFF0A84FF)   // Текущая — синий
+    Priority.PLANNED -> Color(0xFF34C759)   // Плановая — зелёный
+}
+
 fun TaskStatus.toIcon() = when (this) {
     TaskStatus.NEW -> Icons.Default.Star
     TaskStatus.IN_PROGRESS -> Icons.Default.Refresh
@@ -800,7 +808,7 @@ private fun OsmMapView(
             if (group.isCluster) {
                 val clusterDrawable = getClusterMarkerIcon(
                     context = context,
-                    status = resolveMarkerStatus(group.tasks),
+                    markerColor = group.summary.highestPriority.toColor(),
                     count = group.count
                 ) ?: return@forEach
 
@@ -826,7 +834,7 @@ private fun OsmMapView(
                     title = "[${group.primaryTask.taskNumber}] ${group.primaryTask.title}"
                     snippet = group.address
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    icon = getMarkerIcon(context, resolveMarkerStatus(group.tasks), group.count)
+                    icon = getMarkerIcon(context, group.summary.highestPriority.toColor(), group.count)
 
                     setOnMarkerClickListener { _, _ ->
                         pendingGroupOpenJob?.cancel()
@@ -887,27 +895,27 @@ private fun fitMapToMarkers(mapView: MapView, groups: List<TaskMarkerGroup>) {
 
 private fun getMarkerIcon(
     context: android.content.Context,
-    status: TaskStatus,
+    color: Color,
     count: Int = 1,
 ): Drawable? {
     if (count > 1) {
-        return getClusterMarkerIcon(context, status, count)
+        return getClusterMarkerIcon(context, color, count)
     }
 
     val drawable = ContextCompat.getDrawable(context, R.drawable.ic_marker)?.mutate()
     drawable?.let {
-        DrawableCompat.setTint(it, status.toColor().toArgb())
+        DrawableCompat.setTint(it, color.toArgb())
     }
     return drawable
 }
 
 private fun getClusterMarkerIcon(
     context: android.content.Context,
-    status: TaskStatus,
+    markerColor: Color,
     count: Int,
 ): Drawable? {
     val displayCount = if (count > 99) 99 else count
-    val cacheKey = "${status.name}_$displayCount"
+    val cacheKey = "${markerColor.toArgb()}_$displayCount"
     val cached = clusterBitmapCache.get(cacheKey)
     // Создаём новый BitmapDrawable-обёртку каждый раз: у каждого overlay свои bounds,
     // которые мутируются в ClusterBubbleOverlay.draw(), а Bitmap при этом один.
@@ -921,7 +929,7 @@ private fun getClusterMarkerIcon(
     val centerY = bubbleSize / 2f
     val bubbleRadius = bubbleSize / 2f
     val strokeWidth = max(2, density.roundToInt()).toFloat()
-    val clusterColor = status.toColor().toArgb()
+    val clusterColor = markerColor.toArgb()
 
     val bubblePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = clusterColor
@@ -982,14 +990,6 @@ private class ClusterBubbleOverlay(
             false
         }
     }
-}
-
-private fun resolveMarkerStatus(tasks: List<Task>): TaskStatus = when {
-    tasks.any { it.status == TaskStatus.NEW } -> TaskStatus.NEW
-    tasks.any { it.status == TaskStatus.IN_PROGRESS } -> TaskStatus.IN_PROGRESS
-    tasks.any { it.status == TaskStatus.DONE } -> TaskStatus.DONE
-    tasks.any { it.status == TaskStatus.CANCELLED } -> TaskStatus.CANCELLED
-    else -> TaskStatus.UNKNOWN
 }
 
 private fun getMyLocationIcon(context: android.content.Context): Drawable? {
