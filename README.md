@@ -1,36 +1,22 @@
-# 🚀 FieldWorker - Field Service Management System
+# 🚀 FieldWorker — Field Service Management System
 
-**Android-приложение** для исполнителей + **React веб-портал** для диспетчеров + **FastAPI сервер** (порт 8001).
+[![CI](https://github.com/cmzver/MyJobInMap/actions/workflows/ci.yml/badge.svg)](https://github.com/cmzver/MyJobInMap/actions/workflows/ci.yml)
 
-**Статус:** ✅ PRODUCTION READY | **Версия:** 2.18.0 | **Тесты:** 490+ ✅
+**Android-приложение** для исполнителей + **React веб-портал** для диспетчеров + **FastAPI сервер** (порт 8001) + **Telegram-бот**.
+
+**Статус:** ✅ Production Ready · **Android:** 2.34.3 · **API:** 2.18.0 · **Тесты:** 640+ ✅
 
 ---
 
 ## 🛠 Стек технологий
 
-### **Android (Kotlin)**
-- **Jetpack Compose** + Material 3 — декларативный UI
-- **Hilt** — Dependency Injection
-- **Room** — локальная база (offline-first)
-- **Retrofit 2** — REST API клиент
-- **OSMDroid** — карты OpenStreetMap
-- **Coroutines + StateFlow** — асинхронность
-
-### **Backend (Python)**
-- **FastAPI** — современный REST API фреймворк
-- **SQLAlchemy ORM** — работа с БД
-- **Pydantic** — валидация данных
-- **SQLite** — база данных (PostgreSQL опционально)
-- **JWT** — аутентификация
-- **pytest** — тестирование (490+ тестов)
-
-### **Web Portal (React)**
-- **React 18** + TypeScript 5
-- **Vite 5** — сборка
-- **TailwindCSS 3.4** — стилизация
-- **TanStack Query** — работа с API
-- **Zustand** — state management
-- **React Router 6** — роутинг
+| Слой | Технологии |
+|------|-----------|
+| **Android** (`app/`) | Kotlin · Jetpack Compose · Material 3 · Hilt · Room (offline-first) · Retrofit · OSMDroid · Coroutines/StateFlow · FCM push |
+| **Web Portal** (`portal/`) | React 18 · TypeScript 5 · Vite 5 · TailwindCSS · TanStack Query · Zustand · React Router 6 · Leaflet |
+| **Backend** (`server/`) | FastAPI · SQLAlchemy · Pydantic · Alembic · SQLite (PostgreSQL опц.) · JWT · WebSocket · pytest |
+| **Bot** (`bot/`) | Python · Telegram Bot API |
+| **mobile-next** (`mobile-next/`) | Kotlin Multiplatform · Compose Multiplatform (WIP, следующее поколение мобильного клиента) |
 
 ---
 
@@ -38,34 +24,19 @@
 
 ```
 MyJobInMap/
-├── app/                    # Android приложение (Kotlin)
-│   └── src/main/java/com/fieldworker/
-│       ├── data/           # API, Repository, Room DB
-│       ├── domain/         # UseCase, Models
-│       ├── di/             # Hilt DI
-│       └── ui/             # Compose UI, ViewModels
-│
-├── portal/                 # React веб-портал
-│   └── src/
-│       ├── api/            # Axios client
-│       ├── pages/          # 18 страниц
-│       ├── components/     # UI компоненты
-│       ├── hooks/          # React Query hooks
-│       └── store/          # Zustand stores
-│
-├── server/                 # FastAPI backend
-│   ├── main.py             # Entry point
-│   ├── app/
-│   │   ├── api/            # API роутеры
-│   │   ├── models/         # SQLAlchemy ORM
-│   │   ├── schemas/        # Pydantic валидация
-│   │   └── services/       # Бизнес-логика
-│   ├── backups/            # Резервные копии БД
-│   └── tests/              # pytest тесты
-│
-├── bot/                    # Telegram бот (опционально)
-├── docs/                   # Документация
-└── *.md                    # README, CHANGELOG, etc.
+├── app/            # Android-приложение (Kotlin, Jetpack Compose)
+├── portal/         # React + TypeScript веб-портал
+├── server/         # FastAPI backend (REST + WebSocket)
+│   ├── app/        #   api / models / schemas / services
+│   ├── alembic/    #   миграции БД
+│   └── tests/      #   pytest (640+)
+├── bot/            # Telegram-бот
+├── mobile-next/    # Kotlin Multiplatform клиент (в разработке)
+├── scripts/        # Деплой и вспомогательные скрипты
+├── monitoring/     # Prometheus / Grafana конфиги
+├── docs/           # Документация
+├── .github/        # CI (GitHub Actions)
+└── docker-compose.*.yml, Makefile, Caddyfile
 ```
 
 ---
@@ -77,8 +48,8 @@ MyJobInMap/
 ```bash
 cd server
 pip install -r requirements.txt
-make seed                    # Создать тестовые данные (admin/admin)
-make run-server              # Запуск на http://localhost:8001
+make seed          # тестовые данные (admin/admin)
+make run-server    # http://localhost:8001  (Swagger: /docs)
 ```
 
 ### 2. Web Portal
@@ -86,93 +57,68 @@ make run-server              # Запуск на http://localhost:8001
 ```bash
 cd portal
 npm install
-npm run dev                  # Запуск на http://localhost:5173
+npm run dev        # http://localhost:3000
 ```
 
-Или: откройте http://localhost:8001/portal/ (встроенный)
+Или открыть встроенный портал: http://localhost:8001/portal/
 
 ### 3. Android
 
 ```bash
-# Android Studio: File → Open → MyJobInMap
-# Run на эмуляторе (сервер: 10.0.2.2:8001)
+# Android Studio → Open → MyJobInMap
+# Запуск на эмуляторе (сервер виден как 10.0.2.2:8001)
 ```
 
-### 4. Тесты
+### 4. Тесты и проверки
 
 ```bash
-cd server
-make test                    # Все тесты (490+)
+cd server && make test     # pytest (640+)
+cd portal && npm run build # tsc + vite build
 ```
+
+> CI (GitHub Actions) на каждый push в `main` гоняет: black + isort + pytest (покрытие ≥ 50%) для сервера и tsc + build для портала.
 
 ---
 
-## 📡 API Endpoints
+## 🎯 Возможности
 
-Сервер на **http://localhost:8001** | Документация: **/docs**
+- 📋 **Заявки** — карта с приоритет-маркерами, список, статусы (state machine), фото до/после, комментарии
+- 💬 **Чат** — групповые/личные чаты, реакции, упоминания, фото, **прикрепление заявки карточкой с быстрым переходом к ней** (portal + Android), realtime по WebSocket, push (FCM)
+- 🏢 **Мультитенант** — изоляция данных по организациям, org-admin сценарии
+- 📊 **SLA и аналитика** — метрики, summary-эндпоинты, экспорт CSV
+- 📱 **Offline-first** — Android работает без сети, синхронизация при подключении
+- 🔄 **Обновления Android** — публикация APK из админки, извлечение версии, ручная проверка
+- 🔐 **Безопасность** — JWT, rate limiting (5/60s на login), role-based access
+- 💾 **Бэкапы** — автоматические и ручные резервные копии БД
 
-### Аутентификация
+---
+
+## 📡 Ключевые API-эндпоинты
+
+Сервер: **http://localhost:8001** · документация: **/docs**
+
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
-| POST | `/api/auth/login` | Вход (**rate limit: 5/60s**) |
+| POST | `/api/auth/login` | Вход (rate limit 5/60s) |
 | GET | `/api/auth/me` | Текущий пользователь |
-
-### Заявки
-| Метод | Endpoint | Описание |
-|-------|----------|----------|
-| GET | `/api/tasks` | Список (пагинация: `items`, `total`) |
-| POST | `/api/tasks` | Создать заявку |
-| PATCH | `/api/tasks/{id}/status` | Изменить статус. Для `DONE` и `CANCELLED` комментарий обязателен |
-| DELETE | `/api/tasks/{id}` | Удалить |
-
-### Админ-функции
-| Метод | Endpoint | Описание |
-|-------|----------|----------|
-| GET | `/api/admin/backup/list` | Список бэкапов |
-| POST | `/api/admin/backup/run` | Создать бэкап |
-| POST | `/api/admin/backup/restore/{name}` | Восстановить из бэкапа |
-| GET | `/api/reports` | Аналитика |
-
-### Web UI
-| URL | Описание |
-|-----|----------|
-| `/portal/` | React веб-портал |
-| `/admin/` | Старая Bootstrap админка |
-| `/health` | Статус сервера + версия |
+| GET / POST | `/api/tasks` | Список (пагинация) / создание заявки |
+| PATCH | `/api/tasks/{id}/status` | Смена статуса (для `DONE`/`CANCELLED` нужен комментарий) |
+| GET / POST | `/api/chat/conversations` | Чаты / создание |
+| POST | `/api/chat/conversations/{id}/messages` | Сообщение (в т.ч. `task_id` — прикрепить заявку) |
+| WS | `/ws?token=…` | Realtime-события чата и задач |
+| GET | `/api/sla` | SLA и аналитика |
+| GET/POST | `/api/admin/backup/*` | Бэкапы |
 
 ---
 
-## 🔒 Безопасность
-
-### Rate Limiting
-- **Endpoint:** `/api/auth/login`
-- **Лимит:** 5 попыток / 60 секунд на IP
-- **Ответ:** `429 Too Many Requests`
-
-### Валидация статусов
-```
-NEW → IN_PROGRESS → DONE
-  ↘      ↗
-   CANCELLED
-```
-
-### Комментарий к статусу
-- При переводе заявки в `DONE` или `CANCELLED` API требует непустой `comment`.
-- При переводе в `IN_PROGRESS` комментарий остаётся необязательным.
-
----
-
-## ⚙️ Команды (Makefile)
+## ⚙️ Команды (Makefile, из `server/`)
 
 ```bash
-cd server
-
-make run-server     # Запуск сервера
-make test           # Все тесты
-make seed           # Тестовые данные
-make format         # Black + isort
-make clean          # Очистка кэша
-make help           # Справка
+make run-server   # запуск сервера
+make test         # тесты
+make seed         # тестовые данные
+make format       # black + isort
+make help         # справка
 ```
 
 ---
@@ -181,52 +127,22 @@ make help           # Справка
 
 | Файл | Описание |
 |------|----------|
-| [README.md](README.md) | Вы здесь |
-| [GETTING_STARTED.md](GETTING_STARTED.md) | Быстрый старт (5 мин) |
+| [GETTING_STARTED.md](GETTING_STARTED.md) | Быстрый старт |
 | [CHANGELOG.md](CHANGELOG.md) | История версий |
-| [AGENTS.md](AGENTS.md) | Инструкции для AI |
-| [docs/brain/README.md](docs/brain/README.md) | Obsidian-friendly knowledge vault |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Развёртывание |
+| [docs/HTTPS_SETUP.md](docs/HTTPS_SETUP.md) | SSL-сертификаты |
 | [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) | Push-уведомления |
-| [docs/HTTPS_SETUP.md](docs/HTTPS_SETUP.md) | SSL сертификаты |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Развертывание |
-
----
-
-## 🎯 Основные фичи
-
-### Версия 2.14.2 (Март 2026)
-- ✅ **Организации и multi-tenant** — изоляция данных по организациям и org-admin сценарии
-- ✅ **SLA и аналитика** — расширенные метрики и агрегированные summary endpoints
-- ✅ **Android updates** — публикация APK из админки, извлечение версии из APK и ручная проверка обновлений в приложении
-- ✅ **API Versioning** — `v2` endpoints и envelope-формат ответов
-- ✅ **Статусы заявок** — единая state machine, обязательный комментарий для `DONE` и `CANCELLED`, синхронизация portal/server/workspace/Android
-
-### Ключевые возможности
-- 📱 **Android** — карта заявок, offline-режим, push-уведомления
-- 📱 **Обновления Android** — публикация APK, извлечение версии из APK и ручная проверка обновлений
-- 🖥️ **Портал** — Dashboard, управление заявками, аналитика
-- 🔐 **Безопасность** — JWT, rate limiting, role-based access
-- 📊 **Отчёты** — статистика по периодам, экспорт CSV
-- 💾 **Бэкапы** — автоматические и ручные резервные копии
+| [docs/brain/README.md](docs/brain/README.md) | Knowledge vault (Obsidian) |
 
 ---
 
 ## 🐛 Разработка
 
-### Добавить API endpoint
-1. Создать роутер в `server/app/api/`
-2. Добавить схему в `server/app/schemas/`
-3. Зарегистрировать в `server/app/api/__init__.py`
+**Добавить API-эндпоинт:** роутер в `server/app/api/` → схема в `server/app/schemas/` → регистрация в `server/app/api/__init__.py`
 
-### Добавить страницу портала
-1. Создать в `portal/src/pages/`
-2. Добавить роут в `portal/src/App.tsx`
-3. Добавить в меню `portal/src/config/menuConfig.ts`
+**Добавить страницу портала:** компонент в `portal/src/pages/` → роут в `portal/src/App.tsx` → пункт меню в `portal/src/config/menuConfig.ts`
 
-### Обновить версию
-1. `server/app/config.py` → `API_VERSION`
-2. `app/build.gradle.kts` → `versionCode`, `versionName`
-3. `CHANGELOG.md` → новая запись
+**Обновить версию Android:** `app/build.gradle.kts` → `versionCode` / `versionName`, затем запись в `CHANGELOG.md`
 
 ---
 
@@ -236,6 +152,4 @@ MIT License
 
 ---
 
-**Версия:** 2.18.0  
-**Последнее обновление:** 24 марта 2026  
-**Статус:** ✅ Production Ready
+**Последнее обновление:** 2 июня 2026
