@@ -15,6 +15,7 @@ function createSystemMessage(text: string): MessageResponse {
     text,
     message_type: 'system',
     reply_to: null,
+    attached_task: null,
     attachments: [],
     reactions: [],
     mentions: [],

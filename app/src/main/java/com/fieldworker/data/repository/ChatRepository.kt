@@ -206,8 +206,17 @@ class ChatRepository @Inject constructor(
         text: String?,
         replyToId: Long? = null,
         messageType: String = "text",
+        taskId: Long? = null,
     ): Result<ChatMessage> = apiCall {
-        chatApi.sendMessage(conversationId, MessageCreateDto(text = text, replyToId = replyToId, messageType = messageType))
+        chatApi.sendMessage(
+            conversationId,
+            MessageCreateDto(
+                text = text,
+                replyToId = replyToId,
+                messageType = messageType,
+                taskId = taskId,
+            ),
+        )
     }.map { it.toDomain() }
         .onSuccess { cacheMessage(it) }
 

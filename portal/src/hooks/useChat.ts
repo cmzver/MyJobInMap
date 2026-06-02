@@ -161,15 +161,17 @@ export function useMessages(conversationId: number | null) {
 export function useSendMessage() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ conversationId, text, replyToId, messageType }: {
+    mutationFn: ({ conversationId, text, replyToId, messageType, taskId }: {
       conversationId: number
       text?: string | null
       replyToId?: number
-      messageType?: 'text' | 'image' | 'file' | 'system'
+      messageType?: 'text' | 'image' | 'file' | 'system' | 'task'
+      taskId?: number
     }) => chatApi.sendMessage(conversationId, {
       text,
       reply_to_id: replyToId,
       message_type: messageType,
+      task_id: taskId,
     }),
     onSuccess: (msg) => {
       qc.invalidateQueries({ queryKey: chatKeys.messages(msg.conversation_id) })

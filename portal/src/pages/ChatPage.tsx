@@ -339,10 +339,10 @@ export default function ChatPage() {
     return `${names.slice(0, 2).join(', ')} печатают...`
   }, [typingUsers])
 
-  const handleSend = useCallback((text: string, replyToId?: number) => {
+  const handleSend = useCallback((text: string, replyToId?: number, taskId?: number) => {
     if (!activeConversationId) return
     sendMessage.mutate(
-      { conversationId: activeConversationId, text, replyToId },
+      { conversationId: activeConversationId, text, replyToId, taskId },
       { onError: () => toast.error('Ошибка отправки') },
     )
   }, [activeConversationId, sendMessage])

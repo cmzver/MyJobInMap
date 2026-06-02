@@ -1,7 +1,53 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_resize",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_evaluate",
+      "Bash(npx tsc *)",
+      "Bash(PYTHONIOENCODING=utf-8 python -)",
+      "Bash(git -c core.quotepath=false diff portal/src)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m ' *)",
+      "Bash(python -c \"import json;d=json.load\\(open\\('.claude/settings.local.json'\\)\\);print\\('JSON OK'\\);print\\('Stop hook cmd:',d['hooks']['Stop'][0]['hooks'][0]['command']\\)\")",
+      "Bash(git checkout *)",
+      "Bash(python -m alembic heads)",
+      "Bash(python -m alembic upgrade head)",
+      "Bash(python -m alembic downgrade -1)",
+      "Bash(python -m alembic current)",
+      "Bash(python -m alembic stamp 20260322_0002)",
+      "Bash(python -m pytest tests/test_chat_api.py::TestTaskAttachment -v)",
+      "Bash(python -m pytest tests/test_chat_api.py -q)",
+      "Bash(python -m pytest \"tests/test_chat_api.py::TestConversationManagementWebSocket\" -q)",
+      "Bash(git stash *)",
+      "Bash(python -m pylint --disable=all --enable=E,F app/models/chat.py app/schemas/chat.py app/services/chat_service.py app/api/chat.py app/api/deps.py)",
+      "Bash(echo \"EXIT_TSC=$?\")",
+      "Bash(npx vitest *)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(./gradlew :app:compileDebugKotlin -q)",
+      "Bash(./gradlew :app:compileDebugKotlin)",
+      "PowerShell(& \"c:\\\\Users\\\\VADIM\\\\Documents\\\\MyJobInMap\\\\scripts\\\\local-review.ps1\" 2>&1)",
+      "PowerShell(& \"c:\\\\Users\\\\VADIM\\\\Documents\\\\MyJobInMap\\\\scripts\\\\local-review.ps1\" 2>$null)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -Command \"& 'C:/Users/VADIM/Documents/MyJobInMap/scripts/auto-checks.ps1'\"",
+            "timeout": 180,
+            "statusMessage": "Running auto-checks on changed code..."
+          }
+        ]
+      }
     ]
   }
 }

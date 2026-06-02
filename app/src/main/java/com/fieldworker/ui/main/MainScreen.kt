@@ -11,10 +11,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
@@ -77,6 +80,7 @@ fun MainScreen(
     val currentRoute = navBackStackEntry?.destination?.route
     
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showSendTaskToChat by remember { mutableStateOf(false) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val filteredTasks by viewModel.filteredTasks.collectAsStateWithLifecycle()
     val chatListState by chatViewModel.listState.collectAsStateWithLifecycle()
@@ -519,6 +523,14 @@ fun MainScreen(
                             onOpenAttachment = { chatViewModel.openAttachment(it) },
                             onVisibleMessagesRead = { chatViewModel.markVisibleMessagesAsRead(it) },
                             onUnreadAnchorConsumed = { chatViewModel.consumeUnreadAnchor() },
+                            availableTasks = chatViewModel.availableTasks.collectAsStateWithLifecycle().value,
+                            pendingAttachedTask = chatState.pendingAttachedTask,
+                            onAttachTask = { chatViewModel.attachTask(it) },
+                            onCancelAttachedTask = { chatViewModel.clearAttachedTask() },
+                            onOpenTask = { taskId ->
+                                viewModel.openTaskFromNotification(taskId)
+                                navController.navigate(Screen.ObjectCard.route)
+                            },
                         )
                     } else {
                         ConversationListScreen(
@@ -582,12 +594,52 @@ fun MainScreen(
                         addressDetails = uiState.addressDetails,
                         isLoading = uiState.isLoadingAddress,
                         hasAttemptedLookup = uiState.hasAttemptedAddressLookup,
-                        onBack = { navController.popBackStack() }
+                        onBack = { navController.popBackStack() },
+                        onSendToChat = { showSendTaskToChat = true },
                     )
                 }
             }
             } // Box(weight)
         } // Column
+
+        // Диалог «Отправить заявку в чат» из карточки объекта
+        if (showSendTaskToChat) {
+            val taskToSend = uiState.selectedTask
+            AlertDialog(
+                onDismissRequest = { showSendTaskToChat = false },
+                icon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
+                title = { Text("Отправить заявку в чат") },
+                text = {
+                    if (chatListState.conversations.isEmpty()) {
+                        Text("Нет доступных чатов")
+                    } else {
+                        androidx.compose.foundation.lazy.LazyColumn(
+                            modifier = Modifier.heightIn(max = 360.dp)
+                        ) {
+                            items(chatListState.conversations, key = { it.id }) { conv ->
+                                Text(
+                                    text = conv.displayName ?: conv.name ?: "Чат #${conv.id}",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            taskToSend?.let {
+                                                chatViewModel.sendTaskToConversation(conv.id, it.id)
+                                            }
+                                            showSendTaskToChat = false
+                                        }
+                                        .padding(vertical = 12.dp),
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showSendTaskToChat = false }) { Text("Отмена") }
+                },
+            )
+        }
 
         // Диалог выхода
         if (showLogoutDialog) {

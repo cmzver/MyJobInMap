@@ -84,6 +84,10 @@ import com.fieldworker.domain.model.ConversationMember
 import com.fieldworker.domain.model.ChatMessage
 import com.fieldworker.domain.model.ChatReaction
 import com.fieldworker.domain.model.ConversationType
+import com.fieldworker.domain.model.Priority
+import com.fieldworker.domain.model.Task
+import com.fieldworker.domain.model.TaskReference
+import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.domain.model.User
 import java.util.Locale
 import java.time.LocalDateTime
@@ -154,6 +158,11 @@ fun ChatScreen(
     onOpenAttachment: (ChatAttachment) -> Unit,
     onVisibleMessagesRead: (Long) -> Unit,
     onUnreadAnchorConsumed: () -> Unit,
+    availableTasks: List<Task> = emptyList(),
+    pendingAttachedTask: TaskReference? = null,
+    onAttachTask: (Task) -> Unit = {},
+    onCancelAttachedTask: () -> Unit = {},
+    onOpenTask: (Long) -> Unit = {},
 ) {
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -525,6 +534,10 @@ fun ChatScreen(
                     onCancelAttachment = onCancelAttachment,
                     onTextChanged = onMessageInputChanged,
                     onCancelReply = { onSetReplyTo(null) },
+                    pendingAttachedTask = pendingAttachedTask,
+                    availableTasks = availableTasks,
+                    onAttachTask = onAttachTask,
+                    onCancelAttachedTask = onCancelAttachedTask,
                 )
             },
             floatingActionButton = {
@@ -631,6 +644,7 @@ fun ChatScreen(
                                         authToken = authToken,
                                         onPreviewAttachment = { previewAttachmentId = it.id },
                                         onOpenAttachment = onOpenAttachment,
+                                        onOpenTask = onOpenTask,
                                     )
                                 }
                             }
@@ -1244,6 +1258,191 @@ private fun MessageMetaRow(
 }
 
 // ============================================================================
+// Task picker dialog (выбор заявки для прикрепления)
+// ============================================================================
+
+@Composable
+private fun TaskPickerDialog(
+    tasks: List<Task>,
+    onDismiss: () -> Unit,
+    onSelect: (Task) -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(query, tasks) {
+        val q = query.trim().lowercase()
+        if (q.isBlank()) {
+            tasks.take(50)
+        } else {
+            tasks.filter { task ->
+                task.title.lowercase().contains(q) ||
+                    task.address.lowercase().contains(q) ||
+                    (task.taskNumber.lowercase().contains(q))
+            }.take(50)
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 4.dp,
+            modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Прикрепить заявку",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("Поиск по номеру, заголовку, адресу") },
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+                if (filtered.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "Заявки не найдены",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+                        items(filtered, key = { it.id }) { task ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onSelect(task) }
+                                    .padding(vertical = 10.dp),
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (task.taskNumber.isNotBlank()) {
+                                        Text(
+                                            text = "№${task.taskNumber}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(end = 6.dp),
+                                        )
+                                    }
+                                    Text(
+                                        text = task.title,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                Text(
+                                    text = listOf(
+                                        task.status.displayName,
+                                        task.priority.displayName,
+                                        task.address,
+                                    ).joinToString(" · "),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ============================================================================
+// Task reference card (прикреплённая заявка)
+// ============================================================================
+
+@Composable
+private fun TaskReferenceCard(
+    taskRef: TaskReference,
+    isOwn: Boolean,
+    bubbleTextColor: Color,
+    onClick: () -> Unit,
+) {
+    val accent = if (isOwn) bubbleTextColor.copy(alpha = 0.85f) else MaterialTheme.colorScheme.primary
+    val container = if (isOwn) {
+        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f)
+    } else {
+        MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+    }
+
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = container,
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = accent.copy(alpha = 0.35f),
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (taskRef.accessible) Modifier.clickable(onClick = onClick) else Modifier),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = "📋", modifier = Modifier.padding(end = 8.dp))
+            if (!taskRef.accessible) {
+                Text(
+                    text = "Заявка недоступна",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = bubbleTextColor.copy(alpha = 0.7f),
+                )
+            } else {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        taskRef.taskNumber?.let { num ->
+                            Text(
+                                text = "№$num",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = bubbleTextColor.copy(alpha = 0.7f),
+                                modifier = Modifier.padding(end = 6.dp),
+                            )
+                        }
+                        Text(
+                            text = taskRef.title ?: "Заявка",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = bubbleTextColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                    }
+                    val statusLabel = taskRef.status?.let { TaskStatus.fromString(it).displayName }
+                    val priorityLabel = taskRef.priority?.let { Priority.fromString(it).displayName }
+                    val meta = listOfNotNull(statusLabel, priorityLabel, taskRef.rawAddress)
+                        .joinToString(" · ")
+                    if (meta.isNotBlank()) {
+                        Text(
+                            text = meta,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = bubbleTextColor.copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ============================================================================
 // Message Bubble
 // ============================================================================
 
@@ -1272,6 +1471,7 @@ private fun MessageBubble(
     authToken: String?,
     onPreviewAttachment: (ChatAttachment) -> Unit,
     onOpenAttachment: (ChatAttachment) -> Unit,
+    onOpenTask: (Long) -> Unit = {},
 ) {
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
@@ -1621,6 +1821,17 @@ private fun MessageBubble(
                             }
                         }
                     }
+                }
+
+                // Attached task card
+                message.attachedTask?.let { taskRef ->
+                    TaskReferenceCard(
+                        taskRef = taskRef,
+                        isOwn = isOwn,
+                        bubbleTextColor = bubbleTextColor,
+                        onClick = { onOpenTask(taskRef.id) },
+                    )
+                    if (!message.text.isNullOrBlank()) Spacer(Modifier.height(6.dp))
                 }
 
                 if (!message.text.isNullOrBlank()) {
@@ -2386,8 +2597,24 @@ private fun ChatInputBar(
     onCancelAttachment: () -> Unit = {},
     onTextChanged: (String) -> Unit,
     onCancelReply: () -> Unit,
+    pendingAttachedTask: TaskReference? = null,
+    availableTasks: List<Task> = emptyList(),
+    onAttachTask: (Task) -> Unit = {},
+    onCancelAttachedTask: () -> Unit = {},
 ) {
     var text by remember { mutableStateOf("") }
+    var showTaskPicker by remember { mutableStateOf(false) }
+
+    if (showTaskPicker) {
+        TaskPickerDialog(
+            tasks = availableTasks,
+            onDismiss = { showTaskPicker = false },
+            onSelect = {
+                onAttachTask(it)
+                showTaskPicker = false
+            },
+        )
+    }
     val mentionQuery = remember(text) {
         Regex("""(?:^|\s)@([\p{L}\p{N}_-]*)$""").find(text)?.groupValues?.getOrNull(1).orEmpty()
     }
@@ -2407,8 +2634,8 @@ private fun ChatInputBar(
         }
     }
     val useTelegramLightStyle = MaterialTheme.colorScheme.usesTelegramLightChatStyle()
-    val canSend = remember(text, pendingAttachmentUri) {
-        text.trim().isNotEmpty() || pendingAttachmentUri != null
+    val canSend = remember(text, pendingAttachmentUri, pendingAttachedTask) {
+        text.trim().isNotEmpty() || pendingAttachmentUri != null || pendingAttachedTask != null
     }
     val sendButtonScale by animateFloatAsState(
         targetValue = if (canSend && !isSending) 1f else 0.9f,
@@ -2539,6 +2766,54 @@ private fun ChatInputBar(
                 }
 
             AnimatedVisibility(
+                    visible = pendingAttachedTask != null,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
+                    pendingAttachedTask?.let { task ->
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                            ),
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Text(text = "📋")
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Заявка",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                    Text(
+                                        text = listOfNotNull(
+                                            task.taskNumber?.let { "№$it" },
+                                            task.title,
+                                        ).joinToString(" · "),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                IconButton(onClick = onCancelAttachedTask, modifier = Modifier.size(28.dp)) {
+                                    Icon(Icons.Default.Close, contentDescription = "Убрать заявку", modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+
+            AnimatedVisibility(
                     visible = replyTo != null,
                     enter = fadeIn() + expandVertically(),
                     exit = fadeOut() + shrinkVertically(),
@@ -2618,6 +2893,13 @@ private fun ChatInputBar(
                                 contentDescription = "Вложение",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                        }
+                        IconButton(
+                            onClick = { showTaskPicker = true },
+                            enabled = !isSending,
+                            modifier = Modifier.size(40.dp),
+                        ) {
+                            Text(text = "📋", style = MaterialTheme.typography.titleMedium)
                         }
                         BasicTextField(
                             value = text,

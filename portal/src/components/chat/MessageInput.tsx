@@ -1,7 +1,9 @@
 import { memo, useState, useRef, useEffect, useMemo, type KeyboardEvent } from 'react'
 import { cn } from '@/utils/cn'
-import { Send, X, Paperclip } from 'lucide-react'
+import { Send, X, Paperclip, ClipboardList } from 'lucide-react'
 import type { MessageResponse } from '@/types/chat'
+import type { Task } from '@/types/task'
+import TaskPicker from './TaskPicker'
 
 interface MentionCandidate {
   userId: number
@@ -16,7 +18,7 @@ interface MentionMatch {
 }
 
 interface Props {
-  onSend: (text: string, replyToId?: number) => void
+  onSend: (text: string, replyToId?: number, taskId?: number) => void
   onUpload?: (file: File) => void
   replyTo: MessageResponse | null
   editingMessage: MessageResponse | null
@@ -58,6 +60,8 @@ function MessageInput({
   const [text, setText] = useState('')
   const [caretPosition, setCaretPosition] = useState(0)
   const [activeMentionIndex, setActiveMentionIndex] = useState(0)
+  const [attachedTask, setAttachedTask] = useState<Task | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -117,15 +121,18 @@ function MessageInput({
 
   const handleSubmit = () => {
     const trimmed = text.trim()
-    if (!trimmed) return
 
     if (editingMessage) {
+      if (!trimmed) return
       onSaveEdit(editingMessage.id, trimmed)
       setText('')
       onCancelEdit()
     } else {
-      onSend(trimmed, replyTo?.id)
+      // Можно отправить пустой текст, если прикреплена заявка (карточка-only)
+      if (!trimmed && !attachedTask) return
+      onSend(trimmed, replyTo?.id, attachedTask?.id)
       setText('')
+      setAttachedTask(null)
       onCancelReply()
     }
   }
@@ -197,6 +204,27 @@ function MessageInput({
         </div>
       )}
 
+      {/* Attached task indicator */}
+      {attachedTask && !editingMessage && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-primary-50 dark:bg-primary-900/20 border-b border-primary-100 dark:border-primary-800">
+          <ClipboardList className="h-4 w-4 shrink-0 text-primary-500" />
+          <div className="flex-1 min-w-0">
+            <span className="text-xs font-medium text-primary-500">Заявка</span>
+            <p className="text-xs text-gray-600 dark:text-gray-300 truncate">
+              {attachedTask.task_number ? `№${attachedTask.task_number} · ` : ''}
+              {attachedTask.title}
+            </p>
+          </div>
+          <button
+            onClick={() => setAttachedTask(null)}
+            className="p-1 hover:bg-primary-100 dark:hover:bg-primary-800 rounded"
+            title="Убрать заявку"
+          >
+            <X className="h-4 w-4 text-gray-400" />
+          </button>
+        </div>
+      )}
+
       <div className="flex items-end gap-2 p-3">
         {onUpload && (
           <>
@@ -215,6 +243,16 @@ function MessageInput({
               accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
             />
           </>
+        )}
+
+        {!editingMessage && (
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-500"
+            title="Прикрепить заявку"
+          >
+            <ClipboardList className="h-5 w-5" />
+          </button>
         )}
 
         <div className="relative flex-1">
@@ -268,10 +306,10 @@ function MessageInput({
 
         <button
           onClick={handleSubmit}
-          disabled={disabled || !text.trim()}
+          disabled={disabled || (!text.trim() && !attachedTask)}
           className={cn(
             'p-2.5 rounded-xl transition-colors',
-            text.trim()
+            text.trim() || attachedTask
               ? 'bg-primary-500 text-white hover:bg-primary-600'
               : 'bg-gray-100 dark:bg-gray-700 text-gray-400',
           )}
@@ -279,6 +317,16 @@ function MessageInput({
           <Send className="h-5 w-5" />
         </button>
       </div>
+
+      <TaskPicker
+        isOpen={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={(task) => {
+          setAttachedTask(task)
+          setPickerOpen(false)
+          inputRef.current?.focus()
+        }}
+      />
     </div>
   )
 }

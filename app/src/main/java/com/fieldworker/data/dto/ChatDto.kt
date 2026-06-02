@@ -99,6 +99,7 @@ data class MessageDto(
     @SerializedName("is_edited") val isEdited: Boolean,
     @SerializedName("is_deleted") val isDeleted: Boolean,
     @SerializedName("reply_to") val replyTo: ReplyPreviewDto?,
+    @SerializedName("attached_task") val attachedTask: TaskPreviewDto? = null,
     @SerializedName("attachments") val attachments: List<AttachmentDto>,
     @SerializedName("reactions") val reactions: List<ReactionInfoDto>,
     @SerializedName("mentions") val mentions: List<MentionDto>,
@@ -110,6 +111,16 @@ data class ReplyPreviewDto(
     @SerializedName("id") val id: Long,
     @SerializedName("text") val text: String?,
     @SerializedName("sender_name") val senderName: String?,
+)
+
+data class TaskPreviewDto(
+    @SerializedName("id") val id: Long,
+    @SerializedName("task_number") val taskNumber: String?,
+    @SerializedName("title") val title: String?,
+    @SerializedName("status") val status: String?,
+    @SerializedName("priority") val priority: String?,
+    @SerializedName("raw_address") val rawAddress: String?,
+    @SerializedName("accessible") val accessible: Boolean = true,
 )
 
 data class AttachmentDto(
@@ -143,6 +154,7 @@ data class MessageCreateDto(
     @SerializedName("text") val text: String?,
     @SerializedName("reply_to_id") val replyToId: Long? = null,
     @SerializedName("message_type") val messageType: String = "text",
+    @SerializedName("task_id") val taskId: Long? = null,
 )
 
 data class MessageUpdateDto(

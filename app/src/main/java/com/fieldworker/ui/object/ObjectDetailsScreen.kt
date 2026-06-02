@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
@@ -47,7 +48,8 @@ fun ObjectDetailsScreen(
     addressDetails: AddressDetails?,
     isLoading: Boolean,
     hasAttemptedLookup: Boolean,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onSendToChat: () -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -62,6 +64,16 @@ fun ObjectDetailsScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                    }
+                },
+                actions = {
+                    if (task != null) {
+                        IconButton(onClick = onSendToChat) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Отправить в чат",
+                            )
+                        }
                     }
                 }
             )

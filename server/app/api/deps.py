@@ -25,6 +25,26 @@ def get_task_or_404(task_id: int, db: Session = Depends(get_db)) -> TaskModel:
     return task
 
 
+def assert_task_access(
+    db: Session,
+    user: UserModel,
+    task_id: int,
+    permission: str = "view_tasks",
+    detail: str = "Нет доступа к этой заявке",
+) -> TaskModel:
+    """Проверить доступ пользователя к заявке по id (для task_id из тела запроса,
+    где path-зависимость require_task_access неприменима). Возвращает заявку или 404/403.
+    """
+    task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
+    if not check_permission(db, user, permission):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+    TenantFilter(user).enforce_access(task, detail=detail)
+    enforce_worker_task_access(user, task, detail=detail)
+    return task
+
+
 @dataclass(frozen=True)
 class TaskAccess:
     task: TaskModel

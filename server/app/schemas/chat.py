@@ -104,7 +104,8 @@ class MessageCreate(BaseModel):
 
     text: Optional[str] = Field(None, max_length=5000, description="Текст сообщения")
     reply_to_id: Optional[int] = Field(None, description="ID сообщения для ответа")
-    message_type: str = Field("text", description="Тип: text, image, file, system")
+    message_type: str = Field("text", description="Тип: text, image, file, system, task")
+    task_id: Optional[int] = Field(None, description="ID прикреплённой заявки")
 
 
 class MessageUpdate(BaseModel):
@@ -153,6 +154,18 @@ class ReplyPreview(BaseModel):
     sender_name: str
 
 
+class TaskPreview(BaseModel):
+    """Превью прикреплённой заявки (живой статус подтягивается при сериализации)"""
+
+    id: int
+    task_number: Optional[str] = None
+    title: Optional[str] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    raw_address: Optional[str] = None
+    accessible: bool = True  # False => заявка удалена/недоступна, карточка неактивна
+
+
 class MessageResponse(BaseModel):
     """Полный ответ сообщения"""
 
@@ -166,6 +179,7 @@ class MessageResponse(BaseModel):
     text: Optional[str] = None
     message_type: str = "text"
     reply_to: Optional[ReplyPreview] = None
+    attached_task: Optional[TaskPreview] = None
     attachments: List[AttachmentResponse] = []
     reactions: List[ReactionInfo] = []
     mentions: List[MentionInfo] = []

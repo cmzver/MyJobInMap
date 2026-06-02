@@ -28,6 +28,7 @@ from app.schemas.chat import (ArchiveRequest, ConversationCreate,
                               MessageSearchRequest, MessageUpdate, MuteRequest,
                               OwnershipTransferRequest, ReactionCreate,
                               ReactionInfo, ReadReceiptRequest)
+from app.api.deps import assert_task_access
 from app.services import chat_service, get_current_user_required
 from app.services.tenant_filter import TenantFilter
 from app.services.websocket_manager import (
@@ -397,6 +398,11 @@ async def send_message(
     db: Session = Depends(get_db),
 ):
     """Отправить сообщение."""
+    # Проверка доступа к прикреплённой заявке (task_id приходит в теле, поэтому
+    # path-зависимость require_task_access неприменима — используем assert_task_access).
+    if data.task_id:
+        assert_task_access(db, current_user, data.task_id)
+
     result = chat_service.send_message(
         db,
         conv_id,
@@ -404,23 +410,30 @@ async def send_message(
         text=data.text,
         reply_to_id=data.reply_to_id,
         message_type=data.message_type,
+        task_id=data.task_id,
     )
 
     # WebSocket broadcast
     import asyncio
 
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
+    conv = db.query(ConversationModel).filter(ConversationModel.id == conv_id).first()
 
     # Push notifications
     from app.services import send_push_notification
     notify_user_ids = [uid for uid in member_ids if uid != current_user.id]
     if notify_user_ids:
-        conv = db.query(ConversationModel).filter(ConversationModel.id == conv_id).first()
         title = conv.name if conv and conv.name else (current_user.full_name or "Новое сообщение")
-        
+        if data.task_id:
+            body = "📋 Заявка"
+        elif data.text:
+            body = data.text[:100]
+        else:
+            body = "Вложение"
+
         send_push_notification(
             title=title,
-            body=data.text[:100] if data.text else "Вложение",
+            body=body,
             notification_type="chat_message",
             task_id=conv.task_id if conv else None,
             user_ids=notify_user_ids,
@@ -437,6 +450,12 @@ async def send_message(
                 "sender_id": current_user.id,
                 "sender_name": current_user.full_name or current_user.username,
                 "conversation_name": conv.name if conv and conv.name else None,
+                "message_type": result.message_type,
+                "attached_task": (
+                    result.attached_task.model_dump()
+                    if result.attached_task
+                    else None
+                ),
             },
             sender_id=current_user.id,
         )

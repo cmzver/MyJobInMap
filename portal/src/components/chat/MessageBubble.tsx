@@ -1,12 +1,16 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { cn } from '@/utils/cn'
-import { Reply, Pencil, Trash2, SmilePlus, Check, CheckCheck, Download, FileImage, FileText, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Reply, Pencil, Trash2, SmilePlus, Check, CheckCheck, Download, FileImage, FileText, ChevronLeft, ChevronRight, ClipboardList } from 'lucide-react'
 import { formatDatePretty, formatDateTime } from '@/utils/dateFormat'
 import { getChatSystemEventMeta } from '@/utils/chatSystemEvents'
 import { chatApi } from '@/api/chat'
 import Modal from '@/components/Modal'
 import UserAvatar from '@/components/UserAvatar'
+import StatusBadge from '@/components/StatusBadge'
+import PriorityBadge from '@/components/PriorityBadge'
 import type { AttachmentResponse, MessageResponse } from '@/types/chat'
+import type { TaskStatus, TaskPriority } from '@/types/task'
 
 interface Props {
   message: MessageResponse
@@ -576,6 +580,7 @@ function MessageBubble({
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<number | null>(null)
   const [lightboxAttachmentId, setLightboxAttachmentId] = useState<number | null>(null)
   const isRead = readCount > 0
+  const navigate = useNavigate()
 
   const handleAttachmentOpen = async (attachment: AttachmentResponse) => {
     if (!onDownloadAttachment) return
@@ -684,6 +689,57 @@ function MessageBubble({
           <div className="whitespace-pre-wrap break-words">
             {renderMessageText(message)}
           </div>
+
+          {/* Attached task card */}
+          {message.attached_task && (
+            <button
+              type="button"
+              disabled={!message.attached_task.accessible}
+              onClick={() => navigate(`/tasks/${message.attached_task!.id}`)}
+              className={cn(
+                'mt-1 flex w-full items-start gap-2 rounded-xl border px-3 py-2 text-left transition-colors',
+                isOwn
+                  ? 'border-white/20 bg-white/10 hover:bg-white/20'
+                  : 'border-gray-200 bg-white/80 hover:bg-white dark:border-gray-600 dark:bg-gray-800/80 dark:hover:bg-gray-800',
+                !message.attached_task.accessible && 'cursor-not-allowed opacity-60 hover:bg-transparent',
+              )}
+            >
+              <ClipboardList className={cn('mt-0.5 h-4 w-4 flex-shrink-0', isOwn ? 'text-white/80' : 'text-primary-500')} />
+              <div className="min-w-0 flex-1">
+                {message.attached_task.accessible ? (
+                  <>
+                    <div className="flex items-center gap-1.5">
+                      {message.attached_task.task_number && (
+                        <span className={cn('font-mono text-[11px]', isOwn ? 'text-white/70' : 'text-gray-500')}>
+                          №{message.attached_task.task_number}
+                        </span>
+                      )}
+                      <span className="truncate text-sm font-medium">
+                        {message.attached_task.title}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      {message.attached_task.status && (
+                        <StatusBadge status={message.attached_task.status as TaskStatus} />
+                      )}
+                      {message.attached_task.priority && (
+                        <PriorityBadge priority={message.attached_task.priority as TaskPriority} />
+                      )}
+                    </div>
+                    {message.attached_task.raw_address && (
+                      <div className={cn('mt-0.5 truncate text-[11px]', isOwn ? 'text-white/70' : 'text-gray-500 dark:text-gray-400')}>
+                        {message.attached_task.raw_address}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <span className={cn('text-sm', isOwn ? 'text-white/70' : 'text-gray-500 dark:text-gray-400')}>
+                    Заявка недоступна
+                  </span>
+                )}
+              </div>
+            </button>
+          )}
 
           {/* Attachments */}
           {message.attachments.length > 0 && (

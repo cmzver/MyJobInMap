@@ -37,6 +37,7 @@ class MessageType(str, enum.Enum):
     IMAGE = "image"
     FILE = "file"
     SYSTEM = "system"  # Авто-события (участник добавлен, и т.д.)
+    TASK = "task"  # Прикреплённая заявка (карточка с переходом)
 
 
 class ConversationModel(Base):
@@ -118,6 +119,7 @@ class MessageModel(Base):
     __table_args__ = (
         Index("ix_messages_conv_created", "conversation_id", "created_at"),
         Index("ix_messages_sender", "sender_id"),
+        Index("ix_messages_task", "task_id"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -132,6 +134,9 @@ class MessageModel(Base):
     # Ответ на сообщение
     reply_to_id = Column(Integer, ForeignKey("messages.id"), nullable=True)
 
+    # Прикреплённая заявка (для type=task). Превью собирается живым при сериализации.
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)
+
     is_edited = Column(Boolean, default=False)
     edited_at = Column(DateTime, nullable=True)
     is_deleted = Column(Boolean, default=False)  # Soft delete
@@ -144,6 +149,9 @@ class MessageModel(Base):
     reply_to = relationship(
         "MessageModel", remote_side="MessageModel.id", uselist=False
     )
+    # Одно-направленная ссылка на заявку (уникальную связь чат↔заявка держит
+    # ConversationModel.task_id; здесь связь не уникальна и без back_populates).
+    task = relationship("TaskModel", foreign_keys=[task_id])
     attachments = relationship(
         "MessageAttachmentModel",
         back_populates="message",

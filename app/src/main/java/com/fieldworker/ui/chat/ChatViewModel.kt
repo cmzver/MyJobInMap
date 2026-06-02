@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.ChatRepository
+import com.fieldworker.data.repository.OfflineFirstTasksRepository
 import com.fieldworker.data.repository.UsersRepository
 import com.fieldworker.data.realtime.ChatRealtimeEvent
 import com.fieldworker.data.realtime.ChatRealtimeEventType
@@ -50,6 +51,7 @@ private data class PendingSend(
     val text: String? = null,
     val replyToId: Long? = null,
     val attachmentUri: Uri? = null,
+    val taskId: Long? = null,
 )
 
 data class ChatScreenState(
@@ -70,6 +72,7 @@ data class ChatScreenState(
     val isSavingConversation: Boolean = false,
     val activeManagementUserId: Long? = null,
     val pendingAttachmentUri: Uri? = null,
+    val pendingAttachedTask: TaskReference? = null,
     val error: String? = null,
 )
 
@@ -77,6 +80,7 @@ data class ChatScreenState(
 class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val usersRepository: UsersRepository,
+    private val tasksRepository: OfflineFirstTasksRepository,
     private val preferences: AppPreferences,
 ) : ViewModel() {
 
@@ -102,11 +106,24 @@ class ChatViewModel @Inject constructor(
     private val _attachmentOpenEvents = MutableSharedFlow<AttachmentOpenEvent>(extraBufferCapacity = 4)
     val attachmentOpenEvents: SharedFlow<AttachmentOpenEvent> = _attachmentOpenEvents.asSharedFlow()
 
+    // Список заявок из локального кэша — источник для пикера «прикрепить заявку».
+    private val _availableTasks = MutableStateFlow<List<Task>>(emptyList())
+    val availableTasks = _availableTasks.asStateFlow()
+
     init {
         observeCachedConversations()
+        observeCachedTasks()
         loadConversations()
         chatRepository.connectRealtime()
         observeRealtimeEvents()
+    }
+
+    private fun observeCachedTasks() {
+        viewModelScope.launch {
+            tasksRepository.tasksFlow.collect { tasks ->
+                _availableTasks.value = tasks
+            }
+        }
     }
 
     /**
@@ -336,7 +353,8 @@ class ChatViewModel @Inject constructor(
         val convId = _chatState.value.conversationId ?: return
         val trimmedText = text.trim()
         val pendingUri = _chatState.value.pendingAttachmentUri
-        if (trimmedText.isBlank() && pendingUri == null) return
+        val attachedTask = _chatState.value.pendingAttachedTask
+        if (trimmedText.isBlank() && pendingUri == null && attachedTask == null) return
 
         // Если есть прикреплённое фото — отправляем его с текстом-подписью одним сообщением
         if (pendingUri != null) {
@@ -352,8 +370,8 @@ class ChatViewModel @Inject constructor(
             conversationId = convId,
             senderId = preferences.getUserId(),
             senderName = preferences.getUsername(),
-            text = trimmedText,
-            messageType = MessageType.TEXT,
+            text = trimmedText.takeIf { it.isNotBlank() },
+            messageType = if (attachedTask != null) MessageType.TASK else MessageType.TEXT,
             isEdited = false,
             isDeleted = false,
             replyTo = _chatState.value.replyTo?.let {
@@ -363,6 +381,7 @@ class ChatViewModel @Inject constructor(
                     senderName = it.senderName,
                 )
             },
+            attachedTask = attachedTask,
             attachments = emptyList(),
             reactions = emptyList(),
             createdAt = java.time.LocalDateTime.now(),
@@ -370,8 +389,9 @@ class ChatViewModel @Inject constructor(
         )
         pendingSends[tempId] = PendingSend(
             conversationId = convId,
-            text = trimmedText,
+            text = trimmedText.takeIf { it.isNotBlank() },
             replyToId = replyId,
+            taskId = attachedTask?.id,
         )
         sendTypingStopped()
         _chatState.update { state ->
@@ -381,10 +401,49 @@ class ChatViewModel @Inject constructor(
                 messageSendErrors = state.messageSendErrors - tempId,
                 isSending = true,
                 replyTo = null,
+                pendingAttachedTask = null,
             )
         }
         viewModelScope.launch {
             sendPendingMessage(tempId)
+        }
+    }
+
+    fun attachTask(task: Task) {
+        _chatState.update {
+            it.copy(
+                pendingAttachedTask = TaskReference(
+                    id = task.id,
+                    taskNumber = task.taskNumber,
+                    title = task.title,
+                    status = task.status.name,
+                    priority = task.priority.name,
+                    rawAddress = task.address,
+                    accessible = true,
+                )
+            )
+        }
+    }
+
+    fun clearAttachedTask() {
+        _chatState.update { it.copy(pendingAttachedTask = null) }
+    }
+
+    /** Отправить заявку как карточку в выбранный чат (точка входа «Отправить в чат»). */
+    fun sendTaskToConversation(conversationId: Long, taskId: Long, caption: String? = null) {
+        viewModelScope.launch {
+            chatRepository.sendMessage(
+                conversationId = conversationId,
+                text = caption?.trim()?.takeIf { it.isNotEmpty() },
+                messageType = "task",
+                taskId = taskId,
+            ).fold(
+                onSuccess = {
+                    _notifications.tryEmit("Заявка отправлена в чат")
+                    loadConversations(showLoading = false)
+                },
+                onFailure = { _notifications.tryEmit("Не удалось отправить заявку") },
+            )
         }
     }
 
@@ -418,6 +477,7 @@ class ChatViewModel @Inject constructor(
             isEdited = false,
             isDeleted = false,
             replyTo = replyPreview,
+            attachedTask = null,
             attachments = emptyList(),
             reactions = emptyList(),
             createdAt = java.time.LocalDateTime.now(),
@@ -895,6 +955,8 @@ class ChatViewModel @Inject constructor(
                 conversationId = pending.conversationId,
                 text = pending.text,
                 replyToId = pending.replyToId,
+                messageType = if (pending.taskId != null) "task" else "text",
+                taskId = pending.taskId,
             )
         }
 

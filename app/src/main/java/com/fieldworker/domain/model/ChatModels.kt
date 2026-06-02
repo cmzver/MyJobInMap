@@ -22,7 +22,8 @@ enum class ConversationType(val value: String) {
 enum class MessageType(val value: String) {
     TEXT("text"),
     SYSTEM("system"),
-    ATTACHMENT("attachment");
+    ATTACHMENT("attachment"),
+    TASK("task");
 
     companion object {
         fun fromString(value: String): MessageType =
@@ -90,18 +91,30 @@ data class ChatMessage(
     val isEdited: Boolean,
     val isDeleted: Boolean,
     val replyTo: ReplyPreview?,
+    val attachedTask: TaskReference?,
     val attachments: List<ChatAttachment>,
     val reactions: List<ChatReaction>,
     val createdAt: LocalDateTime,
     val editedAt: LocalDateTime?,
 ) {
     val isSystem: Boolean get() = messageType == MessageType.SYSTEM
+    val isTask: Boolean get() = attachedTask != null
 }
 
 data class ReplyPreview(
     val id: Long,
     val text: String?,
     val senderName: String?,
+)
+
+data class TaskReference(
+    val id: Long,
+    val taskNumber: String?,
+    val title: String?,
+    val status: String?,
+    val priority: String?,
+    val rawAddress: String?,
+    val accessible: Boolean,
 )
 
 data class ChatAttachment(

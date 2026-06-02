@@ -244,27 +244,6 @@ function Invoke-RemoteCommand {
     return $result.Output
 }
 
-function Get-RemoteComposeCommand {
-    $checkCommand = "if docker compose version >/dev/null 2>&1; then echo docker compose; elif command -v docker-compose >/dev/null 2>&1; then echo docker-compose; else exit 1; fi"
-    $result = Invoke-SSH -Command $checkCommand
-
-    if ($result.ExitCode -ne 0) {
-        $outputText = ($result.Output | Out-String).Trim()
-        if ([string]::IsNullOrWhiteSpace($outputText)) {
-            throw "Neither 'docker compose' nor 'docker-compose' is available on remote server"
-        }
-
-        throw "Unable to detect docker compose command on remote server`n$outputText"
-    }
-
-    $composeCommand = ($result.Output | Out-String).Trim()
-    if ([string]::IsNullOrWhiteSpace($composeCommand)) {
-        throw "Remote compose command detection returned empty output"
-    }
-
-    return $composeCommand
-}
-
 function Test-RemoteFileExists {
     param([string]$Path)
 
@@ -273,28 +252,132 @@ function Test-RemoteFileExists {
 }
 
 function Copy-ServiceEnvFiles {
+    # Uploads service env files only when they actually differ from the remote copy
+    # (compared by SHA-256) and returns the list of services whose env changed, so
+    # the restart step can recreate just those containers instead of rebuilding.
     $envFiles = @(
-        @{ Local = (Join-Path $LocalPath "server/.env"); Remote = "$RemotePath/server/.env"; Name = "server/.env" }
-        @{ Local = (Join-Path $LocalPath "bot/.env"); Remote = "$RemotePath/bot/.env"; Name = "bot/.env" }
+        @{ Local = (Join-Path $LocalPath "server/.env"); Remote = "$RemotePath/server/.env"; Name = "server/.env"; Service = "server" }
+        @{ Local = (Join-Path $LocalPath "bot/.env"); Remote = "$RemotePath/bot/.env"; Name = "bot/.env"; Service = "bot" }
     )
+
+    $changedServices = @()
 
     foreach ($envFile in $envFiles) {
         if (-not (Test-Path $envFile.Local)) {
             throw "Local env file not found: $($envFile.Local)"
         }
 
+        $localHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $envFile.Local).Hash.ToLower()
+        $remoteResult = Invoke-SSH -Command "sha256sum '$($envFile.Remote)' 2>/dev/null | cut -d' ' -f1"
+        $remoteHash = ($remoteResult.Output | Out-String).Trim().ToLower()
+
+        if ($localHash -eq $remoteHash) {
+            Write-Log "$($envFile.Name) unchanged, skipping upload" "Info"
+            continue
+        }
+
         Invoke-Checked -Script {
             scp @script:SCPArgs $envFile.Local "$Server`:$($envFile.Remote)"
         } -ErrorMessage "Failed to upload $($envFile.Name)"
+
+        Write-Log "Uploaded $($envFile.Name)" "Info"
+        $changedServices += $envFile.Service
     }
+
+    return $changedServices
+}
+
+function Start-PortalBuildJob {
+    param([string]$ProjectPath)
+
+    # Validate prerequisites in the foreground so a misconfiguration fails fast,
+    # before we background the build and move on to the file sync.
+    if (-not (Test-Path $ProjectPath)) {
+        throw "Portal project path not found: $ProjectPath"
+    }
+    if (-not (Test-Path (Join-Path $ProjectPath "package.json"))) {
+        throw "portal package.json not found: $ProjectPath"
+    }
+    if (-not (Test-CommandAvailable "npm")) {
+        throw "npm command is not available, cannot build portal"
+    }
+
+    Write-Log "Building portal in background (overlapping with file sync)" "Info"
+
+    return Start-Job -ScriptBlock {
+        param($p)
+        Set-Location $p
+        $out = & npm run build 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) {
+            throw "Portal build failed:`n$out"
+        }
+        $out
+    } -ArgumentList $ProjectPath
+}
+
+function Complete-PortalBuildJob {
+    param($Job)
+
+    Write-Log "Waiting for portal build to finish" "Info"
+    try {
+        Receive-Job -Job $Job -Wait -ErrorAction Stop | Out-Null
+    }
+    catch {
+        Remove-Job -Job $Job -Force -ErrorAction SilentlyContinue
+        throw "Portal build failed: $_"
+    }
+    Remove-Job -Job $Job -Force -ErrorAction SilentlyContinue
+    Write-Log "Portal build completed" "Success"
+}
+
+function Format-ComposeCommand {
+    param([string]$ComposeArgs)
+
+    # Build a compose invocation that works whether the server has the v2 plugin
+    # (docker compose) or the legacy v1 binary (docker-compose). Deliberately uses
+    # NO embedded double quotes: a 'DC="docker compose"' style shell variable does
+    # not survive the Windows ssh.exe -> remote bash quoting round-trip (the quotes
+    # get mangled and the variable ends up empty).
+    return "if docker compose version >/dev/null 2>&1; then docker compose $ComposeArgs; else docker-compose $ComposeArgs; fi"
+}
+
+function Wait-ContainerHealthy {
+    param(
+        [string]$Container,
+        [int]$TimeoutSeconds = 120
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $inspect = "docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' $Container 2>/dev/null"
+
+    while ((Get-Date) -lt $deadline) {
+        $result = Invoke-SSH -Command $inspect
+        $status = ($result.Output | Out-String).Trim()
+
+        switch ($status) {
+            "healthy"   { return $true }
+            "unhealthy" { return $false }
+            "none"      { return $true }  # container has no healthcheck - nothing to gate on
+        }
+
+        Start-Sleep -Seconds 3
+    }
+
+    return $false
 }
 
 function Sync-WithRsync {
     param([string[]]$ExcludeArgs)
 
-    Invoke-Checked -Script {
-        rsync -avz --delete @ExcludeArgs -e $script:RsyncShellCommand "$LocalPath/" "$Server`:$RemotePath/"
-    } -ErrorMessage "rsync failed"
+    # --out-format='%n' makes rsync print one changed path per line (repo-relative,
+    # e.g. server/main.py) so the caller can decide whether a Docker image rebuild
+    # is actually required. Directory-only entries (trailing /) are filtered out.
+    $output = rsync -az --delete --out-format='%n' @ExcludeArgs -e $script:RsyncShellCommand "$LocalPath/" "$Server`:$RemotePath/"
+    if ($LASTEXITCODE -ne 0) {
+        throw "rsync failed"
+    }
+
+    return @($output | Where-Object { $_ -and ($_ -notmatch '/$') })
 }
 
 function Sync-WithArchive {
@@ -413,6 +496,10 @@ if (-not $SkipSync -or -not $SkipPortalSync) {
 
 $deployStart = Get-Date
 
+$script:ChangedFiles = @()
+$script:ChangedEnvServices = @()
+$portalBuildJob = $null
+
 try {
     Write-Log "Connecting to $Server" "Info"
     $connection = Invoke-SSH -Command "echo connected" -AllowFallback
@@ -442,14 +529,26 @@ try {
         }
     }
 
+    $buildPortalInline = $false
+
     if (-not $SkipPortalSync -and -not $SkipPortalBuild) {
         if ($DryRun) {
             Write-Log "Skipping automatic portal build in dry run" "Warning"
+        } elseif (-not $SkipSync) {
+            # Overlap the portal build with the server file sync that runs below.
+            # Safe because portal/dist is excluded from the main sync (it is
+            # delivered separately by the portal sync step).
+            $portalBuildJob = Start-PortalBuildJob -ProjectPath $script:PortalProjectPath
         } else {
-            Invoke-PortalBuild -ProjectPath $script:PortalProjectPath
+            # No server file sync to overlap with - just build inline.
+            $buildPortalInline = $true
         }
     } elseif ($SkipPortalBuild) {
         Write-Log "Skipping automatic portal build" "Warning"
+    }
+
+    if ($buildPortalInline) {
+        Invoke-PortalBuild -ProjectPath $script:PortalProjectPath
     }
 
     if (-not $SkipSync) {
@@ -478,6 +577,7 @@ try {
             "app/src"
             "portal/src"
             "portal/screenshots"
+            "portal/dist"
         )
 
         $rsyncExcludeArgs = foreach ($pattern in $excludePatterns) {
@@ -493,15 +593,21 @@ try {
             Write-Log "Syncing files via $syncMode" "Info"
 
             if ($syncMode -eq "rsync") {
-                Sync-WithRsync -ExcludeArgs $rsyncExcludeArgs
+                $script:ChangedFiles = @(Sync-WithRsync -ExcludeArgs $rsyncExcludeArgs)
+                Write-Log "Files synchronized ($($script:ChangedFiles.Count) item(s) updated)" "Success"
             } else {
                 Sync-WithArchive -ExcludePatterns $excludePatterns
+                Write-Log "Files synchronized" "Success"
             }
-
-            Write-Log "Files synchronized" "Success"
         }
     } else {
         Write-Log "Skipping file sync" "Warning"
+    }
+
+    # The background portal build must finish before we read portal/dist below.
+    if ($portalBuildJob) {
+        Complete-PortalBuildJob -Job $portalBuildJob
+        $portalBuildJob = $null
     }
 
     if (-not $SkipPortalSync) {
@@ -509,15 +615,21 @@ try {
             throw "Portal build path not found: $PortalLocalPath. Build portal first (cd portal; npm run build) or use -SkipPortalSync."
         }
 
-        if ($DryRun) {
-            Write-Log "Portal sync step: $syncMode" "Info"
-        } else {
-            Write-Log "Syncing portal files to $PortalRemotePath" "Info"
+        # dist goes to two places: the standalone web root and the path the api
+        # container bind-mounts (./portal/dist in docker-compose.yml).
+        $portalDestinations = @($PortalRemotePath, "$RemotePath/portal/dist")
 
-            if ($syncMode -eq "rsync") {
-                Sync-PortalWithRsync -SourcePath $PortalLocalPath -DestinationPath $PortalRemotePath
-            } else {
-                Sync-PortalWithArchive -SourcePath $PortalLocalPath -DestinationPath $PortalRemotePath
+        if ($DryRun) {
+            Write-Log "Portal sync step: $syncMode -> $($portalDestinations -join ', ')" "Info"
+        } else {
+            foreach ($portalDest in $portalDestinations) {
+                Write-Log "Syncing portal files to $portalDest" "Info"
+
+                if ($syncMode -eq "rsync") {
+                    Sync-PortalWithRsync -SourcePath $PortalLocalPath -DestinationPath $portalDest
+                } else {
+                    Sync-PortalWithArchive -SourcePath $PortalLocalPath -DestinationPath $portalDest
+                }
             }
 
             Write-Log "Portal files synchronized" "Success"
@@ -527,8 +639,8 @@ try {
     }
 
     if ($IncludeServiceEnvFiles -and -not $DryRun) {
-        Write-Log "Uploading service env files" "Info"
-        Copy-ServiceEnvFiles
+        Write-Log "Checking service env files" "Info"
+        $script:ChangedEnvServices = @(Copy-ServiceEnvFiles)
     } elseif ($IncludeServiceEnvFiles) {
         Write-Log "Skipping service env upload in dry run" "Warning"
     }
@@ -550,23 +662,76 @@ try {
             throw "Missing remote env files: $($missingRemoteFiles -join ', '). Use -IncludeServiceEnvFiles or create them manually on the server."
         }
 
-        $remoteComposeCommand = Get-RemoteComposeCommand
-        $downCommand = "cd $RemotePath && $remoteComposeCommand down"
-        $cleanupCommand = "docker rm -f fieldworker-api fieldworker-telegram 2>/dev/null || true"
-        $composeCommand = "cd $RemotePath && $remoteComposeCommand up -d --build"
-        $statusCommand = "cd $RemotePath && $remoteComposeCommand ps"
+        # Decide whether a Docker image rebuild is actually needed. The api service
+        # bind-mounts ./server into the container (docker-compose.yml), so plain
+        # Python code changes are picked up by recreating the container from the
+        # existing image - no rebuild. A rebuild is only required when the image
+        # contents change: server/requirements.txt, server/Dockerfile, or any bot/
+        # file (the bot bakes its code into the image and has no bind mount).
+        $rebuildRequired = $false
+        $apiCodeChanged = $false
 
-        Write-Log "Stopping existing containers" "Info"
-        Invoke-RemoteCommand $downCommand | Out-Null
+        if ($SkipSync -or $syncMode -ne "rsync") {
+            # No reliable list of changed files - rebuild to stay safe.
+            $rebuildRequired = $true
+        } else {
+            foreach ($changed in $script:ChangedFiles) {
+                if ($changed -match '^server/requirements\.txt$' -or
+                    $changed -match '^server/Dockerfile$' -or
+                    $changed -match '^bot/') {
+                    $rebuildRequired = $true
+                } elseif ($changed -match '^server/') {
+                    $apiCodeChanged = $true
+                }
+            }
+        }
 
-        Write-Log "Cleaning stale named containers" "Info"
-        Invoke-RemoteCommand $cleanupCommand | Out-Null
+        $serverEnvChanged = $script:ChangedEnvServices -contains "server"
+        $botEnvChanged = $script:ChangedEnvServices -contains "bot"
 
-        Write-Log "Updating containers" "Info"
-        Invoke-RemoteCommand $composeCommand | Out-Null
+        # NOTE: no --remove-orphans here. Only docker-compose.yml (api, telegram-bot)
+        # is loaded, but other services in this project (notably fieldworker-caddy,
+        # defined in docker-compose.caddy.yml) run from separate compose files. With
+        # --remove-orphans they would be treated as orphans and destroyed.
+        if ($rebuildRequired) {
+            # Build new images while the old containers keep running, then recreate
+            # only what changed.
+            Write-Log "Rebuilding and recreating containers" "Info"
+            Invoke-RemoteCommand "cd $RemotePath && $(Format-ComposeCommand 'up -d --build')" | Out-Null
+        } else {
+            # Fast path - no image rebuild. First ensure everything is up (this also
+            # builds any missing image, e.g. on a first deploy), then force-recreate
+            # only the services whose bind-mounted code or env file changed.
+            $recreateApi = $apiCodeChanged -or $serverEnvChanged
+            $recreateBot = $botEnvChanged
+
+            $fastCommand = "cd $RemotePath && $(Format-ComposeCommand 'up -d')"
+            if ($recreateApi) {
+                $fastCommand += " && $(Format-ComposeCommand 'up -d --force-recreate --no-build api')"
+            }
+            if ($recreateBot) {
+                $fastCommand += " && $(Format-ComposeCommand 'up -d --force-recreate --no-build telegram-bot')"
+            }
+
+            if ($recreateApi -or $recreateBot) {
+                Write-Log "Recreating changed services without rebuild" "Info"
+            } else {
+                Write-Log "No image rebuild needed; ensuring containers are up" "Info"
+            }
+            Invoke-RemoteCommand $fastCommand | Out-Null
+        }
+
+        # Gate the deploy on the API healthcheck so a broken start fails loudly
+        # instead of reporting a green 'ps' over a dead container.
+        Write-Log "Waiting for API healthcheck" "Info"
+        if (Wait-ContainerHealthy -Container "fieldworker-api" -TimeoutSeconds 120) {
+            Write-Log "API is healthy" "Success"
+        } else {
+            throw "API did not become healthy within 120s. Check logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose logs --tail=100 api'"
+        }
 
         Write-Log "Container status" "Info"
-        Invoke-RemoteCommand $statusCommand
+        Invoke-RemoteCommand "cd $RemotePath && $(Format-ComposeCommand 'ps')"
     } elseif ($DryRun) {
         Write-Log "Skipping container update in dry run" "Warning"
     } else {
@@ -580,5 +745,9 @@ try {
     Write-Log "View logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose logs -f'" "Info"
 }
 finally {
+    if ($portalBuildJob) {
+        Stop-Job -Job $portalBuildJob -ErrorAction SilentlyContinue
+        Remove-Job -Job $portalBuildJob -Force -ErrorAction SilentlyContinue
+    }
     Close-SSHTransport
 }

@@ -1,5 +1,5 @@
 export type ConversationType = 'direct' | 'group' | 'task' | 'org_general'
-export type MessageType = 'text' | 'image' | 'file' | 'system'
+export type MessageType = 'text' | 'image' | 'file' | 'system' | 'task'
 export type ConversationMemberRole = 'owner' | 'admin' | 'member'
 
 export interface MemberInfo {
@@ -80,6 +80,16 @@ export interface ReplyPreview {
   sender_name: string
 }
 
+export interface TaskPreview {
+  id: number
+  task_number: string | null
+  title: string | null
+  status: string | null
+  priority: string | null
+  raw_address: string | null
+  accessible: boolean
+}
+
 export interface MessageResponse {
   id: number
   conversation_id: number
@@ -88,6 +98,7 @@ export interface MessageResponse {
   text: string | null
   message_type: MessageType
   reply_to: ReplyPreview | null
+  attached_task: TaskPreview | null
   attachments: AttachmentResponse[]
   reactions: ReactionInfo[]
   mentions: MentionInfo[]
@@ -114,4 +125,5 @@ export interface MessageCreate {
   text?: string | null
   reply_to_id?: number
   message_type?: MessageType
+  task_id?: number
 }

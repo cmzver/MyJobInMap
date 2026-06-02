@@ -1130,3 +1130,130 @@ class TestMentions:
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["mentions"]) == 0
+
+
+# ============================================================================
+# Messages: ATTACHED TASK (прикреплённая заявка)
+# ============================================================================
+
+
+class TestTaskAttachment:
+    def _create_direct(self, client, headers, other_user):
+        resp = client.post(
+            "/api/chat/conversations",
+            json={"type": "direct", "member_user_ids": [other_user.id]},
+            headers=headers,
+        )
+        return resp.json()["id"]
+
+    def test_attach_task_sets_type_and_live_preview(
+        self, client, auth_headers, second_user, sample_task
+    ):
+        """Сообщение с task_id → message_type=task и живое превью заявки."""
+        conv_id = self._create_direct(client, auth_headers, second_user)
+
+        resp = client.post(
+            f"/api/chat/conversations/{conv_id}/messages",
+            json={"task_id": sample_task.id},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["message_type"] == "task"
+        assert data["attached_task"] is not None
+        preview = data["attached_task"]
+        assert preview["id"] == sample_task.id
+        assert preview["title"] == sample_task.title
+        assert preview["status"] == sample_task.status
+        assert preview["accessible"] is True
+
+    def test_attach_task_without_text_allowed(
+        self, client, auth_headers, second_user, sample_task
+    ):
+        """Заявку можно прикрепить без текста (карточка-only)."""
+        conv_id = self._create_direct(client, auth_headers, second_user)
+        resp = client.post(
+            f"/api/chat/conversations/{conv_id}/messages",
+            json={"task_id": sample_task.id, "text": None},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+
+    def test_attach_task_with_caption(
+        self, client, auth_headers, second_user, sample_task
+    ):
+        """Подпись рядом с карточкой сохраняется."""
+        conv_id = self._create_direct(client, auth_headers, second_user)
+        resp = client.post(
+            f"/api/chat/conversations/{conv_id}/messages",
+            json={"task_id": sample_task.id, "text": "Посмотри"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["text"] == "Посмотри"
+        assert data["attached_task"]["id"] == sample_task.id
+
+    def test_attach_nonexistent_task_404(
+        self, client, auth_headers, second_user
+    ):
+        """Несуществующая заявка → 404, сообщение не создаётся."""
+        conv_id = self._create_direct(client, auth_headers, second_user)
+        resp = client.post(
+            f"/api/chat/conversations/{conv_id}/messages",
+            json={"task_id": 999999},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 404
+
+    def test_attach_task_forbidden_for_worker(
+        self, client, second_auth_headers, second_user, admin_user, sample_task
+    ):
+        """Воркер не может прикрепить чужую (не назначенную ему) заявку → 403."""
+        # second_user (worker) создаёт чат с админом
+        conv_id = self._create_direct(client, second_auth_headers, admin_user)
+        resp = client.post(
+            f"/api/chat/conversations/{conv_id}/messages",
+            json={"task_id": sample_task.id},
+            headers=second_auth_headers,
+        )
+        assert resp.status_code in (403, 404)
+
+    def test_deleted_task_preview_inaccessible(
+        self, client, auth_headers, second_user, sample_task, db_session
+    ):
+        """Если заявку удалить после отправки — превью становится accessible=false."""
+        conv_id = self._create_direct(client, auth_headers, second_user)
+        client.post(
+            f"/api/chat/conversations/{conv_id}/messages",
+            json={"task_id": sample_task.id},
+            headers=auth_headers,
+        )
+        # Удаляем заявку
+        from app.models.task import TaskModel
+
+        db_session.query(TaskModel).filter(TaskModel.id == sample_task.id).delete()
+        db_session.commit()
+
+        resp = client.get(
+            f"/api/chat/conversations/{conv_id}/messages", headers=auth_headers
+        )
+        assert resp.status_code == 200
+        msg = resp.json()["items"][0]
+        assert msg["attached_task"] is not None
+        assert msg["attached_task"]["accessible"] is False
+
+    def test_conversation_snippet_for_task(
+        self, client, auth_headers, second_user, sample_task
+    ):
+        """Сниппет последнего сообщения для заявки = '📋 Заявка...'."""
+        conv_id = self._create_direct(client, auth_headers, second_user)
+        client.post(
+            f"/api/chat/conversations/{conv_id}/messages",
+            json={"task_id": sample_task.id},
+            headers=auth_headers,
+        )
+        resp = client.get("/api/chat/conversations", headers=auth_headers)
+        assert resp.status_code == 200
+        conv = next(c for c in resp.json() if c["id"] == conv_id)
+        assert conv["last_message"]["text"].startswith("📋 Заявка")

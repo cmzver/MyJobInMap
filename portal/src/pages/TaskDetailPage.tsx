@@ -28,6 +28,7 @@ import { useMarkTaskNotificationsRead, useUnreadTaskNotifications } from '@/hook
 import { usePhotos, useUploadPhoto, useDeletePhoto } from '@/hooks/usePhotos'
 import { photosApi } from '@/api/photos'
 import { usePermissions } from '@/hooks/usePermissions'
+import SendTaskToChatModal from '@/components/chat/SendTaskToChatModal'
 import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/Button'
 import Spinner from '@/components/Spinner'
@@ -98,6 +99,7 @@ export default function TaskDetailPage() {
 
   const [comment, setComment] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showSendToChat, setShowSendToChat] = useState(false)
   const [pendingStatus, setPendingStatus] = useState<TaskStatus | null>(null)
   const [statusComment, setStatusComment] = useState('')
   const [statusCommentError, setStatusCommentError] = useState('')
@@ -397,6 +399,10 @@ export default function TaskDetailPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowSendToChat(true)}>
+                <Send className="h-4 w-4 mr-2" />
+                В чат
+              </Button>
               {canEdit && (
                 <Button variant="outline" size="sm" onClick={() => navigate(`/tasks/${taskId}/edit`)}>
                   <Edit className="h-4 w-4 mr-2" />
@@ -857,6 +863,13 @@ export default function TaskDetailPage() {
           </div>
         </div>
       </Modal>
+
+      <SendTaskToChatModal
+        isOpen={showSendToChat}
+        onClose={() => setShowSendToChat(false)}
+        taskId={task.id}
+        taskTitle={task.title}
+      />
 
       {/* Delete confirmation modal */}
       {showDeleteConfirm && (

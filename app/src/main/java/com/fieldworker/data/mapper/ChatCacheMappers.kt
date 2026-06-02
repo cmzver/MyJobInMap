@@ -10,6 +10,7 @@ import com.fieldworker.domain.model.ConversationType
 import com.fieldworker.domain.model.LastMessagePreview
 import com.fieldworker.domain.model.MessageType
 import com.fieldworker.domain.model.ReplyPreview
+import com.fieldworker.domain.model.TaskReference
 import com.fieldworker.domain.model.parseDateTime
 import com.fieldworker.domain.model.parseDateTimeNonNull
 import com.google.gson.Gson
@@ -85,6 +86,7 @@ fun ChatMessage.toEntity(): MessageEntity = MessageEntity(
     replyToId = replyTo?.id,
     replyToText = replyTo?.text,
     replyToSenderName = replyTo?.senderName,
+    attachedTaskJson = attachedTask?.let { gson.toJson(it) },
     attachmentsJson = gson.toJson(attachments),
     reactionsJson = gson.toJson(reactions),
     createdAt = createdAt.toIso(),
@@ -102,6 +104,9 @@ fun MessageEntity.toDomain(): ChatMessage = ChatMessage(
     isDeleted = isDeleted,
     replyTo = replyToId?.let {
         ReplyPreview(id = it, text = replyToText, senderName = replyToSenderName)
+    },
+    attachedTask = attachedTaskJson?.let {
+        runCatching { gson.fromJson(it, TaskReference::class.java) }.getOrNull()
     },
     attachments = runCatching {
         gson.fromJson<List<ChatAttachment>>(attachmentsJson, attachmentsListType) ?: emptyList()

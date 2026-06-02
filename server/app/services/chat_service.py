@@ -18,10 +18,12 @@ from app.models.chat import (ConversationMemberModel, ConversationMemberRole,
                              ConversationModel, ConversationType,
                              MessageAttachmentModel, MessageMentionModel,
                              MessageModel, MessageReactionModel, MessageType)
+from app.models.task import TaskModel
 from app.schemas.chat import (AttachmentResponse, ConversationDetailResponse,
                               ConversationListItem, LastMessagePreview,
                               MemberInfo, MentionInfo, MessageListResponse,
-                              MessageResponse, ReactionInfo, ReplyPreview)
+                              MessageResponse, ReactionInfo, ReplyPreview,
+                              TaskPreview)
 from app.utils import build_user_avatar_url
 
 logger = logging.getLogger(__name__)
@@ -229,6 +231,17 @@ def get_user_conversations(
             text_preview = last_msg.text
             if text_preview and len(text_preview) > 100:
                 text_preview = text_preview[:100] + "…"
+            # Заявка без подписи → понятный сниппет в списке чатов / теле пуша
+            if not text_preview and last_msg.message_type == MessageType.TASK.value:
+                task_num = None
+                if last_msg.task_id:
+                    t = (
+                        db.query(TaskModel.task_number)
+                        .filter(TaskModel.id == last_msg.task_id)
+                        .first()
+                    )
+                    task_num = t[0] if t else None
+                text_preview = f"📋 Заявка №{task_num}" if task_num else "📋 Заявка"
             last_message_preview = LastMessagePreview(
                 id=last_msg.id,
                 text=text_preview if not last_msg.is_deleted else None,
@@ -651,9 +664,14 @@ def send_message(
     text: Optional[str] = None,
     reply_to_id: Optional[int] = None,
     message_type: str = MessageType.TEXT.value,
+    task_id: Optional[int] = None,
 ) -> MessageResponse:
     """Отправить сообщение в чат."""
     _ensure_membership(db, conv_id, sender_id)
+
+    # Прикреплённая заявка превращает сообщение в карточку-заявку
+    if task_id:
+        message_type = MessageType.TASK.value
 
     if not text and message_type == MessageType.TEXT.value:
         raise HTTPException(400, "Текст сообщения обязателен")
@@ -676,6 +694,7 @@ def send_message(
         text=text,
         message_type=message_type,
         reply_to_id=reply_to_id,
+        task_id=task_id,
     )
     db.add(msg)
     db.flush()
@@ -1115,6 +1134,24 @@ def _build_message_response(db: Session, msg: MessageModel) -> MessageResponse:
     # Reactions
     reactions = _get_reactions(db, msg.id) if not msg.is_deleted else []
 
+    # Attached task (живое превью — статус подтягивается из заявки на момент чтения)
+    attached_task = None
+    if msg.task_id and not msg.is_deleted:
+        task = db.query(TaskModel).filter(TaskModel.id == msg.task_id).first()
+        if task:
+            attached_task = TaskPreview(
+                id=task.id,
+                task_number=task.task_number,
+                title=task.title,
+                status=task.status,
+                priority=task.priority,
+                raw_address=task.raw_address,
+                accessible=True,
+            )
+        else:
+            # Заявка удалена — карточка отображается неактивной
+            attached_task = TaskPreview(id=msg.task_id, accessible=False)
+
     # Mentions
     mentions = []
     if not msg.is_deleted:
@@ -1146,6 +1183,7 @@ def _build_message_response(db: Session, msg: MessageModel) -> MessageResponse:
         text=msg.text if not msg.is_deleted else None,
         message_type=msg.message_type,
         reply_to=reply_preview,
+        attached_task=attached_task,
         attachments=attachments,
         reactions=reactions,
         mentions=mentions,

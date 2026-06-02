@@ -34,6 +34,7 @@ data class MessageEntity(
     @ColumnInfo(name = "reply_to_id") val replyToId: Long?,
     @ColumnInfo(name = "reply_to_text") val replyToText: String?,
     @ColumnInfo(name = "reply_to_sender_name") val replyToSenderName: String?,
+    @ColumnInfo(name = "attached_task_json") val attachedTaskJson: String? = null,
     @ColumnInfo(name = "attachments_json") val attachmentsJson: String,
     @ColumnInfo(name = "reactions_json") val reactionsJson: String,
     @ColumnInfo(name = "created_at") val createdAt: String,

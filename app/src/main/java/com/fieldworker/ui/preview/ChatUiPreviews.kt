@@ -169,6 +169,7 @@ private object ChatPreviewData {
             isEdited = false,
             isDeleted = false,
             replyTo = null,
+            attachedTask = null,
             attachments = listOf(
                 ChatAttachment(
                     id = 9001,
@@ -199,6 +200,7 @@ private object ChatPreviewData {
                 text = "Скинул свежие фото по прорыву.",
                 senderName = colleague.getDisplayName(),
             ),
+            attachedTask = null,
             attachments = emptyList(),
             reactions = listOf(
                 ChatReaction("✅", 1, listOf(me.id)),
@@ -217,6 +219,7 @@ private object ChatPreviewData {
             isEdited = false,
             isDeleted = false,
             replyTo = null,
+            attachedTask = null,
             attachments = emptyList(),
             reactions = emptyList(),
             createdAt = now.minusMinutes(2),

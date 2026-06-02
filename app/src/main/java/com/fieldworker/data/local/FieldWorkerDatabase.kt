@@ -27,7 +27,7 @@ import com.fieldworker.data.local.entity.TaskEntity
         ConversationEntity::class,
         MessageEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class FieldWorkerDatabase : RoomDatabase() {

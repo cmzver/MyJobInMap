@@ -69,6 +69,7 @@ fun MessageDto.toDomain(): ChatMessage = ChatMessage(
     isEdited = isEdited,
     isDeleted = isDeleted,
     replyTo = replyTo?.toDomain(),
+    attachedTask = attachedTask?.toDomain(),
     attachments = attachments.map { it.toDomain() },
     reactions = reactions.map { it.toDomain() },
     createdAt = parseDateTimeNonNull(createdAt),
@@ -79,6 +80,16 @@ fun ReplyPreviewDto.toDomain(): ReplyPreview = ReplyPreview(
     id = id,
     text = text,
     senderName = senderName,
+)
+
+fun TaskPreviewDto.toDomain(): TaskReference = TaskReference(
+    id = id,
+    taskNumber = taskNumber,
+    title = title,
+    status = status,
+    priority = priority,
+    rawAddress = rawAddress,
+    accessible = accessible,
 )
 
 fun AttachmentDto.toDomain(): ChatAttachment = ChatAttachment(
