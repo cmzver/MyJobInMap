@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useEffect, useMemo, type KeyboardEvent } from 'react'
 import { cn } from '@/utils/cn'
-import { Send, X, Paperclip, ClipboardList } from 'lucide-react'
+import { Send, X, Paperclip, ClipboardList, Plus } from 'lucide-react'
 import type { MessageResponse } from '@/types/chat'
 import type { Task } from '@/types/task'
 import TaskPicker from './TaskPicker'
@@ -62,6 +62,7 @@ function MessageInput({
   const [activeMentionIndex, setActiveMentionIndex] = useState(0)
   const [attachedTask, setAttachedTask] = useState<Task | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -226,33 +227,61 @@ function MessageInput({
       )}
 
       <div className="flex items-end gap-2 p-3">
-        {onUpload && (
-          <>
+        {(onUpload || !editingMessage) && (
+          <div className="relative">
             <button
-              onClick={() => fileRef.current?.click()}
+              onClick={() => setAttachMenuOpen((v) => !v)}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-500"
-              title="Прикрепить файл"
+              title="Прикрепить"
             >
-              <Paperclip className="h-5 w-5" />
+              <Plus className="h-5 w-5" />
             </button>
-            <input
-              ref={fileRef}
-              type="file"
-              className="hidden"
-              onChange={handleFileChange}
-              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-            />
-          </>
-        )}
 
-        {!editingMessage && (
-          <button
-            onClick={() => setPickerOpen(true)}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-500"
-            title="Прикрепить заявку"
-          >
-            <ClipboardList className="h-5 w-5" />
-          </button>
+            {attachMenuOpen && (
+              <>
+                {/* backdrop to close menu on outside click */}
+                <div className="fixed inset-0 z-10" onClick={() => setAttachMenuOpen(false)} />
+                <div className="absolute bottom-full left-0 z-20 mb-2 min-w-[180px] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
+                  {onUpload && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAttachMenuOpen(false)
+                        fileRef.current?.click()
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
+                    >
+                      <Paperclip className="h-4 w-4 text-gray-500" />
+                      Файл
+                    </button>
+                  )}
+                  {!editingMessage && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAttachMenuOpen(false)
+                        setPickerOpen(true)
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
+                    >
+                      <ClipboardList className="h-4 w-4 text-gray-500" />
+                      Заявка
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+
+            {onUpload && (
+              <input
+                ref={fileRef}
+                type="file"
+                className="hidden"
+                onChange={handleFileChange}
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+              />
+            )}
+          </div>
         )}
 
         <div className="relative flex-1">

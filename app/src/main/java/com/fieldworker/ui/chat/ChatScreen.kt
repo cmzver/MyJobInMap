@@ -2604,6 +2604,7 @@ private fun ChatInputBar(
 ) {
     var text by remember { mutableStateOf("") }
     var showTaskPicker by remember { mutableStateOf(false) }
+    var attachMenuOpen by remember { mutableStateOf(false) }
 
     if (showTaskPicker) {
         TaskPickerDialog(
@@ -2883,23 +2884,37 @@ private fun ChatInputBar(
                             .padding(start = 4.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        IconButton(
-                            onClick = onAttachFile,
-                            enabled = !isSending,
-                            modifier = Modifier.size(40.dp),
-                        ) {
-                            Icon(
-                                Icons.Default.Add,
-                                contentDescription = "Вложение",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        IconButton(
-                            onClick = { showTaskPicker = true },
-                            enabled = !isSending,
-                            modifier = Modifier.size(40.dp),
-                        ) {
-                            Text(text = "📋", style = MaterialTheme.typography.titleMedium)
+                        Box {
+                            IconButton(
+                                onClick = { attachMenuOpen = true },
+                                enabled = !isSending,
+                                modifier = Modifier.size(40.dp),
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Прикрепить",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = attachMenuOpen,
+                                onDismissRequest = { attachMenuOpen = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Файл") },
+                                    onClick = {
+                                        attachMenuOpen = false
+                                        onAttachFile()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Заявка") },
+                                    onClick = {
+                                        attachMenuOpen = false
+                                        showTaskPicker = true
+                                    },
+                                )
+                            }
                         }
                         BasicTextField(
                             value = text,
