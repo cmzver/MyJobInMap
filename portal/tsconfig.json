@@ -21,8 +21,8 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
 
-    /* Path aliases */
-    "baseUrl": ".",
+    /* Path aliases (paths resolve relative to this tsconfig; no baseUrl needed
+       since TS 4.1, and baseUrl is deprecated for removal in TS 7.0) */
     "paths": {
       "@/*": ["./src/*"]
     }
