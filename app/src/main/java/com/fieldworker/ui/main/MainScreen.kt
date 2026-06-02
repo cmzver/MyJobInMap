@@ -528,8 +528,10 @@ fun MainScreen(
                             onAttachTask = { chatViewModel.attachTask(it) },
                             onCancelAttachedTask = { chatViewModel.clearAttachedTask() },
                             onOpenTask = { taskId ->
+                                // Открываем существующий экран заявки (TaskDetailBottomSheet в
+                                // списке) — там уже есть комментарии, фото, смена статуса и т.д.
                                 viewModel.openTaskFromNotification(taskId)
-                                navController.navigate(Screen.ObjectCard.route)
+                                navController.navigate(Screen.TaskList.route)
                             },
                         )
                     } else {
