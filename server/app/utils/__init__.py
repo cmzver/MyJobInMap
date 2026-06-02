@@ -14,8 +14,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import case
 
 from app.models import TaskModel, TaskPriority, UserModel
-from app.schemas import (CommentResponse, TaskListResponse, TaskResponse,
-                         UserResponse)
+from app.schemas import CommentResponse, TaskListResponse, TaskResponse, UserResponse
 from app.services.role_utils import public_role_value
 
 # ============================================

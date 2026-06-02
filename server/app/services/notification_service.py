@@ -11,8 +11,8 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models import NotificationModel, TaskModel, UserModel
-from app.services.websocket_manager import _event, ws_manager
 from app.services.push import send_push_notification
+from app.services.websocket_manager import _event, ws_manager
 from app.utils import get_priority_display_name, get_priority_rank
 
 

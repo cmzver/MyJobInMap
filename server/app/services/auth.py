@@ -16,9 +16,12 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import TaskModel, UserModel, UserRole, get_db
-from app.services.role_utils import (canonical_role_value, is_admin_user,
-                                     is_dispatcher_or_admin_user,
-                                     is_superadmin_user)
+from app.services.role_utils import (
+    canonical_role_value,
+    is_admin_user,
+    is_dispatcher_or_admin_user,
+    is_superadmin_user,
+)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 

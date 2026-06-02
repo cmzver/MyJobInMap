@@ -56,7 +56,8 @@ class TestAuth:
         assert response.status_code == 200
         data = response.json()
         assert data["username"] == "admin"
-        assert data["role"] == "admin"
+        # Org-less admin (organization_id=None) is exposed as superadmin in the public role
+        assert data["role"] == "superadmin"
 
 
 class TestAuthRateLimit:
@@ -142,7 +143,7 @@ class TestTokenRefresh:
         assert "access_token" in data
         assert "refresh_token" in data
         assert data["username"] == "admin"
-        assert data["role"] == "admin"
+        assert data["role"] == "superadmin"
         # Tokens should be valid strings
         assert len(data["access_token"]) > 0
         assert len(data["refresh_token"]) > 0

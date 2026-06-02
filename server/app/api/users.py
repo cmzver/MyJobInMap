@@ -14,8 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.models import TaskModel, UserModel, get_db
 from app.schemas import UserCreate, UserResponse, UserUpdate
-from app.services import (get_current_admin, get_current_user_required,
-                          get_password_hash)
+from app.services import get_current_admin, get_current_user_required, get_password_hash
 from app.services.role_utils import canonical_role_value
 from app.services.tenant_filter import TenantFilter
 from app.utils import user_to_response

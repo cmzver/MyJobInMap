@@ -11,27 +11,42 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import (APIRouter, Depends, File, Form, HTTPException, Query,
-                     UploadFile)
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import Integer, and_, cast, func, or_
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import (AddressContactModel, AddressDocumentModel,
-                        AddressEquipmentModel, AddressHistoryEventType,
-                        AddressHistoryModel, AddressModel, AddressSystemModel,
-                        TaskModel, TaskStatus, get_db)
+from app.models import (
+    AddressContactModel,
+    AddressDocumentModel,
+    AddressEquipmentModel,
+    AddressHistoryEventType,
+    AddressHistoryModel,
+    AddressModel,
+    AddressSystemModel,
+    TaskModel,
+    TaskStatus,
+    get_db,
+)
 from app.models.user import UserModel
-from app.schemas.address import (AddressContactCreate, AddressContactResponse,
-                                 AddressContactUpdate, AddressDocumentCreate,
-                                 AddressDocumentResponse,
-                                 AddressDocumentUpdate, AddressEquipmentCreate,
-                                 AddressEquipmentResponse,
-                                 AddressEquipmentUpdate, AddressFullResponse,
-                                 AddressHistoryResponse, AddressSystemCreate,
-                                 AddressSystemResponse, AddressSystemUpdate,
-                                 TaskStats)
+from app.schemas.address import (
+    AddressContactCreate,
+    AddressContactResponse,
+    AddressContactUpdate,
+    AddressDocumentCreate,
+    AddressDocumentResponse,
+    AddressDocumentUpdate,
+    AddressEquipmentCreate,
+    AddressEquipmentResponse,
+    AddressEquipmentUpdate,
+    AddressFullResponse,
+    AddressHistoryResponse,
+    AddressSystemCreate,
+    AddressSystemResponse,
+    AddressSystemUpdate,
+    TaskStats,
+)
 from app.services.auth import get_current_user_required
 from app.services.tenant_filter import TenantFilter
 from app.utils import normalize_priority_value

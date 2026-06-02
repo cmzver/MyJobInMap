@@ -15,21 +15,26 @@ from fastapi import Depends
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.models import (CommentModel, TaskModel, TaskStatus, UserModel,
-                        UserRole, get_db)
+from app.models import CommentModel, TaskModel, TaskStatus, UserModel, UserRole, get_db
 from app.models.address import AddressModel
 from app.schemas import TaskCreate, TaskStatusUpdate
 from app.services.address_parser import parse_address
 from app.services.geocoding import geocoding_service
 from app.services.notification_service import (
-    create_task_assignment_notification, create_task_status_notification)
+    create_task_assignment_notification,
+    create_task_status_notification,
+)
 from app.services.push import send_push_notification
 from app.services.task_state_machine import TaskStatusMachine
 from app.services.tenant_filter import TenantFilter
-from app.utils import (get_priority_display_name, get_priority_rank,
-                       get_status_comment_required_message,
-                       get_status_display_name, normalize_priority_value,
-                       priority_rank_expr)
+from app.utils import (
+    get_priority_display_name,
+    get_priority_rank,
+    get_status_comment_required_message,
+    get_status_display_name,
+    normalize_priority_value,
+    priority_rank_expr,
+)
 
 
 class TaskServiceError(Exception):
@@ -81,7 +86,10 @@ def has_valid_task_coordinates(lat: Optional[float], lon: Optional[float]) -> bo
         return False
     if not (-90 <= lat <= 90 and -180 <= lon <= 180):
         return False
-    if abs(lat) < COORDINATE_PLACEHOLDER_EPSILON and abs(lon) < COORDINATE_PLACEHOLDER_EPSILON:
+    if (
+        abs(lat) < COORDINATE_PLACEHOLDER_EPSILON
+        and abs(lon) < COORDINATE_PLACEHOLDER_EPSILON
+    ):
         return False
     return True
 
@@ -123,13 +131,10 @@ class TaskService:
         parsed = parse_address(raw_address)
         normalized_raw = geocoding_service.normalize_address(raw_address).lower()
 
-        candidates_query = (
-            self.db.query(AddressModel)
-            .filter(
-                AddressModel.is_active.is_(True),
-                AddressModel.lat.isnot(None),
-                AddressModel.lon.isnot(None),
-            )
+        candidates_query = self.db.query(AddressModel).filter(
+            AddressModel.is_active.is_(True),
+            AddressModel.lat.isnot(None),
+            AddressModel.lon.isnot(None),
         )
         if organization_id is not None:
             candidates_query = candidates_query.filter(
@@ -163,7 +168,9 @@ class TaskService:
 
         best_candidate = None
         best_score = 0
-        for candidate in candidates_query.order_by(AddressModel.updated_at.desc()).limit(25).all():
+        for candidate in (
+            candidates_query.order_by(AddressModel.updated_at.desc()).limit(25).all()
+        ):
             if not has_valid_task_coordinates(candidate.lat, candidate.lon):
                 continue
 
@@ -174,7 +181,8 @@ class TaskService:
             if normalized_candidate and normalized_candidate == normalized_raw:
                 score += 100
             elif normalized_candidate and (
-                normalized_candidate in normalized_raw or normalized_raw in normalized_candidate
+                normalized_candidate in normalized_raw
+                or normalized_raw in normalized_candidate
             ):
                 score += 55
 
@@ -183,9 +191,17 @@ class TaskService:
             score += _string_match_score(parsed.corpus, candidate.corpus)
             score += _string_match_score(parsed.city, candidate.city)
 
-            if candidate.address and parsed.street and parsed.street.lower() in candidate.address.lower():
+            if (
+                candidate.address
+                and parsed.street
+                and parsed.street.lower() in candidate.address.lower()
+            ):
                 score += 12
-            if candidate.address and parsed.building and parsed.building.lower() in candidate.address.lower():
+            if (
+                candidate.address
+                and parsed.building
+                and parsed.building.lower() in candidate.address.lower()
+            ):
                 score += 16
 
             if score > best_score:

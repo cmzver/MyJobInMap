@@ -14,16 +14,31 @@ from sqlalchemy import and_, func
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import UserModel
-from app.models.chat import (ConversationMemberModel, ConversationMemberRole,
-                             ConversationModel, ConversationType,
-                             MessageAttachmentModel, MessageMentionModel,
-                             MessageModel, MessageReactionModel, MessageType)
+from app.models.chat import (
+    ConversationMemberModel,
+    ConversationMemberRole,
+    ConversationModel,
+    ConversationType,
+    MessageAttachmentModel,
+    MessageMentionModel,
+    MessageModel,
+    MessageReactionModel,
+    MessageType,
+)
 from app.models.task import TaskModel
-from app.schemas.chat import (AttachmentResponse, ConversationDetailResponse,
-                              ConversationListItem, LastMessagePreview,
-                              MemberInfo, MentionInfo, MessageListResponse,
-                              MessageResponse, ReactionInfo, ReplyPreview,
-                              TaskPreview)
+from app.schemas.chat import (
+    AttachmentResponse,
+    ConversationDetailResponse,
+    ConversationListItem,
+    LastMessagePreview,
+    MemberInfo,
+    MentionInfo,
+    MessageListResponse,
+    MessageResponse,
+    ReactionInfo,
+    ReplyPreview,
+    TaskPreview,
+)
 from app.utils import build_user_avatar_url
 
 logger = logging.getLogger(__name__)

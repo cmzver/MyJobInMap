@@ -25,8 +25,12 @@ from app.models.address import AddressModel
 from app.schemas import PaginatedResponse, TaskListResponse
 from app.services import require_permission
 from app.services.tenant_filter import TenantFilter
-from app.utils import (get_priority_rank, normalize_priority_value,
-                       priority_rank_expr, task_to_list_response)
+from app.utils import (
+    get_priority_rank,
+    normalize_priority_value,
+    priority_rank_expr,
+    task_to_list_response,
+)
 
 router = APIRouter(prefix="/tasks", tags=["v2-Tasks"])
 logger = logging.getLogger(__name__)

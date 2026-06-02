@@ -4,8 +4,7 @@ Support ticket models.
 
 from enum import Enum
 
-from sqlalchemy import (Column, DateTime, ForeignKey, Index, Integer, String,
-                        Text)
+from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base, utcnow

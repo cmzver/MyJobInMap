@@ -8,8 +8,8 @@ import time
 from types import ModuleType
 from unittest.mock import MagicMock, patch
 
-from app.models import DeviceModel
 import app.services.push as push_module
+from app.models import DeviceModel
 
 
 class TestInitFirebase:
@@ -28,14 +28,17 @@ class TestInitFirebase:
     def test_init_firebase_success(self):
         """Returns True when credentials are valid."""
         mock_app = MagicMock()
-        with patch("os.path.exists", return_value=True), patch.dict(
-            "sys.modules",
-            {
-                "firebase_admin": MagicMock(
-                    initialize_app=MagicMock(return_value=mock_app)
-                ),
-                "firebase_admin.credentials": MagicMock(),
-            },
+        with (
+            patch("os.path.exists", return_value=True),
+            patch.dict(
+                "sys.modules",
+                {
+                    "firebase_admin": MagicMock(
+                        initialize_app=MagicMock(return_value=mock_app)
+                    ),
+                    "firebase_admin.credentials": MagicMock(),
+                },
+            ),
         ):
             result = push_module.init_firebase()
             assert result is True or push_module.firebase_app is not None
@@ -132,8 +135,9 @@ class TestSendPushSync:
         mock_firebase_admin = ModuleType("firebase_admin")
         mock_firebase_admin.messaging = mock_messaging
 
-        with patch("app.models.get_db", mock_get_db), patch.dict(
-            "sys.modules", {"firebase_admin": mock_firebase_admin}
+        with (
+            patch("app.models.get_db", mock_get_db),
+            patch.dict("sys.modules", {"firebase_admin": mock_firebase_admin}),
         ):
             result = push_module._send_push_sync(
                 "New chat message",
@@ -172,9 +176,7 @@ class TestSendPushNotification:
             push_module.send_push_notification(
                 "T", "B", notification_type="new_task", task_id=5, user_ids=[1, 2]
             )
-            mock_bg.assert_called_once_with(
-                "T", "B", "new_task", 5, [1, 2], None, None
-            )
+            mock_bg.assert_called_once_with("T", "B", "new_task", 5, [1, 2], None, None)
 
 
 class TestSendPushBackground:

@@ -1,7 +1,8 @@
 """Tests for /api/tasks/from-text endpoint."""
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from app.models import NotificationModel, TaskModel
 
@@ -291,7 +292,10 @@ class TestFromTextNotifications:
         )
         assert notification is not None
         assert notification.task_id == data["task"]["id"]
-        assert "назначена" in notification.title.lower() or "заявка" in notification.title.lower()
+        assert (
+            "назначена" in notification.title.lower()
+            or "заявка" in notification.title.lower()
+        )
 
         # FCM push should be called
         mock_push.assert_called_once()

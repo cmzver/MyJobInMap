@@ -17,18 +17,34 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import (CommentModel, CustomFieldModel, DeviceModel,
-                        SystemSettingModel, TaskModel, TaskPhotoModel,
-                        TaskPriority, UserModel, UserRole, get_db, get_setting,
-                        set_setting)
+from app.models import (
+    CommentModel,
+    CustomFieldModel,
+    DeviceModel,
+    SystemSettingModel,
+    TaskModel,
+    TaskPhotoModel,
+    TaskPriority,
+    UserModel,
+    UserRole,
+    get_db,
+    get_setting,
+    set_setting,
+)
 from app.models.address import AddressModel
 from app.models.notification import NotificationModel
-from app.schemas import (BackupFile, BackupListResponse,
-                         BackupSettingsResponse, BackupSettingsSchema)
-from app.services import (get_current_admin, get_current_superadmin,
-                          get_password_hash)
-from app.services.audit_log import (audit_backup_created, audit_backup_deleted,
-                                    audit_backup_restored)
+from app.schemas import (
+    BackupFile,
+    BackupListResponse,
+    BackupSettingsResponse,
+    BackupSettingsSchema,
+)
+from app.services import get_current_admin, get_current_superadmin, get_password_hash
+from app.services.audit_log import (
+    audit_backup_created,
+    audit_backup_deleted,
+    audit_backup_restored,
+)
 
 logger = logging.getLogger(__name__)
 

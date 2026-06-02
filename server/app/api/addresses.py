@@ -11,14 +11,19 @@ from sqlalchemy.orm import Session
 
 from app.models import AddressModel, get_db
 from app.models.user import UserModel
-from app.schemas.address import (AddressComposeRequest, AddressComposeResponse,
-                                 AddressCreate, AddressListResponse,
-                                 AddressParseRequest, AddressParseResponse,
-                                 AddressResponse, AddressSearchResponse,
-                                 AddressUpdate)
+from app.schemas.address import (
+    AddressComposeRequest,
+    AddressComposeResponse,
+    AddressCreate,
+    AddressListResponse,
+    AddressParseRequest,
+    AddressParseResponse,
+    AddressResponse,
+    AddressSearchResponse,
+    AddressUpdate,
+)
 from app.services.address_parser import compose_address, parse_address
-from app.services.auth import (get_current_dispatcher_or_admin,
-                               get_current_user_required)
+from app.services.auth import get_current_dispatcher_or_admin, get_current_user_required
 from app.services.geocoding import geocoding_service
 from app.services.tenant_filter import TenantFilter
 

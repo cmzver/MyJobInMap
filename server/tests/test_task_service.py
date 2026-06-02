@@ -3,14 +3,23 @@
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models import (AddressModel, OrganizationModel, TaskModel, TaskStatus, UserModel,
-                        UserRole)
+from app.models import (
+    AddressModel,
+    OrganizationModel,
+    TaskModel,
+    TaskStatus,
+    UserModel,
+    UserRole,
+)
 from app.schemas import TaskCreate
 from app.services.auth import get_password_hash
-from app.services.task_service import (CommentRequiredError,
-                                       InvalidTransitionError,
-                                       PermissionDeniedError,
-                                       TaskNotFoundError, TaskService)
+from app.services.task_service import (
+    CommentRequiredError,
+    InvalidTransitionError,
+    PermissionDeniedError,
+    TaskNotFoundError,
+    TaskService,
+)
 
 
 class TestTaskServiceInit:
@@ -208,7 +217,9 @@ class TestTaskServiceCreate:
         assert task.is_paid is True
         assert task.payment_amount == 5000.0
 
-    def test_create_uses_address_book_coordinates_before_geocoder(self, db_session, monkeypatch):
+    def test_create_uses_address_book_coordinates_before_geocoder(
+        self, db_session, monkeypatch
+    ):
         """Task creation should reuse known address coordinates when the address already exists."""
         org = OrganizationModel(
             name="Geo Org",
@@ -254,7 +265,9 @@ class TestTaskServiceCreate:
         assert task.lat == pytest.approx(59.9386)
         assert task.lon == pytest.approx(30.3141)
 
-    def test_repair_task_coordinates_restores_invalid_zero_coordinates(self, db_session, monkeypatch):
+    def test_repair_task_coordinates_restores_invalid_zero_coordinates(
+        self, db_session, monkeypatch
+    ):
         """Legacy tasks with 0,0 should be repaired from the address book."""
         org = OrganizationModel(
             name="Repair Org",

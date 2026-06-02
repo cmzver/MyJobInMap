@@ -14,9 +14,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
-from app.models import (SystemSettingModel, UserModel, get_all_settings,
-                        get_db, get_setting, init_default_settings,
-                        set_setting)
+from app.models import (
+    SystemSettingModel,
+    UserModel,
+    get_all_settings,
+    get_db,
+    get_setting,
+    init_default_settings,
+    set_setting,
+)
 from app.services import get_current_admin, get_current_superadmin, require_permission
 
 logger = logging.getLogger(__name__)
@@ -458,6 +464,7 @@ class TelegramGroupMapping(BaseModel):
 
 class TelegramKnownGroup(BaseModel):
     """Группа, в которой бот был замечен"""
+
     chat_id: int
     title: str
     last_seen: Optional[str] = None
@@ -562,9 +569,17 @@ async def get_telegram_bot_settings(
     known_groups = _get_known_groups(db)
     return TelegramBotSettingsResponse(
         enabled=enabled,
-        group_worker_map=[TelegramGroupMapping(**m) for m in mappings if "group_name" in m and "username" in m],
+        group_worker_map=[
+            TelegramGroupMapping(**m)
+            for m in mappings
+            if "group_name" in m and "username" in m
+        ],
         dedup_enabled=dedup,
-        known_groups=[TelegramKnownGroup(**g) for g in known_groups if "chat_id" in g and "title" in g],
+        known_groups=[
+            TelegramKnownGroup(**g)
+            for g in known_groups
+            if "chat_id" in g and "title" in g
+        ],
     )
 
 
@@ -576,13 +591,28 @@ async def update_telegram_bot_settings(
 ):
     """Обновить настройки Telegram-бота целиком."""
     # Сохраняем флаги
-    set_setting(db, "telegram_bot_enabled", data.enabled, updated_by=admin.username,
-                description="Бот включён", group="telegram")
-    set_setting(db, "telegram_bot_dedup_enabled", data.dedup_enabled, updated_by=admin.username,
-                description="Дедупликация заявок по номеру", group="telegram")
+    set_setting(
+        db,
+        "telegram_bot_enabled",
+        data.enabled,
+        updated_by=admin.username,
+        description="Бот включён",
+        group="telegram",
+    )
+    set_setting(
+        db,
+        "telegram_bot_dedup_enabled",
+        data.dedup_enabled,
+        updated_by=admin.username,
+        description="Дедупликация заявок по номеру",
+        group="telegram",
+    )
 
     # Сохраняем маппинги
-    mappings = [{"group_name": m.group_name.strip(), "username": m.username.strip()} for m in data.group_worker_map]
+    mappings = [
+        {"group_name": m.group_name.strip(), "username": m.username.strip()}
+        for m in data.group_worker_map
+    ]
     _save_bot_mappings(db, mappings, updated_by=admin.username)
 
     logger.info(f"Настройки Telegram-бота обновлены ({len(mappings)} маппингов)")

@@ -175,7 +175,15 @@ def send_push_background(
     """Отправка push в фоновом потоке (не блокирует)"""
     thread = threading.Thread(
         target=_send_push_sync,
-        args=(title, body, notification_type, task_id, user_ids, organization_id, extra_data),
+        args=(
+            title,
+            body,
+            notification_type,
+            task_id,
+            user_ids,
+            organization_id,
+            extra_data,
+        ),
         daemon=True,
     )
     thread.start()

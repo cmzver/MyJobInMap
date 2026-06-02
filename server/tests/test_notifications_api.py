@@ -5,8 +5,13 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.models import (NotificationModel, OrganizationModel, TaskModel,
-                        UserModel, UserRole)
+from app.models import (
+    NotificationModel,
+    OrganizationModel,
+    TaskModel,
+    UserModel,
+    UserRole,
+)
 from app.services.auth import get_password_hash
 from app.services.notification_service import create_task_status_notification
 

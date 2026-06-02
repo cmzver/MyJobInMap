@@ -17,9 +17,13 @@ from app.api.deps import TaskAccess, require_task_access
 from app.config import settings
 from app.models import TaskModel, TaskPhotoModel, UserModel, get_db
 from app.schemas import PhotoResponse
-from app.services import (check_permission, enforce_worker_task_access,
-                          get_current_user_required, image_optimizer,
-                          require_permission)
+from app.services import (
+    check_permission,
+    enforce_worker_task_access,
+    get_current_user_required,
+    image_optimizer,
+    require_permission,
+)
 from app.services.tenant_filter import TenantFilter
 
 router = APIRouter(tags=["Photos"])

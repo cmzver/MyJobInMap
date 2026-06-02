@@ -104,7 +104,9 @@ class MessageCreate(BaseModel):
 
     text: Optional[str] = Field(None, max_length=5000, description="Текст сообщения")
     reply_to_id: Optional[int] = Field(None, description="ID сообщения для ответа")
-    message_type: str = Field("text", description="Тип: text, image, file, system, task")
+    message_type: str = Field(
+        "text", description="Тип: text, image, file, system, task"
+    )
     task_id: Optional[int] = Field(None, description="ID прикреплённой заявки")
 
 

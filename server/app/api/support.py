@@ -5,14 +5,25 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import (SupportTicketCategory, SupportTicketCommentModel,
-                        SupportTicketCommentType, SupportTicketModel,
-                        SupportTicketStatus, UserModel, get_db)
+from app.models import (
+    SupportTicketCategory,
+    SupportTicketCommentModel,
+    SupportTicketCommentType,
+    SupportTicketModel,
+    SupportTicketStatus,
+    UserModel,
+    get_db,
+)
 from app.models.base import utcnow
-from app.schemas import (SupportTicketCommentCreate,
-                         SupportTicketCommentResponse, SupportTicketCreate,
-                         SupportTicketDetailResponse, SupportTicketReporter,
-                         SupportTicketResponse, SupportTicketUpdate)
+from app.schemas import (
+    SupportTicketCommentCreate,
+    SupportTicketCommentResponse,
+    SupportTicketCreate,
+    SupportTicketDetailResponse,
+    SupportTicketReporter,
+    SupportTicketResponse,
+    SupportTicketUpdate,
+)
 from app.services import create_notification, get_current_user_required
 from app.services.role_utils import is_superadmin_user, public_role_value
 

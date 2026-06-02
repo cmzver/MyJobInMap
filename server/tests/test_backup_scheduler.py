@@ -238,8 +238,7 @@ class TestBackupScheduler:
         mock_settings.BACKUP_SCHEDULE_MINUTE = 0
         mock_settings.BACKUP_RETENTION_DAYS = 30
 
-        from app.services.backup_scheduler import (start_scheduler,
-                                                   stop_scheduler)
+        from app.services.backup_scheduler import start_scheduler, stop_scheduler
 
         try:
             result = start_scheduler()

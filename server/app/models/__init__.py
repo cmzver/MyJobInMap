@@ -14,29 +14,53 @@ Models Package
 """
 
 from app.models.address import AddressContactModel  # Enums; Models
-from app.models.address import (AddressDocumentModel, AddressEquipmentModel,
-                                AddressHistoryEventType, AddressHistoryModel,
-                                AddressModel, AddressSystemModel, ContactType,
-                                DocumentType, EquipmentStatus, EquipmentType,
-                                SystemStatus, SystemType)
-from app.models.base import (Base, SessionLocal, engine, get_db, init_db,
-                             run_migrations)
-from app.models.chat import (ConversationMemberModel, ConversationMemberRole,
-                             ConversationModel, ConversationType,
-                             MessageAttachmentModel, MessageMentionModel,
-                             MessageModel, MessageReactionModel, MessageType)
+from app.models.address import (
+    AddressDocumentModel,
+    AddressEquipmentModel,
+    AddressHistoryEventType,
+    AddressHistoryModel,
+    AddressModel,
+    AddressSystemModel,
+    ContactType,
+    DocumentType,
+    EquipmentStatus,
+    EquipmentType,
+    SystemStatus,
+    SystemType,
+)
+from app.models.base import Base, SessionLocal, engine, get_db, init_db, run_migrations
+from app.models.chat import (
+    ConversationMemberModel,
+    ConversationMemberRole,
+    ConversationModel,
+    ConversationType,
+    MessageAttachmentModel,
+    MessageMentionModel,
+    MessageModel,
+    MessageReactionModel,
+    MessageType,
+)
 from app.models.enums import TaskPriority, TaskStatus, UserRole
 from app.models.notification import NotificationModel, NotificationType
 from app.models.organization import OrganizationModel
-from app.models.settings import (CustomFieldModel, CustomFieldValueModel,
-                                 RolePermissionModel, SystemSettingModel,
-                                 get_all_settings, get_setting,
-                                 get_settings_by_group, init_default_settings,
-                                 set_setting)
-from app.models.support import (SupportTicketCategory,
-                                SupportTicketCommentModel,
-                                SupportTicketCommentType, SupportTicketModel,
-                                SupportTicketStatus)
+from app.models.settings import (
+    CustomFieldModel,
+    CustomFieldValueModel,
+    RolePermissionModel,
+    SystemSettingModel,
+    get_all_settings,
+    get_setting,
+    get_settings_by_group,
+    init_default_settings,
+    set_setting,
+)
+from app.models.support import (
+    SupportTicketCategory,
+    SupportTicketCommentModel,
+    SupportTicketCommentType,
+    SupportTicketModel,
+    SupportTicketStatus,
+)
 from app.models.task import CommentModel, TaskModel, TaskPhotoModel
 from app.models.user import DeviceModel, UserModel
 

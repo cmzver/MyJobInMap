@@ -5,11 +5,20 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.models import (NotificationModel, SupportTicketModel, TaskModel,
-                        UserModel, get_db)
+from app.models import (
+    NotificationModel,
+    SupportTicketModel,
+    TaskModel,
+    UserModel,
+    get_db,
+)
 from app.schemas import NotificationResponse, PushNotificationRequest
-from app.services import (_send_push_sync, enforce_worker_task_access,
-                          get_current_admin, get_current_user_required)
+from app.services import (
+    _send_push_sync,
+    enforce_worker_task_access,
+    get_current_admin,
+    get_current_user_required,
+)
 from app.services.notification_service import create_notification
 from app.services.role_utils import is_superadmin_user
 from app.services.tenant_filter import TenantFilter

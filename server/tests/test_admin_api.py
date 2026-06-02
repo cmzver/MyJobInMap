@@ -22,7 +22,8 @@ class TestAdminUsers:
         # Check admin user is in the list
         admin = next((u for u in users if u["username"] == "admin"), None)
         assert admin is not None
-        assert admin["role"] == "admin"
+        # Org-less admin (organization_id=None) is exposed as superadmin
+        assert admin["role"] == "superadmin"
 
     def test_get_users_requires_admin(self, client: TestClient):
         """Test that non-admin cannot access users list."""

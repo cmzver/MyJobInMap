@@ -15,15 +15,30 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import (CustomFieldModel, DeviceModel, RolePermissionModel,
-                        TaskModel, UserModel, get_db)
-from app.schemas import (CustomFieldCreate, CustomFieldResponse,
-                         CustomFieldUpdate, DeviceResponse,
-                         RolePermissionsResponse, TaskResponse, TaskUpdate,
-                         UpdateRolePermissionRequest)
-from app.services import (geocoding_service, get_current_admin,
-                          get_current_dispatcher_or_admin,
-                          get_current_superadmin)
+from app.models import (
+    CustomFieldModel,
+    DeviceModel,
+    RolePermissionModel,
+    TaskModel,
+    UserModel,
+    get_db,
+)
+from app.schemas import (
+    CustomFieldCreate,
+    CustomFieldResponse,
+    CustomFieldUpdate,
+    DeviceResponse,
+    RolePermissionsResponse,
+    TaskResponse,
+    TaskUpdate,
+    UpdateRolePermissionRequest,
+)
+from app.services import (
+    geocoding_service,
+    get_current_admin,
+    get_current_dispatcher_or_admin,
+    get_current_superadmin,
+)
 from app.services.task_service import TaskService
 from app.services.tenant_filter import TenantFilter
 from app.utils import task_to_response
@@ -127,9 +142,13 @@ async def admin_update_task(
 
     # Уведомление при назначении
     if new_assigned_user_id and new_assigned_user_id != old_assigned_user_id:
-        from app.services.notification_service import create_task_assignment_notification
+        from app.services.notification_service import (
+            create_task_assignment_notification,
+        )
 
-        assigned_to = db.query(UserModel).filter(UserModel.id == new_assigned_user_id).first()
+        assigned_to = (
+            db.query(UserModel).filter(UserModel.id == new_assigned_user_id).first()
+        )
         if assigned_to:
             create_task_assignment_notification(
                 db=db, task=task, assigned_to=assigned_to, assigned_by=admin

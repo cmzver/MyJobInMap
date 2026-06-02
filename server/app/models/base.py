@@ -53,6 +53,7 @@ if settings.is_sqlite:
         dbapi_connection.create_function(
             "upper", 1, lambda value: value.upper() if isinstance(value, str) else value
         )
+
 elif settings.is_postgres:
     engine = create_engine(
         SQLALCHEMY_DATABASE_URL,

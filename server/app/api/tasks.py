@@ -13,25 +13,52 @@ from sqlalchemy.orm import Session, joinedload, subqueryload
 
 from app.api.address_extended import build_task_filters_for_address
 from app.api.deps import TaskAccess, require_task_access
-from app.models import (CommentModel, NotificationModel, TaskModel,
-                        TaskPriority, TaskStatus, UserModel, UserRole, get_db)
+from app.models import (
+    CommentModel,
+    NotificationModel,
+    TaskModel,
+    TaskPriority,
+    TaskStatus,
+    UserModel,
+    UserRole,
+    get_db,
+)
 from app.models.address import AddressModel
-from app.schemas import (CommentCreate, CommentResponse, PaginatedResponse,
-                         PlannedDateUpdate, TaskAssignRequest, TaskCreate,
-                         TaskListResponse, TaskResponse, TaskStatusUpdate)
-from app.services import (TaskServiceError, check_permission,
-                          TaskService, geocoding_service, get_task_service,
-                          require_permission)
+from app.schemas import (
+    CommentCreate,
+    CommentResponse,
+    PaginatedResponse,
+    PlannedDateUpdate,
+    TaskAssignRequest,
+    TaskCreate,
+    TaskListResponse,
+    TaskResponse,
+    TaskStatusUpdate,
+)
+from app.services import (
+    TaskService,
+    TaskServiceError,
+    check_permission,
+    geocoding_service,
+    get_task_service,
+    require_permission,
+)
 from app.services.task_parser import parse_dispatcher_message
 from app.services.tenant_filter import TenantFilter
-from app.services.websocket_manager import (broadcast_task_assigned,
-                                            broadcast_task_created,
-                                            broadcast_task_deleted,
-                                            broadcast_task_status_changed,
-                                            broadcast_task_updated)
-from app.utils import (get_priority_rank, normalize_priority_value,
-                       priority_rank_expr, task_to_list_response,
-                       task_to_response)
+from app.services.websocket_manager import (
+    broadcast_task_assigned,
+    broadcast_task_created,
+    broadcast_task_deleted,
+    broadcast_task_status_changed,
+    broadcast_task_updated,
+)
+from app.utils import (
+    get_priority_rank,
+    normalize_priority_value,
+    priority_rank_expr,
+    task_to_list_response,
+    task_to_response,
+)
 
 router = APIRouter(prefix="/api/tasks", tags=["Tasks"])
 logger = logging.getLogger(__name__)
@@ -455,8 +482,12 @@ async def assign_task(
 # Task Parser (из сообщений диспетчерской)
 # ============================================================================
 
-from app.schemas import (CreateTaskFromTextRequest, CreateTaskFromTextResponse,
-                         ParsedTaskResponse, ParseTaskRequest)
+from app.schemas import (
+    CreateTaskFromTextRequest,
+    CreateTaskFromTextResponse,
+    ParsedTaskResponse,
+    ParseTaskRequest,
+)
 
 
 @router.post("/parse", response_model=ParsedTaskResponse)
@@ -585,7 +616,9 @@ async def create_task_from_text(
 
         if existing_task:
             # Заявка с таким номером уже есть — добавляем комментарий
-            comment_author = f"Telegram: {request.sender}" if request.sender else "Telegram бот"
+            comment_author = (
+                f"Telegram: {request.sender}" if request.sender else "Telegram бот"
+            )
             comment = CommentModel(
                 task_id=existing_task.id,
                 text=request.text,

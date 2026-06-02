@@ -14,10 +14,16 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import TaskModel, UserModel, UserRole, get_db
 from app.schemas import UserCreate, UserResponse, UserStatsResponse, UserUpdate
-from app.services import (get_current_admin, get_current_dispatcher_or_admin,
-                          get_password_hash)
-from app.services.audit_log import (audit_user_created, audit_user_deleted,
-                                    audit_user_updated)
+from app.services import (
+    get_current_admin,
+    get_current_dispatcher_or_admin,
+    get_password_hash,
+)
+from app.services.audit_log import (
+    audit_user_created,
+    audit_user_deleted,
+    audit_user_updated,
+)
 from app.services.role_utils import canonical_role_value
 from app.services.tenant_filter import TenantFilter
 from app.utils import user_to_response

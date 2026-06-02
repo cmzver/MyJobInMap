@@ -2,8 +2,13 @@
 
 from fastapi.testclient import TestClient
 
-from app.models import (NotificationModel, OrganizationModel,
-                        SupportTicketModel, UserModel, UserRole)
+from app.models import (
+    NotificationModel,
+    OrganizationModel,
+    SupportTicketModel,
+    UserModel,
+    UserRole,
+)
 from app.services.auth import get_password_hash
 
 

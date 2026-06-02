@@ -8,9 +8,14 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.models.settings import (RolePermissionModel, SystemSettingModel,
-                                 get_all_settings, get_setting,
-                                 get_settings_by_group, set_setting)
+from app.models.settings import (
+    RolePermissionModel,
+    SystemSettingModel,
+    get_all_settings,
+    get_setting,
+    get_settings_by_group,
+    set_setting,
+)
 
 
 class TestSystemSettingModel:
@@ -383,9 +388,7 @@ class TestSystemSettingsApi:
         assert data["supportHours"] == "Пн-Пт, 09:00-18:00"
         assert data["supportEmail"] is None
 
-    def test_get_interface_settings_returns_portal_defaults(
-        self, client: TestClient
-    ):
+    def test_get_interface_settings_returns_portal_defaults(self, client: TestClient):
         response = client.get("/api/admin/settings/interface")
 
         assert response.status_code == 200

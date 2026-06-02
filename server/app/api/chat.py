@@ -14,27 +14,48 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.api.deps import assert_task_access
 from app.config import settings
 from app.models import UserModel, get_db
-from app.models.chat import (ConversationMemberModel, ConversationModel,
-                             ConversationType, MessageAttachmentModel,
-                             MessageModel, MessageType)
-from app.schemas.chat import (ArchiveRequest, ConversationCreate,
-                              ConversationDetailResponse, ConversationListItem,
-                              ConversationResponse, ConversationUpdate,
-                              MemberAddRequest, MemberInfo,
-                              MemberRoleUpdateRequest, MessageCreate,
-                              MessageListResponse, MessageResponse,
-                              MessageSearchRequest, MessageUpdate, MuteRequest,
-                              OwnershipTransferRequest, ReactionCreate,
-                              ReactionInfo, ReadReceiptRequest)
-from app.api.deps import assert_task_access
+from app.models.chat import (
+    ConversationMemberModel,
+    ConversationModel,
+    ConversationType,
+    MessageAttachmentModel,
+    MessageModel,
+    MessageType,
+)
+from app.schemas.chat import (
+    ArchiveRequest,
+    ConversationCreate,
+    ConversationDetailResponse,
+    ConversationListItem,
+    ConversationResponse,
+    ConversationUpdate,
+    MemberAddRequest,
+    MemberInfo,
+    MemberRoleUpdateRequest,
+    MessageCreate,
+    MessageListResponse,
+    MessageResponse,
+    MessageSearchRequest,
+    MessageUpdate,
+    MuteRequest,
+    OwnershipTransferRequest,
+    ReactionCreate,
+    ReactionInfo,
+    ReadReceiptRequest,
+)
 from app.services import chat_service, get_current_user_required
 from app.services.tenant_filter import TenantFilter
 from app.services.websocket_manager import (
-    broadcast_chat_conversation_updated, broadcast_chat_message,
-    broadcast_chat_message_deleted, broadcast_chat_message_edited,
-    broadcast_chat_reaction, broadcast_chat_read)
+    broadcast_chat_conversation_updated,
+    broadcast_chat_message,
+    broadcast_chat_message_deleted,
+    broadcast_chat_message_edited,
+    broadcast_chat_reaction,
+    broadcast_chat_read,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +159,9 @@ async def get_conversation_avatar(
         raise HTTPException(status_code=404, detail="Avatar not found")
 
     expected_prefix = f"/api/chat/conversations/{conv_id}/avatar/"
-    avatar_url_str = cast(str, avatar_url)  # narrowed: guaranteed non-None by guard above
+    avatar_url_str = cast(
+        str, avatar_url
+    )  # narrowed: guaranteed non-None by guard above
     if not avatar_url_str.startswith(expected_prefix):
         raise HTTPException(status_code=404, detail="Avatar not found")
 
@@ -421,9 +444,14 @@ async def send_message(
 
     # Push notifications
     from app.services import send_push_notification
+
     notify_user_ids = [uid for uid in member_ids if uid != current_user.id]
     if notify_user_ids:
-        title = conv.name if conv and conv.name else (current_user.full_name or "Новое сообщение")
+        title = (
+            conv.name
+            if conv and conv.name
+            else (current_user.full_name or "Новое сообщение")
+        )
         if data.task_id:
             body = "📋 Заявка"
         elif data.text:
@@ -437,7 +465,7 @@ async def send_message(
             notification_type="chat_message",
             task_id=conv.task_id if conv else None,
             user_ids=notify_user_ids,
-            extra_data={"chat_id": str(conv_id)}
+            extra_data={"chat_id": str(conv_id)},
         )
 
     asyncio.ensure_future(
@@ -452,9 +480,7 @@ async def send_message(
                 "conversation_name": conv.name if conv and conv.name else None,
                 "message_type": result.message_type,
                 "attached_task": (
-                    result.attached_task.model_dump()
-                    if result.attached_task
-                    else None
+                    result.attached_task.model_dump() if result.attached_task else None
                 ),
             },
             sender_id=current_user.id,
@@ -572,7 +598,9 @@ async def upload_attachment(
             from app.services import image_optimizer
 
             thumb_ext = os.path.splitext(safe_name)[1] or ".jpg"
-            optimized_bytes, new_ext, _ = image_optimizer.optimize(content, thumb_ext, db)
+            optimized_bytes, new_ext, _ = image_optimizer.optimize(
+                content, thumb_ext, db
+            )
             # Сохраняем оптимизированную версию как thumbnail
             thumb_name = f"thumb_{uuid.uuid4().hex}{new_ext}"
             thumb_full_path = os.path.join(upload_dir, thumb_name)

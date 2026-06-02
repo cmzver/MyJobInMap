@@ -488,7 +488,7 @@ class TestConversationManagementWebSocket:
     def _mock_ws_auth(monkeypatch, token_map):
         monkeypatch.setattr(
             "app.api.websocket._authenticate_websocket_user",
-            lambda token: token_map.get(token),
+            lambda token, db=None: token_map.get(token),
         )
 
     def test_ws_receives_conversation_renamed(
@@ -1194,9 +1194,7 @@ class TestTaskAttachment:
         assert data["text"] == "Посмотри"
         assert data["attached_task"]["id"] == sample_task.id
 
-    def test_attach_nonexistent_task_404(
-        self, client, auth_headers, second_user
-    ):
+    def test_attach_nonexistent_task_404(self, client, auth_headers, second_user):
         """Несуществующая заявка → 404, сообщение не создаётся."""
         conv_id = self._create_direct(client, auth_headers, second_user)
         resp = client.post(

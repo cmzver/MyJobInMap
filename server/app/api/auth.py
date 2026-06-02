@@ -9,22 +9,31 @@ from pathlib import Path
 from typing import Dict, Optional
 from uuid import uuid4
 
-from fastapi import (APIRouter, Depends, File, HTTPException, Request,
-                     UploadFile, status)
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import (RolePermissionModel, UserModel, get_db,
-                        init_default_settings)
-from app.schemas import (RefreshRequest, ReportSettingsResponse,
-                         ReportSettingsUpdate, Token, UserResponse)
-from app.services import (authenticate_user, create_access_token,
-                          create_refresh_token, get_current_user_required,
-                          get_password_hash, image_optimizer, verify_password,
-                          verify_refresh_token)
+from app.models import RolePermissionModel, UserModel, get_db, init_default_settings
+from app.schemas import (
+    RefreshRequest,
+    ReportSettingsResponse,
+    ReportSettingsUpdate,
+    Token,
+    UserResponse,
+)
+from app.services import (
+    authenticate_user,
+    create_access_token,
+    create_refresh_token,
+    get_current_user_required,
+    get_password_hash,
+    image_optimizer,
+    verify_password,
+    verify_refresh_token,
+)
 from app.services.audit_log import audit_login_failed, audit_login_success
 from app.services.rate_limiter import login_rate_limiter
 from app.services.role_utils import canonical_role_value, public_role_value

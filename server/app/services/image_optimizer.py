@@ -75,19 +75,27 @@ class ImageOptimizationService:
 
         try:
             from app.models import get_setting
-            
-            enabled = get_setting(db, "image_optimization_enabled", self.enabled_default)
+
+            enabled = get_setting(
+                db, "image_optimization_enabled", self.enabled_default
+            )
             quality = get_setting(db, "image_quality", self.quality_default)
-            max_dimension = get_setting(db, "image_max_dimension", self.max_dimension_default)
-            convert_to_webp = get_setting(db, "image_convert_to_webp", self.convert_to_webp_default)
-            strip_metadata = get_setting(db, "image_strip_metadata", self.strip_metadata_default)
+            max_dimension = get_setting(
+                db, "image_max_dimension", self.max_dimension_default
+            )
+            convert_to_webp = get_setting(
+                db, "image_convert_to_webp", self.convert_to_webp_default
+            )
+            strip_metadata = get_setting(
+                db, "image_strip_metadata", self.strip_metadata_default
+            )
 
             # Нормализуем типы
             if isinstance(enabled, str):
                 enabled = enabled.lower() in ("true", "1", "yes")
             if isinstance(convert_to_webp, str):
                 convert_to_webp = convert_to_webp.lower() in ("true", "1", "yes")
-            
+
             quality = max(1, min(100, int(quality or self.quality_default)))
             max_dimension = max(1, int(max_dimension or self.max_dimension_default))
 
@@ -99,7 +107,9 @@ class ImageOptimizationService:
                 "strip_metadata": bool(strip_metadata),
             }
         except Exception as e:
-            logger.warning(f"Не удалось получить настройки из БД: {e}. Используются значения по умолчанию.")
+            logger.warning(
+                f"Не удалось получить настройки из БД: {e}. Используются значения по умолчанию."
+            )
             return {
                 "enabled": self.enabled_default,
                 "quality": self.quality_default,
@@ -108,7 +118,9 @@ class ImageOptimizationService:
                 "strip_metadata": self.strip_metadata_default,
             }
 
-    def optimize(self, content: bytes, original_ext: str, db: Optional[Session] = None) -> Tuple[bytes, str, str]:
+    def optimize(
+        self, content: bytes, original_ext: str, db: Optional[Session] = None
+    ) -> Tuple[bytes, str, str]:
         """
         Оптимизировать изображение.
 
@@ -123,7 +135,7 @@ class ImageOptimizationService:
         # Получаем актуальные настройки из БД
         settings_dict = self._get_settings_from_db(db)
         enabled = settings_dict["enabled"]
-        
+
         # Если оптимизация отключена или Pillow недоступен
         if not enabled or not PILLOW_AVAILABLE:
             mime_types = {

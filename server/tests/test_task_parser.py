@@ -2,11 +2,14 @@
 
 import pytest
 
-from app.services.task_parser import (ParsedTask, looks_like_request,
-                                      parse_dispatcher_format,
-                                      parse_dispatcher_message,
-                                      parse_standard_format,
-                                      parse_task_message)
+from app.services.task_parser import (
+    ParsedTask,
+    looks_like_request,
+    parse_dispatcher_format,
+    parse_dispatcher_message,
+    parse_standard_format,
+    parse_task_message,
+)
 
 
 class TestParseDispatcherFormat:
