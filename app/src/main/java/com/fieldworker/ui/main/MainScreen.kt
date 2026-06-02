@@ -596,6 +596,7 @@ fun MainScreen(
                         hasAttemptedLookup = uiState.hasAttemptedAddressLookup,
                         onBack = { navController.popBackStack() },
                         onSendToChat = { showSendTaskToChat = true },
+                        comments = uiState.comments,
                     )
                 }
             }

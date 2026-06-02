@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fieldworker.domain.model.AddressDetails
+import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Task
 import com.fieldworker.ui.utils.TaskUtils
 
@@ -50,6 +51,7 @@ fun ObjectDetailsScreen(
     hasAttemptedLookup: Boolean,
     onBack: () -> Unit,
     onSendToChat: () -> Unit = {},
+    comments: List<Comment> = emptyList(),
 ) {
     Scaffold(
         topBar = {
@@ -88,6 +90,24 @@ fun ObjectDetailsScreen(
         ) {
             item {
                 ObjectHeaderCard(task = task, addressDetails = addressDetails)
+            }
+
+            if (task != null) {
+                item { TaskDetailsSection(task = task) }
+
+                if (comments.isNotEmpty()) {
+                    item {
+                        ObjectInsightList(
+                            title = "Комментарии",
+                            items = comments.map { comment ->
+                                comment.text to listOfNotNull(
+                                    comment.author,
+                                    TaskUtils.formatShortDate(comment.createdAt),
+                                ).filter { it.isNotBlank() }.joinToString(" • ")
+                            }
+                        )
+                    }
+                }
             }
 
             item {
@@ -177,19 +197,19 @@ fun ObjectDetailsScreen(
 
                     hasAttemptedLookup -> {
                         ObjectMessageCard(
-                            title = "Объект не найден",
-                            message = "Для выбранной заявки сервер не нашёл карточку по адресу. Проверь адрес в заявке или синхронизацию адресной базы."
+                            title = "Карточка адреса не найдена",
+                            message = "Адрес заявки не найден в адресной базе — показаны данные самой заявки. Проверь адрес или синхронизацию адресной базы."
                         )
+                    }
+
+                    task != null -> {
+                        // Данные заявки уже показаны выше — адресная карточка не загружена.
                     }
 
                     else -> {
                         ObjectMessageCard(
-                            title = "Нет выбранной карточки",
-                            message = if (task != null) {
-                                "Откройте объект из заявки, чтобы увидеть полную информацию по адресу."
-                            } else {
-                                "Сначала выберите заявку на карте или в списке, затем откройте карточку объекта."
-                            }
+                            title = "Нет выбранной заявки",
+                            message = "Сначала выберите заявку на карте или в списке, затем откройте карточку."
                         )
                     }
                 }
@@ -222,6 +242,54 @@ private fun ObjectHeaderCard(task: Task?, addressDetails: AddressDetails?) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskDetailsSection(task: Task) {
+    ObjectSectionCard(title = "Заявка") {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            ObjectInfoRow(
+                icon = Icons.Default.Info,
+                label = "Статус",
+                value = "${task.status.displayName} • ${task.priority.displayName}",
+            )
+            if (task.description.isNotBlank()) {
+                ObjectInfoRow(
+                    icon = Icons.Default.Info,
+                    label = "Описание",
+                    value = task.description,
+                )
+            }
+            val customer = listOfNotNull(
+                task.customerName?.takeIf { it.isNotBlank() },
+                task.customerPhone?.takeIf { it.isNotBlank() },
+            ).joinToString(" • ")
+            if (customer.isNotBlank()) {
+                ObjectInfoRow(
+                    icon = Icons.Default.Person,
+                    label = "Заказчик",
+                    value = customer,
+                )
+            }
+            task.assignedUserName?.takeIf { it.isNotBlank() }?.let {
+                ObjectInfoRow(icon = Icons.Default.Person, label = "Исполнитель", value = it)
+            }
+            task.plannedDate?.takeIf { it.isNotBlank() }?.let {
+                ObjectInfoRow(
+                    icon = Icons.Default.Info,
+                    label = "Плановая дата",
+                    value = TaskUtils.formatShortDate(it),
+                )
+            }
+            val defect = listOfNotNull(
+                task.systemType?.takeIf { it.isNotBlank() },
+                task.defectType?.takeIf { it.isNotBlank() },
+            ).joinToString(" • ")
+            if (defect.isNotBlank()) {
+                ObjectInfoRow(icon = Icons.Default.Info, label = "Система / неисправность", value = defect)
             }
         }
     }
