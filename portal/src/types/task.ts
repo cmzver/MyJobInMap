@@ -1,33 +1,15 @@
-export type TaskStatus = 'NEW' | 'IN_PROGRESS' | 'DONE' | 'CANCELLED'
-export type TaskPriority = 'EMERGENCY' | 'URGENT' | 'CURRENT' | 'PLANNED'
+import type { components } from './api.generated'
+
+// Domain enums and the task model are derived from the backend OpenAPI schema
+// (single source of truth) — regenerate with `npm run gen:api`.
+export type TaskStatus = components['schemas']['TaskStatus']
+export type TaskPriority = components['schemas']['TaskPriority']
 export type TaskSort = 'created_at_desc' | 'created_at_asc'
 
-export interface Task {
-  id: number
-  task_number: string | null
-  title: string
-  description: string
-  raw_address: string
-  customer_name: string | null
-  customer_phone: string | null
-  lat: number | null
-  lon: number | null
-  status: TaskStatus
-  priority: TaskPriority
-  is_paid: boolean
-  is_remote: boolean
-  payment_amount: number | null
-  planned_date: string | null
-  completed_at: string | null
-  assigned_user_id: number | null
-  assigned_user_name: string | null
-  // Система и тип неисправности
-  system_id: number | null
-  system_type: string | null
-  defect_type: string | null
-  created_at: string
-  updated_at: string
-}
+// List/map/card shape (carries comments_count). The detail endpoint returns the
+// richer TaskDetail (with the full comments history).
+export type Task = components['schemas']['TaskListResponse']
+export type TaskDetail = components['schemas']['TaskResponse']
 
 export interface Comment {
   id: number

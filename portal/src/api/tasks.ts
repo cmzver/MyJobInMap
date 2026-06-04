@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { Task, PaginatedResponse, TaskFilters } from '@/types/task'
+import type { Task, TaskDetail, PaginatedResponse, TaskFilters } from '@/types/task'
 import type { components } from '@/types/api.generated'
 
 // Request payloads are derived from the backend OpenAPI schema (single source
@@ -35,9 +35,9 @@ export const tasksApi = {
     return data
   },
 
-  // Get single task by ID
-  async getTask(id: number): Promise<Task> {
-    const { data } = await apiClient.get<Task>(`/tasks/${id}`)
+  // Get single task by ID (detail endpoint returns the richer TaskResponse)
+  async getTask(id: number): Promise<TaskDetail> {
+    const { data } = await apiClient.get<TaskDetail>(`/tasks/${id}`)
     return data
   },
 
