@@ -6111,8 +6111,7 @@ export interface components {
             user_id: number;
             /** Username */
             username: string;
-            /** Role */
-            role: string;
+            role: components["schemas"]["UserRole"];
             /** Full Name */
             full_name: string;
             /** Avatar Url */
@@ -6187,8 +6186,7 @@ export interface components {
             phone: string | null;
             /** Avatar Url */
             avatar_url?: string | null;
-            /** Role */
-            role: string;
+            role: components["schemas"]["UserRole"];
             /** Is Active */
             is_active: boolean;
             /**

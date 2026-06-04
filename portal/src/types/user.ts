@@ -1,40 +1,14 @@
-export type UserRole = 'superadmin' | 'admin' | 'manager' | 'dispatcher' | 'worker'
+import type { components } from './api.generated'
+
+// User model, role enum and write payloads are derived from the backend
+// OpenAPI schema (single source of truth) — regenerate with `npm run gen:api`.
+export type UserRole = components['schemas']['UserRole']
+export type User = components['schemas']['UserResponse']
+export type CreateUserData = components['schemas']['UserCreate']
+export type UpdateUserData = components['schemas']['UserUpdate']
+
+// Client-side coarse access role (not a backend concept).
 export type AccessRole = 'admin' | 'dispatcher' | 'worker'
-
-export interface User {
-  id: number
-  username: string
-  full_name: string
-  email: string | null
-  phone: string | null
-  avatar_url?: string | null
-  role: UserRole
-  is_active: boolean
-  created_at: string
-  last_login: string | null
-  assigned_tasks_count: number
-  organization_id?: number | null
-}
-
-export interface CreateUserData {
-  username: string
-  password: string
-  full_name?: string
-  email?: string
-  phone?: string
-  role: UserRole
-  organization_id?: number
-}
-
-export interface UpdateUserData {
-  username?: string
-  password?: string
-  full_name?: string
-  email?: string
-  phone?: string
-  role?: UserRole
-  is_active?: boolean
-}
 
 export function normalizeRoleForAccess(role?: string | null): AccessRole {
   switch (role) {

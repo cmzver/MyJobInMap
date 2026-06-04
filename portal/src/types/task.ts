@@ -11,18 +11,7 @@ export type TaskSort = 'created_at_desc' | 'created_at_asc'
 export type Task = components['schemas']['TaskListResponse']
 export type TaskDetail = components['schemas']['TaskResponse']
 
-export interface Comment {
-  id: number
-  task_id: number
-  author: string
-  author_id: number | null
-  text: string
-  old_status: string | null
-  new_status: string | null
-  old_assignee: string | null
-  new_assignee: string | null
-  created_at: string
-}
+export type Comment = components['schemas']['CommentResponse']
 
 export interface TaskPhoto {
   id: number
