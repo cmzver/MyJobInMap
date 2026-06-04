@@ -35,6 +35,7 @@ from app.services import (
     verify_refresh_token,
 )
 from app.services.audit_log import audit_login_failed, audit_login_success
+from app.services.ip_guard import ip_guard
 from app.services.rate_limiter import login_rate_limiter
 from app.services.role_utils import canonical_role_value, public_role_value
 from app.utils import build_user_avatar_url, user_to_response
@@ -87,14 +88,8 @@ async def login(
         429 Too Many Requests: Если превышено количество попыток входа
         401 Unauthorized: Если неверные учётные данные
     """
-    # Получить IP адрес клиента (поддержка TestClient и реальных запросов)
-    if request.client:
-        client_ip = request.client.host
-    else:
-        # Для TestClient и других случаев используем значение по умолчанию
-        client_ip = (
-            request.headers.get("x-forwarded-for", "127.0.0.1").split(",")[0].strip()
-        )
+    # Получить реальный IP клиента (с учётом реверс-прокси, если TRUST_PROXY_HEADERS)
+    client_ip = ip_guard.get_client_ip(request)
 
     # Проверить rate limit
     is_allowed, remaining = login_rate_limiter.is_allowed(client_ip)
@@ -111,10 +106,13 @@ async def login(
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
         audit_login_failed(form_data.username, client_ip)
+        # Персистентный учёт неудач + авто-бан IP при переборе паролей
+        ip_guard.record_login_failure(db, client_ip, form_data.username)
         raise HTTPException(status_code=401, detail="Неверный логин или пароль")
 
-    # Успешный вход - сбросить counter
+    # Успешный вход - сбросить counter и историю неудачных попыток
     login_rate_limiter.reset(client_ip)
+    ip_guard.record_login_success(db, client_ip)
     audit_login_success(user.id, user.username, client_ip)
 
     user.last_login = datetime.now(timezone.utc)

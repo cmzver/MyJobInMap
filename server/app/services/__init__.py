@@ -25,6 +25,7 @@ from app.services.auth import (
     verify_refresh_token,
 )
 from app.services.geocoding import GeocodingService, geocoding_service
+from app.services.ip_guard import ip_guard
 from app.services.image_optimizer import ImageOptimizationService, image_optimizer
 from app.services.notification_service import (
     create_comment_notification,
@@ -97,4 +98,6 @@ __all__ = [
     "chat_service",
     # Audit
     "audit_log",
+    # IP guard / security
+    "ip_guard",
 ]
