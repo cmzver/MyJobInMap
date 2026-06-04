@@ -25,7 +25,6 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 SERVER_DIR = Path(__file__).resolve().parent
@@ -330,9 +329,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         },
     )
 
-
-# Статические файлы
-app.mount("/static", StaticFiles(directory=str(settings.STATIC_DIR)), name="static")
 
 # Portal SPA - НЕ используем StaticFiles, т.к. он не поддерживает SPA fallback
 # Вместо этого используем кастомный route /portal/{path} ниже
