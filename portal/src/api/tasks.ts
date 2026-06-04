@@ -17,21 +17,8 @@ export interface CreateTaskData {
   defect_type?: string | null
 }
 
-export interface UpdateTaskData {
-  title?: string
-  description?: string
-  address?: string
-  customer_name?: string | null
-  customer_phone?: string | null
-  priority?: TaskPriority
-  assigned_user_id?: number | null
-  is_paid?: boolean
-  payment_amount?: number | null
-  planned_date?: string | null
-  system_id?: number | null
-  system_type?: string | null
-  defect_type?: string | null
-}
+// Update accepts the same fields as create, all optional — send only what changes.
+export type UpdateTaskData = Partial<CreateTaskData>
 
 export const tasksApi = {
   // Get paginated list of tasks
