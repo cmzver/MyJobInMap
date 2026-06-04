@@ -1,24 +1,11 @@
 import apiClient from './client'
-import type { Task, PaginatedResponse, TaskFilters, TaskPriority } from '@/types/task'
+import type { Task, PaginatedResponse, TaskFilters } from '@/types/task'
+import type { components } from '@/types/api.generated'
 
-export interface CreateTaskData {
-  title: string
-  description: string
-  address: string
-  customer_name?: string | null
-  customer_phone?: string | null
-  priority?: TaskPriority
-  assigned_user_id?: number | null
-  is_paid?: boolean
-  payment_amount?: number | null
-  planned_date?: string | null
-  system_id?: number | null
-  system_type?: string | null
-  defect_type?: string | null
-}
-
-// Update accepts the same fields as create, all optional — send only what changes.
-export type UpdateTaskData = Partial<CreateTaskData>
+// Request payloads are derived from the backend OpenAPI schema (single source
+// of truth) — regenerate with `npm run gen:api` after changing server schemas.
+export type CreateTaskData = components['schemas']['TaskCreate']
+export type UpdateTaskData = components['schemas']['TaskUpdate']
 
 export const tasksApi = {
   // Get paginated list of tasks
