@@ -95,13 +95,13 @@ class _TaskWritableBase(BaseModel):
         json_schema_extra={"example": "+79991234567"},
     )
 
-    status: Optional[str] = Field(
+    status: Optional[TaskStatus] = Field(
         None,
         description="NEW, IN_PROGRESS, DONE, CANCELLED",
         json_schema_extra={"example": "NEW"},
     )
 
-    priority: Optional[str] = Field(
+    priority: Optional[TaskPriority] = Field(
         None,
         description="PLANNED, CURRENT, URGENT, EMERGENCY",
         json_schema_extra={"example": "EMERGENCY"},

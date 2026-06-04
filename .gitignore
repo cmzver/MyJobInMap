@@ -118,3 +118,7 @@ chat_results.txt
 
 # Playwright MCP artifacts
 .playwright-mcp/
+
+# Generated OpenAPI intermediate (types are committed, this dump is not)
+server/openapi.json
+portal/openapi.json
