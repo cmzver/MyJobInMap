@@ -16,7 +16,8 @@
 | **Web Portal** (`portal/`) | React 18 · TypeScript 5 · Vite 5 · TailwindCSS · TanStack Query · Zustand · React Router 6 · Leaflet |
 | **Backend** (`server/`) | FastAPI · SQLAlchemy · Pydantic · Alembic · SQLite (PostgreSQL опц.) · JWT · WebSocket · pytest |
 | **Bot** (`bot/`) | Python · Telegram Bot API |
-| **mobile-next** (`mobile-next/`) | Kotlin Multiplatform · Compose Multiplatform (WIP, следующее поколение мобильного клиента) |
+
+> ℹ️ Экспериментальная переписка мобильного клиента на Kotlin Multiplatform (`mobile-next/`) **заархивирована** и выведена из активной разработки. Снимок сохранён в git-теге `archive/mobile-next-2026-06-04` и восстанавливается командой `git checkout archive/mobile-next-2026-06-04 -- mobile-next`.
 
 ---
 
@@ -31,7 +32,6 @@ MyJobInMap/
 │   ├── alembic/    #   миграции БД
 │   └── tests/      #   pytest (640+)
 ├── bot/            # Telegram-бот
-├── mobile-next/    # Kotlin Multiplatform клиент (в разработке)
 ├── scripts/        # Деплой и вспомогательные скрипты
 ├── monitoring/     # Prometheus / Grafana конфиги
 ├── docs/           # Документация
