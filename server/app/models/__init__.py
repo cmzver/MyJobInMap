@@ -43,6 +43,11 @@ from app.models.chat import (
 from app.models.enums import TaskPriority, TaskStatus, UserRole
 from app.models.notification import NotificationModel, NotificationType
 from app.models.organization import OrganizationModel
+from app.models.security import (
+    BlockedIPModel,
+    IPAllowlistModel,
+    IPSecurityEventModel,
+)
 from app.models.settings import (
     CustomFieldModel,
     CustomFieldValueModel,
@@ -107,6 +112,10 @@ __all__ = [
     "AddressHistoryModel",
     # Notification
     "NotificationModel",
+    # Security
+    "BlockedIPModel",
+    "IPAllowlistModel",
+    "IPSecurityEventModel",
     # Chat
     "ConversationType",
     "ConversationMemberRole",

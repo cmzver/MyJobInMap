@@ -100,6 +100,16 @@ class Settings(BaseSettings):
         default=60, ge=10, description="Окно rate limiting (сек)"
     )
 
+    # === Защита от перебора / DDoS (IP guard) ===
+    # За реверс-прокси (Caddy/nginx) реальный IP клиента приходит в заголовке
+    # X-Forwarded-For / X-Real-IP, а request.client.host — это адрес прокси.
+    # Включайте ТОЛЬКО когда сервер действительно стоит за доверенным прокси,
+    # иначе клиент сможет подделать заголовок и обойти бан.
+    TRUST_PROXY_HEADERS: bool = Field(
+        default=False,
+        description="Доверять X-Forwarded-For/X-Real-IP для определения IP клиента",
+    )
+
     # === Автоматические бэкапы ===
     BACKUP_SCHEDULER_ENABLED: bool = Field(
         default=False, description="Включить встроенный планировщик бэкапов"

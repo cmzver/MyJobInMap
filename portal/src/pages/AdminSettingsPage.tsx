@@ -44,6 +44,7 @@ import type { TelegramGroupMapping, TelegramKnownGroup } from '@/hooks/useSettin
 import { formatDateTime as formatDate } from '@/utils/dateFormat'
 import { cn } from '@/utils/cn'
 import { UpdatesManagementSection } from '@/pages/UpdatesPage'
+import IpProtectionPanel from '@/components/security/IpProtectionPanel'
 
 // Types
 
@@ -1331,6 +1332,9 @@ function SecuritySettingsTab() {
               </Button>
             }
           />
+
+          <CompactGroupLabel icon={Shield} title="Защита по IP (бан / DDoS / перебор паролей)" className="pt-6" />
+          <IpProtectionPanel />
         </>
       )}
     </div>

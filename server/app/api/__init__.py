@@ -14,6 +14,7 @@ from app.api.address_extended import router as address_extended_router
 from app.api.addresses import router as addresses_router
 from app.api.admin import router as admin_router
 from app.api.admin_backups import router as admin_backups_router
+from app.api.admin_security import router as admin_security_router
 from app.api.admin_users import router as admin_users_router
 from app.api.analytics import router as analytics_router
 from app.api.auth import router as auth_router
@@ -46,6 +47,7 @@ api_router.include_router(notifications_router)
 api_router.include_router(admin_router)
 api_router.include_router(admin_users_router)
 api_router.include_router(admin_backups_router)
+api_router.include_router(admin_security_router)
 api_router.include_router(system_settings_router)
 api_router.include_router(public_settings_router)
 api_router.include_router(addresses_router)
