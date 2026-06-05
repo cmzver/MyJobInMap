@@ -167,6 +167,7 @@ export default function SupportTicketDetailPage() {
   }
 
   const CategoryIcon = categoryMeta[ticket.category].icon
+  const comments = ticket.comments ?? []
 
   return (
     <div className="space-y-6">
@@ -210,8 +211,8 @@ export default function SupportTicketDetailPage() {
             </div>
           </Card>
 
-          <Card title={`Комментарии и статусы (${ticket.comments.length})`}>
-            {ticket.comments.length === 0 ? (
+          <Card title={`Комментарии и статусы (${comments.length})`}>
+            {comments.length === 0 ? (
               <EmptyState
                 icon={MessageSquare}
                 title="Пока без комментариев"
@@ -219,7 +220,7 @@ export default function SupportTicketDetailPage() {
               />
             ) : (
               <div className="space-y-4">
-                {ticket.comments.map((comment) => (
+                {comments.map((comment) => (
                   <article
                     key={comment.id}
                     className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900/40"

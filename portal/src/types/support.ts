@@ -1,57 +1,19 @@
-import type { UserRole } from '@/types/user'
+import type { components } from './api.generated'
 
-export type SupportTicketCategory = 'bug' | 'improvement' | 'feedback'
-export type SupportTicketStatus = 'new' | 'in_progress' | 'resolved' | 'closed'
+// Support domain types are derived from the backend OpenAPI schema (single
+// source of truth) — regenerate with `npm run gen:api`.
+export type SupportTicketCategory = components['schemas']['SupportTicketCategory']
+export type SupportTicketStatus = components['schemas']['SupportTicketStatus']
+export type SupportTicketCommentType = components['schemas']['SupportTicketCommentType']
+
+export type SupportTicketReporter = components['schemas']['SupportTicketReporter']
+export type SupportTicketComment = components['schemas']['SupportTicketCommentResponse']
+export type SupportTicket = components['schemas']['SupportTicketResponse']
+export type SupportTicketDetail = components['schemas']['SupportTicketDetailResponse']
+
+export type CreateSupportTicketData = components['schemas']['SupportTicketCreate']
+export type UpdateSupportTicketData = components['schemas']['SupportTicketUpdate']
+export type CreateSupportTicketCommentData = components['schemas']['SupportTicketCommentCreate']
+
+// Client-side list scope (not a backend schema).
 export type SupportTicketScope = 'mine' | 'all'
-export type SupportTicketCommentType = 'comment' | 'status_change'
-
-export interface SupportTicketReporter {
-  id: number
-  username: string
-  full_name: string
-  role: UserRole
-  organization_id?: number | null
-}
-
-export interface SupportTicketComment {
-  id: number
-  comment_type: SupportTicketCommentType
-  body: string | null
-  old_status: SupportTicketStatus | null
-  new_status: SupportTicketStatus | null
-  created_at: string
-  author: SupportTicketReporter
-}
-
-export interface SupportTicket {
-  id: number
-  title: string
-  description: string
-  category: SupportTicketCategory
-  status: SupportTicketStatus
-  admin_response: string | null
-  organization_id?: number | null
-  created_at: string
-  updated_at: string
-  resolved_at: string | null
-  created_by: SupportTicketReporter
-}
-
-export interface SupportTicketDetail extends SupportTicket {
-  comments: SupportTicketComment[]
-}
-
-export interface CreateSupportTicketData {
-  title: string
-  description: string
-  category: SupportTicketCategory
-}
-
-export interface UpdateSupportTicketData {
-  status?: SupportTicketStatus
-  admin_response?: string | null
-}
-
-export interface CreateSupportTicketCommentData {
-  body: string
-}

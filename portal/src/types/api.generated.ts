@@ -5375,8 +5375,7 @@ export interface components {
             username: string;
             /** Full Name */
             full_name: string;
-            /** Role */
-            role: string;
+            role: components["schemas"]["UserRole"];
             /** Organization Id */
             organization_id?: number | null;
         };
