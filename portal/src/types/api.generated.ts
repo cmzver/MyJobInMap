@@ -4271,11 +4271,8 @@ export interface components {
          * @description Создание разговора
          */
         ConversationCreate: {
-            /**
-             * Type
-             * @description Тип: direct, group, org_general
-             */
-            type: string;
+            /** @description Тип: direct, group, org_general */
+            type: components["schemas"]["ConversationType"];
             /**
              * Name
              * @description Название (для group/org_general)
@@ -4299,8 +4296,7 @@ export interface components {
         ConversationDetailResponse: {
             /** Id */
             id: number;
-            /** Type */
-            type: string;
+            type: components["schemas"]["ConversationType"];
             /** Name */
             name?: string | null;
             /** Avatar Url */
@@ -4331,8 +4327,7 @@ export interface components {
         ConversationListItem: {
             /** Id */
             id: number;
-            /** Type */
-            type: string;
+            type: components["schemas"]["ConversationType"];
             /** Name */
             name?: string | null;
             /** Avatar Url */
@@ -4364,14 +4359,19 @@ export interface components {
             updated_at?: string | null;
         };
         /**
+         * ConversationMemberRole
+         * @description Роли участника в чате
+         * @enum {string}
+         */
+        ConversationMemberRole: "owner" | "admin" | "member";
+        /**
          * ConversationResponse
          * @description Полный ответ разговора
          */
         ConversationResponse: {
             /** Id */
             id: number;
-            /** Type */
-            type: string;
+            type: components["schemas"]["ConversationType"];
             /** Name */
             name?: string | null;
             /** Avatar Url */
@@ -4390,6 +4390,12 @@ export interface components {
             /** Updated At */
             updated_at?: string | null;
         };
+        /**
+         * ConversationType
+         * @description Типы чатов
+         * @enum {string}
+         */
+        ConversationType: "task" | "direct" | "group" | "org_general";
         /**
          * ConversationUpdate
          * @description Обновление разговора
@@ -4680,11 +4686,8 @@ export interface components {
             text?: string | null;
             /** Sender Name */
             sender_name: string;
-            /**
-             * Message Type
-             * @default text
-             */
-            message_type: string;
+            /** @default text */
+            message_type: components["schemas"]["MessageType"];
             /**
              * Created At
              * Format: date-time
@@ -4742,8 +4745,7 @@ export interface components {
             full_name: string;
             /** Avatar Url */
             avatar_url?: string | null;
-            /** Role */
-            role: string;
+            role: components["schemas"]["ConversationMemberRole"];
             /** Last Read Message Id */
             last_read_message_id?: number | null;
             /**
@@ -4767,11 +4769,8 @@ export interface components {
          * @description Изменение роли участника в чате
          */
         MemberRoleUpdateRequest: {
-            /**
-             * Role
-             * @description Новая роль: admin или member
-             */
-            role: string;
+            /** @description Новая роль: admin или member */
+            role: components["schemas"]["ConversationMemberRole"];
         };
         /**
          * MentionInfo
@@ -4803,11 +4802,10 @@ export interface components {
              */
             reply_to_id?: number | null;
             /**
-             * Message Type
              * @description Тип: text, image, file, system, task
              * @default text
              */
-            message_type: string;
+            message_type: components["schemas"]["MessageType"];
             /**
              * Task Id
              * @description ID прикреплённой заявки
@@ -4844,11 +4842,8 @@ export interface components {
             sender_username: string;
             /** Text */
             text?: string | null;
-            /**
-             * Message Type
-             * @default text
-             */
-            message_type: string;
+            /** @default text */
+            message_type: components["schemas"]["MessageType"];
             reply_to?: components["schemas"]["ReplyPreview"] | null;
             attached_task?: components["schemas"]["TaskPreview"] | null;
             /**
@@ -4892,6 +4887,12 @@ export interface components {
             /** Query */
             query: string;
         };
+        /**
+         * MessageType
+         * @description Типы сообщений
+         * @enum {string}
+         */
+        MessageType: "text" | "image" | "file" | "system" | "task";
         /**
          * MessageUpdate
          * @description Редактирование сообщения

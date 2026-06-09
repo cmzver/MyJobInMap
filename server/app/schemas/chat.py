@@ -9,13 +9,15 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models.chat import ConversationMemberRole, ConversationType, MessageType
+
 # ========== Conversations ==========
 
 
 class ConversationCreate(BaseModel):
     """Создание разговора"""
 
-    type: str = Field(..., description="Тип: direct, group, org_general")
+    type: ConversationType = Field(..., description="Тип: direct, group, org_general")
     name: Optional[str] = Field(
         None, max_length=200, description="Название (для group/org_general)"
     )
@@ -41,7 +43,7 @@ class MemberInfo(BaseModel):
     username: str
     full_name: str
     avatar_url: Optional[str] = None
-    role: str  # owner, admin, member
+    role: ConversationMemberRole
     last_read_message_id: Optional[int] = None
     is_muted: bool = False
     is_archived: bool = False
@@ -54,7 +56,7 @@ class LastMessagePreview(BaseModel):
     id: int
     text: Optional[str] = None
     sender_name: str
-    message_type: str = "text"
+    message_type: MessageType = MessageType.TEXT
     created_at: datetime
 
 
@@ -64,7 +66,7 @@ class ConversationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    type: str
+    type: ConversationType
     name: Optional[str] = None
     avatar_url: Optional[str] = None
     task_id: Optional[int] = None
@@ -84,7 +86,7 @@ class ConversationListItem(BaseModel):
     """Элемент списка чатов"""
 
     id: int
-    type: str
+    type: ConversationType
     name: Optional[str] = None
     avatar_url: Optional[str] = None
     task_id: Optional[int] = None
@@ -104,8 +106,8 @@ class MessageCreate(BaseModel):
 
     text: Optional[str] = Field(None, max_length=5000, description="Текст сообщения")
     reply_to_id: Optional[int] = Field(None, description="ID сообщения для ответа")
-    message_type: str = Field(
-        "text", description="Тип: text, image, file, system, task"
+    message_type: MessageType = Field(
+        MessageType.TEXT, description="Тип: text, image, file, system, task"
     )
     task_id: Optional[int] = Field(None, description="ID прикреплённой заявки")
 
@@ -179,7 +181,7 @@ class MessageResponse(BaseModel):
     sender_name: str
     sender_username: str
     text: Optional[str] = None
-    message_type: str = "text"
+    message_type: MessageType = MessageType.TEXT
     reply_to: Optional[ReplyPreview] = None
     attached_task: Optional[TaskPreview] = None
     attachments: List[AttachmentResponse] = []
@@ -234,7 +236,9 @@ class MemberRemoveRequest(BaseModel):
 class MemberRoleUpdateRequest(BaseModel):
     """Изменение роли участника в чате"""
 
-    role: str = Field(..., description="Новая роль: admin или member")
+    role: ConversationMemberRole = Field(
+        ..., description="Новая роль: admin или member"
+    )
 
 
 class OwnershipTransferRequest(BaseModel):

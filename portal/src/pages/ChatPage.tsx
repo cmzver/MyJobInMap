@@ -177,7 +177,7 @@ export default function ChatPage() {
     const filtered = !q
       ? scoped
       : scoped.filter((c) => {
-        const name = (c.display_name ?? c.name ?? '').toLowerCase()
+        const name = (c.name ?? '').toLowerCase()
         return name.includes(q)
       })
 
@@ -189,8 +189,8 @@ export default function ChatPage() {
         return right.unread_count - left.unread_count
       }
 
-      const leftTime = left.last_message_at ? Date.parse(left.last_message_at) : 0
-      const rightTime = right.last_message_at ? Date.parse(right.last_message_at) : 0
+      const leftTime = left.updated_at ? Date.parse(left.updated_at) : 0
+      const rightTime = right.updated_at ? Date.parse(right.updated_at) : 0
       return rightTime - leftTime
     })
   }, [conversationScope, conversationSearchQuery, conversations])
@@ -552,7 +552,7 @@ export default function ChatPage() {
   const activeConvName = useMemo(() => {
     if (!activeConversationId) return ''
     const conv = conversations.find((c) => c.id === activeConversationId)
-    return conv?.display_name ?? conv?.name ?? `Чат #${activeConversationId}`
+    return conv?.name ?? `Чат #${activeConversationId}`
   }, [activeConversationId, conversations])
 
   const headerParticipants = useMemo(() => {

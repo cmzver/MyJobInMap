@@ -70,7 +70,7 @@ export default function SendTaskToChatModal({ isOpen, onClose, taskId, taskTitle
             >
               <MessagesSquare className="h-5 w-5 shrink-0 text-primary-500" />
               <span className="flex-1 truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-                {conv.display_name || conv.name || `Чат #${conv.id}`}
+                {conv.name || `Чат #${conv.id}`}
               </span>
               {sendMessage.isPending && selectedId === conv.id && (
                 <span className="text-xs text-gray-400">Отправка…</span>
