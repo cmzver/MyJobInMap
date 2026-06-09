@@ -3197,11 +3197,10 @@ export interface components {
          */
         AddressContactCreate: {
             /**
-             * Contact Type
              * @description ��� ��������
              * @default other
              */
-            contact_type: string;
+            contact_type: components["schemas"]["ContactType"];
             /** Name */
             name: string;
             /**
@@ -3228,11 +3227,10 @@ export interface components {
          */
         AddressContactResponse: {
             /**
-             * Contact Type
              * @description ��� ��������
              * @default other
              */
-            contact_type: string;
+            contact_type: components["schemas"]["ContactType"];
             /** Name */
             name: string;
             /**
@@ -3272,8 +3270,7 @@ export interface components {
          * @description ���������� ��������
          */
         AddressContactUpdate: {
-            /** Contact Type */
-            contact_type?: string | null;
+            contact_type?: components["schemas"]["ContactType"] | null;
             /** Name */
             name?: string | null;
             /** Position */
@@ -3398,8 +3395,7 @@ export interface components {
             address_id: number;
             /** Name */
             name: string;
-            /** Doc Type */
-            doc_type: string;
+            doc_type: components["schemas"]["DocumentType"];
             /** File Path */
             file_path: string;
             /** File Size */
@@ -3427,11 +3423,8 @@ export interface components {
          * @description �������� ������������
          */
         AddressEquipmentCreate: {
-            /**
-             * Equipment Type
-             * @description ��� ������������
-             */
-            equipment_type: string;
+            /** @description ��� ������������ */
+            equipment_type: components["schemas"]["EquipmentType"];
             /** Name */
             name: string;
             /** Model */
@@ -3451,11 +3444,10 @@ export interface components {
             /** Warranty Until */
             warranty_until?: string | null;
             /**
-             * Status
              * @description ������
              * @default working
              */
-            status: string;
+            status: components["schemas"]["EquipmentStatus"];
             /** Notes */
             notes?: string | null;
             /**
@@ -3469,11 +3461,8 @@ export interface components {
          * @description ����� � �������������
          */
         AddressEquipmentResponse: {
-            /**
-             * Equipment Type
-             * @description ��� ������������
-             */
-            equipment_type: string;
+            /** @description ��� ������������ */
+            equipment_type: components["schemas"]["EquipmentType"];
             /** Name */
             name: string;
             /** Model */
@@ -3493,11 +3482,10 @@ export interface components {
             /** Warranty Until */
             warranty_until?: string | null;
             /**
-             * Status
              * @description ������
              * @default working
              */
-            status: string;
+            status: components["schemas"]["EquipmentStatus"];
             /** Notes */
             notes?: string | null;
             /**
@@ -3525,8 +3513,7 @@ export interface components {
          * @description ���������� ������������
          */
         AddressEquipmentUpdate: {
-            /** Equipment Type */
-            equipment_type?: string | null;
+            equipment_type?: components["schemas"]["EquipmentType"] | null;
             /** Name */
             name?: string | null;
             /** Model */
@@ -3541,8 +3528,7 @@ export interface components {
             install_date?: string | null;
             /** Warranty Until */
             warranty_until?: string | null;
-            /** Status */
-            status?: string | null;
+            status?: components["schemas"]["EquipmentStatus"] | null;
             /** Notes */
             notes?: string | null;
             /** System Id */
@@ -3638,6 +3624,12 @@ export interface components {
             task_stats: components["schemas"]["TaskStats"];
         };
         /**
+         * AddressHistoryEventType
+         * @description ���� ������� � ������� �������
+         * @enum {string}
+         */
+        AddressHistoryEventType: "created" | "updated" | "document_added" | "document_removed" | "system_added" | "system_updated" | "equipment_added" | "equipment_updated" | "contact_added" | "contact_updated";
+        /**
          * AddressHistoryResponse
          * @description ����� � ������� �������
          */
@@ -3646,8 +3638,7 @@ export interface components {
             id: number;
             /** Address Id */
             address_id: number;
-            /** Event Type */
-            event_type: string;
+            event_type: components["schemas"]["AddressHistoryEventType"];
             /** Description */
             description: string;
             /** User Id */
@@ -3786,19 +3777,15 @@ export interface components {
          * @description �������� �������
          */
         AddressSystemCreate: {
-            /**
-             * System Type
-             * @description ��� �������
-             */
-            system_type: string;
+            /** @description ��� ������� */
+            system_type: components["schemas"]["SystemType"];
             /** Name */
             name: string;
             /**
-             * Status
              * @description ������ �������
              * @default active
              */
-            status: string;
+            status: components["schemas"]["SystemStatus"];
             /** Contract Number */
             contract_number?: string | null;
             /** Service Start Date */
@@ -3815,19 +3802,15 @@ export interface components {
          * @description ����� � ��������
          */
         AddressSystemResponse: {
-            /**
-             * System Type
-             * @description ��� �������
-             */
-            system_type: string;
+            /** @description ��� ������� */
+            system_type: components["schemas"]["SystemType"];
             /** Name */
             name: string;
             /**
-             * Status
              * @description ������ �������
              * @default active
              */
-            status: string;
+            status: components["schemas"]["SystemStatus"];
             /** Contract Number */
             contract_number?: string | null;
             /** Service Start Date */
@@ -3858,12 +3841,10 @@ export interface components {
          * @description ���������� �������
          */
         AddressSystemUpdate: {
-            /** System Type */
-            system_type?: string | null;
+            system_type?: components["schemas"]["SystemType"] | null;
             /** Name */
             name?: string | null;
-            /** Status */
-            status?: string | null;
+            status?: components["schemas"]["SystemStatus"] | null;
             /** Contract Number */
             contract_number?: string | null;
             /** Service Start Date */
@@ -4264,6 +4245,12 @@ export interface components {
             total_completed: number;
         };
         /**
+         * ContactType
+         * @description ���� ���������
+         * @enum {string}
+         */
+        ContactType: "chairman" | "elder" | "management" | "concierge" | "other";
+        /**
          * ConversationCreate
          * @description Создание разговора
          */
@@ -4621,6 +4608,24 @@ export interface components {
             /** Device Name */
             device_name?: string | null;
         };
+        /**
+         * DocumentType
+         * @description ���� ����������
+         * @enum {string}
+         */
+        DocumentType: "contract" | "estimate" | "act" | "scheme" | "passport" | "other";
+        /**
+         * EquipmentStatus
+         * @description ������� ������������
+         * @enum {string}
+         */
+        EquipmentStatus: "working" | "faulty" | "dismantled";
+        /**
+         * EquipmentType
+         * @description ���� ������������
+         * @enum {string}
+         */
+        EquipmentType: "camera" | "dvr" | "intercom_panel" | "intercom_handset" | "sensor" | "controller" | "reader" | "lock" | "switch" | "router" | "ups" | "other";
         /**
          * FinanceStatsResponse
          * @description Общая финансовая статистика
@@ -5575,6 +5580,18 @@ export interface components {
             /** Admin Response */
             admin_response?: string | null;
         };
+        /**
+         * SystemStatus
+         * @description ������� ������
+         * @enum {string}
+         */
+        SystemStatus: "active" | "maintenance" | "disabled";
+        /**
+         * SystemType
+         * @description ���� ������ �� ������������
+         * @enum {string}
+         */
+        SystemType: "video_surveillance" | "intercom" | "fire_protection" | "access_control" | "fire_alarm" | "other";
         /**
          * TaskAssignRequest
          * @description Task assignment payload.

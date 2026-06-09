@@ -9,6 +9,16 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models.address import (
+    AddressHistoryEventType,
+    ContactType,
+    DocumentType,
+    EquipmentStatus,
+    EquipmentType,
+    SystemStatus,
+    SystemType,
+)
+
 # ============================================
 # Enums (��� ���������)
 # ============================================
@@ -243,9 +253,9 @@ class AddressComposeResponse(BaseModel):
 class AddressSystemBase(BaseModel):
     """������� ���� �������"""
 
-    system_type: str = Field(..., description="��� �������")
+    system_type: SystemType = Field(..., description="��� �������")
     name: str = Field(..., min_length=1, max_length=200)
-    status: str = Field(default="active", description="������ �������")
+    status: SystemStatus = Field(default="active", description="������ �������")
     contract_number: Optional[str] = Field(None, max_length=100)
     service_start_date: Optional[datetime] = None
     service_end_date: Optional[datetime] = None
@@ -262,9 +272,9 @@ class AddressSystemCreate(AddressSystemBase):
 class AddressSystemUpdate(BaseModel):
     """���������� �������"""
 
-    system_type: Optional[str] = None
+    system_type: Optional[SystemType] = None
     name: Optional[str] = Field(None, min_length=1, max_length=200)
-    status: Optional[str] = None
+    status: Optional[SystemStatus] = None
     contract_number: Optional[str] = Field(None, max_length=100)
     service_start_date: Optional[datetime] = None
     service_end_date: Optional[datetime] = None
@@ -291,7 +301,7 @@ class AddressSystemResponse(AddressSystemBase):
 class AddressEquipmentBase(BaseModel):
     """������� ���� ������������"""
 
-    equipment_type: str = Field(..., description="��� ������������")
+    equipment_type: EquipmentType = Field(..., description="��� ������������")
     name: str = Field(..., min_length=1, max_length=200)
     model: Optional[str] = Field(None, max_length=100)
     serial_number: Optional[str] = Field(None, max_length=100)
@@ -299,7 +309,7 @@ class AddressEquipmentBase(BaseModel):
     location: Optional[str] = Field(None, max_length=200)
     install_date: Optional[datetime] = None
     warranty_until: Optional[datetime] = None
-    status: str = Field(default="working", description="������")
+    status: EquipmentStatus = Field(default="working", description="������")
     notes: Optional[str] = None
     system_id: Optional[int] = Field(None, description="ID ��������� �������")
 
@@ -313,7 +323,7 @@ class AddressEquipmentCreate(AddressEquipmentBase):
 class AddressEquipmentUpdate(BaseModel):
     """���������� ������������"""
 
-    equipment_type: Optional[str] = None
+    equipment_type: Optional[EquipmentType] = None
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     model: Optional[str] = Field(None, max_length=100)
     serial_number: Optional[str] = Field(None, max_length=100)
@@ -321,7 +331,7 @@ class AddressEquipmentUpdate(BaseModel):
     location: Optional[str] = Field(None, max_length=200)
     install_date: Optional[datetime] = None
     warranty_until: Optional[datetime] = None
-    status: Optional[str] = None
+    status: Optional[EquipmentStatus] = None
     notes: Optional[str] = None
     system_id: Optional[int] = None
 
@@ -346,7 +356,7 @@ class AddressDocumentBase(BaseModel):
     """������� ���� ���������"""
 
     name: str = Field(..., min_length=1, max_length=300)
-    doc_type: str = Field(default="other", description="��� ���������")
+    doc_type: DocumentType = Field(default="other", description="��� ���������")
     valid_from: Optional[datetime] = None
     valid_until: Optional[datetime] = None
     notes: Optional[str] = None
@@ -362,7 +372,7 @@ class AddressDocumentUpdate(BaseModel):
     """���������� ���������"""
 
     name: Optional[str] = Field(None, min_length=1, max_length=300)
-    doc_type: Optional[str] = None
+    doc_type: Optional[DocumentType] = None
     valid_from: Optional[datetime] = None
     valid_until: Optional[datetime] = None
     notes: Optional[str] = None
@@ -376,7 +386,7 @@ class AddressDocumentResponse(BaseModel):
     id: int
     address_id: int
     name: str
-    doc_type: str
+    doc_type: DocumentType
     file_path: str
     file_size: int
     mime_type: Optional[str] = None
@@ -396,7 +406,7 @@ class AddressDocumentResponse(BaseModel):
 class AddressContactBase(BaseModel):
     """������� ���� ��������"""
 
-    contact_type: str = Field(default="other", description="��� ��������")
+    contact_type: ContactType = Field(default="other", description="��� ��������")
     name: str = Field(..., min_length=1, max_length=200)
     position: Optional[str] = Field(None, max_length=200, description="���������")
     phone: Optional[str] = Field(None, max_length=50)
@@ -414,7 +424,7 @@ class AddressContactCreate(AddressContactBase):
 class AddressContactUpdate(BaseModel):
     """���������� ��������"""
 
-    contact_type: Optional[str] = None
+    contact_type: Optional[ContactType] = None
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     position: Optional[str] = Field(None, max_length=200)
     phone: Optional[str] = Field(None, max_length=50)
@@ -446,7 +456,7 @@ class AddressHistoryResponse(BaseModel):
 
     id: int
     address_id: int
-    event_type: str
+    event_type: AddressHistoryEventType
     description: str
     user_id: Optional[int] = None
     user_name: Optional[str] = None  # ����������� � API
