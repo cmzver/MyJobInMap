@@ -7,7 +7,7 @@ Organizations API
 """
 
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -130,7 +130,7 @@ def _org_to_response(org: OrganizationModel, db: Session) -> OrganizationRespons
 # === Endpoints ===
 
 
-@router.get("")
+@router.get("", response_model=List[OrganizationResponse])
 async def list_organizations(
     include_inactive: bool = False,
     db: Session = Depends(get_db),
@@ -142,7 +142,7 @@ async def list_organizations(
     return [_org_to_response(org, db) for org in orgs]
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, response_model=OrganizationResponse)
 async def create_organization(
     data: OrganizationCreate,
     db: Session = Depends(get_db),
@@ -171,7 +171,7 @@ async def create_organization(
     return _org_to_response(org, db)
 
 
-@router.get("/{org_id}")
+@router.get("/{org_id}", response_model=OrganizationResponse)
 async def get_organization(
     org_id: int,
     db: Session = Depends(get_db),
@@ -185,7 +185,7 @@ async def get_organization(
     return _org_to_response(org, db)
 
 
-@router.patch("/{org_id}")
+@router.patch("/{org_id}", response_model=OrganizationResponse)
 async def update_organization(
     org_id: int,
     data: OrganizationUpdate,
@@ -233,7 +233,7 @@ async def assign_user_to_organization(
     }
 
 
-@router.post("/{org_id}/activate")
+@router.post("/{org_id}/activate", response_model=OrganizationResponse)
 async def activate_organization(
     org_id: int,
     db: Session = Depends(get_db),

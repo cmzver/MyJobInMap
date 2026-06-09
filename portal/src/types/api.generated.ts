@@ -4962,6 +4962,48 @@ export interface components {
             max_tasks: number;
             initial_admin?: components["schemas"]["InitialAdminCreate"] | null;
         };
+        /** OrganizationResponse */
+        OrganizationResponse: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Description */
+            description?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Address */
+            address?: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Max Users */
+            max_users: number;
+            /** Max Tasks */
+            max_tasks: number;
+            /**
+             * User Count
+             * @default 0
+             */
+            user_count: number;
+            /**
+             * Task Count
+             * @default 0
+             */
+            task_count: number;
+            /**
+             * Address Count
+             * @default 0
+             */
+            address_count: number;
+            /** Created At */
+            created_at?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+        };
         /** OrganizationUpdate */
         OrganizationUpdate: {
             /** Name */
@@ -11531,7 +11573,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["OrganizationResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -11564,7 +11606,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["OrganizationResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11595,7 +11637,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["OrganizationResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11661,7 +11703,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["OrganizationResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11725,7 +11767,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["OrganizationResponse"];
                 };
             };
             /** @description Validation Error */
