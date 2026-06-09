@@ -34,6 +34,7 @@ from app.schemas import (
     TaskListResponse,
     TaskResponse,
     TaskStatusUpdate,
+    TaskSummaryResponse,
 )
 from app.services import (
     TaskService,
@@ -251,6 +252,21 @@ async def get_tasks(
         page=page,
         size=size,
         pages=(total + size - 1) // size,
+    )
+
+
+@router.get("/summary", response_model=TaskSummaryResponse)
+async def get_tasks_summary(
+    status: Optional[TaskStatus] = None,
+    assignee_id: Optional[int] = None,
+    service: TaskService = Depends(get_task_service),
+    user: UserModel = Depends(require_permission("view_tasks")),
+):
+    """Агрегированная сводка по заявкам (количества по статусам/приоритетам)."""
+    return service.get_summary(
+        user,
+        status=status.value if status else None,
+        assignee_id=assignee_id,
     )
 
 

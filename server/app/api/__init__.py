@@ -1,11 +1,7 @@
 """
 API Package
 ===========
-Export routers.
-
-Versioning:
-- /api/      - current version (v1, backward compatible)
-- /api/v2/   - v2-specific endpoints (envelope format, summary, etc.)
+Export routers. Все эндпоинты монтируются под /api/.
 """
 
 from fastapi import APIRouter
@@ -65,11 +61,4 @@ api_router.include_router(organizations_router)
 api_router.include_router(support_router)
 
 
-def get_v2_router() -> APIRouter:
-    """Lazy-load v2 router to avoid circular imports."""
-    from app.api.v2 import v2_router
-
-    return v2_router
-
-
-__all__ = ["api_router", "get_v2_router"]
+__all__ = ["api_router"]

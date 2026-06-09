@@ -420,6 +420,34 @@ class PaginatedResponse(BaseModel, Generic[T]):
     pages: int
 
 
+class TaskStatusCounts(BaseModel):
+    """Количество заявок по статусам"""
+
+    NEW: int = 0
+    IN_PROGRESS: int = 0
+    DONE: int = 0
+    CANCELLED: int = 0
+
+
+class TaskPriorityCounts(BaseModel):
+    """Количество заявок по приоритетам"""
+
+    PLANNED: int = 0
+    CURRENT: int = 0
+    URGENT: int = 0
+    EMERGENCY: int = 0
+
+
+class TaskSummaryResponse(BaseModel):
+    """Агрегированная сводка по заявкам для дашбордов"""
+
+    total: int
+    unassigned: int
+    overdue: int
+    by_status: TaskStatusCounts
+    by_priority: TaskPriorityCounts
+
+
 # ============================================================================
 # Text Parsing Schemas
 # ============================================================================

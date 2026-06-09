@@ -224,6 +224,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tasks/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tasks Summary
+         * @description Агрегированная сводка по заявкам (количества по статусам/приоритетам).
+         */
+        get: operations["get_tasks_summary_api_tasks_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tasks/{task_id}": {
         parameters: {
             query?: never;
@@ -3053,50 +3073,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/version": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Api Version
-         * @description Информация о доступных версиях API.
-         *
-         *     v2-only endpoint для получения мета-информации.
-         */
-        get: operations["api_version_api_v2_version_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/tasks/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Tasks Summary
-         * @description v2-only: Сводка по заявкам (количество по статусам, приоритетам).
-         *
-         *     Возвращает агрегированную статистику без загрузки отдельных заявок.
-         */
-        get: operations["tasks_summary_api_v2_tasks_summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/health": {
         parameters: {
             query?: never;
@@ -5879,6 +5855,32 @@ export interface components {
          */
         TaskPriority: "PLANNED" | "CURRENT" | "URGENT" | "EMERGENCY";
         /**
+         * TaskPriorityCounts
+         * @description Количество заявок по приоритетам
+         */
+        TaskPriorityCounts: {
+            /**
+             * Planned
+             * @default 0
+             */
+            PLANNED: number;
+            /**
+             * Current
+             * @default 0
+             */
+            CURRENT: number;
+            /**
+             * Urgent
+             * @default 0
+             */
+            URGENT: number;
+            /**
+             * Emergency
+             * @default 0
+             */
+            EMERGENCY: number;
+        };
+        /**
          * TaskResponse
          * @description Полный ответ заявки.
          *
@@ -6070,6 +6072,32 @@ export interface components {
          */
         TaskStatus: "NEW" | "IN_PROGRESS" | "DONE" | "CANCELLED";
         /**
+         * TaskStatusCounts
+         * @description Количество заявок по статусам
+         */
+        TaskStatusCounts: {
+            /**
+             * New
+             * @default 0
+             */
+            NEW: number;
+            /**
+             * In Progress
+             * @default 0
+             */
+            IN_PROGRESS: number;
+            /**
+             * Done
+             * @default 0
+             */
+            DONE: number;
+            /**
+             * Cancelled
+             * @default 0
+             */
+            CANCELLED: number;
+        };
+        /**
          * TaskStatusUpdate
          * @description Обновление статуса
          */
@@ -6081,6 +6109,20 @@ export interface components {
              * @default
              */
             comment: string;
+        };
+        /**
+         * TaskSummaryResponse
+         * @description Агрегированная сводка по заявкам для дашбордов
+         */
+        TaskSummaryResponse: {
+            /** Total */
+            total: number;
+            /** Unassigned */
+            unassigned: number;
+            /** Overdue */
+            overdue: number;
+            by_status: components["schemas"]["TaskStatusCounts"];
+            by_priority: components["schemas"]["TaskPriorityCounts"];
         };
         /**
          * TaskUpdate
@@ -6898,6 +6940,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaskResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tasks_summary_api_tasks_summary_get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["TaskStatus"] | null;
+                assignee_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskSummaryResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12135,58 +12209,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SupportTicketCommentResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    api_version_api_v2_version_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    tasks_summary_api_v2_tasks_summary_get: {
-        parameters: {
-            query?: {
-                status?: components["schemas"]["TaskStatus"] | null;
-                assignee_id?: number | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 
 from fastapi import Depends
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.models import CommentModel, TaskModel, TaskStatus, UserModel, UserRole, get_db
@@ -273,6 +273,70 @@ class TaskService:
         return query.order_by(
             priority_rank_expr(TaskModel.priority).desc(), TaskModel.created_at.desc()
         ).all()
+
+    def get_summary(
+        self,
+        user: UserModel,
+        status: Optional[str] = None,
+        assignee_id: Optional[int] = None,
+    ) -> dict:
+        """
+        Агрегированная сводка по заявкам (количества по статусам/приоритетам).
+
+        Считает агрегаты без загрузки отдельных заявок — для дашбордов.
+        """
+        tenant = TenantFilter(user)
+        query = tenant.apply(self.db.query(TaskModel), TaskModel)
+
+        if user.role == UserRole.WORKER.value:
+            query = query.filter(TaskModel.assigned_user_id == user.id)
+        elif assignee_id is not None:
+            query = query.filter(TaskModel.assigned_user_id == assignee_id)
+
+        if status:
+            query = query.filter(TaskModel.status == status)
+
+        task_ids = query.with_entities(TaskModel.id)
+        status_counts = dict(
+            self.db.query(TaskModel.status, func.count(TaskModel.id))
+            .filter(TaskModel.id.in_(task_ids))
+            .group_by(TaskModel.status)
+            .all()
+        )
+        priority_counts = dict(
+            self.db.query(TaskModel.priority, func.count(TaskModel.id))
+            .filter(TaskModel.id.in_(task_ids))
+            .group_by(TaskModel.priority)
+            .all()
+        )
+
+        total = query.count()
+        unassigned = query.filter(TaskModel.assigned_user_id.is_(None)).count()
+        now = datetime.now(timezone.utc)
+        overdue = query.filter(
+            TaskModel.planned_date < now,
+            TaskModel.status.notin_(
+                [TaskStatus.DONE.value, TaskStatus.CANCELLED.value]
+            ),
+        ).count()
+
+        return {
+            "total": total,
+            "unassigned": unassigned,
+            "overdue": overdue,
+            "by_status": {
+                "NEW": status_counts.get("NEW", 0),
+                "IN_PROGRESS": status_counts.get("IN_PROGRESS", 0),
+                "DONE": status_counts.get("DONE", 0),
+                "CANCELLED": status_counts.get("CANCELLED", 0),
+            },
+            "by_priority": {
+                "PLANNED": priority_counts.get("PLANNED", 0),
+                "CURRENT": priority_counts.get("CURRENT", 0),
+                "URGENT": priority_counts.get("URGENT", 0),
+                "EMERGENCY": priority_counts.get("EMERGENCY", 0),
+            },
+        }
 
     def create(self, data: TaskCreate, user: Optional[UserModel] = None) -> TaskModel:
         """
