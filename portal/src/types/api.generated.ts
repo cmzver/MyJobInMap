@@ -3929,10 +3929,7 @@ export interface components {
         /** AnalyticsResponse */
         AnalyticsResponse: {
             reports: components["schemas"]["ReportsResponse"];
-            /** Sla */
-            sla: {
-                [key: string]: unknown;
-            };
+            sla: components["schemas"]["SlaResponse"];
         };
         /**
          * AppUpdateCheck
@@ -5339,6 +5336,123 @@ export interface components {
             icon: string;
             /** Settings */
             settings: components["schemas"]["SettingResponse"][];
+        };
+        /**
+         * SlaOverview
+         * @description Общие метрики SLA
+         */
+        SlaOverview: {
+            /** Total Tasks */
+            total_tasks: number;
+            /** Completed Tasks */
+            completed_tasks: number;
+            /** In Progress Tasks */
+            in_progress_tasks: number;
+            /** New Tasks */
+            new_tasks: number;
+            /** Cancelled Tasks */
+            cancelled_tasks: number;
+            /** Overdue Tasks */
+            overdue_tasks: number;
+            /** Active Overdue */
+            active_overdue: number;
+            /** Completion Rate */
+            completion_rate: number;
+            /** Sla Compliance Rate */
+            sla_compliance_rate: number;
+        };
+        /**
+         * SlaPeriodInfo
+         * @description Окно периода SLA-дашборда
+         */
+        SlaPeriodInfo: {
+            /** Start */
+            start: string;
+            /** End */
+            end: string;
+            /** Days */
+            days: number;
+            /** Label */
+            label: string;
+        };
+        /**
+         * SlaPriority
+         * @description SLA-метрики по приоритету
+         */
+        SlaPriority: {
+            /** Priority */
+            priority: string;
+            /** Label */
+            label: string;
+            /** Total */
+            total: number;
+            /** Completed */
+            completed: number;
+            /** Sla Hours */
+            sla_hours: number;
+            /** Sla Compliance Rate */
+            sla_compliance_rate: number;
+        };
+        /**
+         * SlaResponse
+         * @description Полный ответ SLA-дашборда
+         */
+        SlaResponse: {
+            period: components["schemas"]["SlaPeriodInfo"];
+            overview: components["schemas"]["SlaOverview"];
+            timing: components["schemas"]["SlaTiming"];
+            /** By Priority */
+            by_priority: components["schemas"]["SlaPriority"][];
+            /** By Worker */
+            by_worker: components["schemas"]["SlaWorker"][];
+            /** Trends */
+            trends: components["schemas"]["SlaTrend"][];
+        };
+        /**
+         * SlaTiming
+         * @description Статистика времени выполнения (часы)
+         */
+        SlaTiming: {
+            /** Avg Completion Hours */
+            avg_completion_hours: number;
+            /** Min Completion Hours */
+            min_completion_hours: number;
+            /** Max Completion Hours */
+            max_completion_hours: number;
+            /** Median Completion Hours */
+            median_completion_hours: number;
+        };
+        /**
+         * SlaTrend
+         * @description Точка тренда по дню/неделе
+         */
+        SlaTrend: {
+            /** Date */
+            date: string;
+            /** Created */
+            created: number;
+            /** Completed */
+            completed: number;
+        };
+        /**
+         * SlaWorker
+         * @description SLA-метрики по исполнителю
+         */
+        SlaWorker: {
+            /** User Id */
+            user_id: number;
+            /** User Name */
+            user_name: string;
+            /** Total Tasks */
+            total_tasks: number;
+            /** Completed Tasks */
+            completed_tasks: number;
+            /** Completion Rate */
+            completion_rate: number;
+            /** Sla Compliance Rate */
+            sla_compliance_rate: number;
+            /** Avg Completion Hours */
+            avg_completion_hours: number;
         };
         /**
          * SupportTicketCategory
@@ -10666,7 +10780,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SlaResponse"];
                 };
             };
             /** @description Validation Error */
