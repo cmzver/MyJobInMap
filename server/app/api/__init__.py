@@ -6,7 +6,6 @@ Export routers. Все эндпоинты монтируются под /api/.
 
 from fastapi import APIRouter
 
-from app.api.address_extended import router as address_extended_router
 from app.api.addresses import router as addresses_router
 from app.api.admin import public_router as public_settings_router
 from app.api.admin import router as admin_router
@@ -34,7 +33,6 @@ api_router.include_router(notifications_router)
 api_router.include_router(admin_router)
 api_router.include_router(public_settings_router)
 api_router.include_router(addresses_router)
-api_router.include_router(address_extended_router)
 api_router.include_router(users_router)
 api_router.include_router(analytics_router)
 api_router.include_router(websocket_router)

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
-from app.api.address_extended import build_task_filters_for_address
+from app.api.addresses import build_task_filters_for_address
 from app.api.deps import TaskAccess, require_task_access
 from app.models import (
     CommentModel,
