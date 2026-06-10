@@ -33,10 +33,13 @@ from app.services.geocoding import GeocodingService, geocoding_service
 from app.services.image_optimizer import ImageOptimizationService, image_optimizer
 from app.services.ip_guard import ip_guard
 from app.services.notification_service import (
+    NotificationService,
+    NotificationServiceError,
     create_comment_notification,
     create_notification,
     create_task_assignment_notification,
     create_task_status_notification,
+    get_notification_service,
 )
 from app.services.push import (
     _send_push_sync,
@@ -117,6 +120,9 @@ __all__ = [
     "create_notification",
     "create_task_status_notification",
     "create_task_assignment_notification",
+    "NotificationService",
+    "NotificationServiceError",
+    "get_notification_service",
     # Chat
     "chat_service",
     # Audit

@@ -28,7 +28,7 @@ class TestNotificationsApiSecurity:
         self, client: TestClient, auth_headers: dict[str, str]
     ):
         with patch(
-            "app.api.notifications._send_push_sync",
+            "app.services.notification_service._send_push_sync",
             return_value={"success": True, "message": "queued"},
         ):
             response = client.post("/api/notifications/test", headers=auth_headers)
@@ -59,7 +59,7 @@ class TestNotificationsApiSecurity:
         headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
 
         with patch(
-            "app.api.notifications._send_push_sync",
+            "app.services.notification_service._send_push_sync",
             return_value={"success": True, "message": "queued"},
         ) as send_mock:
             response = client.post(
