@@ -62,7 +62,9 @@ class IPGuard:
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._blocked: Dict[str, Optional[float]] = {}  # ip -> epoch истечения / None=навсегда
+        self._blocked: Dict[str, Optional[float]] = (
+            {}
+        )  # ip -> epoch истечения / None=навсегда
         self._allow: Set[str] = set()
         self._pending_hits: Dict[str, int] = {}  # буфер отклонённых запросов до flush
         self._cfg: Dict[str, object] = dict(DEFAULTS)
@@ -222,7 +224,11 @@ class IPGuard:
                     created_by="system",
                     event_type="ddos_banned",
                 )
-                return {"status": 429, "reason": "ddos", "retry_after": ban_minutes * 60}
+                return {
+                    "status": 429,
+                    "reason": "ddos",
+                    "retry_after": ban_minutes * 60,
+                }
 
         return None
 
@@ -245,9 +251,7 @@ class IPGuard:
             minutes = int(duration_minutes or self._cfg_int("ip_ban_minutes"))
             expires = now + timedelta(minutes=minutes)
 
-        row = (
-            db.query(BlockedIPModel).filter(BlockedIPModel.ip_address == ip).first()
-        )
+        row = db.query(BlockedIPModel).filter(BlockedIPModel.ip_address == ip).first()
         if row:
             row.reason = reason
             row.expires_at = expires
@@ -276,9 +280,7 @@ class IPGuard:
         return row
 
     def unblock_ip(self, db, ip: str, by: str = "system") -> bool:
-        row = (
-            db.query(BlockedIPModel).filter(BlockedIPModel.ip_address == ip).first()
-        )
+        row = db.query(BlockedIPModel).filter(BlockedIPModel.ip_address == ip).first()
         if not row:
             return False
         db.delete(row)
@@ -330,15 +332,13 @@ class IPGuard:
         self._record_event(db, ip, "login_failed", username=username)
         db.commit()
 
-        if not get_setting(db, "ip_protection_enabled", DEFAULTS["ip_protection_enabled"]):
+        if not get_setting(
+            db, "ip_protection_enabled", DEFAULTS["ip_protection_enabled"]
+        ):
             return
 
         # Белый список не банится
-        if (
-            db.query(IPAllowlistModel)
-            .filter(IPAllowlistModel.ip_address == ip)
-            .first()
-        ):
+        if db.query(IPAllowlistModel).filter(IPAllowlistModel.ip_address == ip).first():
             return
 
         threshold = int(
@@ -362,9 +362,7 @@ class IPGuard:
             .count()
         )
         if recent >= threshold:
-            ban_min = int(
-                get_setting(db, "ip_ban_minutes", DEFAULTS["ip_ban_minutes"])
-            )
+            ban_min = int(get_setting(db, "ip_ban_minutes", DEFAULTS["ip_ban_minutes"]))
             self.block_ip(
                 db,
                 ip,
@@ -407,6 +405,21 @@ class IPGuard:
     def runtime_stats(self) -> Dict[str, int]:
         """In-memory статистика DDoS-лимитера (без обращения к БД)."""
         return self._ddos.get_stats()
+
+    # ------------------------------------------------------------------- reset
+    def reset(self) -> None:
+        """Сбросить in-memory состояние (бан-кэш, allow-list, DDoS-счётчики).
+
+        Не трогает БД и конфиг. Используется тестами для изоляции между
+        запусками, чтобы накопленные обращения одного IP не давали ложный
+        бан/DDoS-блок.
+        """
+        with self._lock:
+            self._blocked.clear()
+            self._allow.clear()
+            self._pending_hits.clear()
+            self._cache_at = 0.0
+            self._ddos.clear_all()
 
 
 # Глобальный singleton, используется middleware и эндпоинтами
