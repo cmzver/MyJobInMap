@@ -663,11 +663,11 @@ def test_org_admin_cannot_delete_foreign_photo(client: TestClient, db_session):
     photo_path.unlink(missing_ok=True)
 
 
-def test_v2_task_summary_is_isolated_between_organizations(
+def test_task_summary_is_isolated_between_organizations(
     client: TestClient, db_session
 ):
-    org1 = OrganizationModel(name="V2 Summary Org 1", slug="v2-summary-org-1")
-    org2 = OrganizationModel(name="V2 Summary Org 2", slug="v2-summary-org-2")
+    org1 = OrganizationModel(name="Summary Org 1", slug="summary-org-1")
+    org2 = OrganizationModel(name="Summary Org 2", slug="summary-org-2")
     db_session.add_all([org1, org2])
     db_session.commit()
     db_session.refresh(org1)
@@ -715,10 +715,10 @@ def test_v2_task_summary_is_isolated_between_organizations(
     db_session.commit()
 
     headers1 = _login_headers(client, admin1.username, "pass123")
-    response = client.get("/api/v2/tasks/summary", headers=headers1)
+    response = client.get("/api/tasks/summary", headers=headers1)
 
     assert response.status_code == 200
-    summary = response.json()["data"]
+    summary = response.json()
     assert summary["total"] == 1
     assert summary["by_status"] == {
         "NEW": 1,
