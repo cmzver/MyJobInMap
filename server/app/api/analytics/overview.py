@@ -12,8 +12,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.reports import ReportsResponse, get_reports
-from app.api.sla import SlaResponse
+from app.api.analytics.reports import ReportsResponse, get_reports
+from app.api.analytics.sla import SlaResponse
 from app.models import UserModel, UserRole, get_db
 from app.services import get_current_dispatcher_or_admin
 from app.services.analytics_periods import resolve_analytics_period

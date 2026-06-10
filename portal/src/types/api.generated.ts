@@ -2239,93 +2239,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/dashboard/stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Dashboard Stats
-         * @description Получить статистику для дашборда
-         *
-         *     Показывает текущее состояние всех задач в системе.
-         */
-        get: operations["get_dashboard_stats_api_dashboard_stats_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/dashboard/activity": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Dashboard Activity
-         * @description Получить активность за последние 7 дней и срочные заявки
-         */
-        get: operations["get_dashboard_activity_api_dashboard_activity_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/finance/stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Finance Stats
-         * @description Получить финансовую статистику
-         *
-         *     - **period**: all, week, month
-         *     - **user_id**: опционально - фильтр по пользователю
-         */
-        get: operations["get_finance_stats_api_finance_stats_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/finance/workers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Workers Stats
-         * @description Получить статистику по работникам
-         *
-         *     - **period**: all, week, month
-         */
-        get: operations["get_workers_stats_api_finance_workers_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/users": {
         parameters: {
             query?: never;
@@ -2505,6 +2418,93 @@ export interface paths {
          *         trends: Тренды по дням/неделям
          */
         get: operations["sla_dashboard_api_sla_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/dashboard/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dashboard Stats
+         * @description Получить статистику для дашборда
+         *
+         *     Показывает текущее состояние всех задач в системе.
+         */
+        get: operations["get_dashboard_stats_api_dashboard_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/dashboard/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dashboard Activity
+         * @description Получить активность за последние 7 дней и срочные заявки
+         */
+        get: operations["get_dashboard_activity_api_dashboard_activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Finance Stats
+         * @description Получить финансовую статистику
+         *
+         *     - **period**: all, week, month
+         *     - **user_id**: опционально - фильтр по пользователю
+         */
+        get: operations["get_finance_stats_api_finance_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/workers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Workers Stats
+         * @description Получить статистику по работникам
+         *
+         *     - **period**: all, week, month
+         */
+        get: operations["get_workers_stats_api_finance_workers_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10604,124 +10604,6 @@ export interface operations {
             };
         };
     };
-    get_dashboard_stats_api_dashboard_stats_get: {
-        parameters: {
-            query?: {
-                /** @description Period: today, week, month (currently unused, returns all tasks) */
-                period?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DashboardStatsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_dashboard_activity_api_dashboard_activity_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DashboardActivityResponse"];
-                };
-            };
-        };
-    };
-    get_finance_stats_api_finance_stats_get: {
-        parameters: {
-            query?: {
-                /** @description Period: all, week, month */
-                period?: string | null;
-                /** @description Filter by user ID */
-                user_id?: number | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FinanceStatsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_workers_stats_api_finance_workers_get: {
-        parameters: {
-            query?: {
-                /** @description Period: all, week, month */
-                period?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkerStatsResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_users_api_users_get: {
         parameters: {
             query?: never;
@@ -11003,6 +10885,124 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SlaResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dashboard_stats_api_dashboard_stats_get: {
+        parameters: {
+            query?: {
+                /** @description Period: today, week, month (currently unused, returns all tasks) */
+                period?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardStatsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dashboard_activity_api_dashboard_activity_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardActivityResponse"];
+                };
+            };
+        };
+    };
+    get_finance_stats_api_finance_stats_get: {
+        parameters: {
+            query?: {
+                /** @description Period: all, week, month */
+                period?: string | null;
+                /** @description Filter by user ID */
+                user_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FinanceStatsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_workers_stats_api_finance_workers_get: {
+        parameters: {
+            query?: {
+                /** @description Period: all, week, month */
+                period?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerStatsResponse"][];
                 };
             };
             /** @description Validation Error */
