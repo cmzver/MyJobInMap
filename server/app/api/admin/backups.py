@@ -1,136 +1,77 @@
 """
 Admin Backups & Database API
 =============================
-Эндпоинты для управления бэкапами, инструментами БД и seed-данными.
+Тонкие контроллеры бэкапов (логика — в BackupService) и инструменты БД
+(seed, статистика, целостность, очистка, VACUUM/ANALYZE).
 """
 
-import gzip
 import logging
 import os
-import shutil
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import (
     CommentModel,
-    CustomFieldModel,
     DeviceModel,
-    SystemSettingModel,
     TaskModel,
     TaskPhotoModel,
     TaskPriority,
     UserModel,
     UserRole,
     get_db,
-    get_setting,
-    set_setting,
 )
 from app.models.address import AddressModel
 from app.models.notification import NotificationModel
 from app.schemas import (
-    BackupFile,
     BackupListResponse,
     BackupSettingsResponse,
     BackupSettingsSchema,
 )
-from app.services import get_current_admin, get_current_superadmin, get_password_hash
-from app.services.audit_log import (
-    audit_backup_created,
-    audit_backup_deleted,
-    audit_backup_restored,
+from app.services import (
+    BackupService,
+    BackupServiceError,
+    get_backup_service,
+    get_current_superadmin,
+    get_password_hash,
 )
+from app.services.backup_service import BACKUP_DIR, resolve_sqlite_db_path
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["Admin - Backups & DB"])
 
 
-BACKUP_DIR = os.path.join(settings.BASE_DIR, "backups")
-os.makedirs(BACKUP_DIR, exist_ok=True)
-
-
 # ============================================================================
-# Backups
+# Backups — тонкие контроллеры поверх BackupService
 # ============================================================================
-
-
-def _resolve_sqlite_db_path() -> str:
-    """Определить абсолютный путь к файлу SQLite БД."""
-    db_url = settings.DATABASE_URL
-    if not db_url.startswith("sqlite"):
-        raise HTTPException(status_code=400, detail="Only supported for SQLite")
-
-    db_path = db_url.replace("sqlite:///", "")
-    if db_path.startswith("./"):
-        db_path = db_path[2:]
-    if not os.path.isabs(db_path):
-        db_path = os.path.join(settings.BASE_DIR.parent, db_path)
-
-    if not os.path.exists(db_path):
-        if os.path.exists("tasks.db"):
-            return os.path.abspath("tasks.db")
-        raise HTTPException(
-            status_code=500, detail=f"Database file not found at {db_path}"
-        )
-    return db_path
-
-
-def _validate_backup_filename(filename: str) -> None:
-    """Валидация имени файла бэкапа (защита от path traversal)."""
-    if ".." in filename or "/" in filename or "\\" in filename:
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    if not filename.endswith(".sqlite.gz"):
-        raise HTTPException(status_code=400, detail="Invalid backup file")
 
 
 @router.get("/backups", response_model=BackupListResponse)
 async def list_backups(
     admin: UserModel = Depends(get_current_superadmin),
+    service: BackupService = Depends(get_backup_service),
 ):
     """Список бэкапов."""
-    backups = []
-    if os.path.exists(BACKUP_DIR):
-        for f in os.listdir(BACKUP_DIR):
-            if f.endswith(".sqlite.gz"):
-                path = os.path.join(BACKUP_DIR, f)
-                stat = os.stat(path)
-                backups.append(
-                    BackupFile(
-                        name=f,
-                        size=stat.st_size,
-                        created=datetime.fromtimestamp(stat.st_ctime),
-                    )
-                )
-
-    backups.sort(key=lambda x: x.created, reverse=True)
-    return {"backups": backups}
+    return {"backups": service.list_backups()}
 
 
 @router.post("/backups")
 async def run_backup(
     admin: UserModel = Depends(get_current_superadmin),
+    service: BackupService = Depends(get_backup_service),
 ):
     """Создать бэкап БД (только SQLite)."""
-    db_path = _resolve_sqlite_db_path()
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"tasks_db_{timestamp}.sqlite.gz"
-    dest_path = os.path.join(BACKUP_DIR, filename)
-
     try:
-        with open(db_path, "rb") as f_in:
-            with gzip.open(dest_path, "wb") as f_out:
-                shutil.copyfileobj(f_in, f_out)
-        audit_backup_created(admin.id, admin.username, filename)
-        return {"status": "ok", "filename": filename}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        filename = service.create_backup(admin)
+    except BackupServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
+    return {"status": "ok", "filename": filename}
 
 
 # -- Backup settings --------------------------------------------------------
@@ -138,55 +79,21 @@ async def run_backup(
 
 @router.get("/backups/settings", response_model=BackupSettingsResponse)
 async def get_backup_settings(
-    db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
+    service: BackupService = Depends(get_backup_service),
 ):
     """Получить настройки резервного копирования."""
-    auto_backup = get_setting(db, "backup_auto_enabled", "true")
-    schedule = get_setting(db, "backup_schedule", "daily")
-    retention = get_setting(db, "backup_retention_days", "30")
-
-    return BackupSettingsResponse(
-        auto_backup=auto_backup.lower() == "true",
-        schedule=schedule,
-        retention_days=int(retention),
-    )
+    return service.get_settings()
 
 
 @router.patch("/backups/settings", response_model=BackupSettingsResponse)
 async def update_backup_settings(
     settings_data: BackupSettingsSchema,
-    db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
+    service: BackupService = Depends(get_backup_service),
 ):
     """Обновить настройки резервного копирования."""
-    set_setting(
-        db,
-        "backup_auto_enabled",
-        str(settings_data.auto_backup).lower(),
-        description="Автоматическое резервное копирование",
-        group="backup",
-    )
-    set_setting(
-        db,
-        "backup_schedule",
-        settings_data.schedule,
-        description="Расписание бэкапов (daily/weekly/manual)",
-        group="backup",
-    )
-    set_setting(
-        db,
-        "backup_retention_days",
-        str(settings_data.retention_days),
-        description="Срок хранения бэкапов (дней)",
-        group="backup",
-    )
-
-    return BackupSettingsResponse(
-        auto_backup=settings_data.auto_backup,
-        schedule=settings_data.schedule,
-        retention_days=settings_data.retention_days,
-    )
+    return service.update_settings(settings_data)
 
 
 # -- Backup file operations --------------------------------------------------
@@ -196,13 +103,13 @@ async def update_backup_settings(
 async def download_backup(
     filename: str,
     admin: UserModel = Depends(get_current_superadmin),
+    service: BackupService = Depends(get_backup_service),
 ):
     """Скачать бэкап."""
-    _validate_backup_filename(filename)
-    file_path = os.path.join(BACKUP_DIR, filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Backup not found")
-
+    try:
+        file_path = service.resolve_backup_path(filename)
+    except BackupServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
     return FileResponse(file_path, media_type="application/gzip", filename=filename)
 
 
@@ -210,98 +117,34 @@ async def download_backup(
 async def delete_backup(
     filename: str,
     admin: UserModel = Depends(get_current_superadmin),
+    service: BackupService = Depends(get_backup_service),
 ):
     """Удалить бэкап."""
-    _validate_backup_filename(filename)
-    file_path = os.path.join(BACKUP_DIR, filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Backup not found")
-
     try:
-        os.remove(file_path)
-        audit_backup_deleted(admin.id, admin.username, filename)
-        return {"status": "ok", "message": f"Backup {filename} deleted"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        service.delete_backup(filename, admin)
+    except BackupServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
+    return {"status": "ok", "message": f"Backup {filename} deleted"}
 
 
 @router.post("/backups/{filename}/restore")
 async def restore_backup(
     filename: str,
     admin: UserModel = Depends(get_current_superadmin),
+    service: BackupService = Depends(get_backup_service),
 ):
     """
     Восстановить БД из бэкапа.
 
-    Процесс:
-    1. Создаётся автоматический бэкап текущего состояния (pre_restore_*)
-    2. Распаковывается выбранный бэкап
-    3. Заменяется текущая БД
+    Процесс: бэкап текущего состояния (pre_restore_*) → распаковка и валидация
+    выбранного бэкапа → замена текущей БД.
 
     ВАЖНО: После восстановления рекомендуется перезапустить сервер!
     """
-    _validate_backup_filename(filename)
-    backup_path = os.path.join(BACKUP_DIR, filename)
-    if not os.path.exists(backup_path):
-        raise HTTPException(status_code=404, detail="Backup not found")
-
-    db_path = _resolve_sqlite_db_path()
-
     try:
-        # 1. Бэкап текущего состояния
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        pre_restore_filename = f"pre_restore_{timestamp}.sqlite.gz"
-        pre_restore_path = os.path.join(BACKUP_DIR, pre_restore_filename)
-
-        with open(db_path, "rb") as f_in:
-            with gzip.open(pre_restore_path, "wb") as f_out:
-                shutil.copyfileobj(f_in, f_out)
-
-        # 2. Распаковка во временный файл
-        temp_db_path = db_path + ".restore_temp"
-        with gzip.open(backup_path, "rb") as f_in:
-            with open(temp_db_path, "wb") as f_out:
-                shutil.copyfileobj(f_in, f_out)
-
-        # 3. Валидация SQLite файла
-        try:
-            conn = sqlite3.connect(temp_db_path)
-            cursor = conn.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1")
-            cursor.close()
-            conn.close()
-        except sqlite3.Error as e:
-            os.remove(temp_db_path)
-            raise HTTPException(
-                status_code=400, detail=f"Invalid SQLite file: {str(e)}"
-            )
-
-        # 4. Замена текущей БД
-        old_db_path = db_path + ".old"
-        if os.path.exists(old_db_path):
-            os.remove(old_db_path)
-
-        os.rename(db_path, old_db_path)
-        os.rename(temp_db_path, db_path)
-
-        if os.path.exists(old_db_path):
-            os.remove(old_db_path)
-
-        audit_backup_restored(admin.id, admin.username, filename)
-
-        return {
-            "status": "ok",
-            "message": f"Database restored from {filename}",
-            "pre_restore_backup": pre_restore_filename,
-            "warning": "Рекомендуется перезапустить сервер для применения изменений",
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        temp_db_path = db_path + ".restore_temp"
-        if os.path.exists(temp_db_path):
-            os.remove(temp_db_path)
-        raise HTTPException(status_code=500, detail=f"Restore failed: {str(e)}")
+        return service.restore_backup(filename, admin)
+    except BackupServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
 
 # ============================================================================
@@ -322,8 +165,6 @@ async def seed_database(
                 status_code=400,
                 detail="В базе уже есть заявки. Сначала очистите БД.",
             )
-
-        from app.services import get_password_hash
 
         users_created = 0
 
@@ -706,7 +547,7 @@ async def vacuum_database(
         raise HTTPException(status_code=400, detail="VACUUM only supported for SQLite")
 
     try:
-        db_path = _resolve_sqlite_db_path()
+        db_path = resolve_sqlite_db_path()
         # VACUUM нельзя выполнять внутри транзакции SQLAlchemy — используем
         # raw sqlite3 connection с isolation_level=None (autocommit).
         conn = sqlite3.connect(db_path, isolation_level=None)
@@ -735,7 +576,7 @@ async def optimize_database(
         db.commit()
 
         # VACUUM — вне транзакции через raw sqlite3
-        db_path = _resolve_sqlite_db_path()
+        db_path = resolve_sqlite_db_path()
         conn = sqlite3.connect(db_path, isolation_level=None)
         conn.execute("VACUUM")
         conn.close()

@@ -24,6 +24,11 @@ from app.services.auth import (
     verify_password,
     verify_refresh_token,
 )
+from app.services.backup_service import (
+    BackupService,
+    BackupServiceError,
+    get_backup_service,
+)
 from app.services.geocoding import GeocodingService, geocoding_service
 from app.services.image_optimizer import ImageOptimizationService, image_optimizer
 from app.services.ip_guard import ip_guard
@@ -91,6 +96,10 @@ __all__ = [
     "UserService",
     "UserServiceError",
     "get_user_service",
+    # Backup Service
+    "BackupService",
+    "BackupServiceError",
+    "get_backup_service",
     # Task helpers
     "TaskStatusMachine",
     "parse_dispatcher_message",
