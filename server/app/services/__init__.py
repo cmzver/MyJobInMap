@@ -25,8 +25,8 @@ from app.services.auth import (
     verify_refresh_token,
 )
 from app.services.geocoding import GeocodingService, geocoding_service
-from app.services.ip_guard import ip_guard
 from app.services.image_optimizer import ImageOptimizationService, image_optimizer
+from app.services.ip_guard import ip_guard
 from app.services.notification_service import (
     create_comment_notification,
     create_notification,
@@ -49,6 +49,7 @@ from app.services.task_service import (
     get_task_service,
 )
 from app.services.task_state_machine import TaskStatusMachine
+from app.services.user_service import UserService, UserServiceError, get_user_service
 
 __all__ = [
     # Geocoding
@@ -86,6 +87,10 @@ __all__ = [
     "PermissionDeniedError",
     "InvalidTransitionError",
     "get_task_service",
+    # User Service
+    "UserService",
+    "UserServiceError",
+    "get_user_service",
     # Task helpers
     "TaskStatusMachine",
     "parse_dispatcher_message",

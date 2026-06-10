@@ -1,64 +1,47 @@
 """
 Admin Users API
 ===============
-Эндпоинты управления пользователями (только для админа).
+Тонкие контроллеры управления пользователями (только для админа).
+Бизнес-логика CRUD — в app/services/user_service.py (UserService).
 """
 
-import logging
 from datetime import datetime, timedelta, timezone
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.models import TaskModel, UserModel, UserRole, get_db
+from app.models import TaskModel, UserModel, get_db
 from app.schemas import UserCreate, UserResponse, UserStatsResponse, UserUpdate
 from app.services import (
+    UserService,
+    UserServiceError,
     get_current_admin,
     get_current_dispatcher_or_admin,
-    get_password_hash,
+    get_user_service,
 )
-from app.services.audit_log import (
-    audit_user_created,
-    audit_user_deleted,
-    audit_user_updated,
-)
-from app.services.role_utils import canonical_role_value
 from app.services.tenant_filter import TenantFilter
 from app.utils import user_to_response
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["Admin - Users"])
 
 
 @router.get("/users", response_model=List[UserResponse])
 async def get_users(
-    db: Session = Depends(get_db), admin: UserModel = Depends(get_current_admin)
+    admin: UserModel = Depends(get_current_admin),
+    service: UserService = Depends(get_user_service),
 ):
     """Получить список пользователей"""
-    tenant = TenantFilter(admin)
-    users = tenant.apply(db.query(UserModel), UserModel).all()
-    return [user_to_response(u) for u in users]
+    return [user_to_response(u) for u in service.list_users(admin)]
 
 
 @router.get("/workers", response_model=List[UserResponse])
 async def get_workers(
-    db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_dispatcher_or_admin),
+    service: UserService = Depends(get_user_service),
 ):
     """Получить список работников (для диспетчеров и админов)"""
-    tenant = TenantFilter(user)
-    workers = (
-        tenant.apply(db.query(UserModel), UserModel)
-        .filter(
-            UserModel.role.in_([UserRole.WORKER.value, UserRole.DISPATCHER.value]),
-            UserModel.is_active == True,
-        )
-        .all()
-    )
-    return [user_to_response(u) for u in workers]
+    return [user_to_response(u) for u in service.list_workers(user)]
 
 
 @router.get("/users/{user_id}/stats", response_model=UserStatsResponse)
@@ -148,62 +131,14 @@ async def get_user_stats(
 @router.post("/users", response_model=UserResponse)
 async def create_user(
     user_data: UserCreate,
-    db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_admin),
+    service: UserService = Depends(get_user_service),
 ):
     """Создать пользователя"""
-    existing = (
-        db.query(UserModel).filter(UserModel.username == user_data.username).first()
-    )
-    if existing:
-        raise HTTPException(status_code=400, detail="Username already exists")
-
-    tenant = TenantFilter(admin)
-
-    # Org-admin может создавать только worker/dispatcher
-    requested_role = canonical_role_value(user_data.role)
-    if not tenant.is_superadmin:
-        if requested_role == UserRole.ADMIN.value:
-            raise HTTPException(
-                status_code=403, detail="Org-admin cannot create admin users"
-            )
-        # Проверка лимита пользователей организации
-        if admin.organization and admin.organization.max_users:
-            current_count = (
-                db.query(UserModel)
-                .filter(UserModel.organization_id == admin.organization_id)
-                .count()
-            )
-            if current_count >= admin.organization.max_users:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Достигнут лимит пользователей организации ({admin.organization.max_users})",
-                )
-
-    user = UserModel(
-        username=user_data.username,
-        password_hash=get_password_hash(user_data.password),
-        full_name=user_data.full_name,
-        email=user_data.email,
-        phone=user_data.phone,
-        role=requested_role,
-    )
-    # Привязка к организации:
-    # - Суперадмин может указать organization_id явно
-    # - Org-admin автоматически привязывает к своей организации
-    if requested_role == UserRole.ADMIN.value and user_data.role == UserRole.SUPERADMIN:
-        user.organization_id = None
-    elif tenant.is_superadmin and user_data.organization_id:
-        user.organization_id = user_data.organization_id
-    else:
-        tenant.set_org_id(user)
-
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    audit_user_created(admin.id, admin.username, user.id, user.username)
-
+    try:
+        user = service.create(admin, user_data)
+    except UserServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
     return user_to_response(user)
 
 
@@ -211,91 +146,26 @@ async def create_user(
 async def update_user(
     user_id: int,
     user_data: UserUpdate,
-    db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_admin),
+    service: UserService = Depends(get_user_service),
 ):
     """Обновить пользователя"""
-    user = db.query(UserModel).filter(UserModel.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    tenant = TenantFilter(admin)
-    # Org-admin может редактировать только пользователей своей организации
-    requested_role = (
-        canonical_role_value(user_data.role) if user_data.role is not None else None
-    )
-    if not tenant.is_superadmin:
-        tenant.enforce_access(user)
-        # Org-admin не может назначать роль admin
-        if requested_role == UserRole.ADMIN.value:
-            raise HTTPException(
-                status_code=403, detail="Org-admin cannot assign admin role"
-            )
-
-    if user_data.username is not None:
-        new_username = user_data.username.strip()
-        if not new_username:
-            raise HTTPException(status_code=400, detail="Username cannot be empty")
-        existing_user = (
-            db.query(UserModel)
-            .filter(
-                UserModel.username == new_username,
-                UserModel.id != user.id,
-            )
-            .first()
-        )
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Username already exists")
-        user.username = new_username
-
-    if user_data.password is not None:
-        if not user_data.password:
-            raise HTTPException(status_code=400, detail="Password cannot be empty")
-        user.password_hash = get_password_hash(user_data.password)
-
-    if user_data.full_name is not None:
-        user.full_name = user_data.full_name
-    if user_data.email is not None:
-        user.email = user_data.email
-    if user_data.phone is not None:
-        user.phone = user_data.phone
-    if user_data.role is not None:
-        user.role = requested_role
-        if user_data.role == UserRole.SUPERADMIN:
-            user.organization_id = None
-    if user_data.is_active is not None:
-        user.is_active = user_data.is_active
-
-    db.commit()
-    db.refresh(user)
-
-    audit_user_updated(
-        admin.id, admin.username, user_id, str(user_data.model_dump(exclude_unset=True))
-    )
-
+    try:
+        user = service.update(admin, user_id, user_data)
+    except UserServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
     return user_to_response(user)
 
 
 @router.delete("/users/{user_id}")
 async def delete_user(
     user_id: int,
-    db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_admin),
+    service: UserService = Depends(get_user_service),
 ):
     """Удалить пользователя"""
-    if user_id == admin.id:
-        raise HTTPException(status_code=400, detail="Cannot delete yourself")
-
-    user = db.query(UserModel).filter(UserModel.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Org-admin может удалять только пользователей своей организации
-    tenant = TenantFilter(admin)
-    if not tenant.is_superadmin:
-        tenant.enforce_access(user)
-
-    db.delete(user)
-    db.commit()
-    audit_user_deleted(admin.id, admin.username, user_id, user.username)
+    try:
+        service.delete(admin, user_id)
+    except UserServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
     return {"message": "User deleted", "id": user_id}
