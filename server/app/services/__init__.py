@@ -44,6 +44,11 @@ from app.services.push import (
     send_push_background,
     send_push_notification,
 )
+from app.services.support_service import (
+    SupportService,
+    SupportServiceError,
+    get_support_service,
+)
 from app.services.task_parser import parse_dispatcher_message, parse_task_message
 from app.services.task_service import (
     InvalidTransitionError,
@@ -100,6 +105,10 @@ __all__ = [
     "BackupService",
     "BackupServiceError",
     "get_backup_service",
+    # Support Service
+    "SupportService",
+    "SupportServiceError",
+    "get_support_service",
     # Task helpers
     "TaskStatusMachine",
     "parse_dispatcher_message",
