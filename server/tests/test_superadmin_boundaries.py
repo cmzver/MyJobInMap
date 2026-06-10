@@ -81,7 +81,7 @@ def test_org_admin_cannot_upload_apk(client: TestClient, db_session):
     headers = _login_headers(client, user.username, "pass123")
 
     with patch(
-        "app.api.updates.extract_apk_version_info",
+        "app.services.update_service.extract_apk_version_info",
         return_value=("1.0.0", 1),
     ):
         response = client.post(
