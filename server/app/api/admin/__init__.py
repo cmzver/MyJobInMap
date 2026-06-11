@@ -9,6 +9,7 @@ Admin API package
 from fastapi import APIRouter
 
 from app.api.admin.backups import router as backups_router
+from app.api.admin.database import router as database_router
 from app.api.admin.misc import router as misc_router
 from app.api.admin.organizations import router as organizations_router
 from app.api.admin.security import router as security_router
@@ -20,6 +21,7 @@ router = APIRouter()
 router.include_router(misc_router)
 router.include_router(users_router)
 router.include_router(backups_router)
+router.include_router(database_router)
 router.include_router(security_router)
 router.include_router(settings_router)
 router.include_router(organizations_router)

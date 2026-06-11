@@ -29,6 +29,11 @@ from app.services.backup_service import (
     BackupServiceError,
     get_backup_service,
 )
+from app.services.database_service import (
+    DatabaseService,
+    DatabaseServiceError,
+    get_database_service,
+)
 from app.services.geocoding import GeocodingService, geocoding_service
 from app.services.image_optimizer import ImageOptimizationService, image_optimizer
 from app.services.ip_guard import ip_guard
@@ -108,6 +113,10 @@ __all__ = [
     "BackupService",
     "BackupServiceError",
     "get_backup_service",
+    # Database Service
+    "DatabaseService",
+    "DatabaseServiceError",
+    "get_database_service",
     # Support Service
     "SupportService",
     "SupportServiceError",
