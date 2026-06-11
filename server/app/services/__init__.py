@@ -35,6 +35,11 @@ from app.services.database_service import (
     get_database_service,
 )
 from app.services.geocoding import GeocodingService, geocoding_service
+from app.services.settings_service import (
+    SettingsService,
+    SettingsServiceError,
+    get_settings_service,
+)
 from app.services.image_optimizer import ImageOptimizationService, image_optimizer
 from app.services.ip_guard import ip_guard
 from app.services.notification_service import (
@@ -117,6 +122,10 @@ __all__ = [
     "DatabaseService",
     "DatabaseServiceError",
     "get_database_service",
+    # Settings Service
+    "SettingsService",
+    "SettingsServiceError",
+    "get_settings_service",
     # Support Service
     "SupportService",
     "SupportServiceError",

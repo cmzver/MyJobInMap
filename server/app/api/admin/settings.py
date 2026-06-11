@@ -1,12 +1,12 @@
 """
 System Settings API
 ===================
-API для управления системными настройками и типами дефектов.
-Custom Fields, Permissions и Backups — см. admin.py.
+Тонкие контроллеры системных настроек, типов неисправностей и Telegram-бота.
+Логика — в SettingsService. Публичный login-branding остался здесь (исторически
+испорченная кодировка дефолтов — не трогаем).
+Custom Fields, Permissions и Backups — см. соседние модули admin-пакета.
 """
 
-import json
-import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -14,18 +14,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
-from app.models import (
-    SystemSettingModel,
-    UserModel,
-    get_all_settings,
-    get_db,
-    get_setting,
-    init_default_settings,
-    set_setting,
+from app.models import UserModel, get_db, get_setting, init_default_settings
+from app.services import get_current_superadmin, require_permission
+from app.services.settings_service import (
+    SettingsService,
+    SettingsServiceError,
+    get_settings_service,
 )
-from app.services import get_current_admin, get_current_superadmin, require_permission
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["System Settings"])
 public_router = APIRouter(prefix="/api/public", tags=["Public Settings"])
@@ -109,49 +104,11 @@ class LocalSettingUpdate(BaseModel):
     value: Any
 
 
-# ============================================
-# Группы настроек с метаданными
-# ============================================
-
-SETTINGS_GROUPS = {
-    "images": {"label": "Изображения", "icon": "bi-image"},
-    "backup": {"label": "Резервное копирование", "icon": "bi-cloud-arrow-up"},
-    "notifications": {"label": "Уведомления", "icon": "bi-bell"},
-    "security": {"label": "Безопасность", "icon": "bi-shield-lock"},
-    "interface": {"label": "Интерфейс", "icon": "bi-layout-text-window"},
-    "branding": {"label": "Брендинг", "icon": "bi-palette"},
-    "server": {"label": "Сервер", "icon": "bi-server"},
-}
-
-
 def _clean_optional_string(value: Any) -> Optional[str]:
     if value is None:
         return None
     normalized = str(value).strip()
     return normalized or None
-
-
-def _get_int_setting(db: Session, key: str, default: int, minimum: int) -> int:
-    value = get_setting(db, key, default)
-    try:
-        return max(minimum, int(value))
-    except (TypeError, ValueError):
-        return default
-
-
-def _normalize_task_priority(value: Any, default: str = "PLANNED") -> str:
-    normalized = str(value or "").strip().upper()
-    mapping = {
-        "1": "PLANNED",
-        "2": "CURRENT",
-        "3": "URGENT",
-        "4": "EMERGENCY",
-        "PLANNED": "PLANNED",
-        "CURRENT": "CURRENT",
-        "URGENT": "URGENT",
-        "EMERGENCY": "EMERGENCY",
-    }
-    return mapping.get(normalized, default)
 
 
 def _build_login_branding_response(db: Session) -> LoginBrandingResponse:
@@ -196,70 +153,19 @@ def _build_login_branding_response(db: Session) -> LoginBrandingResponse:
 
 @router.get("/settings", response_model=List[SettingsGroupResponse])
 async def get_system_settings(
-    db: Session = Depends(get_db), admin: UserModel = Depends(get_current_superadmin)
+    admin: UserModel = Depends(get_current_superadmin),
+    service: SettingsService = Depends(get_settings_service),
 ):
     """Получить все системные настройки, сгруппированные"""
-    # Инициализируем настройки если не существуют
-    init_default_settings(db)
-
-    settings = get_all_settings(db)
-
-    # Группируем по group
-    groups_dict = {}
-    for setting in settings:
-        if setting.group not in groups_dict:
-            group_meta = SETTINGS_GROUPS.get(
-                setting.group, {"label": setting.group, "icon": "bi-gear"}
-            )
-            groups_dict[setting.group] = {
-                "group": setting.group,
-                "label": group_meta["label"],
-                "icon": group_meta["icon"],
-                "settings": [],
-            }
-
-        groups_dict[setting.group]["settings"].append(
-            SettingResponse(
-                key=setting.key,
-                value=setting.get_typed_value(),
-                value_type=setting.value_type,
-                group=setting.group,
-                label=setting.label,
-                description=setting.description,
-                options=setting.options,
-                is_readonly=setting.is_readonly,
-                updated_at=setting.updated_at,
-            )
-        )
-
-    return list(groups_dict.values())
+    return service.get_grouped_settings()
 
 
 @router.get("/settings/interface", response_model=InterfaceSettingsResponse)
-async def get_interface_settings(db: Session = Depends(get_db)):
+async def get_interface_settings(
+    service: SettingsService = Depends(get_settings_service),
+):
     """Получить публичные настройки интерфейса"""
-    init_default_settings(db)
-    enable_resizable_columns = get_setting(db, "enable_resizable_columns")
-    compact_table_view = get_setting(db, "compact_table_view")
-    tasks_per_page = _get_int_setting(db, "tasks_per_page", default=20, minimum=1)
-    auto_refresh_interval = _get_int_setting(
-        db, "auto_refresh_interval", default=30, minimum=0
-    )
-    default_task_priority = _normalize_task_priority(
-        get_setting(db, "default_task_priority", "PLANNED")
-    )
-    if enable_resizable_columns is None:
-        enable_resizable_columns = True
-    if compact_table_view is None:
-        compact_table_view = False
-
-    return InterfaceSettingsResponse(
-        enable_resizable_columns=bool(enable_resizable_columns),
-        compact_table_view=bool(compact_table_view),
-        tasks_per_page=tasks_per_page,
-        auto_refresh_interval=auto_refresh_interval,
-        default_task_priority=default_task_priority,
-    )
+    return service.get_interface_settings()
 
 
 @public_router.get("/login-branding", response_model=LoginBrandingResponse)
@@ -275,19 +181,11 @@ async def get_login_branding_settings(db: Session = Depends(get_db)):
 
 @router.get("/settings/defect-types", response_model=List[DefectTypeResponse])
 async def get_defect_types(
-    db: Session = Depends(get_db),
+    service: SettingsService = Depends(get_settings_service),
 ):
     """Получить список типов неисправностей (доступно всем)"""
-    init_default_settings(db)
-
-    # get_setting возвращает уже парсенное значение (list или None)
-    types_data = get_setting(db, "defect_types")
-
-    if not types_data:
-        return []
-
     try:
-        return [DefectTypeResponse(**t) for t in types_data]
+        return [DefectTypeResponse(**t) for t in service.list_defect_types()]
     except (ValueError, TypeError):
         return []
 
@@ -295,148 +193,68 @@ async def get_defect_types(
 @router.post("/settings/defect-types", response_model=DefectTypeResponse)
 async def add_defect_type(
     data: DefectTypeCreate,
-    db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
+    service: SettingsService = Depends(get_settings_service),
 ):
     """Добавить новый тип неисправности (только админы)"""
-    import json
-    import uuid
-
-    # get_setting возвращает уже парсенное значение (list или None)
-    types_data = get_setting(db, "defect_types")
-    if not types_data:
-        types_data = []
-
-    # Создаём новый тип
-    new_type = {
-        "id": str(uuid.uuid4()),
-        "name": data.name.strip(),
-        "description": data.description,
-        "system_types": data.system_types or [],
-    }
-
-    types_data.append(new_type)
-
-    # Сохраняем обновленный список
-    set_setting(db, "defect_types", json.dumps(types_data, ensure_ascii=False))
-
+    new_type = service.add_defect_type(data.name, data.description, data.system_types)
     return DefectTypeResponse(**new_type)
 
 
 @router.delete("/settings/defect-types/{defect_type_id}")
 async def delete_defect_type(
     defect_type_id: str,
-    db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
+    service: SettingsService = Depends(get_settings_service),
 ):
     """Удалить тип неисправности (только админы)"""
-    import json
-
-    # get_setting возвращает уже парсенное значение (list или None)
-    types_data = get_setting(db, "defect_types")
-
-    if not types_data:
-        raise HTTPException(status_code=404, detail="Тип не найден")
-
-    # Ищем и удаляем тип
-    original_len = len(types_data)
-    types_data = [t for t in types_data if t.get("id") != defect_type_id]
-
-    if len(types_data) == original_len:
-        raise HTTPException(status_code=404, detail="Тип не найден")
-
-    # Сохраняем обновленный список
-    set_setting(db, "defect_types", json.dumps(types_data, ensure_ascii=False))
-
+    try:
+        service.delete_defect_type(defect_type_id)
+    except SettingsServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
     return {"status": "deleted"}
 
 
 @router.get("/settings/{key}")
 async def get_single_setting(
     key: str,
-    db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
+    service: SettingsService = Depends(get_settings_service),
 ):
     """Получить одну настройку"""
-    init_default_settings(db)
-    setting = db.query(SystemSettingModel).filter(SystemSettingModel.key == key).first()
-    if not setting:
-        raise HTTPException(status_code=404, detail="Настройка не найдена")
-
-    return SettingResponse(
-        key=setting.key,
-        value=setting.get_typed_value(),
-        value_type=setting.value_type,
-        group=setting.group,
-        label=setting.label,
-        description=setting.description,
-        options=setting.options,
-        is_readonly=setting.is_readonly,
-        updated_at=setting.updated_at,
-    )
+    try:
+        return service.get_single_setting(key)
+    except SettingsServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
 
 @router.patch("/settings/{key}")
 async def update_setting(
     key: str,
     data: LocalSettingUpdate,
-    db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
+    service: SettingsService = Depends(get_settings_service),
 ):
     """Обновить настройку"""
-    init_default_settings(db)
-    setting = db.query(SystemSettingModel).filter(SystemSettingModel.key == key).first()
-    if not setting:
-        raise HTTPException(status_code=404, detail="Настройка не найдена")
-
-    if setting.is_readonly:
-        raise HTTPException(status_code=400, detail="Настройка только для чтения")
-
-    setting.set_typed_value(data.value)
-    setting.updated_by = admin.username
-    db.commit()
-
-    return {"status": "ok", "key": key, "value": setting.get_typed_value()}
+    try:
+        return service.update_single_setting(key, data.value, admin.username)
+    except SettingsServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
 
 @router.patch("/settings")
 async def update_settings_bulk(
     updates: Dict[str, Any],
-    db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
+    service: SettingsService = Depends(get_settings_service),
 ):
     """Массовое обновление настроек"""
-    init_default_settings(db)
-    updated = []
-    errors = []
-
-    for key, value in updates.items():
-        setting = (
-            db.query(SystemSettingModel).filter(SystemSettingModel.key == key).first()
-        )
-        if not setting:
-            errors.append(f"Настройка '{key}' не найдена")
-            continue
-
-        if setting.is_readonly:
-            errors.append(f"Настройка '{key}' только для чтения")
-            continue
-
-        setting.set_typed_value(value)
-        setting.updated_by = admin.username
-        updated.append(key)
-
-    db.commit()
-
-    return {"status": "ok", "updated": updated, "errors": errors}
+    return service.update_settings_bulk(updates, admin.username)
 
 
 # ============================================
 # Telegram Bot Settings
 # ============================================
-
-TELEGRAM_SETTINGS_KEY = "telegram_group_worker_map"
-TELEGRAM_KNOWN_GROUPS_KEY = "telegram_known_groups"
 
 
 class TelegramGroupMapping(BaseModel):
@@ -479,150 +297,35 @@ class TelegramBotSettingsResponse(BaseModel):
     known_groups: List[TelegramKnownGroup] = []
 
 
-def _get_bot_mappings(db: Session) -> list:
-    """Получить маппинги из БД (сырой список dict'ов)."""
-    raw = get_setting(db, TELEGRAM_SETTINGS_KEY)
-    if isinstance(raw, list):
-        return raw
-    if isinstance(raw, str):
-        try:
-            parsed = json.loads(raw)
-            return parsed if isinstance(parsed, list) else []
-        except (json.JSONDecodeError, TypeError):
-            return []
-    return []
-
-
-def _save_bot_mappings(db: Session, mappings: list, updated_by: str) -> None:
-    """Сохранить маппинги в БД."""
-    setting = (
-        db.query(SystemSettingModel)
-        .filter(SystemSettingModel.key == TELEGRAM_SETTINGS_KEY)
-        .first()
-    )
-    if setting:
-        setting.value = json.dumps(mappings, ensure_ascii=False)
-        setting.value_type = "json"
-        setting.updated_by = updated_by
-    else:
-        setting = SystemSettingModel(
-            key=TELEGRAM_SETTINGS_KEY,
-            value=json.dumps(mappings, ensure_ascii=False),
-            value_type="json",
-            group="telegram",
-            label="Маппинг групп → работников",
-            description="Соответствие названий Telegram-групп и username исполнителей",
-            is_hidden=True,
-        )
-        db.add(setting)
-    db.commit()
-
-
-def _get_known_groups(db: Session) -> list:
-    """Получить список известных групп из БД."""
-    raw = get_setting(db, TELEGRAM_KNOWN_GROUPS_KEY)
-    if isinstance(raw, list):
-        return raw
-    if isinstance(raw, str):
-        try:
-            parsed = json.loads(raw)
-            return parsed if isinstance(parsed, list) else []
-        except (json.JSONDecodeError, TypeError):
-            return []
-    return []
-
-
-def _save_known_groups(db: Session, groups: list) -> None:
-    """Сохранить список известных групп в БД."""
-    setting = (
-        db.query(SystemSettingModel)
-        .filter(SystemSettingModel.key == TELEGRAM_KNOWN_GROUPS_KEY)
-        .first()
-    )
-    value = json.dumps(groups, ensure_ascii=False)
-    if setting:
-        setting.value = value
-        setting.value_type = "json"
-    else:
-        setting = SystemSettingModel(
-            key=TELEGRAM_KNOWN_GROUPS_KEY,
-            value=value,
-            value_type="json",
-            group="telegram",
-            label="Известные Telegram-группы",
-            description="Группы, в которых бот обнаружил активность",
-            is_hidden=True,
-        )
-        db.add(setting)
-    db.commit()
-
-
 @router.get("/telegram-bot", response_model=TelegramBotSettingsResponse)
 async def get_telegram_bot_settings(
-    db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
+    service: SettingsService = Depends(get_settings_service),
 ):
     """Получить настройки Telegram-бота."""
-    mappings = _get_bot_mappings(db)
-    enabled = bool(get_setting(db, "telegram_bot_enabled", True))
-    dedup = bool(get_setting(db, "telegram_bot_dedup_enabled", True))
-    known_groups = _get_known_groups(db)
-    return TelegramBotSettingsResponse(
-        enabled=enabled,
-        group_worker_map=[
-            TelegramGroupMapping(**m)
-            for m in mappings
-            if "group_name" in m and "username" in m
-        ],
-        dedup_enabled=dedup,
-        known_groups=[
-            TelegramKnownGroup(**g)
-            for g in known_groups
-            if "chat_id" in g and "title" in g
-        ],
-    )
+    return service.get_telegram_bot_settings()
 
 
 @router.patch("/telegram-bot")
 async def update_telegram_bot_settings(
     data: TelegramBotSettingsResponse,
-    db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
+    service: SettingsService = Depends(get_settings_service),
 ):
     """Обновить настройки Telegram-бота целиком."""
-    # Сохраняем флаги
-    set_setting(
-        db,
-        "telegram_bot_enabled",
-        data.enabled,
-        updated_by=admin.username,
-        description="Бот включён",
-        group="telegram",
-    )
-    set_setting(
-        db,
-        "telegram_bot_dedup_enabled",
-        data.dedup_enabled,
-        updated_by=admin.username,
-        description="Дедупликация заявок по номеру",
-        group="telegram",
-    )
-
-    # Сохраняем маппинги
     mappings = [
         {"group_name": m.group_name.strip(), "username": m.username.strip()}
         for m in data.group_worker_map
     ]
-    _save_bot_mappings(db, mappings, updated_by=admin.username)
-
-    logger.info(f"Настройки Telegram-бота обновлены ({len(mappings)} маппингов)")
-    return {"status": "ok"}
+    return service.update_telegram_bot_settings(
+        data.enabled, data.dedup_enabled, mappings, admin.username
+    )
 
 
 @public_router.get("/telegram-bot/mappings")
 async def get_bot_mappings_public(
-    db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("create_tasks")),
+    service: SettingsService = Depends(get_settings_service),
 ):
     """
     Получить маппинг групп → работников (для бота).
@@ -630,19 +333,7 @@ async def get_bot_mappings_public(
     Доступно авторизованным пользователям с правом создания заявок.
     Возвращает словарь {group_name_lower: username}.
     """
-    enabled = bool(get_setting(db, "telegram_bot_enabled", True))
-    if not enabled:
-        return {"enabled": False, "mappings": {}, "dedup_enabled": False}
-
-    mappings = _get_bot_mappings(db)
-    dedup = bool(get_setting(db, "telegram_bot_dedup_enabled", True))
-    result = {}
-    for m in mappings:
-        gn = m.get("group_name", "").strip().lower()
-        un = m.get("username", "").strip()
-        if gn and un:
-            result[gn] = un
-    return {"enabled": True, "mappings": result, "dedup_enabled": dedup}
+    return service.get_bot_mappings_public()
 
 
 class _ReportGroupBody(BaseModel):
@@ -653,23 +344,12 @@ class _ReportGroupBody(BaseModel):
 @public_router.post("/telegram-bot/report-group")
 async def report_bot_group(
     body: _ReportGroupBody,
-    db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("create_tasks")),
+    service: SettingsService = Depends(get_settings_service),
 ):
     """
     Бот сообщает о группе, в которой он находится.
     Обновляет last_seen если группа уже известна, иначе добавляет.
     """
-    groups = _get_known_groups(db)
-    now = datetime.utcnow().isoformat()
-    found = False
-    for g in groups:
-        if g.get("chat_id") == body.chat_id:
-            g["title"] = body.title
-            g["last_seen"] = now
-            found = True
-            break
-    if not found:
-        groups.append({"chat_id": body.chat_id, "title": body.title, "last_seen": now})
-    _save_known_groups(db, groups)
+    service.report_bot_group(body.chat_id, body.title)
     return {"status": "ok"}
