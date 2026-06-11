@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.models import CommentModel, TaskModel, TaskStatus, UserModel, UserRole, get_db
 from app.models.address import AddressModel
-from app.schemas import TaskCreate, TaskStatusUpdate
+from app.schemas import TaskCreate, TaskStatusUpdate, TaskUpdate
 from app.services.address_parser import parse_address
 from app.services.geocoding import geocoding_service
 from app.services.notification_service import (
@@ -424,6 +424,115 @@ class TaskService:
         self.db.refresh(task)
 
         logger.info(f"✅ Заявка №{task.task_number} создана")
+
+        return task
+
+    def admin_update_task(
+        self, task_id: int, task_data: TaskUpdate, admin: UserModel
+    ) -> TaskModel:
+        """
+        Обновить заявку администратором (PATCH /api/admin/tasks/{id}).
+
+        - Уважает tenant-доступ (заявка чужой организации → 404)
+        - Перегеокодирует при смене адреса
+        - Управляет completed_at по статусу
+        - Шлёт уведомление при назначении исполнителя
+
+        Raises:
+            TaskNotFoundError: заявка не найдена / недоступна
+            TaskServiceError: назначаемый пользователь не найден (404)
+        """
+        tenant = TenantFilter(admin)
+        task = (
+            tenant.apply(self.db.query(TaskModel), TaskModel)
+            .filter(TaskModel.id == task_id)
+            .first()
+        )
+        if not task:
+            raise TaskNotFoundError(task_id)
+
+        if task_data.title is not None:
+            task.title = task_data.title
+        if task_data.address is not None:
+            task.raw_address = task_data.address
+            lat, lon = self.resolve_coordinates(
+                task_data.address,
+                task.organization_id or admin.organization_id,
+            )
+            task.lat = lat
+            task.lon = lon
+        if task_data.description is not None:
+            task.description = task_data.description
+        if task_data.customer_name is not None:
+            task.customer_name = task_data.customer_name
+        if task_data.customer_phone is not None:
+            task.customer_phone = task_data.customer_phone
+        if task_data.status is not None:
+            old_status = task.status
+            task.status = task_data.status
+            if task_data.status == "DONE" and old_status != "DONE":
+                task.completed_at = datetime.now(timezone.utc)
+            elif task_data.status != "DONE":
+                task.completed_at = None
+        if task_data.priority is not None:
+            task.priority = task_data.priority
+
+        # dict(exclude_unset=True) чтобы можно было сбросить дату (передать null)
+        update_data = task_data.model_dump(exclude_unset=True)
+        if "planned_date" in update_data:
+            task.planned_date = update_data["planned_date"]
+
+        if task_data.is_remote is not None:
+            task.is_remote = task_data.is_remote
+        if task_data.is_paid is not None:
+            task.is_paid = task_data.is_paid
+        if task_data.payment_amount is not None:
+            task.payment_amount = task_data.payment_amount
+
+        # Система и тип неисправности
+        if task_data.system_id is not None:
+            task.system_id = task_data.system_id
+        if task_data.system_type is not None:
+            task.system_type = task_data.system_type
+        if task_data.defect_type is not None:
+            task.defect_type = task_data.defect_type
+
+        old_assigned_user_id = task.assigned_user_id
+        new_assigned_user_id = None
+
+        if "assigned_user_id" in update_data:
+            if update_data["assigned_user_id"] is None:
+                task.assigned_user_id = None
+            else:
+                assigned_user = (
+                    self.db.query(UserModel)
+                    .filter(UserModel.id == update_data["assigned_user_id"])
+                    .first()
+                )
+                if not assigned_user:
+                    raise TaskServiceError("User not found", 404)
+                tenant.enforce_access(
+                    assigned_user,
+                    detail="Cannot assign user from another organization",
+                )
+                task.assigned_user_id = assigned_user.id
+                new_assigned_user_id = assigned_user.id
+
+        task.updated_at = datetime.now(timezone.utc)
+        self.db.commit()
+        self.db.refresh(task)
+
+        # Уведомление при назначении
+        if new_assigned_user_id and new_assigned_user_id != old_assigned_user_id:
+            assigned_to = (
+                self.db.query(UserModel)
+                .filter(UserModel.id == new_assigned_user_id)
+                .first()
+            )
+            if assigned_to:
+                create_task_assignment_notification(
+                    db=self.db, task=task, assigned_to=assigned_to, assigned_by=admin
+                )
 
         return task
 
