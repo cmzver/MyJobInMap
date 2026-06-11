@@ -28,8 +28,6 @@ from app.services.push import send_push_notification
 from app.services.task_state_machine import TaskStatusMachine
 from app.services.tenant_filter import TenantFilter
 from app.utils import (
-    get_priority_display_name,
-    get_priority_rank,
     get_status_comment_required_message,
     get_status_display_name,
     normalize_priority_value,
@@ -757,23 +755,6 @@ class TaskService:
                 task_id=task.id,
                 user_ids=[task.assigned_user_id],
             )
-
-    def _notify_assignment(self, task: TaskModel) -> None:
-        """Отправить push о назначении"""
-        priority_name = get_priority_display_name(task.priority)
-        title = (
-            f"Новая заявка ({priority_name})"
-            if get_priority_rank(task.priority) >= 3
-            else "Вам назначена заявка"
-        )
-
-        send_push_notification(
-            title=title,
-            body=f"№{task.task_number}: {task.title[:50]}...",
-            notification_type="task_assigned",
-            task_id=task.id,
-            user_ids=[task.assigned_user_id],
-        )
 
 
 # Factory function для DI

@@ -914,34 +914,6 @@ def mark_as_read(
         db.commit()
 
 
-def get_unread_counts(
-    db: Session,
-    user_id: int,
-) -> dict[int, int]:
-    """Получить количество непрочитанных для всех чатов пользователя."""
-    members = (
-        db.query(ConversationMemberModel)
-        .filter(
-            ConversationMemberModel.user_id == user_id,
-            ConversationMemberModel.is_archived == False,  # noqa: E712
-        )
-        .all()
-    )
-
-    result: dict[int, int] = {}
-    for m in members:
-        q = db.query(func.count(MessageModel.id)).filter(
-            MessageModel.conversation_id == m.conversation_id,
-            MessageModel.is_deleted == False,  # noqa: E712
-            MessageModel.sender_id != user_id,
-        )
-        if m.last_read_message_id:
-            q = q.filter(MessageModel.id > m.last_read_message_id)
-        result[m.conversation_id] = q.scalar() or 0
-
-    return result
-
-
 # ============================================================================
 # Helpers
 # ============================================================================

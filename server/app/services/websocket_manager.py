@@ -252,28 +252,6 @@ async def broadcast_task_created(
     )
 
 
-async def broadcast_task_updated(
-    task_id: int,
-    task_number: str,
-    changes: dict,
-    user_id: Optional[int] = None,
-    organization_id: Optional[int] = None,
-) -> None:
-    """Broadcast: заявка обновлена."""
-    await ws_manager.broadcast(
-        _event(
-            "task_updated",
-            {
-                "task_id": task_id,
-                "task_number": task_number,
-                **changes,
-            },
-        ),
-        exclude_user_id=user_id,
-        organization_id=organization_id,
-    )
-
-
 async def broadcast_task_status_changed(
     task_id: int,
     task_number: str,

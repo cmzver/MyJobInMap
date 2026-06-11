@@ -352,32 +352,6 @@ class AddressEquipmentResponse(AddressEquipmentBase):
 # ============================================
 
 
-class AddressDocumentBase(BaseModel):
-    """������� ���� ���������"""
-
-    name: str = Field(..., min_length=1, max_length=300)
-    doc_type: DocumentType = Field(default="other", description="��� ���������")
-    valid_from: Optional[datetime] = None
-    valid_until: Optional[datetime] = None
-    notes: Optional[str] = None
-
-
-class AddressDocumentCreate(AddressDocumentBase):
-    """�������� ��������� (��� �����, ���� ����������� ��������)"""
-
-    pass
-
-
-class AddressDocumentUpdate(BaseModel):
-    """���������� ���������"""
-
-    name: Optional[str] = Field(None, min_length=1, max_length=300)
-    doc_type: Optional[DocumentType] = None
-    valid_from: Optional[datetime] = None
-    valid_until: Optional[datetime] = None
-    notes: Optional[str] = None
-
-
 class AddressDocumentResponse(BaseModel):
     """����� � ����������"""
 

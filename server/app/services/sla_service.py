@@ -14,7 +14,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import and_, case, extract, func
+from sqlalchemy import and_, case, func
 from sqlalchemy.orm import Session
 
 from app.models import TaskModel, TaskStatus, UserModel

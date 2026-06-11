@@ -292,40 +292,6 @@ def build_user_avatar_url(user: UserModel) -> Optional[str]:
 # ============================================
 
 
-def send_task_assignment_notification(
-    task: TaskModel, new_assignee_id: int, old_assignee_id: int = None
-) -> None:
-    """
-
-    Отправка уведомления о назначении заявки.
-
-    Вызывает send_push_notification из services.
-
-    """
-
-    from app.services import send_push_notification
-
-    if not new_assignee_id or new_assignee_id == old_assignee_id:
-
-        return
-
-    priority_name = get_priority_display_name(task.priority)
-
-    title = (
-        f"Новая заявка ({priority_name})"
-        if get_priority_rank(task.priority) >= 3
-        else "Вам назначена заявка"
-    )
-
-    send_push_notification(
-        title=title,
-        body=f"№{task.task_number}: {task.title[:50]}...",
-        notification_type="task_assigned",
-        task_id=task.id,
-        user_ids=[new_assignee_id],
-    )
-
-
 def send_comment_notification(
     task: TaskModel, comment_text: str, author_user_id: int
 ) -> None:
