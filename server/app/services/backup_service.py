@@ -194,11 +194,14 @@ class BackupService:
             raise BackupServiceError(f"Restore failed: {str(e)}", 500)
 
     def get_settings(self) -> BackupSettingsResponse:
-        auto_backup = get_setting(self.db, "backup_auto_enabled", "true")
+        # get_setting() возвращает уже типизированное значение, поэтому
+        # backup_auto_enabled приходит как bool (а не строкой) — приводим к str
+        # перед разбором, чтобы не падать на bool.lower().
+        auto_backup = get_setting(self.db, "backup_auto_enabled", True)
         schedule = get_setting(self.db, "backup_schedule", "daily")
-        retention = get_setting(self.db, "backup_retention_days", "30")
+        retention = get_setting(self.db, "backup_retention_days", 30)
         return BackupSettingsResponse(
-            auto_backup=auto_backup.lower() == "true",
+            auto_backup=str(auto_backup).lower() in ("true", "1", "yes", "on"),
             schedule=schedule,
             retention_days=int(retention),
         )
