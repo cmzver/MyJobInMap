@@ -157,7 +157,7 @@ class UpdateRepositoryTest {
         val result = repository.checkForUpdate(2, "2.0")
 
         assertTrue(result.isSuccess)
-        assertTrue(result.getOrNull()!!.update!!.isMandatory)
+        assertTrue(result.getOrNull()!!.update!!.isMandatory == true)
     }
 
     // ==================== downloadUpdate ====================
