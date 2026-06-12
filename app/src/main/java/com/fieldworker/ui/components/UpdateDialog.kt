@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.fieldworker.data.dto.UpdateInfoDto
+import com.fieldworker.data.remote.generated.AppUpdateInfo
 import java.util.Locale
 
 /**
@@ -26,7 +26,7 @@ sealed class UpdateState {
     data class UpToDate(val versionName: String) : UpdateState()
     
     /** Доступно обновление */
-    data class Available(val info: UpdateInfoDto) : UpdateState()
+    data class Available(val info: AppUpdateInfo) : UpdateState()
     
     /** Идёт загрузка APK */
     data class Downloading(val progress: Int) : UpdateState()
@@ -58,7 +58,7 @@ fun UpdateDialog(
         is UpdateState.Available -> {
             AlertDialog(
                 onDismissRequest = {
-                    if (!state.info.isMandatory) onDismiss()
+                    if (state.info.isMandatory != true) onDismiss()
                 },
                 icon = {
                     Icon(
@@ -92,7 +92,7 @@ fun UpdateDialog(
                             )
                         }
                         
-                        if (state.info.releaseNotes.isNotBlank()) {
+                        if (!state.info.releaseNotes.isNullOrBlank()) {
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = "Что нового:",
@@ -101,12 +101,12 @@ fun UpdateDialog(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = state.info.releaseNotes,
+                                text = state.info.releaseNotes ?: "",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
                         
-                        if (state.info.isMandatory) {
+                        if (state.info.isMandatory == true) {
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = "⚠ Это обязательное обновление",
@@ -123,7 +123,7 @@ fun UpdateDialog(
                     }
                 },
                 dismissButton = {
-                    if (!state.info.isMandatory) {
+                    if (state.info.isMandatory != true) {
                         TextButton(onClick = onDismiss) {
                             Text("Позже")
                         }
