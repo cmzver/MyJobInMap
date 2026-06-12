@@ -4,10 +4,10 @@ import android.content.Context
 import android.net.Uri
 import com.fieldworker.data.api.AuthApi
 import com.fieldworker.data.image.ImageCompressor
-import com.fieldworker.data.dto.ReportSettingsDto
-import com.fieldworker.data.dto.UpdateReportSettingsDto
 import com.fieldworker.data.remote.generated.PasswordChange
 import com.fieldworker.data.remote.generated.ProfileUpdate
+import com.fieldworker.data.remote.generated.ReportSettingsResponse
+import com.fieldworker.data.remote.generated.ReportSettingsUpdate
 import com.fieldworker.data.remote.generated.Token
 import com.fieldworker.data.remote.generated.UserResponse
 import com.fieldworker.data.preferences.AppPreferences
@@ -124,7 +124,7 @@ class AuthRepository @Inject constructor(
     /**
      * Получить настройки отправки отчётов
      */
-    suspend fun getReportSettings(): Result<ReportSettingsDto> {
+    suspend fun getReportSettings(): Result<ReportSettingsResponse> {
         return try {
             val response = authApi.getReportSettings()
             if (response.isSuccessful && response.body() != null) {
@@ -140,9 +140,9 @@ class AuthRepository @Inject constructor(
     /**
      * Обновить настройки отправки отчётов
      */
-    suspend fun updateReportSettings(reportTarget: String, contactPhone: String? = null): Result<ReportSettingsDto> {
+    suspend fun updateReportSettings(reportTarget: String, contactPhone: String? = null): Result<ReportSettingsResponse> {
         return try {
-            val settings = UpdateReportSettingsDto(reportTarget, contactPhone)
+            val settings = ReportSettingsUpdate(reportTarget, contactPhone)
             val response = authApi.updateReportSettings(settings)
             if (response.isSuccessful && response.body() != null) {
                 Result.success(response.body()!!)

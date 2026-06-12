@@ -1,12 +1,12 @@
 package com.fieldworker.data.api
 
-import com.fieldworker.data.dto.ReportSettingsDto
 import com.fieldworker.data.dto.SimpleSuccessDto
-import com.fieldworker.data.dto.UpdateReportSettingsDto
 import com.fieldworker.data.remote.generated.AppUpdateCheck
 import com.fieldworker.data.remote.generated.PasswordChange
 import com.fieldworker.data.remote.generated.ProfileUpdate
 import com.fieldworker.data.remote.generated.RefreshRequest
+import com.fieldworker.data.remote.generated.ReportSettingsResponse
+import com.fieldworker.data.remote.generated.ReportSettingsUpdate
 import com.fieldworker.data.remote.generated.Token
 import com.fieldworker.data.remote.generated.UserResponse
 import okhttp3.MultipartBody
@@ -89,15 +89,15 @@ interface AuthApi {
      * Получить настройки отправки отчётов
      */
     @GET("api/auth/report-settings")
-    suspend fun getReportSettings(): Response<ReportSettingsDto>
-    
+    suspend fun getReportSettings(): Response<ReportSettingsResponse>
+
     /**
      * Обновить настройки отправки отчётов
      */
     @PUT("api/auth/report-settings")
     suspend fun updateReportSettings(
-        @Body settings: UpdateReportSettingsDto
-    ): Response<ReportSettingsDto>
+        @Body settings: ReportSettingsUpdate
+    ): Response<ReportSettingsResponse>
     
     /**
      * Проверить наличие обновления приложения
