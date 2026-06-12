@@ -27,7 +27,11 @@ import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
+import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNamingStrategy
+import okhttp3.MediaType.Companion.toMediaType
 import java.io.File
 import java.util.concurrent.TimeUnit
 import javax.inject.Named
@@ -179,14 +183,31 @@ object NetworkModule {
             .build()
     }
     
+    /**
+     * Общий kotlinx.serialization Json. SnakeCase-стратегия снимает нужду в
+     * ручных @SerialName на DTO; ignoreUnknownKeys/explicitNulls/coerceInputValues
+     * делают парсинг устойчивым к расширению контракта сервера и к null в полях
+     * с дефолтами (в отличие от Gson, который молча клал null в non-null поля).
+     */
+    @OptIn(ExperimentalSerializationApi::class)
     @Provides
     @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+    fun provideJson(): Json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+        coerceInputValues = true
+        namingStrategy = JsonNamingStrategy.SnakeCase
+    }
+
+    @Provides
+    @Singleton
+    fun provideRetrofit(okHttpClient: OkHttpClient, json: Json): Retrofit {
         // Используем placeholder URL, реальный URL будет подставлен интерцептором
+        val contentType = "application/json".toMediaType()
         return Retrofit.Builder()
             .baseUrl("http://localhost/")
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(json.asConverterFactory(contentType))
             .build()
     }
     

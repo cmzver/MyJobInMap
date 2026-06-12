@@ -1,16 +1,15 @@
 package com.fieldworker.data.dto
 
 import android.os.Build
-import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.Serializable
 
 /**
  * DTO для регистрации FCM токена
  */
+@Serializable
 data class FCMTokenDto(
-    @SerializedName("token")
     val token: String,
     
-    @SerializedName("device_name")
     val deviceName: String? = null
 ) {
     companion object {
