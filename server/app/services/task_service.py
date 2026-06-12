@@ -9,7 +9,7 @@ Task Service
 
 import logging
 from datetime import datetime, timezone
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 from fastapi import Depends
 from sqlalchemy import func, or_
@@ -31,7 +31,6 @@ from app.utils import (
     get_status_comment_required_message,
     get_status_display_name,
     normalize_priority_value,
-    priority_rank_expr,
 )
 
 
@@ -217,21 +216,6 @@ class TaskService:
 
         return geocoding_service.geocode(raw_address)
 
-    def repair_task_coordinates(self, task: TaskModel) -> bool:
-        if has_valid_task_coordinates(task.lat, task.lon):
-            return False
-        if not task.raw_address.strip():
-            return False
-
-        lat, lon = self.resolve_coordinates(task.raw_address, task.organization_id)
-        if not has_valid_task_coordinates(lat, lon):
-            return False
-
-        changed = task.lat != lat or task.lon != lon
-        task.lat = lat
-        task.lon = lon
-        return changed
-
     def get_by_id(self, task_id: int) -> TaskModel:
         """
         Получить заявку по ID.
@@ -243,34 +227,6 @@ class TaskService:
         if not task:
             raise TaskNotFoundError(task_id)
         return task
-
-    def get_list(
-        self,
-        user: UserModel,
-        status: Optional[str] = None,
-        assignee_id: Optional[int] = None,
-    ) -> List[TaskModel]:
-        """
-        Получить список заявок с учётом прав.
-
-        - Workers: только свои заявки
-        - Dispatchers/Admins: все заявки (опционально по assignee_id)
-        """
-        tenant = TenantFilter(user)
-        query = tenant.apply(self.db.query(TaskModel), TaskModel)
-
-        if status:
-            query = query.filter(TaskModel.status == status)
-
-        # Workers видят только свои заявки
-        if user.role == UserRole.WORKER.value:
-            query = query.filter(TaskModel.assigned_user_id == user.id)
-        elif assignee_id is not None:
-            query = query.filter(TaskModel.assigned_user_id == assignee_id)
-
-        return query.order_by(
-            priority_rank_expr(TaskModel.priority).desc(), TaskModel.created_at.desc()
-        ).all()
 
     def get_summary(
         self,
