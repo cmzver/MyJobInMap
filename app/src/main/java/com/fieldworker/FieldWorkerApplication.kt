@@ -16,7 +16,7 @@ import androidx.work.WorkManager
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import com.fieldworker.data.api.TasksApi
-import com.fieldworker.data.dto.FCMTokenDto
+import com.fieldworker.data.dto.deviceRegisterWithInfo
 import com.fieldworker.data.notification.FCMService
 import com.fieldworker.data.preferences.AppPreferences
 import com.google.android.gms.common.ConnectionResult
@@ -213,7 +213,7 @@ class FieldWorkerApplication : Application(), Configuration.Provider, ImageLoade
                     val serverUrl = preferences.getFullServerUrl()
                     Log.d(TAG, "📡 Registering device on server: $serverUrl")
                     
-                    val dto = FCMTokenDto.withDeviceInfo(token)
+                    val dto = deviceRegisterWithInfo(token)
                     Log.d(TAG, "   Device name: ${dto.deviceName}")
                     
                     val response = tasksApi.registerDevice(dto)

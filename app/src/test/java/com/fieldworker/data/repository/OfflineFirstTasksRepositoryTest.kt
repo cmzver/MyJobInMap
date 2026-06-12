@@ -2,16 +2,19 @@ package com.fieldworker.data.repository
 
 import com.fieldworker.data.api.TasksApi
 import android.content.Context
-import com.fieldworker.data.dto.PaginatedResponseDto
-import com.fieldworker.data.dto.TaskDto
-import com.fieldworker.data.dto.TaskDetailDto
-import com.fieldworker.data.dto.CommentDto
+import com.fieldworker.data.image.ImageCompressor
 import com.fieldworker.data.local.dao.CommentDao
 import com.fieldworker.data.local.dao.PendingActionDao
 import com.fieldworker.data.local.dao.TaskDao
 import com.fieldworker.data.local.entity.TaskEntity
 import com.fieldworker.data.network.NetworkMonitor
+import com.fieldworker.data.remote.generated.PaginatedResponseTaskListResponse
+import com.fieldworker.data.remote.generated.TaskListResponse
+import com.fieldworker.data.remote.generated.TaskResponse
+import com.fieldworker.data.remote.generated.TaskPriority as GenTaskPriority
+import com.fieldworker.data.remote.generated.TaskStatus as GenTaskStatus
 import com.fieldworker.domain.model.TaskStatus
+import java.math.BigDecimal
 import io.mockk.*
 import io.mockk.impl.annotations.MockK
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -60,20 +63,23 @@ class OfflineFirstTasksRepositoryTest {
     private lateinit var networkMonitor: NetworkMonitor
 
     @MockK
+    private lateinit var imageCompressor: ImageCompressor
+
+    @MockK
     private lateinit var context: Context
 
     private lateinit var repository: OfflineFirstTasksRepository
 
-    private val testTaskDto = TaskDto(
+    private val testTaskDto = TaskListResponse(
         id = 1L,
         taskNumber = "Z-001",
         title = "Test Task",
         rawAddress = "Test Address",
         description = "Test Description",
-        lat = 55.75,
-        lon = 37.62,
-        status = "NEW",
-        priority = "CURRENT",
+        lat = BigDecimal("55.75"),
+        lon = BigDecimal("37.62"),
+        status = GenTaskStatus.NEW,
+        priority = GenTaskPriority.CURRENT,
         createdAt = "2024-01-01T10:00:00",
         updatedAt = "2024-01-01T10:00:00",
         commentsCount = 0
@@ -108,6 +114,7 @@ class OfflineFirstTasksRepositoryTest {
             commentDao = commentDao,
             pendingActionDao = pendingActionDao,
             networkMonitor = networkMonitor,
+            imageCompressor = imageCompressor,
             context = context
         )
     }
@@ -121,7 +128,7 @@ class OfflineFirstTasksRepositoryTest {
         // Given
         every { networkMonitor.isCurrentlyOnline() } returns true
         coEvery { tasksApi.getTasks(any(), any(), any(), any()) } returns Response.success(
-            PaginatedResponseDto(items = listOf(testTaskDto), total = 1, page = 1, size = 100, pages = 1)
+            PaginatedResponseTaskListResponse(items = listOf(testTaskDto), total = 1, page = 1, propertySize = 100, pages = 1)
         )
         coEvery { taskDao.upsertTasks(any()) } just Runs
         coEvery { taskDao.deleteTasksNotIn(any()) } just Runs
@@ -191,16 +198,16 @@ class OfflineFirstTasksRepositoryTest {
     fun `updateTaskStatus sends to server when online`() = runTest {
         // Given
         every { networkMonitor.isCurrentlyOnline() } returns true
-        val updatedDto = TaskDetailDto(
+        val updatedDto = TaskResponse(
             id = 1L,
             taskNumber = "Z-001",
             title = "Test Task",
             rawAddress = "Test Address",
             description = "Test Description",
-            lat = 55.75,
-            lon = 37.62,
-            status = "IN_PROGRESS",
-            priority = "CURRENT",
+            lat = BigDecimal("55.75"),
+            lon = BigDecimal("37.62"),
+            status = GenTaskStatus.IN_PROGRESS,
+            priority = GenTaskPriority.CURRENT,
             createdAt = "2024-01-01T10:00:00",
             updatedAt = "2024-01-01T11:00:00",
             comments = emptyList()

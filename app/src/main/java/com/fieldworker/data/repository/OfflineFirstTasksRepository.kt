@@ -8,10 +8,11 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
 import com.fieldworker.data.api.TasksApi
-import com.fieldworker.data.dto.CreateCommentDto
 import com.fieldworker.data.image.ImageCompressor
-import com.fieldworker.data.dto.UpdatePlannedDateDto
-import com.fieldworker.data.dto.UpdateStatusDto
+import com.fieldworker.data.remote.generated.CommentCreate
+import com.fieldworker.data.remote.generated.PlannedDateUpdate
+import com.fieldworker.data.remote.generated.TaskStatusUpdate
+import com.fieldworker.data.remote.generated.TaskStatus as GenTaskStatus
 import com.fieldworker.data.local.dao.CommentDao
 import com.fieldworker.data.local.dao.PendingActionDao
 import com.fieldworker.data.local.dao.TaskDao
@@ -173,7 +174,7 @@ class OfflineFirstTasksRepository @Inject constructor(
                 ?: return Result.failure(Exception("Empty response body"))
 
             allTasks.addAll(body.items.toDomainTasks())
-            totalPages = if (body.pages > 0) body.pages else 1
+            totalPages = if (body.pages > 0) body.pages.toInt() else 1
             page += 1
         }
 
@@ -242,7 +243,7 @@ class OfflineFirstTasksRepository @Inject constructor(
                 // Online: отправляем на сервер
                 val response = tasksApi.updateTaskStatus(
                     id = taskId,
-                    status = UpdateStatusDto(status = newStatus.name, comment = comment)
+                    status = TaskStatusUpdate(status = GenTaskStatus.valueOf(newStatus.name), comment = comment)
                 )
                 
                 if (response.isSuccessful) {
@@ -306,7 +307,7 @@ class OfflineFirstTasksRepository @Inject constructor(
                 if (networkMonitor.isCurrentlyOnline()) {
                     val response = tasksApi.addComment(
                         id = taskId,
-                        comment = CreateCommentDto(text = text)
+                        comment = CommentCreate(text = text)
                     )
                     
                     if (response.isSuccessful) {
@@ -372,7 +373,7 @@ class OfflineFirstTasksRepository @Inject constructor(
             if (networkMonitor.isCurrentlyOnline()) {
                 val response = tasksApi.updatePlannedDate(
                     id = taskId,
-                    plannedDate = UpdatePlannedDateDto(plannedDate = plannedDate)
+                    plannedDate = PlannedDateUpdate(plannedDate = plannedDate)
                 )
                 
                 if (response.isSuccessful) {
@@ -423,8 +424,8 @@ class OfflineFirstTasksRepository @Inject constructor(
                         val status = action.newStatus ?: continue
                         val response = tasksApi.updateTaskStatus(
                             id = action.taskId,
-                            status = UpdateStatusDto(
-                                status = status,
+                            status = TaskStatusUpdate(
+                                status = GenTaskStatus.valueOf(status),
                                 comment = action.comment ?: ""
                             )
                         )
@@ -445,7 +446,7 @@ class OfflineFirstTasksRepository @Inject constructor(
                         val text = action.comment ?: continue
                         val response = tasksApi.addComment(
                             id = action.taskId,
-                            comment = CreateCommentDto(text = text)
+                            comment = CommentCreate(text = text)
                         )
                         if (response.isSuccessful) {
                             val dto = response.body()
