@@ -20,7 +20,6 @@ import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
-import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Query
 import retrofit2.http.Streaming
@@ -94,7 +93,7 @@ interface AuthApi {
     /**
      * Обновить настройки отправки отчётов
      */
-    @PUT("api/auth/report-settings")
+    @PATCH("api/auth/report-settings")
     suspend fun updateReportSettings(
         @Body settings: ReportSettingsUpdate
     ): Response<ReportSettingsResponse>
