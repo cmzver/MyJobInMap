@@ -130,7 +130,7 @@ class TokenAuthenticator @Inject constructor(
         if (response.isSuccessful) {
             val body = response.body?.string()
             if (body != null) {
-                val tokenResponse = json.decodeFromString<com.fieldworker.data.dto.TokenResponse>(body)
+                val tokenResponse = json.decodeFromString<com.fieldworker.data.remote.generated.Token>(body)
                 return Pair(tokenResponse.accessToken, tokenResponse.refreshToken)
             }
         }

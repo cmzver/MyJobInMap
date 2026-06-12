@@ -4,8 +4,8 @@ import com.fieldworker.data.dto.CommentDto
 import com.fieldworker.data.dto.TaskDetailDto
 import com.fieldworker.data.dto.TaskDto
 import com.fieldworker.data.dto.TaskPhotoDto
-import com.fieldworker.data.dto.TokenResponse
-import com.fieldworker.data.dto.UserDto
+import com.fieldworker.data.remote.generated.Token
+import com.fieldworker.data.remote.generated.UserResponse
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
@@ -112,31 +112,31 @@ fun List<CommentDto>.toDomainComments(): List<Comment> = map { it.toDomain() }
 // ==================== User Mappers ====================
 
 /**
- * Конвертация UserDto в Domain User
+ * Конвертация UserResponse в Domain User
  */
-fun UserDto.toDomain(): User = User(
+fun UserResponse.toDomain(): User = User(
     id = id,
     username = username,
     fullName = fullName,
     email = email,
     phone = phone,
-    role = UserRole.fromString(role),
+    role = UserRole.fromString(role.value),
     isActive = isActive
 )
 
 /**
- * Конвертация списка UserDto в список Domain User
+ * Конвертация списка UserResponse в список Domain User
  */
-fun List<UserDto>.toDomainUsers(): List<User> = map { it.toDomain() }
+fun List<UserResponse>.toDomainUsers(): List<User> = map { it.toDomain() }
 
 /**
- * Конвертация TokenResponse в Domain User (для использования после логина)
+ * Конвертация Token в Domain User (для использования после логина)
  */
-fun TokenResponse.toUser(): User = User(
+fun Token.toUser(): User = User(
     id = userId,
     username = username,
     fullName = fullName,
-    role = UserRole.fromString(role),
+    role = UserRole.fromString(role.value),
     isActive = true
 )
 
