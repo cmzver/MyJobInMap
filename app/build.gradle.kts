@@ -71,6 +71,11 @@ android {
     }
 
     testOptions {
+        // Неинициализированные android.* методы (например, Log) возвращают
+        // дефолты вместо "not mocked", чтобы не плодить mockkStatic(Log) в каждом
+        // тесте. Важно: mockkStatic(android.util.Log) конфликтует со стабингом
+        // property-геттеров (every { mock.prop }) — см. MapViewModelTest.
+        unitTests.isReturnDefaultValues = true
         unitTests.all {
             // MockK agent needs these JVM args on JDK 17+ / 21+
             it.jvmArgs(
