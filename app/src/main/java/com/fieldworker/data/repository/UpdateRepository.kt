@@ -3,7 +3,7 @@ package com.fieldworker.data.repository
 import android.content.Context
 import android.util.Log
 import com.fieldworker.data.api.AuthApi
-import com.fieldworker.data.dto.UpdateCheckDto
+import com.fieldworker.data.remote.generated.AppUpdateCheck
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -36,7 +36,7 @@ class UpdateRepository @Inject constructor(
     suspend fun checkForUpdate(
         currentVersionCode: Int,
         currentVersionName: String
-    ): Result<UpdateCheckDto> {
+    ): Result<AppUpdateCheck> {
         return try {
             val response = authApi.checkUpdate(currentVersionCode, currentVersionName)
             if (response.isSuccessful && response.body() != null) {

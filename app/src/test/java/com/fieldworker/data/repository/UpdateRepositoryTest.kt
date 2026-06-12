@@ -2,8 +2,8 @@ package com.fieldworker.data.repository
 
 import android.content.Context
 import com.fieldworker.data.api.AuthApi
-import com.fieldworker.data.dto.UpdateCheckDto
-import com.fieldworker.data.dto.UpdateInfoDto
+import com.fieldworker.data.remote.generated.AppUpdateCheck
+import com.fieldworker.data.remote.generated.AppUpdateInfo
 import io.mockk.*
 import io.mockk.impl.annotations.MockK
 import kotlinx.coroutines.Dispatchers
@@ -72,16 +72,16 @@ class UpdateRepositoryTest {
 
     @Test
     fun `checkForUpdate returns success when update available`() = runTest {
-        val updateInfo = UpdateInfoDto(
+        val updateInfo = AppUpdateInfo(
             versionName = "2.0",
-            versionCode = 2,
+            versionCode = 2L,
             releaseNotes = "Bug fixes",
             isMandatory = false,
             fileSize = 1024L,
             downloadUrl = "/api/updates/download",
             createdAt = "2026-01-01"
         )
-        val checkDto = UpdateCheckDto(
+        val checkDto = AppUpdateCheck(
             updateAvailable = true,
             currentVersion = "1.0",
             update = updateInfo
@@ -94,12 +94,12 @@ class UpdateRepositoryTest {
         val check = result.getOrNull()!!
         assertTrue(check.updateAvailable)
         assertEquals("2.0", check.update?.versionName)
-        assertEquals(2, check.update?.versionCode)
+        assertEquals(2L, check.update?.versionCode)
     }
 
     @Test
     fun `checkForUpdate returns success when no update available`() = runTest {
-        val checkDto = UpdateCheckDto(
+        val checkDto = AppUpdateCheck(
             updateAvailable = false,
             currentVersion = "2.0",
             update = null
@@ -138,16 +138,16 @@ class UpdateRepositoryTest {
 
     @Test
     fun `checkForUpdate with mandatory update`() = runTest {
-        val updateInfo = UpdateInfoDto(
+        val updateInfo = AppUpdateInfo(
             versionName = "3.0",
-            versionCode = 3,
+            versionCode = 3L,
             releaseNotes = "Critical security fix",
             isMandatory = true,
             fileSize = 2048L,
             downloadUrl = "/api/updates/download",
             createdAt = "2026-03-01"
         )
-        val checkDto = UpdateCheckDto(
+        val checkDto = AppUpdateCheck(
             updateAvailable = true,
             currentVersion = "2.0",
             update = updateInfo

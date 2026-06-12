@@ -5,7 +5,7 @@ import com.fieldworker.data.dto.RefreshTokenRequest
 import com.fieldworker.data.dto.ReportSettingsDto
 import com.fieldworker.data.dto.SimpleSuccessDto
 import com.fieldworker.data.dto.TokenResponse
-import com.fieldworker.data.dto.UpdateCheckDto
+import com.fieldworker.data.remote.generated.AppUpdateCheck
 import com.fieldworker.data.dto.UpdateProfileRequest
 import com.fieldworker.data.dto.UpdateReportSettingsDto
 import com.fieldworker.data.dto.UserDto
@@ -108,7 +108,7 @@ interface AuthApi {
     suspend fun checkUpdate(
         @Query("version_code") versionCode: Int,
         @Query("version_name") versionName: String
-    ): Response<UpdateCheckDto>
+    ): Response<AppUpdateCheck>
     
     /**
      * Скачать APK файл обновления
