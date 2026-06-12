@@ -3,6 +3,7 @@ package com.fieldworker.ui.chat
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.realtime.ChatRealtimeEvent
 import com.fieldworker.data.repository.ChatRepository
+import com.fieldworker.data.repository.OfflineFirstTasksRepository
 import com.fieldworker.data.repository.UsersRepository
 import com.fieldworker.domain.model.ChatAttachment
 import com.fieldworker.domain.model.ChatMessage
@@ -23,6 +24,7 @@ import io.mockk.runs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -58,6 +60,7 @@ class ChatViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var chatRepository: ChatRepository
     private lateinit var usersRepository: UsersRepository
+    private lateinit var tasksRepository: OfflineFirstTasksRepository
     private lateinit var preferences: AppPreferences
     private lateinit var realtimeEvents: MutableSharedFlow<ChatRealtimeEvent>
 
@@ -66,11 +69,13 @@ class ChatViewModelTest {
         Dispatchers.setMain(testDispatcher)
         chatRepository = mockk()
         usersRepository = mockk(relaxed = true)
+        tasksRepository = mockk(relaxed = true)
         preferences = mockk(relaxed = true)
         realtimeEvents = MutableSharedFlow(extraBufferCapacity = 8)
 
         every { chatRepository.realtimeEvents } returns realtimeEvents
         every { chatRepository.connectRealtime() } just runs
+        every { chatRepository.observeConversations() } returns flowOf(emptyList())
         every { preferences.getUserId() } returns CURRENT_USER_ID
 
         coEvery { chatRepository.getConversations(true) } returns Result.success(
@@ -135,7 +140,7 @@ class ChatViewModelTest {
     }
 
     private fun createViewModel(): ChatViewModel =
-        ChatViewModel(chatRepository, usersRepository, preferences)
+        ChatViewModel(chatRepository, usersRepository, tasksRepository, preferences)
 
     private fun conversation(
         unreadCount: Int,
@@ -204,6 +209,7 @@ class ChatViewModelTest {
         isEdited = false,
         isDeleted = false,
         replyTo = null,
+        attachedTask = null,
         attachments = emptyList<ChatAttachment>(),
         reactions = emptyList<ChatReaction>(),
         createdAt = BASE_TIME.plusMinutes(id),

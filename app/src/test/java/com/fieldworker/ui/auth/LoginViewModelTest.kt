@@ -2,6 +2,7 @@ package com.fieldworker.ui.auth
 
 import android.app.Application
 import com.fieldworker.data.preferences.AppPreferences
+import com.fieldworker.data.remote.generated.UserRole
 import com.fieldworker.data.repository.AuthRepository
 import com.fieldworker.data.repository.DeviceRepository
 import io.mockk.*
@@ -147,7 +148,7 @@ class LoginViewModelTest {
                 every { fullName } returns "Администратор"
                 every { userId } returns 1L
                 every { username } returns "admin"
-                every { role } returns "admin"
+                every { role } returns UserRole.ADMIN
                 every { accessToken } returns "test-token"
             }
         )
@@ -173,7 +174,7 @@ class LoginViewModelTest {
                 every { fullName } returns "Test"
                 every { userId } returns 1L
                 every { username } returns "admin"
-                every { role } returns "admin"
+                every { role } returns UserRole.ADMIN
                 every { accessToken } returns "test-token"
             }
         )
@@ -234,7 +235,7 @@ class LoginViewModelTest {
                 every { fullName } returns "Test"
                 every { userId } returns 1L
                 every { username } returns "admin"
-                every { role } returns "admin"
+                every { role } returns UserRole.ADMIN
                 every { accessToken } returns "test-token"
             })
         }
@@ -285,7 +286,7 @@ class LoginViewModelTest {
                 every { fullName } returns "Test"
                 every { userId } returns 1L
                 every { username } returns "admin"
-                every { role } returns "admin"
+                every { role } returns UserRole.ADMIN
                 every { accessToken } returns "test-token"
             }
         )
