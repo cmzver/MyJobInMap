@@ -20,32 +20,25 @@ import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
-import org.junit.BeforeClass
 import org.junit.Ignore
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @Ignore(
-    "Карантин: mockk не может застабить геттеры финальных StateFlow-свойств " +
-        "AppPreferences (statusFilter/priorityFilter/showMyLocation/hideDoneTasks) — " +
-        "'Missing mocked calls inside every'. Нужна переработка харнесса (реальный " +
-        "AppPreferences с замоканным SharedPreferences вместо мока). Не связано с " +
-        "OpenAPI-миграцией; компиляция и логика теста уже приведены к актуальному API."
+    "Зелёный в изоляции (--tests MapViewModelTest) и в паре Chat+Map, но падает в " +
+        "полном модуле: межклассовое загрязнение inline-mock-maker'а mockk. Relaxed-" +
+        "моки AppPreferences в других классах (LoginViewModelTest и т.п.) оставляют " +
+        "инструментацию, которая ломает стабинг StateFlow property-геттеров здесь, и " +
+        "unmockkAll() её не сбрасывает; forkEvery=1 изолировал бы классы, но ломает " +
+        "динамический mockk-агент. Тест уже приведён к рабочему виду (answers{} вместо " +
+        "returns для property-стабов; unmockkAll() в @Before). Снять @Ignore после " +
+        "решения изоляции (mockk-агент через -javaagent или Robolectric)."
 )
 class MapViewModelTest {
 
-    companion object {
-        @JvmStatic
-        @BeforeClass
-        fun setupClass() {
-            mockkStatic(android.util.Log::class)
-            every { android.util.Log.d(any(), any()) } returns 0
-            every { android.util.Log.w(any(), any<String>()) } returns 0
-            every { android.util.Log.e(any(), any(), any()) } returns 0
-            every { android.util.Log.e(any(), any()) } returns 0
-            every { android.util.Log.i(any(), any()) } returns 0
-        }
-    }
+    // android.util.Log возвращает дефолты через testOptions.unitTests
+    // .isReturnDefaultValues — mockkStatic(Log) здесь не нужен и конфликтует
+    // со стабингом property-геттеров AppPreferences.
 
     private val testDispatcher = StandardTestDispatcher()
     
@@ -89,8 +82,6 @@ class MapViewModelTest {
      * Не трогаем реальную Android-реализацию prefs в JVM unit tests.
      */
     private fun createRealPreferences(): AppPreferences {
-        // Не relaxed: mockk не записывает стабы property-геттеров финального класса
-        // на relaxed-моке («Missing mocked calls inside every»), поэтому мокаем явно.
         val preferences = mockk<AppPreferences>()
         val statusFilterFlow = MutableStateFlow(
             setOf(TaskStatus.NEW, TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED)
@@ -99,10 +90,13 @@ class MapViewModelTest {
         val showMyLocationFlow = MutableStateFlow(true)
         val hideDoneTasksFlow = MutableStateFlow(true)
 
-        every { preferences.statusFilter } returns statusFilterFlow
-        every { preferences.priorityFilter } returns priorityFilterFlow
-        every { preferences.showMyLocation } returns showMyLocationFlow
-        every { preferences.hideDoneTasks } returns hideDoneTasksFlow
+        // StateFlow-свойства стабим через answers {}, а не returns: mockk не
+        // записывает второй и последующие property-геттеры финального класса при
+        // returns («Missing mocked calls inside every»); answers {} обходит это.
+        every { preferences.statusFilter } answers { statusFilterFlow }
+        every { preferences.priorityFilter } answers { priorityFilterFlow }
+        every { preferences.showMyLocation } answers { showMyLocationFlow }
+        every { preferences.hideDoneTasks } answers { hideDoneTasksFlow }
         every { preferences.getFullServerUrl() } returns "invalid-url"
         every { preferences.triggerLogout() } just Runs
         every { preferences.saveMapPosition(any(), any(), any()) } just Runs
@@ -130,8 +124,11 @@ class MapViewModelTest {
 
     @Before
     fun setup() {
+        // mockk инструментирует AppPreferences глобально; без сброса между тестами
+        // повторный стабинг его property-геттеров падает («Missing mocked calls»).
+        unmockkAll()
         Dispatchers.setMain(testDispatcher)
-        
+
         getTasksUseCase = mockk(relaxed = true)
         every { getTasksUseCase.tasksFlow } returns tasksFlow
         every { getTasksUseCase.pendingActionsCount } returns pendingCountFlow
