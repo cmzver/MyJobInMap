@@ -91,9 +91,10 @@ async def login(
         ip_guard.record_login_failure(db, client_ip, form_data.username)
         raise HTTPException(status_code=401, detail="Неверный логин или пароль")
 
-    # Успешный вход - сбросить counter и историю неудачных попыток
+    # Успешный вход — сбросить короткий rate-limit и записать успех в журнал
+    # (счётчик брутфорса в ip_guard считается «с последнего успеха»)
     login_rate_limiter.reset(client_ip)
-    ip_guard.record_login_success(db, client_ip)
+    ip_guard.record_login_success(db, client_ip, username=user.username)
     audit_login_success(user.id, user.username, client_ip)
 
     user.last_login = datetime.now(timezone.utc)
