@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.api import updates as updates_api
+from app.services import update_service as updates_svc
 
 
 @pytest.fixture(autouse=True)
@@ -18,8 +18,8 @@ def clean_apk_dir(tmp_path, monkeypatch):
     apk_dir = tmp_path / "apk"
     metadata_file = apk_dir / "updates.json"
 
-    monkeypatch.setattr(updates_api, "APK_DIR", apk_dir)
-    monkeypatch.setattr(updates_api, "METADATA_FILE", metadata_file)
+    monkeypatch.setattr(updates_svc, "APK_DIR", apk_dir)
+    monkeypatch.setattr(updates_svc, "METADATA_FILE", metadata_file)
 
     apk_dir.mkdir(parents=True, exist_ok=True)
     yield
@@ -57,7 +57,7 @@ def _upload_apk(
     extracted_code = extracted_version_code or version_code
 
     with patch(
-        "app.api.updates.extract_apk_version_info",
+        "app.services.update_service.extract_apk_version_info",
         return_value=(extracted_name, extracted_code),
     ):
         return client.post(
@@ -196,7 +196,7 @@ class TestUploadApk:
         """APK файл создаётся на диске"""
         _upload_apk(client, auth_headers, version_code=2)
 
-        apk_path = updates_api.APK_DIR / "fieldworker-v2.apk"
+        apk_path = updates_svc.APK_DIR / "fieldworker-v2.apk"
         assert apk_path.exists()
         assert apk_path.stat().st_size == 1024
 
@@ -341,10 +341,10 @@ class TestDeleteUpdate:
         assert response.status_code == 204
 
         # Проверяем что файл удалён
-        assert not (updates_api.APK_DIR / "fieldworker-v5.apk").exists()
+        assert not (updates_svc.APK_DIR / "fieldworker-v5.apk").exists()
 
         # Проверяем что записи нет
-        records = updates_api._load_metadata()
+        records = updates_svc._load_metadata()
         assert len(records) == 0
 
     def test_delete_nonexistent(self, client, auth_headers):
@@ -366,6 +366,6 @@ class TestDeleteUpdate:
 
         client.delete("/api/updates/1", headers=auth_headers)
 
-        records = updates_api._load_metadata()
+        records = updates_svc._load_metadata()
         assert len(records) == 1
         assert records[0]["version_code"] == 2

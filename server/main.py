@@ -25,7 +25,6 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 SERVER_DIR = Path(__file__).resolve().parent
@@ -34,14 +33,19 @@ if str(SERVER_DIR) not in sys.path:
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
-from app.api import api_router, get_v2_router
+from app.api import api_router
 from app.config import settings
-from app.models import engine, get_db, init_db
+from app.models import SessionLocal, engine, get_db, init_db
 from app.models.base import run_migrations
 from app.services import create_default_users, init_firebase
-from app.services.backup_scheduler import (get_scheduler_status,
-                                           start_scheduler, stop_scheduler)
+from app.services.backup_scheduler import (
+    get_scheduler_status,
+    start_scheduler,
+    stop_scheduler,
+)
+from app.services.ip_guard import ip_guard
 from app.services.websocket_manager import ws_manager
 
 # ============================================================================
@@ -190,6 +194,63 @@ app.add_middleware(RequestIDMiddleware)
 
 
 # ============================================================================
+# IP Guard Middleware — бан по IP + защита от перебора/DDoS
+# ============================================================================
+
+# Эти пути не проходят через guard, чтобы healthcheck Docker и preflight CORS
+# не могли случайно упереться в лимит и «уронить» контейнер.
+_GUARD_EXEMPT_PATHS = {"/health", "/api/health"}
+
+
+class IPGuardMiddleware(BaseHTTPMiddleware):
+    """Отклоняет запросы с забаненных IP и авто-банит при всплеске запросов.
+
+    Решение принимает сервис ip_guard (бан-лист кэшируется в памяти, БД
+    дёргается не чаще раза в CACHE_TTL). Синхронная работа с БД вынесена в
+    threadpool, чтобы не блокировать event loop.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method == "OPTIONS" or request.url.path in _GUARD_EXEMPT_PATHS:
+            return await call_next(request)
+
+        ip = ip_guard.get_client_ip(request)
+
+        def _evaluate():
+            db = SessionLocal()
+            try:
+                return ip_guard.evaluate(db, ip)
+            finally:
+                db.close()
+
+        try:
+            decision = await run_in_threadpool(_evaluate)
+        except Exception:
+            logger.exception("IP guard evaluation failed; allowing request")
+            decision = None
+
+        if decision:
+            headers = {}
+            retry_after = decision.get("retry_after")
+            if retry_after:
+                headers["Retry-After"] = str(retry_after)
+            if decision.get("reason") == "ddos":
+                message = "Слишком много запросов. Доступ временно ограничен."
+            else:
+                message = "Доступ заблокирован. Обратитесь к администратору."
+            return JSONResponse(
+                status_code=decision["status"],
+                content={"detail": message},
+                headers=headers,
+            )
+
+        return await call_next(request)
+
+
+app.add_middleware(IPGuardMiddleware)
+
+
+# ============================================================================
 # Prometheus Metrics — /metrics endpoint
 # ============================================================================
 
@@ -271,19 +332,12 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# Статические файлы
-app.mount("/static", StaticFiles(directory=str(settings.STATIC_DIR)), name="static")
-
 # Portal SPA - НЕ используем StaticFiles, т.к. он не поддерживает SPA fallback
 # Вместо этого используем кастомный route /portal/{path} ниже
 logger.info(f"   🆕 Portal: http://localhost:{settings.PORT}/portal")
 
 # API роутеры
-# /api/* — основные эндпоинты (v1)
 app.include_router(api_router)
-# /api/v2/* — v2-specific эндпоинты (envelope формат, summary)
-app.include_router(get_v2_router(), prefix="/api/v2", include_in_schema=True)
-logger.info("   📡 API versioning: /api/ (default v1), /api/v2/ (extended)")
 
 
 # ============================================================================

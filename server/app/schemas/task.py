@@ -45,80 +45,41 @@ VALID_PRIORITY_VALUES = set(PRIORITY_NUMBER_TO_VALUE.values())
 
 
 def _normalize_priority_value(value):
-
     if value is None or value == "":
-
         return None
-
     if isinstance(value, TaskPriority):
-
         return value.value
-
     if isinstance(value, int):
-
         mapped = PRIORITY_NUMBER_TO_VALUE.get(value)
-
         if mapped:
-
             return mapped
-
         raise ValueError("priority must be PLANNED, CURRENT, URGENT, EMERGENCY")
-
     if isinstance(value, str):
-
         raw_value = value.strip()
-
         if not raw_value:
-
             return None
-
         if raw_value.isdigit():
-
             mapped = PRIORITY_NUMBER_TO_VALUE.get(int(raw_value))
-
             if mapped:
-
                 return mapped
-
         upper_value = raw_value.upper()
-
         if upper_value in VALID_PRIORITY_VALUES:
-
             return upper_value
-
     raise ValueError("priority must be PLANNED, CURRENT, URGENT, EMERGENCY")
 
 
-class TaskCreate(BaseModel):
-    """Создание заявки
+# ============================================================================
+# Writable schemas (Create / Update)
+# ============================================================================
 
 
+class _TaskWritableBase(BaseModel):
+    """Общие изменяемые поля заявки.
 
-    Все параметры кроме title и address опциональны.
-
-    planned_date поддерживает форматы: YYYY-MM-DD или ISO datetime.
-
+    Базовый класс для TaskCreate и TaskUpdate: один список полей и одни
+    валидаторы вместо двух копий. Отличия (обязательность title/address/
+    description) задаются в наследниках.
     """
-
-    title: str = Field(
-        ...,
-        min_length=1,
-        max_length=200,
-        json_schema_extra={"example": "Аварийная утечка"},
-    )
-
-    address: str = Field(
-        ...,
-        min_length=1,
-        max_length=500,
-        json_schema_extra={"example": "СПб, Невский пр., 1"},
-    )
-
-    description: str = Field(
-        default="",
-        max_length=2000,
-        json_schema_extra={"example": "Требуется срочный выезд"},
-    )
 
     customer_name: Optional[str] = Field(
         None,
@@ -134,13 +95,13 @@ class TaskCreate(BaseModel):
         json_schema_extra={"example": "+79991234567"},
     )
 
-    status: Optional[str] = Field(
+    status: Optional[TaskStatus] = Field(
         None,
         description="NEW, IN_PROGRESS, DONE, CANCELLED",
         json_schema_extra={"example": "NEW"},
     )
 
-    priority: Optional[str] = Field(
+    priority: Optional[TaskPriority] = Field(
         None,
         description="PLANNED, CURRENT, URGENT, EMERGENCY",
         json_schema_extra={"example": "EMERGENCY"},
@@ -194,26 +155,48 @@ class TaskCreate(BaseModel):
     @field_validator("priority", mode="before")
     @classmethod
     def _normalize_priority(cls, value):
-
         return _normalize_priority_value(value)
 
     @field_validator("planned_date", mode="before")
     @classmethod
     def _parse_planned_date(cls, value):
         """Allow plain date (YYYY-MM-DD) or full ISO datetime; empty -> None."""
-
         return _parse_planned_date_value(value)
 
 
-class TaskUpdate(BaseModel):
-    """Обновление заявки (админ)
+class TaskCreate(_TaskWritableBase):
+    """Создание заявки.
+
+    Все параметры кроме title и address опциональны.
+    planned_date поддерживает форматы: YYYY-MM-DD или ISO datetime.
+    """
+
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        json_schema_extra={"example": "Аварийная утечка"},
+    )
+
+    address: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        json_schema_extra={"example": "СПб, Невский пр., 1"},
+    )
+
+    description: str = Field(
+        default="",
+        max_length=2000,
+        json_schema_extra={"example": "Требуется срочный выезд"},
+    )
 
 
+class TaskUpdate(_TaskWritableBase):
+    """Обновление заявки (админ).
 
     Все поля опциональны. Передавай только то, что хочешь изменить.
-
     planned_date поддерживает YYYY-MM-DD или ISO datetime. Пусто/null → без изменений.
-
     """
 
     title: Optional[str] = Field(
@@ -230,77 +213,6 @@ class TaskUpdate(BaseModel):
     description: Optional[str] = Field(
         None, max_length=2000, json_schema_extra={"example": "Новое описание"}
     )
-
-    customer_name: Optional[str] = Field(
-        None, max_length=200, json_schema_extra={"example": "Иван Иванов"}
-    )
-
-    customer_phone: Optional[str] = Field(
-        None, max_length=50, json_schema_extra={"example": "+79991234567"}
-    )
-
-    status: Optional[str] = Field(
-        None,
-        description="NEW, IN_PROGRESS, DONE, CANCELLED",
-        json_schema_extra={"example": "IN_PROGRESS"},
-    )
-
-    priority: Optional[str] = Field(
-        None,
-        description="PLANNED, CURRENT, URGENT, EMERGENCY",
-        json_schema_extra={"example": "EMERGENCY"},
-    )
-
-    assigned_user_id: Optional[int] = Field(
-        None, description="ID нового исполнителя", json_schema_extra={"example": 2}
-    )
-
-    planned_date: Optional[datetime] = Field(
-        None,
-        description="Новая плановая дата",
-        json_schema_extra={"example": "2025-12-25"},
-    )
-
-    is_remote: Optional[bool] = Field(None, json_schema_extra={"example": True})
-
-    is_paid: Optional[bool] = Field(None, json_schema_extra={"example": False})
-
-    payment_amount: Optional[float] = Field(
-        None, ge=0, json_schema_extra={"example": 0.0}
-    )
-
-    # Система и тип неисправности
-
-    system_id: Optional[int] = Field(
-        None, description="ID системы обслуживания", json_schema_extra={"example": 1}
-    )
-
-    system_type: Optional[str] = Field(
-        None,
-        max_length=50,
-        description="Тип системы",
-        json_schema_extra={"example": "video_surveillance"},
-    )
-
-    defect_type: Optional[str] = Field(
-        None,
-        max_length=200,
-        description="Тип неисправности",
-        json_schema_extra={"example": "Нет изображения"},
-    )
-
-    @field_validator("priority", mode="before")
-    @classmethod
-    def _normalize_priority(cls, value):
-
-        return _normalize_priority_value(value)
-
-    @field_validator("planned_date", mode="before")
-    @classmethod
-    def _parse_planned_date(cls, value):
-        """Allow plain date (YYYY-MM-DD) or full ISO datetime; empty -> None."""
-
-        return _parse_planned_date_value(value)
 
 
 class TaskStatusUpdate(BaseModel):
@@ -332,17 +244,20 @@ class PlannedDateUpdate(BaseModel):
     @classmethod
     def _parse_planned_date(cls, value):
         """Allow plain date (YYYY-MM-DD) or full ISO datetime; empty -> None."""
-
         return _parse_planned_date_value(value)
 
 
-class TaskResponse(BaseModel):
-    """Полный ответ заявки
+# ============================================================================
+# Read schemas (Response / List)
+# ============================================================================
 
 
+class _TaskReadBase(BaseModel):
+    """Общие поля ответа заявки.
 
-    Включает все данные заявки, включая геолокацию, плановую дату, платёжные данные и комментарии.
-
+    Базовый класс для TaskResponse (с историей комментариев) и
+    TaskListResponse (с количеством комментариев) — один набор полей
+    вместо двух копий.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -385,13 +300,13 @@ class TaskResponse(BaseModel):
         json_schema_extra={"example": 30.355},
     )
 
-    status: str = Field(
+    status: TaskStatus = Field(
         ...,
         description="NEW, IN_PROGRESS, DONE, CANCELLED",
         json_schema_extra={"example": "IN_PROGRESS"},
     )
 
-    priority: str = Field(
+    priority: TaskPriority = Field(
         ...,
         description="PLANNED, CURRENT, URGENT, EMERGENCY",
         json_schema_extra={"example": "URGENT"},
@@ -467,9 +382,23 @@ class TaskResponse(BaseModel):
 
     organization_id: Optional[int] = Field(None, description="ID организации")
 
+
+class TaskResponse(_TaskReadBase):
+    """Полный ответ заявки.
+
+    Включает все данные заявки, включая геолокацию, плановую дату,
+    платёжные данные и историю комментариев.
+    """
+
     comments: List[CommentResponse] = Field(
         [], description="История комментариев и изменений"
     )
+
+
+class TaskListResponse(_TaskReadBase):
+    """Краткий ответ для списка (без полной истории комментариев)."""
+
+    comments_count: int = 0
 
 
 T = TypeVar("T")
@@ -491,62 +420,32 @@ class PaginatedResponse(BaseModel, Generic[T]):
     pages: int
 
 
-class TaskListResponse(BaseModel):
-    """Краткий ответ для списка"""
+class TaskStatusCounts(BaseModel):
+    """Количество заявок по статусам"""
 
-    model_config = ConfigDict(from_attributes=True)
+    NEW: int = 0
+    IN_PROGRESS: int = 0
+    DONE: int = 0
+    CANCELLED: int = 0
 
-    id: int
 
-    task_number: Optional[str] = None
+class TaskPriorityCounts(BaseModel):
+    """Количество заявок по приоритетам"""
 
-    title: str
+    PLANNED: int = 0
+    CURRENT: int = 0
+    URGENT: int = 0
+    EMERGENCY: int = 0
 
-    raw_address: str
 
-    description: str
+class TaskSummaryResponse(BaseModel):
+    """Агрегированная сводка по заявкам для дашбордов"""
 
-    customer_name: Optional[str] = None
-
-    customer_phone: Optional[str] = None
-
-    lat: float
-
-    lon: float
-
-    status: str
-
-    priority: str
-
-    created_at: datetime
-
-    updated_at: datetime
-
-    planned_date: Optional[datetime] = None
-
-    completed_at: Optional[datetime] = None
-
-    assigned_user_id: Optional[int] = None
-
-    assigned_user_name: Optional[str] = None
-
-    is_remote: bool = False
-
-    is_paid: bool = False
-
-    payment_amount: float = 0.0
-
-    # Система и тип неисправности
-
-    system_id: Optional[int] = None
-
-    system_type: Optional[str] = None
-
-    defect_type: Optional[str] = None
-
-    organization_id: Optional[int] = None
-
-    comments_count: int = 0
+    total: int
+    unassigned: int
+    overdue: int
+    by_status: TaskStatusCounts
+    by_priority: TaskPriorityCounts
 
 
 # ============================================================================

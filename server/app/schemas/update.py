@@ -34,24 +34,3 @@ class AppUpdateCheck(BaseModel):
     update: Optional[AppUpdateInfo] = Field(
         default=None, description="Информация об обновлении"
     )
-
-
-class AppUpdateUpload(BaseModel):
-    """Данные при загрузке нового APK (из формы)"""
-
-    version_name: str = Field(description="Версия (например, '1.2.0')")
-    version_code: int = Field(description="Числовой код версии")
-    release_notes: str = Field(default="", description="Описание изменений")
-    is_mandatory: bool = Field(default=False, description="Обязательное обновление")
-
-
-class AppUpdateRecord(BaseModel):
-    """Запись об обновлении (хранение в JSON)"""
-
-    version_name: str
-    version_code: int
-    release_notes: str = ""
-    is_mandatory: bool = False
-    filename: str
-    file_size: int
-    created_at: datetime

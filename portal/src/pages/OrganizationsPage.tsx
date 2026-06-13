@@ -351,7 +351,7 @@ export default function OrganizationsPage() {
           ? {
               username: initialAdmin.username.trim(),
               password: initialAdmin.password,
-              full_name: initialAdmin.full_name.trim() || undefined,
+              full_name: initialAdmin.full_name.trim(),
               email: initialAdmin.email.trim() || undefined,
               phone: initialAdmin.phone.trim() || undefined,
             }

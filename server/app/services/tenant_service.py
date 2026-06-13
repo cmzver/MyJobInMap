@@ -110,14 +110,6 @@ class TenantService:
             .first()
         )
 
-    def get_by_slug(self, slug: str) -> Optional[OrganizationModel]:
-        """Получить организацию по slug."""
-        return (
-            self.db.query(OrganizationModel)
-            .filter(OrganizationModel.slug == slug)
-            .first()
-        )
-
     def list_all(self, include_inactive: bool = False) -> List[OrganizationModel]:
         """Список всех организаций."""
         query = self.db.query(OrganizationModel)

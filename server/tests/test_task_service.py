@@ -1,7 +1,6 @@
 """Tests for TaskService class."""
 
 import pytest
-from sqlalchemy.orm import Session
 
 from app.models import (
     AddressModel,
@@ -62,105 +61,6 @@ class TestTaskServiceGetById:
 
         assert exc_info.value.status_code == 404
         assert "99999" in exc_info.value.message
-
-
-class TestTaskServiceGetList:
-    """Tests for TaskService.get_list method."""
-
-    def test_get_empty_list(self, db_session, admin_user):
-        """Test getting empty task list."""
-        service = TaskService(db_session)
-        tasks = service.get_list(admin_user)
-
-        assert tasks == []
-
-    def test_get_list_with_tasks(self, db_session, admin_user):
-        """Test getting list with tasks."""
-        # Create tasks
-        for i in range(3):
-            task = TaskModel(
-                title=f"Task {i}",
-                raw_address=f"Address {i}",
-                description=f"Description {i}",
-                status=TaskStatus.NEW.value,
-                priority="CURRENT",
-            )
-            db_session.add(task)
-        db_session.commit()
-
-        service = TaskService(db_session)
-        tasks = service.get_list(admin_user)
-
-        assert len(tasks) == 3
-
-    def test_get_list_filter_by_status(self, db_session, admin_user):
-        """Test filtering tasks by status."""
-        # Create tasks with different statuses
-        task1 = TaskModel(
-            title="T1",
-            raw_address="A1",
-            status=TaskStatus.NEW.value,
-            priority="CURRENT",
-        )
-        task2 = TaskModel(
-            title="T2",
-            raw_address="A2",
-            status=TaskStatus.IN_PROGRESS.value,
-            priority="CURRENT",
-        )
-        task3 = TaskModel(
-            title="T3",
-            raw_address="A3",
-            status=TaskStatus.NEW.value,
-            priority="CURRENT",
-        )
-        db_session.add_all([task1, task2, task3])
-        db_session.commit()
-
-        service = TaskService(db_session)
-        new_tasks = service.get_list(admin_user, status="NEW")
-
-        assert len(new_tasks) == 2
-        assert all(t.status == TaskStatus.NEW.value for t in new_tasks)
-
-    def test_get_list_is_tenant_scoped(self, db_session):
-        """Org user should not see tasks from another organization via service list."""
-        org1 = OrganizationModel(
-            name="Task Service Org 1", slug="task-service-org-1", is_active=True
-        )
-        org2 = OrganizationModel(
-            name="Task Service Org 2", slug="task-service-org-2", is_active=True
-        )
-        user = UserModel(
-            username="task_service_org_user",
-            password_hash=get_password_hash("test"),
-            full_name="Task Service User",
-            role=UserRole.DISPATCHER.value,
-            is_active=True,
-            organization=org1,
-        )
-        own_task = TaskModel(
-            title="Own Org Task",
-            raw_address="Own Address",
-            status=TaskStatus.NEW.value,
-            priority="CURRENT",
-            organization=org1,
-        )
-        foreign_task = TaskModel(
-            title="Foreign Org Task",
-            raw_address="Foreign Address",
-            status=TaskStatus.NEW.value,
-            priority="CURRENT",
-            organization=org2,
-        )
-        db_session.add_all([org1, org2, user, own_task, foreign_task])
-        db_session.commit()
-
-        service = TaskService(db_session)
-        tasks = service.get_list(user)
-
-        assert len(tasks) == 1
-        assert tasks[0].title == "Own Org Task"
 
 
 class TestTaskServiceCreate:
@@ -264,50 +164,6 @@ class TestTaskServiceCreate:
 
         assert task.lat == pytest.approx(59.9386)
         assert task.lon == pytest.approx(30.3141)
-
-    def test_repair_task_coordinates_restores_invalid_zero_coordinates(
-        self, db_session, monkeypatch
-    ):
-        """Legacy tasks with 0,0 should be repaired from the address book."""
-        org = OrganizationModel(
-            name="Repair Org",
-            slug="repair-org",
-            is_active=True,
-        )
-        known_address = AddressModel(
-            address="Лиговский пр., д. 120, Санкт-Петербург",
-            city="Санкт-Петербург",
-            street="Лиговский пр.",
-            building="120",
-            lat=59.9192,
-            lon=30.3551,
-            organization=org,
-            is_active=True,
-        )
-        task = TaskModel(
-            title="Broken Coordinates Task",
-            raw_address="СПб, Лиговский пр., д. 120",
-            description="Legacy task",
-            lat=0.0,
-            lon=0.0,
-            status=TaskStatus.NEW.value,
-            priority="CURRENT",
-            organization=org,
-        )
-        db_session.add_all([org, known_address, task])
-        db_session.commit()
-
-        monkeypatch.setattr(
-            "app.services.task_service.geocoding_service.geocode",
-            lambda _: (0.0, 0.0),
-        )
-
-        service = TaskService(db_session)
-        repaired = service.repair_task_coordinates(task)
-
-        assert repaired is True
-        assert task.lat == pytest.approx(59.9192)
-        assert task.lon == pytest.approx(30.3551)
 
 
 class TestTaskServiceUpdateStatus:

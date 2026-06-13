@@ -562,14 +562,14 @@ export default function AddressesPage() {
                       type="number"
                       label="Подъездов"
                       value={formData.entrance_count || ''}
-                      onChange={(e) => setFormData({ ...formData, entrance_count: e.target.value ? Number(e.target.value) : undefined })}
+                      onChange={(e) => setFormData({ ...formData, entrance_count: e.target.value ? Number(e.target.value) : null })}
                       min={1}
                     />
                     <Input
                       type="number"
                       label="Этажей"
                       value={formData.floor_count || ''}
-                      onChange={(e) => setFormData({ ...formData, floor_count: e.target.value ? Number(e.target.value) : undefined })}
+                      onChange={(e) => setFormData({ ...formData, floor_count: e.target.value ? Number(e.target.value) : null })}
                       min={1}
                     />
                     <Input

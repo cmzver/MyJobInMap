@@ -42,8 +42,11 @@ services:
     env_file:
       - ./server/.env
     environment:
+      # DATABASE_URL собирается из POSTGRES_* (корневой .env) — здесь это
+      # оправдано, т.к. адрес БД зависит от compose-сети, а не от app-конфига.
       - DATABASE_URL=postgresql://${POSTGRES_USER:-fieldworker}:${POSTGRES_PASSWORD:-fieldworker_secret}@db:5432/${POSTGRES_DB:-fieldworker_db}
-      - SECRET_KEY=${SECRET_KEY:-change_me_in_production}
+      # SECRET_KEY НЕ переопределяем здесь — он приходит из server/.env (env_file),
+      # как и в основном docker-compose.yml. Иначе слабый дефолт затёр бы рабочий ключ.
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - PORT=8001
       - LOG_FORMAT=json

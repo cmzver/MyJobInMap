@@ -11,6 +11,7 @@ from app.models import (
     SupportTicketCategory,
     SupportTicketCommentType,
     SupportTicketStatus,
+    UserRole,
 )
 
 
@@ -20,7 +21,7 @@ class SupportTicketReporter(BaseModel):
     id: int
     username: str
     full_name: str
-    role: str
+    role: UserRole
     organization_id: Optional[int] = None
 
 

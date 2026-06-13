@@ -20,7 +20,7 @@ class Token(BaseModel):
     token_type: str
     user_id: int
     username: str = Field(min_length=3, max_length=50, pattern=r"^[A-Za-z0-9._-]+$")
-    role: str
+    role: UserRole
     full_name: str
     avatar_url: Optional[str] = None
     organization_id: Optional[int] = None
@@ -86,7 +86,7 @@ class UserResponse(BaseModel):
     email: Optional[str]
     phone: Optional[str]
     avatar_url: Optional[str] = None
-    role: str
+    role: UserRole
     is_active: bool
     created_at: datetime
     last_login: Optional[datetime]

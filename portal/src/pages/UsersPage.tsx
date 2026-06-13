@@ -263,7 +263,7 @@ export default function UsersPage() {
     const createData: CreateUserData = {
       username: formData.username,
       password: formData.password,
-      full_name: formData.full_name || undefined,
+      full_name: formData.full_name,
       email: formData.email || undefined,
       phone: formData.phone || undefined,
       role: formData.role,

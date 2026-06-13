@@ -15,9 +15,32 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from app.models import UserModel, UserRole
 from app.models.base import Base, get_db
 from app.services.auth import get_password_hash
+from app.services.ip_guard import ip_guard
+from app.services.rate_limiter import login_rate_limiter
 from main import app
 
 TEST_SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+
+
+@pytest.fixture(scope="function", autouse=True)
+def reset_security_state(monkeypatch):
+    """Изолировать тесты от rate-limiter и IP-guard.
+
+    Оба — module-level singletons. login_rate_limiter копит попытки входа по
+    IP тестового клиента через весь прогон, поэтому чистим его до/после теста.
+
+    IPGuardMiddleware принимает решение через ip_guard.evaluate(db, ip),
+    читая бан-лист из БОЕВОЙ БД (своя SessionLocal, в обход тестовой
+    in-memory) и считая DDoS in-memory по всему прогону — из-за чего длинная
+    сессия упирается в ложный 403/429. Ни один тест не проверяет ip_guard,
+    поэтому на время тестов делаем его сквозным (evaluate -> None). Это не
+    трогает route-level login_rate_limiter, который тесты rate-limit проверяют.
+    """
+    login_rate_limiter.clear_all()
+    ip_guard.reset()
+    monkeypatch.setattr(ip_guard, "evaluate", lambda db, ip: None)
+    yield
+    login_rate_limiter.clear_all()
 
 
 @pytest.fixture(scope="function")

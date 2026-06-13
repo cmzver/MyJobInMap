@@ -13,7 +13,16 @@ param(
     [switch]$SkipRestart = $false,
     [switch]$IncludeServiceEnvFiles = $false,
     [switch]$DryRun = $false,
-    [switch]$Force = $false
+    [switch]$Force = $false,
+
+    # Fresh-server bootstrap: install Docker, generate missing secrets, upload env
+    # files and (optionally) bring up Caddy with automatic SSL. Safe to run against
+    # an already-provisioned server too - every step is idempotent.
+    [switch]$Provision = $false,
+    [string]$Domain = $null,
+    [switch]$SkipDockerInstall = $false,
+    [switch]$SkipCaddy = $false,
+    [switch]$SkipFirewall = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -44,6 +53,11 @@ if (-not $Server) {
     if (-not $Server) {
         throw "Server is required"
     }
+}
+
+if ($Provision) {
+    # A fresh server has no env files yet, so they always have to be uploaded.
+    $IncludeServiceEnvFiles = $true
 }
 
 $colors = @{
@@ -476,6 +490,151 @@ function Sync-PortalWithArchive {
     }
 }
 
+function Initialize-LocalEnvFiles {
+    # Provisioning needs server/.env and bot/.env to exist locally, because the deploy
+    # uploads them to the fresh server. The local copy is the single source of truth -
+    # it is re-uploaded on every deploy - so the SECRET_KEY is generated INTO it here
+    # rather than on the remote (a later env re-upload would otherwise clobber a
+    # remote-only key and invalidate every issued JWT).
+    $serverEnv = Join-Path $LocalPath "server/.env"
+    $serverExample = Join-Path $LocalPath "server/.env.example"
+    $botEnv = Join-Path $LocalPath "bot/.env"
+
+    if (-not (Test-Path $serverEnv)) {
+        if (Test-Path $serverExample) {
+            Copy-Item $serverExample $serverEnv
+            Write-Log "Created server/.env from server/.env.example" "Info"
+        } else {
+            New-Item -ItemType File -Path $serverEnv -Force | Out-Null
+            Write-Log "Created empty server/.env" "Warning"
+        }
+    }
+
+    # Generate a strong SECRET_KEY when the file has none or still carries a known
+    # placeholder. Default keys only warn (not fail) but must not reach production.
+    $placeholders = @(
+        "fieldworker-super-secret-key-change-in-production"
+        "your-super-secret-key-change-in-production"
+        "your-super-secret-key-here"
+    )
+    $envLines = @(Get-Content -LiteralPath $serverEnv -ErrorAction SilentlyContinue)
+    $secretLine = $envLines | Where-Object { $_ -match '^\s*SECRET_KEY\s*=' } | Select-Object -First 1
+    $currentSecret = $null
+    if ($secretLine) {
+        $currentSecret = ($secretLine -replace '^\s*SECRET_KEY\s*=', '').Trim().Trim('"').Trim("'")
+    }
+
+    if (-not $currentSecret -or ($placeholders -contains $currentSecret)) {
+        $rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::new()
+        try {
+            $bytes = New-Object byte[] 32
+            $rng.GetBytes($bytes)
+        } finally {
+            $rng.Dispose()
+        }
+        $hex = -join ($bytes | ForEach-Object { $_.ToString('x2') })
+
+        $kept = $envLines | Where-Object { $_ -notmatch '^\s*SECRET_KEY\s*=' }
+        $newContent = @($kept) + "SECRET_KEY=$hex"
+        Set-Content -LiteralPath $serverEnv -Value $newContent -Encoding UTF8
+        Write-Log "Generated a new SECRET_KEY and saved it to server/.env" "Success"
+    } else {
+        Write-Log "server/.env already has a custom SECRET_KEY" "Info"
+    }
+
+    # За Caddy (домен задан) приложение видит IP клиента только через
+    # X-Forwarded-For, поэтому включаем доверие к прокси-заголовкам, иначе бан
+    # по IP и rate limit будут считать всех за один адрес.
+    if ($Domain) {
+        $serverLines = @(Get-Content -LiteralPath $serverEnv -ErrorAction SilentlyContinue)
+        $hasTrust = $serverLines | Where-Object { $_ -match '^\s*TRUST_PROXY_HEADERS\s*=' }
+        if (-not $hasTrust) {
+            $serverLines += "TRUST_PROXY_HEADERS=true"
+            Set-Content -LiteralPath $serverEnv -Value $serverLines -Encoding UTF8
+            Write-Log "Enabled TRUST_PROXY_HEADERS=true in server/.env (behind Caddy)" "Info"
+        }
+    }
+
+    if (-not (Test-Path $botEnv)) {
+        $botExample = Join-Path $LocalPath "bot/.env.example"
+        if (Test-Path $botExample) {
+            Copy-Item $botExample $botEnv
+            Write-Log "Created bot/.env from bot/.env.example - fill in TELEGRAM_BOT_TOKEN before the bot can run" "Warning"
+        } else {
+            New-Item -ItemType File -Path $botEnv -Force | Out-Null
+            Write-Log "Created empty bot/.env - fill in TELEGRAM_BOT_TOKEN before the bot can run" "Warning"
+        }
+    }
+}
+
+function Install-RemoteDocker {
+    Write-Log "Checking Docker on the server" "Info"
+    $check = Invoke-SSH -Command "command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 && echo installed"
+    if (($check.Output | Out-String).Trim() -eq "installed") {
+        Write-Log "Docker and Compose plugin already present" "Info"
+        return
+    }
+
+    Write-Log "Installing Docker via get.docker.com (this can take a few minutes)" "Info"
+    # The official convenience script installs the engine and the compose v2 plugin
+    # on Debian/Ubuntu (and most other distros) in one shot.
+    $install = "curl -fsSL https://get.docker.com -o /tmp/get-docker.sh && sh /tmp/get-docker.sh && rm -f /tmp/get-docker.sh && systemctl enable --now docker"
+    Invoke-RemoteCommand $install | Out-Null
+
+    $verify = Invoke-SSH -Command "docker compose version >/dev/null 2>&1 && echo ok"
+    if (($verify.Output | Out-String).Trim() -ne "ok") {
+        throw "Docker was installed but 'docker compose' is still unavailable. Check the server manually."
+    }
+    Write-Log "Docker installed" "Success"
+}
+
+function Set-RemoteFirewall {
+    Write-Log "Configuring firewall (ufw): allowing SSH/$SSHPort, 80, 443" "Info"
+
+    # The SSH port is allowed BEFORE 'enable' so we never lock ourselves out. The
+    # whole sequence runs as one SSH command, so even if 'enable' drops existing
+    # connections the allow rule is already active and the next call reconnects.
+    #
+    # NOTE: Docker publishes the API port (8001) straight into iptables and ufw does
+    # NOT filter Docker-published ports. With the recommended Caddy setup that is fine
+    # (8001 only needs to be reachable from localhost); to actually close it off, bind
+    # the port to 127.0.0.1 in docker-compose.yml.
+    $cmd = @(
+        "command -v ufw >/dev/null 2>&1 || { apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ufw; }"
+        "ufw allow $SSHPort/tcp"
+        "ufw allow 80/tcp"
+        "ufw allow 443/tcp"
+        "ufw default deny incoming"
+        "ufw default allow outgoing"
+        "ufw --force enable"
+    ) -join " && "
+
+    Invoke-RemoteCommand $cmd | Out-Null
+    Write-Log "Firewall enabled (open ports: $SSHPort, 80, 443)" "Success"
+}
+
+function Enable-CaddySSL {
+    param([string]$DomainName)
+
+    if (-not (Test-RemoteFileExists "$RemotePath/Caddyfile")) {
+        throw "Caddyfile not found at $RemotePath/Caddyfile (the file sync step must run before Caddy setup)"
+    }
+    if (-not (Test-RemoteFileExists "$RemotePath/docker-compose.caddy.yml")) {
+        throw "docker-compose.caddy.yml not found at $RemotePath"
+    }
+
+    # Caddy binds host ports 80/443; a distro nginx (or anything else on those ports)
+    # would conflict. Stop a system nginx if one happens to be running.
+    Invoke-SSH -Command "systemctl is-active --quiet nginx && systemctl disable --now nginx" | Out-Null
+
+    # DOMAIN must be exported into the shell so both the compose plugin and the legacy
+    # binary (and the Caddyfile's {`$DOMAIN} placeholder) pick it up.
+    $composeUp = Format-ComposeCommand "-f docker-compose.caddy.yml up -d"
+    $command = "cd $RemotePath && export DOMAIN='$DomainName' && $composeUp"
+    Invoke-RemoteCommand $command | Out-Null
+    Write-Log "Caddy started for $DomainName (Let's Encrypt issues the certificate on first request)" "Success"
+}
+
 if (-not (Test-Path $LocalPath)) {
     throw "Local path not found: $LocalPath"
 }
@@ -514,6 +673,17 @@ try {
     if ($DryRun) {
         Write-Log "Dry run mode enabled" "Warning"
     }
+    if ($Provision) {
+        Write-Log "Provision mode: fresh-server bootstrap enabled" "Warning"
+        if ($Domain) {
+            Write-Log "Caddy/SSL domain: $Domain" "Info"
+        } elseif (-not $SkipCaddy) {
+            Write-Log "No -Domain supplied; reverse proxy / SSL will be skipped" "Warning"
+        }
+        # Local env files are the source of truth for the upload; make sure they exist
+        # and carry a real SECRET_KEY before anything is sent to the server.
+        Initialize-LocalEnvFiles
+    }
 
     Write-Log "Preparing remote directory" "Info"
     Invoke-RemoteCommand "mkdir -p $RemotePath" | Out-Null
@@ -527,6 +697,14 @@ try {
             Write-Log "Deployment cancelled" "Warning"
             return
         }
+    }
+
+    if ($Provision -and -not $SkipDockerInstall) {
+        Install-RemoteDocker
+    }
+
+    if ($Provision -and -not $SkipFirewall) {
+        Set-RemoteFirewall
     }
 
     $buildPortalInline = $false
@@ -738,9 +916,22 @@ try {
         Write-Log "Skipping container update" "Warning"
     }
 
+    if ($Provision -and -not $SkipCaddy -and -not $DryRun) {
+        if ($Domain) {
+            Write-Log "Setting up Caddy reverse proxy with automatic SSL" "Info"
+            Enable-CaddySSL -DomainName $Domain
+        } else {
+            Write-Log "Skipping Caddy/SSL setup (no -Domain supplied)" "Warning"
+        }
+    }
+
     $deployDuration = (Get-Date) - $deployStart
     $durationStr = "{0:mm\:ss}" -f $deployDuration
     Write-Log "Deployment completed in $durationStr" "Success"
+    if ($Provision -and $Domain -and -not $SkipCaddy -and -not $DryRun) {
+        Write-Log "Portal:  https://$Domain/portal/" "Success"
+        Write-Log "API:     https://$Domain/api/health" "Success"
+    }
     Write-Log "Check status: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose ps'" "Info"
     Write-Log "View logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose logs -f'" "Info"
 }

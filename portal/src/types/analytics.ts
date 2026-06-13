@@ -1,11 +1,11 @@
-import type { ReportsData, ReportPeriod, ReportsFilters } from './reports'
-import type { SlaData } from './sla'
+import type { components } from './api.generated'
+import type { ReportPeriod, ReportsFilters } from './reports'
 
+// Период и фильтры — клиентские понятия (на сервере это query-параметры).
 export type AnalyticsPeriod = ReportPeriod
 
 export interface AnalyticsFilters extends ReportsFilters {}
 
-export interface AnalyticsData {
-  reports: ReportsData
-  sla: SlaData
-}
+// Объединённый ответ аналитики выводится из backend OpenAPI-схемы —
+// регенерация через `npm run gen:api`.
+export type AnalyticsData = components['schemas']['AnalyticsResponse']
