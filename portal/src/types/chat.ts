@@ -1,129 +1,21 @@
-export type ConversationType = 'direct' | 'group' | 'task' | 'org_general'
-export type MessageType = 'text' | 'image' | 'file' | 'system' | 'task'
-export type ConversationMemberRole = 'owner' | 'admin' | 'member'
+import type { components } from './api.generated'
 
-export interface MemberInfo {
-  user_id: number
-  username: string
-  full_name: string
-  avatar_url?: string | null
-  role: ConversationMemberRole
-  last_read_message_id: number | null
-  is_muted: boolean
-  is_archived: boolean
-  joined_at: string
-}
+// Все типы чата выводятся из backend OpenAPI-схемы (единый источник истины) —
+// регенерация через `npm run gen:api`.
+export type ConversationType = components['schemas']['ConversationType']
+export type MessageType = components['schemas']['MessageType']
+export type ConversationMemberRole = components['schemas']['ConversationMemberRole']
 
-export interface LastMessagePreview {
-  id: number
-  text: string | null
-  sender_name: string
-  created_at: string
-  message_type: MessageType
-}
-
-export interface ConversationListItem {
-  id: number
-  type: ConversationType
-  name: string | null
-  avatar_url?: string | null
-  task_id: number | null
-  organization_id: number | null
-  created_at: string
-  last_message_at: string | null
-  unread_count: number
-  unread_mention_count: number
-  is_muted: boolean
-  is_archived: boolean
-  last_message: LastMessagePreview | null
-  display_name?: string
-}
-
-export interface ConversationDetail {
-  id: number
-  type: ConversationType
-  name: string | null
-  avatar_url?: string | null
-  task_id: number | null
-  organization_id: number | null
-  created_by?: number
-  created_at: string
-  updated_at?: string | null
-  last_message_at: string | null
-  members: MemberInfo[]
-}
-
-export interface AttachmentResponse {
-  id: number
-  file_name: string
-  file_path: string
-  file_size: number
-  mime_type: string
-  thumbnail_path: string | null
-  created_at: string
-}
-
-export interface ReactionInfo {
-  emoji: string
-  count: number
-  user_ids: number[]
-}
-
-export interface MentionInfo {
-  user_id: number
-  username: string
-}
-
-export interface ReplyPreview {
-  id: number
-  text: string | null
-  sender_name: string
-}
-
-export interface TaskPreview {
-  id: number
-  task_number: string | null
-  title: string | null
-  status: string | null
-  priority: string | null
-  raw_address: string | null
-  accessible: boolean
-}
-
-export interface MessageResponse {
-  id: number
-  conversation_id: number
-  sender_id: number
-  sender_name: string
-  text: string | null
-  message_type: MessageType
-  reply_to: ReplyPreview | null
-  attached_task: TaskPreview | null
-  attachments: AttachmentResponse[]
-  reactions: ReactionInfo[]
-  mentions: MentionInfo[]
-  is_edited: boolean
-  is_deleted: boolean
-  created_at: string
-  updated_at: string | null
-}
-
-export interface MessageListResponse {
-  items: MessageResponse[]
-  has_more: boolean
-}
-
-export interface ConversationCreate {
-  type: ConversationType
-  name?: string
-  member_user_ids?: number[]
-  task_id?: number
-  organization_id?: number
-}
-
-export interface MessageCreate {
-  text?: string | null
-  reply_to_id?: number
-  message_type?: MessageType
-  task_id?: number
-}
+export type MemberInfo = components['schemas']['MemberInfo']
+export type LastMessagePreview = components['schemas']['LastMessagePreview']
+export type ConversationListItem = components['schemas']['ConversationListItem']
+export type ConversationDetail = components['schemas']['ConversationDetailResponse']
+export type AttachmentResponse = components['schemas']['AttachmentResponse']
+export type ReactionInfo = components['schemas']['ReactionInfo']
+export type MentionInfo = components['schemas']['MentionInfo']
+export type ReplyPreview = components['schemas']['ReplyPreview']
+export type TaskPreview = components['schemas']['TaskPreview']
+export type MessageResponse = components['schemas']['MessageResponse']
+export type MessageListResponse = components['schemas']['MessageListResponse']
+export type ConversationCreate = components['schemas']['ConversationCreate']
+export type MessageCreate = components['schemas']['MessageCreate']

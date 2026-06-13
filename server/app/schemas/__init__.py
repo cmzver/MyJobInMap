@@ -84,6 +84,7 @@ from app.schemas.task import (
     TaskListResponse,
     TaskResponse,
     TaskStatusUpdate,
+    TaskSummaryResponse,
     TaskUpdate,
 )
 
@@ -107,6 +108,7 @@ __all__ = [
     "PlannedDateUpdate",
     "TaskResponse",
     "TaskListResponse",
+    "TaskSummaryResponse",
     "PaginatedResponse",
     "ParseTaskRequest",
     "ParsedTaskResponse",

@@ -141,13 +141,17 @@ class TestBackupPathTraversal:
 
     def test_dotdot_in_filename_blocked(self, client: TestClient, auth_headers: dict):
         """Direct call to _validate_backup_filename catches '..'."""
-        from app.api.admin_backups import _validate_backup_filename
+        from app.services.backup_service import (
+            validate_backup_filename as _validate_backup_filename,
+        )
 
         with pytest.raises(Exception):
             _validate_backup_filename("../../etc/passwd.sqlite.gz")
 
     def test_slash_in_filename_blocked(self, client: TestClient, auth_headers: dict):
-        from app.api.admin_backups import _validate_backup_filename
+        from app.services.backup_service import (
+            validate_backup_filename as _validate_backup_filename,
+        )
 
         with pytest.raises(Exception):
             _validate_backup_filename("foo/bar.sqlite.gz")
@@ -155,7 +159,9 @@ class TestBackupPathTraversal:
     def test_backslash_in_filename_blocked(
         self, client: TestClient, auth_headers: dict
     ):
-        from app.api.admin_backups import _validate_backup_filename
+        from app.services.backup_service import (
+            validate_backup_filename as _validate_backup_filename,
+        )
 
         with pytest.raises(Exception):
             _validate_backup_filename("foo\\bar.sqlite.gz")

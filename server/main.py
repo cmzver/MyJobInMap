@@ -25,7 +25,6 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 SERVER_DIR = Path(__file__).resolve().parent
@@ -34,17 +33,19 @@ if str(SERVER_DIR) not in sys.path:
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-
 from starlette.concurrency import run_in_threadpool
 
-from app.api import api_router, get_v2_router
+from app.api import api_router
 from app.config import settings
 from app.models import SessionLocal, engine, get_db, init_db
 from app.models.base import run_migrations
 from app.services import create_default_users, init_firebase
+from app.services.backup_scheduler import (
+    get_scheduler_status,
+    start_scheduler,
+    stop_scheduler,
+)
 from app.services.ip_guard import ip_guard
-from app.services.backup_scheduler import (get_scheduler_status,
-                                           start_scheduler, stop_scheduler)
 from app.services.websocket_manager import ws_manager
 
 # ============================================================================
@@ -331,19 +332,12 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# Статические файлы
-app.mount("/static", StaticFiles(directory=str(settings.STATIC_DIR)), name="static")
-
 # Portal SPA - НЕ используем StaticFiles, т.к. он не поддерживает SPA fallback
 # Вместо этого используем кастомный route /portal/{path} ниже
 logger.info(f"   🆕 Portal: http://localhost:{settings.PORT}/portal")
 
 # API роутеры
-# /api/* — основные эндпоинты (v1)
 app.include_router(api_router)
-# /api/v2/* — v2-specific эндпоинты (envelope формат, summary)
-app.include_router(get_v2_router(), prefix="/api/v2", include_in_schema=True)
-logger.info("   📡 API versioning: /api/ (default v1), /api/v2/ (extended)")
 
 
 # ============================================================================

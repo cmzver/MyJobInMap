@@ -1,37 +1,11 @@
 import apiClient from './client'
-import type { Task, PaginatedResponse, TaskFilters, TaskPriority } from '@/types/task'
+import type { Task, TaskDetail, PaginatedResponse, TaskFilters } from '@/types/task'
+import type { components } from '@/types/api.generated'
 
-export interface CreateTaskData {
-  title: string
-  description: string
-  address: string
-  customer_name?: string | null
-  customer_phone?: string | null
-  priority?: TaskPriority
-  assigned_user_id?: number | null
-  is_paid?: boolean
-  payment_amount?: number | null
-  planned_date?: string | null
-  system_id?: number | null
-  system_type?: string | null
-  defect_type?: string | null
-}
-
-export interface UpdateTaskData {
-  title?: string
-  description?: string
-  address?: string
-  customer_name?: string | null
-  customer_phone?: string | null
-  priority?: TaskPriority
-  assigned_user_id?: number | null
-  is_paid?: boolean
-  payment_amount?: number | null
-  planned_date?: string | null
-  system_id?: number | null
-  system_type?: string | null
-  defect_type?: string | null
-}
+// Request payloads are derived from the backend OpenAPI schema (single source
+// of truth) — regenerate with `npm run gen:api` after changing server schemas.
+export type CreateTaskData = components['schemas']['TaskCreate']
+export type UpdateTaskData = components['schemas']['TaskUpdate']
 
 export const tasksApi = {
   // Get paginated list of tasks
@@ -61,9 +35,9 @@ export const tasksApi = {
     return data
   },
 
-  // Get single task by ID
-  async getTask(id: number): Promise<Task> {
-    const { data } = await apiClient.get<Task>(`/tasks/${id}`)
+  // Get single task by ID (detail endpoint returns the richer TaskResponse)
+  async getTask(id: number): Promise<TaskDetail> {
+    const { data } = await apiClient.get<TaskDetail>(`/tasks/${id}`)
     return data
   },
 

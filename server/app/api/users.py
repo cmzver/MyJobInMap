@@ -1,21 +1,21 @@
 """
-Users API (Alias)
-=================
-Публичные эндпоинты для работы с пользователями.
-Алиас для /api/admin/users с ограниченными правами.
+Users API
+=========
+Read-only эндпоинты пользователей для всех аутентифицированных клиентов:
+список исполнителей и личная статистика. Управление пользователями (CRUD)
+живёт в /api/admin/users (см. admin_users.py) — единственная реализация.
 """
 
 from datetime import datetime, timedelta, timezone
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.models import TaskModel, UserModel, get_db
-from app.schemas import UserCreate, UserResponse, UserUpdate
-from app.services import get_current_admin, get_current_user_required, get_password_hash
-from app.services.role_utils import canonical_role_value
+from app.schemas import UserResponse
+from app.services import get_current_user_required
 from app.services.tenant_filter import TenantFilter
 from app.utils import user_to_response
 
@@ -138,127 +138,3 @@ async def get_my_stats(
         tasks_this_month=tasks_this_month,
         streak_days=streak_days,
     )
-
-
-@router.get("/{user_id}", response_model=UserResponse)
-async def get_user(
-    user_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user_required),
-):
-    """Получить пользователя по ID"""
-    user = db.query(UserModel).filter(UserModel.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    TenantFilter(current_user).enforce_access(user)
-    return user_to_response(user)
-
-
-@router.post("", response_model=UserResponse)
-async def create_user(
-    data: UserCreate,
-    db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin),
-):
-    """Создать пользователя (только админ)"""
-    # Проверка на дубликат
-    existing = db.query(UserModel).filter(UserModel.username == data.username).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Username already exists")
-
-    tenant = TenantFilter(admin)
-    requested_role = canonical_role_value(data.role)
-
-    user = UserModel(
-        username=data.username,
-        password_hash=get_password_hash(data.password),
-        full_name=data.full_name,
-        email=data.email,
-        phone=data.phone,
-        role=requested_role,
-        is_active=True,
-    )
-
-    if tenant.is_superadmin and data.organization_id is not None:
-        user.organization_id = data.organization_id
-    else:
-        tenant.set_org_id(user)
-
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    return user_to_response(user)
-
-
-@router.patch("/{user_id}", response_model=UserResponse)
-async def update_user(
-    user_id: int,
-    data: UserUpdate,
-    db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin),
-):
-    """Обновить пользователя (только админ)"""
-    user = db.query(UserModel).filter(UserModel.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    TenantFilter(admin).enforce_access(user)
-    requested_role = canonical_role_value(data.role) if data.role is not None else None
-
-    if data.username is not None:
-        new_username = data.username.strip()
-        if not new_username:
-            raise HTTPException(status_code=400, detail="Username cannot be empty")
-        existing_user = (
-            db.query(UserModel)
-            .filter(
-                UserModel.username == new_username,
-                UserModel.id != user.id,
-            )
-            .first()
-        )
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Username already exists")
-        user.username = new_username
-    if data.password is not None:
-        if not data.password:
-            raise HTTPException(status_code=400, detail="Password cannot be empty")
-        user.password_hash = get_password_hash(data.password)
-    if data.full_name is not None:
-        user.full_name = data.full_name
-    if data.email is not None:
-        user.email = data.email
-    if data.phone is not None:
-        user.phone = data.phone
-    if data.role is not None:
-        user.role = requested_role
-    if data.is_active is not None:
-        user.is_active = data.is_active
-
-    db.commit()
-    db.refresh(user)
-
-    return user_to_response(user)
-
-
-@router.delete("/{user_id}")
-async def delete_user(
-    user_id: int,
-    db: Session = Depends(get_db),
-    admin: UserModel = Depends(get_current_admin),
-):
-    """Удалить пользователя (только админ)"""
-    user = db.query(UserModel).filter(UserModel.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    TenantFilter(admin).enforce_access(user)
-
-    if user.id == admin.id:
-        raise HTTPException(status_code=400, detail="Cannot delete yourself")
-
-    db.delete(user)
-    db.commit()
-
-    return {"success": True}

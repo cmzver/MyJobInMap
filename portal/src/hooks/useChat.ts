@@ -170,7 +170,7 @@ export function useSendMessage() {
     }) => chatApi.sendMessage(conversationId, {
       text,
       reply_to_id: replyToId,
-      message_type: messageType,
+      message_type: messageType ?? 'text',
       task_id: taskId,
     }),
     onSuccess: (msg) => {

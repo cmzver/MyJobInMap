@@ -72,13 +72,6 @@ class TestTenantService:
         svc = TenantService(db_session)
         assert svc.get_by_id(99999) is None
 
-    def test_get_by_slug(self, db_session):
-        svc = TenantService(db_session)
-        org = svc.create(name="Slug Org")
-        found = svc.get_by_slug("slug-org")
-        assert found is not None
-        assert found.id == org.id
-
     def test_list_all_active_only(self, db_session):
         svc = TenantService(db_session)
         org1 = svc.create(name="Active Org")

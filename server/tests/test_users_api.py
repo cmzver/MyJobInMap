@@ -5,8 +5,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.models import TaskModel, UserModel, UserRole
-from app.services.auth import get_password_hash
+from app.models import TaskModel, UserModel
 
 
 class TestUsersApi:
@@ -70,66 +69,3 @@ class TestUsersApi:
         assert data["tasks_this_week"] == 2
         assert data["tasks_this_month"] == 2
         assert data["avg_completion_hours"] == 24.0
-
-    def test_public_create_user_respects_schema_and_role_value(
-        self,
-        client: TestClient,
-        auth_headers: dict,
-        db_session: Session,
-    ):
-        response = client.post(
-            "/api/users",
-            json={
-                "username": "public_alias_user",
-                "password": "secret123",
-                "full_name": "Public Alias User",
-                "role": "dispatcher",
-            },
-            headers=auth_headers,
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["username"] == "public_alias_user"
-        assert data["role"] == "dispatcher"
-
-        user = (
-            db_session.query(UserModel)
-            .filter(UserModel.username == "public_alias_user")
-            .first()
-        )
-        assert user is not None
-        assert user.role == UserRole.DISPATCHER.value
-        assert user.password_hash != "secret123"
-
-    def test_public_update_user_uses_current_schema(
-        self,
-        client: TestClient,
-        auth_headers: dict,
-        db_session: Session,
-    ):
-        user = UserModel(
-            username="public_update_me",
-            password_hash=get_password_hash("pass123"),
-            full_name="Original Public User",
-            role=UserRole.WORKER.value,
-            is_active=True,
-        )
-        db_session.add(user)
-        db_session.commit()
-        db_session.refresh(user)
-
-        response = client.patch(
-            f"/api/users/{user.id}",
-            json={"full_name": "Updated Public User", "role": "dispatcher"},
-            headers=auth_headers,
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["full_name"] == "Updated Public User"
-        assert data["role"] == "dispatcher"
-
-        db_session.refresh(user)
-        assert user.full_name == "Updated Public User"
-        assert user.role == UserRole.DISPATCHER.value

@@ -9,15 +9,15 @@ Task Service
 
 import logging
 from datetime import datetime, timezone
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 from fastapi import Depends
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.models import CommentModel, TaskModel, TaskStatus, UserModel, UserRole, get_db
 from app.models.address import AddressModel
-from app.schemas import TaskCreate, TaskStatusUpdate
+from app.schemas import TaskCreate, TaskStatusUpdate, TaskUpdate
 from app.services.address_parser import parse_address
 from app.services.geocoding import geocoding_service
 from app.services.notification_service import (
@@ -28,12 +28,9 @@ from app.services.push import send_push_notification
 from app.services.task_state_machine import TaskStatusMachine
 from app.services.tenant_filter import TenantFilter
 from app.utils import (
-    get_priority_display_name,
-    get_priority_rank,
     get_status_comment_required_message,
     get_status_display_name,
     normalize_priority_value,
-    priority_rank_expr,
 )
 
 
@@ -219,21 +216,6 @@ class TaskService:
 
         return geocoding_service.geocode(raw_address)
 
-    def repair_task_coordinates(self, task: TaskModel) -> bool:
-        if has_valid_task_coordinates(task.lat, task.lon):
-            return False
-        if not task.raw_address.strip():
-            return False
-
-        lat, lon = self.resolve_coordinates(task.raw_address, task.organization_id)
-        if not has_valid_task_coordinates(lat, lon):
-            return False
-
-        changed = task.lat != lat or task.lon != lon
-        task.lat = lat
-        task.lon = lon
-        return changed
-
     def get_by_id(self, task_id: int) -> TaskModel:
         """
         Получить заявку по ID.
@@ -246,33 +228,69 @@ class TaskService:
             raise TaskNotFoundError(task_id)
         return task
 
-    def get_list(
+    def get_summary(
         self,
         user: UserModel,
         status: Optional[str] = None,
         assignee_id: Optional[int] = None,
-    ) -> List[TaskModel]:
+    ) -> dict:
         """
-        Получить список заявок с учётом прав.
+        Агрегированная сводка по заявкам (количества по статусам/приоритетам).
 
-        - Workers: только свои заявки
-        - Dispatchers/Admins: все заявки (опционально по assignee_id)
+        Считает агрегаты без загрузки отдельных заявок — для дашбордов.
         """
         tenant = TenantFilter(user)
         query = tenant.apply(self.db.query(TaskModel), TaskModel)
 
-        if status:
-            query = query.filter(TaskModel.status == status)
-
-        # Workers видят только свои заявки
         if user.role == UserRole.WORKER.value:
             query = query.filter(TaskModel.assigned_user_id == user.id)
         elif assignee_id is not None:
             query = query.filter(TaskModel.assigned_user_id == assignee_id)
 
-        return query.order_by(
-            priority_rank_expr(TaskModel.priority).desc(), TaskModel.created_at.desc()
-        ).all()
+        if status:
+            query = query.filter(TaskModel.status == status)
+
+        task_ids = query.with_entities(TaskModel.id)
+        status_counts = dict(
+            self.db.query(TaskModel.status, func.count(TaskModel.id))
+            .filter(TaskModel.id.in_(task_ids))
+            .group_by(TaskModel.status)
+            .all()
+        )
+        priority_counts = dict(
+            self.db.query(TaskModel.priority, func.count(TaskModel.id))
+            .filter(TaskModel.id.in_(task_ids))
+            .group_by(TaskModel.priority)
+            .all()
+        )
+
+        total = query.count()
+        unassigned = query.filter(TaskModel.assigned_user_id.is_(None)).count()
+        now = datetime.now(timezone.utc)
+        overdue = query.filter(
+            TaskModel.planned_date < now,
+            TaskModel.status.notin_(
+                [TaskStatus.DONE.value, TaskStatus.CANCELLED.value]
+            ),
+        ).count()
+
+        return {
+            "total": total,
+            "unassigned": unassigned,
+            "overdue": overdue,
+            "by_status": {
+                "NEW": status_counts.get("NEW", 0),
+                "IN_PROGRESS": status_counts.get("IN_PROGRESS", 0),
+                "DONE": status_counts.get("DONE", 0),
+                "CANCELLED": status_counts.get("CANCELLED", 0),
+            },
+            "by_priority": {
+                "PLANNED": priority_counts.get("PLANNED", 0),
+                "CURRENT": priority_counts.get("CURRENT", 0),
+                "URGENT": priority_counts.get("URGENT", 0),
+                "EMERGENCY": priority_counts.get("EMERGENCY", 0),
+            },
+        }
 
     def create(self, data: TaskCreate, user: Optional[UserModel] = None) -> TaskModel:
         """
@@ -360,6 +378,115 @@ class TaskService:
         self.db.refresh(task)
 
         logger.info(f"✅ Заявка №{task.task_number} создана")
+
+        return task
+
+    def admin_update_task(
+        self, task_id: int, task_data: TaskUpdate, admin: UserModel
+    ) -> TaskModel:
+        """
+        Обновить заявку администратором (PATCH /api/admin/tasks/{id}).
+
+        - Уважает tenant-доступ (заявка чужой организации → 404)
+        - Перегеокодирует при смене адреса
+        - Управляет completed_at по статусу
+        - Шлёт уведомление при назначении исполнителя
+
+        Raises:
+            TaskNotFoundError: заявка не найдена / недоступна
+            TaskServiceError: назначаемый пользователь не найден (404)
+        """
+        tenant = TenantFilter(admin)
+        task = (
+            tenant.apply(self.db.query(TaskModel), TaskModel)
+            .filter(TaskModel.id == task_id)
+            .first()
+        )
+        if not task:
+            raise TaskNotFoundError(task_id)
+
+        if task_data.title is not None:
+            task.title = task_data.title
+        if task_data.address is not None:
+            task.raw_address = task_data.address
+            lat, lon = self.resolve_coordinates(
+                task_data.address,
+                task.organization_id or admin.organization_id,
+            )
+            task.lat = lat
+            task.lon = lon
+        if task_data.description is not None:
+            task.description = task_data.description
+        if task_data.customer_name is not None:
+            task.customer_name = task_data.customer_name
+        if task_data.customer_phone is not None:
+            task.customer_phone = task_data.customer_phone
+        if task_data.status is not None:
+            old_status = task.status
+            task.status = task_data.status
+            if task_data.status == "DONE" and old_status != "DONE":
+                task.completed_at = datetime.now(timezone.utc)
+            elif task_data.status != "DONE":
+                task.completed_at = None
+        if task_data.priority is not None:
+            task.priority = task_data.priority
+
+        # dict(exclude_unset=True) чтобы можно было сбросить дату (передать null)
+        update_data = task_data.model_dump(exclude_unset=True)
+        if "planned_date" in update_data:
+            task.planned_date = update_data["planned_date"]
+
+        if task_data.is_remote is not None:
+            task.is_remote = task_data.is_remote
+        if task_data.is_paid is not None:
+            task.is_paid = task_data.is_paid
+        if task_data.payment_amount is not None:
+            task.payment_amount = task_data.payment_amount
+
+        # Система и тип неисправности
+        if task_data.system_id is not None:
+            task.system_id = task_data.system_id
+        if task_data.system_type is not None:
+            task.system_type = task_data.system_type
+        if task_data.defect_type is not None:
+            task.defect_type = task_data.defect_type
+
+        old_assigned_user_id = task.assigned_user_id
+        new_assigned_user_id = None
+
+        if "assigned_user_id" in update_data:
+            if update_data["assigned_user_id"] is None:
+                task.assigned_user_id = None
+            else:
+                assigned_user = (
+                    self.db.query(UserModel)
+                    .filter(UserModel.id == update_data["assigned_user_id"])
+                    .first()
+                )
+                if not assigned_user:
+                    raise TaskServiceError("User not found", 404)
+                tenant.enforce_access(
+                    assigned_user,
+                    detail="Cannot assign user from another organization",
+                )
+                task.assigned_user_id = assigned_user.id
+                new_assigned_user_id = assigned_user.id
+
+        task.updated_at = datetime.now(timezone.utc)
+        self.db.commit()
+        self.db.refresh(task)
+
+        # Уведомление при назначении
+        if new_assigned_user_id and new_assigned_user_id != old_assigned_user_id:
+            assigned_to = (
+                self.db.query(UserModel)
+                .filter(UserModel.id == new_assigned_user_id)
+                .first()
+            )
+            if assigned_to:
+                create_task_assignment_notification(
+                    db=self.db, task=task, assigned_to=assigned_to, assigned_by=admin
+                )
 
         return task
 
@@ -584,23 +711,6 @@ class TaskService:
                 task_id=task.id,
                 user_ids=[task.assigned_user_id],
             )
-
-    def _notify_assignment(self, task: TaskModel) -> None:
-        """Отправить push о назначении"""
-        priority_name = get_priority_display_name(task.priority)
-        title = (
-            f"Новая заявка ({priority_name})"
-            if get_priority_rank(task.priority) >= 3
-            else "Вам назначена заявка"
-        )
-
-        send_push_notification(
-            title=title,
-            body=f"№{task.task_number}: {task.title[:50]}...",
-            notification_type="task_assigned",
-            task_id=task.id,
-            user_ids=[task.assigned_user_id],
-        )
 
 
 # Factory function для DI

@@ -163,7 +163,7 @@ export default function OrganizationDetailPage() {
       {
         username: newUserData.username.trim(),
         password: newUserData.password,
-        full_name: newUserData.full_name.trim() || undefined,
+        full_name: newUserData.full_name.trim(),
         email: newUserData.email.trim() || undefined,
         phone: newUserData.phone.trim() || undefined,
         role: newUserData.role,

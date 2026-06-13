@@ -24,20 +24,43 @@ from app.services.auth import (
     verify_password,
     verify_refresh_token,
 )
+from app.services.backup_service import (
+    BackupService,
+    BackupServiceError,
+    get_backup_service,
+)
+from app.services.database_service import (
+    DatabaseService,
+    DatabaseServiceError,
+    get_database_service,
+)
 from app.services.geocoding import GeocodingService, geocoding_service
-from app.services.ip_guard import ip_guard
 from app.services.image_optimizer import ImageOptimizationService, image_optimizer
+from app.services.ip_guard import ip_guard
 from app.services.notification_service import (
+    NotificationService,
+    NotificationServiceError,
     create_comment_notification,
     create_notification,
     create_task_assignment_notification,
     create_task_status_notification,
+    get_notification_service,
 )
 from app.services.push import (
     _send_push_sync,
     init_firebase,
     send_push_background,
     send_push_notification,
+)
+from app.services.settings_service import (
+    SettingsService,
+    SettingsServiceError,
+    get_settings_service,
+)
+from app.services.support_service import (
+    SupportService,
+    SupportServiceError,
+    get_support_service,
 )
 from app.services.task_parser import parse_dispatcher_message, parse_task_message
 from app.services.task_service import (
@@ -49,6 +72,7 @@ from app.services.task_service import (
     get_task_service,
 )
 from app.services.task_state_machine import TaskStatusMachine
+from app.services.user_service import UserService, UserServiceError, get_user_service
 
 __all__ = [
     # Geocoding
@@ -86,6 +110,26 @@ __all__ = [
     "PermissionDeniedError",
     "InvalidTransitionError",
     "get_task_service",
+    # User Service
+    "UserService",
+    "UserServiceError",
+    "get_user_service",
+    # Backup Service
+    "BackupService",
+    "BackupServiceError",
+    "get_backup_service",
+    # Database Service
+    "DatabaseService",
+    "DatabaseServiceError",
+    "get_database_service",
+    # Settings Service
+    "SettingsService",
+    "SettingsServiceError",
+    "get_settings_service",
+    # Support Service
+    "SupportService",
+    "SupportServiceError",
+    "get_support_service",
     # Task helpers
     "TaskStatusMachine",
     "parse_dispatcher_message",
@@ -94,6 +138,9 @@ __all__ = [
     "create_notification",
     "create_task_status_notification",
     "create_task_assignment_notification",
+    "NotificationService",
+    "NotificationServiceError",
+    "get_notification_service",
     # Chat
     "chat_service",
     # Audit

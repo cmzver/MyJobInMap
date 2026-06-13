@@ -160,12 +160,6 @@ class Settings(BaseSettings):
 
     @computed_field
     @property
-    def STATIC_DIR(self) -> Path:
-        """Директория статических файлов"""
-        return self.BASE_DIR / "static"
-
-    @computed_field
-    @property
     def UPLOADS_DIR(self) -> Path:
         """Директория загрузок"""
         return self.BASE_DIR / "uploads"

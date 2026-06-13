@@ -33,7 +33,7 @@ function ConversationList({ conversations, activeId, onSelect }: Props) {
       {conversations.map((conv) => {
         const Icon = typeIcons[conv.type]
         const isActive = conv.id === activeId
-        const displayName = conv.display_name ?? conv.name ?? `Чат #${conv.id}`
+        const displayName = conv.name ?? `Чат #${conv.id}`
 
         return (
           <button
@@ -88,9 +88,9 @@ function ConversationList({ conversations, activeId, onSelect }: Props) {
                   {conv.is_archived && <Archive className="h-3 w-3 flex-shrink-0 text-gray-400 dark:text-gray-500" />}
                   {conv.is_muted && <VolumeX className="h-3 w-3 flex-shrink-0 text-gray-400 dark:text-gray-500" />}
                 </div>
-                {conv.last_message_at && (
+                {conv.updated_at && (
                   <span className="ml-1.5 flex-shrink-0 text-[11px] text-gray-500 dark:text-gray-400">
-                    {formatDateRelative(conv.last_message_at)}
+                    {formatDateRelative(conv.updated_at)}
                   </span>
                 )}
               </div>

@@ -12,6 +12,7 @@ function createSystemMessage(text: string): MessageResponse {
     conversation_id: 10,
     sender_id: 2,
     sender_name: 'Admin User',
+    sender_username: 'admin',
     text,
     message_type: 'system',
     reply_to: null,
@@ -22,7 +23,7 @@ function createSystemMessage(text: string): MessageResponse {
     is_edited: false,
     is_deleted: false,
     created_at: '2026-03-19T12:00:00',
-    updated_at: null,
+    edited_at: null,
   }
 }
 
