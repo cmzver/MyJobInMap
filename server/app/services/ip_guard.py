@@ -16,6 +16,7 @@ Middleware ([main.py]) на каждый запрос вызывает :meth:`IP
 запрос.
 """
 
+import ipaddress
 import logging
 import threading
 import time
@@ -53,6 +54,29 @@ def _to_epoch(dt) -> float:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.timestamp()
+
+
+def _is_internal_ip(ip: str) -> bool:
+    """True для loopback / частных / служебных адресов — их НИКОГДА не авто-баним.
+
+    Предохранитель от само-блокировки: если реальный IP клиента не доходит до
+    приложения (``TRUST_PROXY_HEADERS`` выключен, либо SNI-роутер перед Caddy не
+    сохраняет источник), все запросы выглядят как ``127.0.0.1``. Без этой проверки
+    DDoS/brute-force авто-бан забанил бы loopback и положил весь сайт. Такие
+    адреса трактуем как доверенные (как allowlist) — это также авто-снимает уже
+    существующий ошибочный бан loopback после деплоя фикса.
+    """
+    try:
+        addr = ipaddress.ip_address(ip.strip())
+    except ValueError:
+        return True  # не смогли распарсить — не баним (fail-safe)
+    return (
+        addr.is_loopback
+        or addr.is_private
+        or addr.is_link_local
+        or addr.is_reserved
+        or addr.is_unspecified
+    )
 
 
 class IPGuard:
@@ -193,6 +217,12 @@ class IPGuard:
         """
         self.refresh(db)
 
+        # Внутренние адреса (loopback/частные) всегда пропускаем — не блокируем
+        # и не считаем в DDoS-лимите. Это и предохранитель от само-DoS, и
+        # авто-восстановление, если loopback уже оказался в бан-листе.
+        if _is_internal_ip(ip):
+            return None
+
         with self._lock:
             if ip in self._allow:
                 return None
@@ -243,7 +273,13 @@ class IPGuard:
         created_by: str = "system",
         is_manual: bool = False,
         event_type: str = "auto_banned",
-    ) -> BlockedIPModel:
+    ) -> Optional[BlockedIPModel]:
+        # Защита от само-DoS: автоматические баны loopback/частных адресов
+        # запрещены (ручной бан админом — is_manual=True — разрешён).
+        if not is_manual and _is_internal_ip(ip):
+            logger.warning("Отклонён авто-бан внутреннего IP %s (%s)", ip, reason)
+            return None
+
         now = utcnow()
         if permanent:
             expires = None
@@ -335,6 +371,10 @@ class IPGuard:
         if not get_setting(
             db, "ip_protection_enabled", DEFAULTS["ip_protection_enabled"]
         ):
+            return
+
+        # Внутренние адреса (loopback/частные) не авто-баним — см. _is_internal_ip
+        if _is_internal_ip(ip):
             return
 
         # Белый список не банится
