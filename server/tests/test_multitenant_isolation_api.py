@@ -663,9 +663,7 @@ def test_org_admin_cannot_delete_foreign_photo(client: TestClient, db_session):
     photo_path.unlink(missing_ok=True)
 
 
-def test_task_summary_is_isolated_between_organizations(
-    client: TestClient, db_session
-):
+def test_task_summary_is_isolated_between_organizations(client: TestClient, db_session):
     org1 = OrganizationModel(name="Summary Org 1", slug="summary-org-1")
     org2 = OrganizationModel(name="Summary Org 2", slug="summary-org-2")
     db_session.add_all([org1, org2])
