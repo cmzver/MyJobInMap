@@ -8,6 +8,7 @@ import com.fieldworker.data.network.NetworkMonitor
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.AddressRepository
 import com.fieldworker.data.sync.SyncManager
+import com.fieldworker.di.IoDispatcher
 import android.net.Uri
 import com.fieldworker.domain.model.AddressDetails
 import com.fieldworker.domain.model.Comment
@@ -23,6 +24,7 @@ import com.fieldworker.ui.settings.ConnectionStatus
 import com.fieldworker.ui.utils.TaskSortOrder
 import com.fieldworker.ui.utils.sortedBy
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
@@ -126,7 +128,8 @@ class MapViewModel @Inject constructor(
     private val networkMonitor: NetworkMonitor,
     private val syncManager: SyncManager,
     val preferences: AppPreferences,
-    val authRepository: com.fieldworker.data.repository.AuthRepository
+    val authRepository: com.fieldworker.data.repository.AuthRepository,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(MapUiState())
@@ -283,7 +286,7 @@ class MapViewModel @Inject constructor(
     /**
      * Быстрая проверка доступности сервера через /health (таймаут 3с).
      */
-    private suspend fun checkServerReachable(): Boolean = withContext(Dispatchers.IO) {
+    private suspend fun checkServerReachable(): Boolean = withContext(ioDispatcher) {
         try {
             val baseUrl = preferences.getFullServerUrl().trimEnd('/')
             val healthUrl = "$baseUrl/health"

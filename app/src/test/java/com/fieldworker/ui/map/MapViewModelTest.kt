@@ -10,6 +10,7 @@ import com.fieldworker.domain.usecase.GetTasksUseCase
 import com.fieldworker.domain.usecase.TaskCommentsUseCase
 import com.fieldworker.domain.usecase.TaskPhotosUseCase
 import com.fieldworker.domain.usecase.UpdateTaskStatusUseCase
+import com.fieldworker.testutil.FakeSharedPreferences
 import com.fieldworker.ui.settings.ConnectionStatus
 import com.fieldworker.ui.utils.TaskSortOrder
 import io.mockk.*
@@ -20,28 +21,18 @@ import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@Ignore(
-    "Зелёный в изоляции (--tests MapViewModelTest) и в паре Chat+Map, но падает в " +
-        "полном модуле: межклассовое загрязнение inline-mock-maker'а mockk. Relaxed-" +
-        "моки AppPreferences в других классах (LoginViewModelTest и т.п.) оставляют " +
-        "инструментацию, которая ломает стабинг StateFlow property-геттеров здесь, и " +
-        "unmockkAll() её не сбрасывает; forkEvery=1 изолировал бы классы, но ломает " +
-        "динамический mockk-агент. Тест уже приведён к рабочему виду (answers{} вместо " +
-        "returns для property-стабов; unmockkAll() в @Before). Снять @Ignore после " +
-        "решения изоляции (mockk-агент через -javaagent или Robolectric)."
-)
 class MapViewModelTest {
 
     // android.util.Log возвращает дефолты через testOptions.unitTests
-    // .isReturnDefaultValues — mockkStatic(Log) здесь не нужен и конфликтует
-    // со стабингом property-геттеров AppPreferences.
+    // .isReturnDefaultValues, так что mockkStatic(Log) не нужен.
 
-    private val testDispatcher = StandardTestDispatcher()
-    
+    // Свежий планировщик на каждый тест: фоновые корутины утёкших VM остаются
+    // привязаны к планировщику своего теста и не детонируют в следующем.
+    private lateinit var testDispatcher: TestDispatcher
+
     private lateinit var getTasksUseCase: GetTasksUseCase
     private lateinit var updateTaskStatusUseCase: UpdateTaskStatusUseCase
     private lateinit var taskPhotosUseCase: TaskPhotosUseCase
@@ -78,55 +69,37 @@ class MapViewModelTest {
     )
 
     /**
-     * Создаёт стаб AppPreferences на StateFlow.
-     * Не трогаем реальную Android-реализацию prefs в JVM unit tests.
+     * Реальный [AppPreferences] поверх in-memory [FakeSharedPreferences].
+     *
+     * Намеренно НЕ мокаем и НЕ spy'им финальный AppPreferences:
+     *  - стабинг его StateFlow property-геттеров (`statusFilter` и т.п.) хрупок
+     *    из-за межклассового загрязнения inline-mock-maker'а mockk (issue #843);
+     *  - spyk не годится: у класса есть и свойство `val statusFilter: StateFlow`,
+     *    и функция `fun getStatusFilter(): Set` — одноимённые JVM-методы, и spy
+     *    путает перегрузки (ClassCastException Set→StateFlow).
+     * Реальная реализация даёт настоящие StateFlow; проверки делаем по
+     * наблюдаемому эффекту (см. ассерты на `preferences.*.value`).
      */
     private fun createRealPreferences(): AppPreferences {
-        val preferences = mockk<AppPreferences>()
-        val statusFilterFlow = MutableStateFlow(
-            setOf(TaskStatus.NEW, TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED)
-        )
-        val priorityFilterFlow = MutableStateFlow(emptySet<Priority>())
-        val showMyLocationFlow = MutableStateFlow(true)
-        val hideDoneTasksFlow = MutableStateFlow(true)
-
-        // StateFlow-свойства стабим через answers {}, а не returns: mockk не
-        // записывает второй и последующие property-геттеры финального класса при
-        // returns («Missing mocked calls inside every»); answers {} обходит это.
-        every { preferences.statusFilter } answers { statusFilterFlow }
-        every { preferences.priorityFilter } answers { priorityFilterFlow }
-        every { preferences.showMyLocation } answers { showMyLocationFlow }
-        every { preferences.hideDoneTasks } answers { hideDoneTasksFlow }
-        every { preferences.getFullServerUrl() } returns "invalid-url"
-        every { preferences.triggerLogout() } just Runs
-        every { preferences.saveMapPosition(any(), any(), any()) } just Runs
-        every { preferences.getSavedMapPosition() } returns null
-
-        every { preferences.setStatusFilter(any()) } answers {
-            statusFilterFlow.value = firstArg()
-            Unit
-        }
-        every { preferences.setPriorityFilter(any()) } answers {
-            priorityFilterFlow.value = firstArg()
-            Unit
-        }
-        every { preferences.setShowMyLocation(any()) } answers {
-            showMyLocationFlow.value = firstArg()
-            Unit
-        }
-        every { preferences.setHideDoneTasks(any()) } answers {
-            hideDoneTasksFlow.value = firstArg()
-            Unit
-        }
-
-        return preferences
+        val fakePrefs = FakeSharedPreferences()
+        val context = mockk<android.content.Context>(relaxed = true)
+        every { context.getSharedPreferences(any(), any()) } returns fakePrefs
+        // EncryptedSharedPreferences недоступен в чистой JVM — конструктор
+        // ловит исключение и откатывается на context.getSharedPreferences(...).
+        val prefs = AppPreferences(context)
+        // Невалидный URL → checkServerReachable() падает мгновенно
+        // (MalformedURLException), а не ходит в сеть на 3с.
+        prefs.setServerUrl("invalid-url")
+        return prefs
     }
 
     @Before
     fun setup() {
-        // mockk инструментирует AppPreferences глобально; без сброса между тестами
-        // повторный стабинг его property-геттеров падает («Missing mocked calls»).
-        unmockkAll()
+        // Без unmockkAll(): моки пересоздаются ниже, а глобальный сброс лишь
+        // ломал бы фоновые корутины утёкших VM (они дёргают эти моки).
+        // AppPreferences больше не мокается, так что прежней причины для
+        // unmockkAll() (issue #843) тоже нет.
+        testDispatcher = StandardTestDispatcher()
         Dispatchers.setMain(testDispatcher)
 
         getTasksUseCase = mockk(relaxed = true)
@@ -157,12 +130,21 @@ class MapViewModelTest {
     private fun createViewModel(): MapViewModel {
         coEvery { authRepository.validateCurrentUser() } returns AuthRepository.ValidationResult.VALID
         coEvery { getTasksUseCase.refreshTasks() } returns Result.success(emptyList())
-        
-        return MapViewModel(
-            getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
-            taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository
-        )
+
+        return buildViewModel()
     }
+
+    /**
+     * Конструирует VM с тестовым диспетчером. Фоновый `startServerReachabilityCheck`
+     * паркуется на реальном Dispatchers.IO; благодаря свежему планировщику на каждый
+     * тест (см. [setup]) его поздний резюм попадает на заброшенный планировщик и
+     * не задевает следующий тест.
+     */
+    private fun buildViewModel(): MapViewModel = MapViewModel(
+        getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
+        taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository,
+        testDispatcher
+    )
 
     // ==================== Инициализация ====================
 
@@ -199,14 +181,11 @@ class MapViewModelTest {
     fun `invalid session triggers logout without loading tasks`() = runTest {
         coEvery { authRepository.validateCurrentUser() } returns AuthRepository.ValidationResult.INVALID
 
-        val viewModel = MapViewModel(
-            getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
-            taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository
-        )
+        val viewModel = buildViewModel()
         advanceUntilIdle()
 
         coVerify { getTasksUseCase.clearCache() }
-        verify { preferences.triggerLogout() }
+        assertTrue(preferences.forcedLogoutRequested)
         assertTrue(viewModel.uiState.value.tasks.isEmpty())
     }
 
@@ -215,10 +194,7 @@ class MapViewModelTest {
         coEvery { authRepository.validateCurrentUser() } returns AuthRepository.ValidationResult.UNKNOWN
         coEvery { getTasksUseCase.refreshTasks() } returns Result.success(listOf(sampleTask()))
 
-        MapViewModel(
-            getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
-            taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository
-        )
+        buildViewModel()
         advanceUntilIdle()
 
         // Должен продолжить загрузку
@@ -270,13 +246,10 @@ class MapViewModelTest {
             Exception("Сессия истекла 401")
         )
 
-        MapViewModel(
-            getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
-            taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository
-        )
+        buildViewModel()
         advanceUntilIdle()
 
-        verify { preferences.triggerLogout() }
+        assertTrue(preferences.forcedLogoutRequested)
     }
 
     // ==================== Выбор задачи ====================
@@ -398,7 +371,7 @@ class MapViewModelTest {
         viewModel.setStatusFilter(filter)
 
         assertEquals(filter, viewModel.uiState.value.statusFilter)
-        verify { preferences.setStatusFilter(filter) }
+        assertEquals(filter, preferences.statusFilter.value)
     }
 
     @Test
@@ -410,7 +383,7 @@ class MapViewModelTest {
         viewModel.setPriorityFilter(filter)
 
         assertEquals(filter, viewModel.uiState.value.priorityFilter)
-        verify { preferences.setPriorityFilter(filter) }
+        assertEquals(filter, preferences.priorityFilter.value)
     }
 
     @Test
@@ -515,8 +488,11 @@ class MapViewModelTest {
         networkOnlineFlow.value = true
         advanceUntilIdle()
 
+        // Сервер по-прежнему недоступен → остаёмся офлайн…
         assertTrue(viewModel.uiState.value.isOffline)
-        verify(exactly = 0) { syncManager.triggerImmediateSync() }
+        // …но возврат сети после офлайна намеренно дёргает sync-ретрай
+        // (MapViewModel: `if (reachable || wasOffline) triggerImmediateSync()`).
+        verify(exactly = 1) { syncManager.triggerImmediateSync() }
     }
 
     // ==================== Подключение ====================
