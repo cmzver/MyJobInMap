@@ -83,6 +83,8 @@ class IPGuard:
     """Потокобезопасный сервис IP-защиты с кэшированием бан-листа в памяти."""
 
     CACHE_TTL = 15.0  # как часто перечитывать бан-лист/настройки из БД
+    EVENT_RETENTION_DAYS = 30  # сколько хранить журнал событий безопасности
+    EVENT_PRUNE_INTERVAL = 3600.0  # как часто прунить старые события (сек)
 
     def __init__(self):
         self._lock = threading.Lock()
@@ -93,6 +95,7 @@ class IPGuard:
         self._pending_hits: Dict[str, int] = {}  # буфер отклонённых запросов до flush
         self._cfg: Dict[str, object] = dict(DEFAULTS)
         self._cache_at = 0.0
+        self._events_pruned_at = 0.0
         self._ddos = RateLimiter(
             max_attempts=int(DEFAULTS["ddos_max_requests"]),
             window_seconds=int(DEFAULTS["ddos_window_seconds"]),
@@ -168,6 +171,20 @@ class IPGuard:
                 db.commit()
         except Exception:
             db.rollback()
+
+        # Прунинг старого журнала событий (раз в EVENT_PRUNE_INTERVAL): раньше
+        # его «чистил» destructive delete в record_login_success; теперь история
+        # сохраняется для аудита, поэтому ограничиваем её по сроку хранения.
+        if now - self._events_pruned_at >= self.EVENT_PRUNE_INTERVAL:
+            try:
+                cutoff = utcnow() - timedelta(days=self.EVENT_RETENTION_DAYS)
+                db.query(IPSecurityEventModel).filter(
+                    IPSecurityEventModel.created_at < cutoff
+                ).delete(synchronize_session=False)
+                db.commit()
+                self._events_pruned_at = now
+            except Exception:
+                db.rollback()
 
         blocked: Dict[str, Optional[float]] = {}
         for row in db.query(BlockedIPModel).all():
@@ -392,6 +409,23 @@ class IPGuard:
             )
         )
         since = utcnow() - timedelta(minutes=window_min)
+        # Считаем неудачи только после последнего успешного входа с этого IP:
+        # успех сбрасывает счётчик, но историю НЕ удаляем (аудит сохраняется).
+        last_success = (
+            db.query(IPSecurityEventModel.created_at)
+            .filter(
+                IPSecurityEventModel.ip_address == ip,
+                IPSecurityEventModel.event_type == "login_success",
+            )
+            .order_by(IPSecurityEventModel.created_at.desc())
+            .first()
+        )
+        if (
+            last_success
+            and last_success[0]
+            and _to_epoch(last_success[0]) > _to_epoch(since)
+        ):
+            since = last_success[0]
         recent = (
             db.query(IPSecurityEventModel)
             .filter(
@@ -412,13 +446,18 @@ class IPGuard:
                 event_type="auto_banned",
             )
 
-    def record_login_success(self, db, ip: str) -> None:
-        """Успешный вход сбрасывает счётчик неудач (чтобы не копился до бана)."""
+    def record_login_success(self, db, ip: str, username: Optional[str] = None) -> None:
+        """Зафиксировать успешный вход.
+
+        Раньше метод УДАЛЯЛ все события ``login_failed`` для IP — это уничтожало
+        аудит-журнал (он питает ленту безопасности) и на shared/NAT-IP позволяло
+        одним успешным входом сбросить счётчик брутфорса в обход защиты. Теперь
+        просто пишем событие ``login_success``; :meth:`record_login_failure`
+        считает неудачи только после последнего успеха, поэтому счётчик
+        сбрасывается без потери истории.
+        """
         try:
-            db.query(IPSecurityEventModel).filter(
-                IPSecurityEventModel.ip_address == ip,
-                IPSecurityEventModel.event_type == "login_failed",
-            ).delete()
+            self._record_event(db, ip, "login_success", username=username)
             db.commit()
         except Exception:
             db.rollback()
