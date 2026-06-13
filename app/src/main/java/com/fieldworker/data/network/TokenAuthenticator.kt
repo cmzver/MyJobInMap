@@ -2,6 +2,8 @@ package com.fieldworker.data.network
 
 import android.util.Log
 import com.fieldworker.data.preferences.AppPreferences
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import okhttp3.Authenticator
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -27,7 +29,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class TokenAuthenticator @Inject constructor(
-    private val appPreferences: AppPreferences
+    private val appPreferences: AppPreferences,
+    private val json: Json
 ) : Authenticator {
     
     companion object {
@@ -127,8 +130,7 @@ class TokenAuthenticator @Inject constructor(
         if (response.isSuccessful) {
             val body = response.body?.string()
             if (body != null) {
-                val gson = com.google.gson.Gson()
-                val tokenResponse = gson.fromJson(body, com.fieldworker.data.dto.TokenResponse::class.java)
+                val tokenResponse = json.decodeFromString<com.fieldworker.data.remote.generated.Token>(body)
                 return Pair(tokenResponse.accessToken, tokenResponse.refreshToken)
             }
         }

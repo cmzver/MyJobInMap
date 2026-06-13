@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     alias(libs.plugins.kotlin.allopen)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.google.services)
 }
 
@@ -24,8 +25,8 @@ android {
         applicationId = "com.fieldworker"
         minSdk = 24
         targetSdk = 34
-        versionCode = 23405
-        versionName = "2.34.5"
+        versionCode = 23406
+        versionName = "2.34.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -70,6 +71,11 @@ android {
     }
 
     testOptions {
+        // Неинициализированные android.* методы (например, Log) возвращают
+        // дефолты вместо "not mocked", чтобы не плодить mockkStatic(Log) в каждом
+        // тесте. Важно: mockkStatic(android.util.Log) конфликтует со стабингом
+        // property-геттеров (every { mock.prop }) — см. MapViewModelTest.
+        unitTests.isReturnDefaultValues = true
         unitTests.all {
             // MockK agent needs these JVM args on JDK 17+ / 21+
             it.jvmArgs(
@@ -114,7 +120,8 @@ dependencies {
     
     // Retrofit - Network
     implementation(libs.retrofit)
-    implementation(libs.retrofit.converter.gson)
+    implementation(libs.retrofit.converter.kotlinx.serialization)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp.logging)
     
     // Coroutines

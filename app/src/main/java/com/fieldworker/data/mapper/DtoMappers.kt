@@ -1,11 +1,11 @@
 package com.fieldworker.data.mapper
 
-import com.fieldworker.data.dto.CommentDto
-import com.fieldworker.data.dto.TaskDetailDto
-import com.fieldworker.data.dto.TaskDto
-import com.fieldworker.data.dto.TaskPhotoDto
-import com.fieldworker.data.dto.TokenResponse
-import com.fieldworker.data.dto.UserDto
+import com.fieldworker.data.remote.generated.CommentResponse
+import com.fieldworker.data.remote.generated.PhotoResponse
+import com.fieldworker.data.remote.generated.TaskListResponse
+import com.fieldworker.data.remote.generated.TaskResponse
+import com.fieldworker.data.remote.generated.Token
+import com.fieldworker.data.remote.generated.UserResponse
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
@@ -24,77 +24,77 @@ import com.fieldworker.domain.model.UserRole
 // ==================== Task Mappers ====================
 
 /**
- * Конвертация TaskDto в Domain Task
+ * Конвертация TaskListResponse (краткий ответ списка) в Domain Task
  */
-fun TaskDto.toDomain(): Task = Task(
+fun TaskListResponse.toDomain(): Task = Task(
     id = id,
     taskNumber = taskNumber ?: "Z-$id",
     title = title,
-    address = rawAddress ?: "",
-    description = description ?: "",
+    address = rawAddress,
+    description = description,
     customerName = customerName,
     customerPhone = customerPhone,
-    lat = lat,
-    lon = lon,
-    status = TaskStatus.fromString(status),
-    priority = Priority.fromString(priority),
-    createdAt = createdAt ?: "",
-    updatedAt = updatedAt ?: "",
+    lat = lat.toDouble(),
+    lon = lon.toDouble(),
+    status = TaskStatus.fromString(status.value),
+    priority = Priority.fromString(priority.value),
+    createdAt = createdAt,
+    updatedAt = updatedAt,
     plannedDate = plannedDate,
     assignedUserId = assignedUserId,
     assignedUserName = assignedUserName,
-    isRemote = isRemote,
-    isPaid = isPaid,
-    paymentAmount = paymentAmount,
+    isRemote = isRemote ?: false,
+    isPaid = isPaid ?: false,
+    paymentAmount = paymentAmount?.toDouble() ?: 0.0,
     systemType = systemType,
     defectType = defectType,
-    commentsCount = commentsCount
+    commentsCount = commentsCount?.toInt() ?: 0
 )
 
 /**
- * Конвертация списка TaskDto в список Domain Task
+ * Конвертация списка TaskListResponse в список Domain Task
  */
-fun List<TaskDto>.toDomainTasks(): List<Task> = map { it.toDomain() }
+fun List<TaskListResponse>.toDomainTasks(): List<Task> = map { it.toDomain() }
 
 /**
- * Конвертация TaskDetailDto в Domain Task
+ * Конвертация TaskResponse (полный ответ с историей комментариев) в Domain Task
  */
-fun TaskDetailDto.toDomain(): Task = Task(
+fun TaskResponse.toDomain(): Task = Task(
     id = id,
     taskNumber = taskNumber ?: "Z-$id",
     title = title,
-    address = rawAddress ?: "",
-    description = description ?: "",
+    address = rawAddress,
+    description = description,
     customerName = customerName,
     customerPhone = customerPhone,
-    lat = lat,
-    lon = lon,
-    status = TaskStatus.fromString(status),
-    priority = Priority.fromString(priority),
-    createdAt = createdAt ?: "",
-    updatedAt = updatedAt ?: "",
+    lat = lat.toDouble(),
+    lon = lon.toDouble(),
+    status = TaskStatus.fromString(status.value),
+    priority = Priority.fromString(priority.value),
+    createdAt = createdAt,
+    updatedAt = updatedAt,
     plannedDate = plannedDate,
     assignedUserId = assignedUserId,
     assignedUserName = assignedUserName,
-    isRemote = isRemote,
-    isPaid = isPaid,
-    paymentAmount = paymentAmount,
+    isRemote = isRemote ?: false,
+    isPaid = isPaid ?: false,
+    paymentAmount = paymentAmount?.toDouble() ?: 0.0,
     systemType = systemType,
     defectType = defectType,
-    commentsCount = comments.size
+    commentsCount = comments?.size ?: 0
 )
 
 /**
- * Извлечение комментариев из TaskDetailDto
+ * Извлечение комментариев из TaskResponse
  */
-fun TaskDetailDto.toComments(): List<Comment> = comments.map { it.toDomain() }
+fun TaskResponse.toComments(): List<Comment> = comments.orEmpty().map { it.toDomain() }
 
 // ==================== Comment Mappers ====================
 
 /**
- * Конвертация CommentDto в Domain Comment
+ * Конвертация CommentResponse в Domain Comment
  */
-fun CommentDto.toDomain(): Comment = Comment(
+fun CommentResponse.toDomain(): Comment = Comment(
     id = id,
     taskId = taskId,
     text = text,
@@ -105,52 +105,52 @@ fun CommentDto.toDomain(): Comment = Comment(
 )
 
 /**
- * Конвертация списка CommentDto в список Domain Comment
+ * Конвертация списка CommentResponse в список Domain Comment
  */
-fun List<CommentDto>.toDomainComments(): List<Comment> = map { it.toDomain() }
+fun List<CommentResponse>.toDomainComments(): List<Comment> = map { it.toDomain() }
 
 // ==================== User Mappers ====================
 
 /**
- * Конвертация UserDto в Domain User
+ * Конвертация UserResponse в Domain User
  */
-fun UserDto.toDomain(): User = User(
+fun UserResponse.toDomain(): User = User(
     id = id,
     username = username,
     fullName = fullName,
     email = email,
     phone = phone,
-    role = UserRole.fromString(role),
+    role = UserRole.fromString(role.value),
     isActive = isActive
 )
 
 /**
- * Конвертация списка UserDto в список Domain User
+ * Конвертация списка UserResponse в список Domain User
  */
-fun List<UserDto>.toDomainUsers(): List<User> = map { it.toDomain() }
+fun List<UserResponse>.toDomainUsers(): List<User> = map { it.toDomain() }
 
 /**
- * Конвертация TokenResponse в Domain User (для использования после логина)
+ * Конвертация Token в Domain User (для использования после логина)
  */
-fun TokenResponse.toUser(): User = User(
+fun Token.toUser(): User = User(
     id = userId,
     username = username,
     fullName = fullName,
-    role = UserRole.fromString(role),
+    role = UserRole.fromString(role.value),
     isActive = true
 )
 
 // ==================== Photo Mappers ====================
 
 /**
- * Конвертация TaskPhotoDto в Domain TaskPhoto
+ * Конвертация PhotoResponse в Domain TaskPhoto
  */
-fun TaskPhotoDto.toDomain(): TaskPhoto = TaskPhoto(
+fun PhotoResponse.toDomain(): TaskPhoto = TaskPhoto(
     id = id,
     taskId = taskId,
     filename = filename,
     originalName = originalName,
-    fileSize = fileSize,
+    fileSize = fileSize.toInt(),
     mimeType = mimeType,
     photoType = photoType,
     url = url,
@@ -159,6 +159,6 @@ fun TaskPhotoDto.toDomain(): TaskPhoto = TaskPhoto(
 )
 
 /**
- * Конвертация списка TaskPhotoDto в список Domain TaskPhoto
+ * Конвертация списка PhotoResponse в список Domain TaskPhoto
  */
-fun List<TaskPhotoDto>.toDomainPhotos(): List<TaskPhoto> = map { it.toDomain() }
+fun List<PhotoResponse>.toDomainPhotos(): List<TaskPhoto> = map { it.toDomain() }

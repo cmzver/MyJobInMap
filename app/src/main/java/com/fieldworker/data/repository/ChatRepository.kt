@@ -4,8 +4,21 @@ import android.content.Context
 import android.net.Uri
 import androidx.core.content.FileProvider
 import com.fieldworker.data.api.ChatApi
-import com.fieldworker.data.dto.*
 import com.fieldworker.data.image.ImageCompressor
+import com.fieldworker.data.remote.generated.ArchiveRequest
+import com.fieldworker.data.remote.generated.ConversationCreate
+import com.fieldworker.data.remote.generated.ConversationMemberRole
+import com.fieldworker.data.remote.generated.ConversationUpdate
+import com.fieldworker.data.remote.generated.MemberAddRequest
+import com.fieldworker.data.remote.generated.MemberRoleUpdateRequest
+import com.fieldworker.data.remote.generated.MessageCreate
+import com.fieldworker.data.remote.generated.MessageUpdate
+import com.fieldworker.data.remote.generated.MuteRequest
+import com.fieldworker.data.remote.generated.OwnershipTransferRequest
+import com.fieldworker.data.remote.generated.ReactionCreate
+import com.fieldworker.data.remote.generated.ReadReceiptRequest
+import com.fieldworker.data.remote.generated.ConversationType as GenConversationType
+import com.fieldworker.data.remote.generated.MessageType as GenMessageType
 import com.fieldworker.data.local.dao.ConversationDao
 import com.fieldworker.data.local.dao.MessageDao
 import com.fieldworker.data.mapper.toDomain
@@ -104,7 +117,7 @@ class ChatRepository @Inject constructor(
         conversationId: Long,
         name: String,
     ): Result<Unit> = apiCall {
-        chatApi.updateConversation(conversationId, ConversationUpdateDto(name = name))
+        chatApi.updateConversation(conversationId, ConversationUpdate(name = name))
     }.map { }
 
     suspend fun createConversation(
@@ -114,8 +127,8 @@ class ChatRepository @Inject constructor(
         memberUserIds: List<Long>,
     ): Result<Long> = apiCall {
         chatApi.createConversation(
-            ConversationCreateDto(
-                type = type.value,
+            ConversationCreate(
+                type = GenConversationType.valueOf(type.name),
                 name = name,
                 taskId = taskId,
                 memberUserIds = memberUserIds,
@@ -128,15 +141,15 @@ class ChatRepository @Inject constructor(
     }.map { it.id }
 
     suspend fun muteConversation(conversationId: Long, isMuted: Boolean): Result<Unit> = apiCall {
-        chatApi.muteConversation(conversationId, MuteRequestDto(isMuted = isMuted))
+        chatApi.muteConversation(conversationId, MuteRequest(isMuted = isMuted))
     }
 
     suspend fun archiveConversation(conversationId: Long, isArchived: Boolean): Result<Unit> = apiCall {
-        chatApi.archiveConversation(conversationId, ArchiveRequestDto(isArchived = isArchived))
+        chatApi.archiveConversation(conversationId, ArchiveRequest(isArchived = isArchived))
     }
 
     suspend fun addMembers(conversationId: Long, userIds: List<Long>): Result<List<ConversationMember>> = apiCall {
-        chatApi.addMembers(conversationId, MemberAddRequestDto(userIds = userIds))
+        chatApi.addMembers(conversationId, MemberAddRequest(userIds = userIds))
     }.map { it.toDomainMembers() }
 
     suspend fun removeMember(conversationId: Long, userId: Long): Result<Unit> = apiCall {
@@ -148,14 +161,20 @@ class ChatRepository @Inject constructor(
         userId: Long,
         role: String,
     ): Result<List<ConversationMember>> = apiCall {
-        chatApi.updateMemberRole(conversationId, userId, MemberRoleUpdateRequestDto(role = role))
+        chatApi.updateMemberRole(
+            conversationId,
+            userId,
+            MemberRoleUpdateRequest(
+                role = ConversationMemberRole.decode(role) ?: ConversationMemberRole.MEMBER
+            ),
+        )
     }.map { it.toDomainMembers() }
 
     suspend fun transferOwnership(
         conversationId: Long,
         userId: Long,
     ): Result<List<ConversationMember>> = apiCall {
-        chatApi.transferOwnership(conversationId, OwnershipTransferRequestDto(userId = userId))
+        chatApi.transferOwnership(conversationId, OwnershipTransferRequest(userId = userId))
     }.map { it.toDomainMembers() }
 
     // ---- Messages ----
@@ -167,7 +186,7 @@ class ChatRepository @Inject constructor(
     ): Result<Pair<List<ChatMessage>, Boolean>> {
         val networkResult = apiCall {
             chatApi.getMessages(conversationId, beforeId, limit)
-        }.map { dto -> dto.items.map { it.toDomain() } to dto.hasMore }
+        }.map { dto -> dto.items.map { it.toDomain() } to (dto.hasMore ?: false) }
 
         return networkResult.fold(
             onSuccess = { (messages, hasMore) ->
@@ -210,10 +229,10 @@ class ChatRepository @Inject constructor(
     ): Result<ChatMessage> = apiCall {
         chatApi.sendMessage(
             conversationId,
-            MessageCreateDto(
+            MessageCreate(
                 text = text,
                 replyToId = replyToId,
-                messageType = messageType,
+                messageType = GenMessageType.decode(messageType),
                 taskId = taskId,
             ),
         )
@@ -289,7 +308,7 @@ class ChatRepository @Inject constructor(
     )
 
     suspend fun editMessage(messageId: Long, text: String): Result<ChatMessage> = apiCall {
-        chatApi.editMessage(messageId, MessageUpdateDto(text = text))
+        chatApi.editMessage(messageId, MessageUpdate(text = text))
     }.map { it.toDomain() }
         .onSuccess { cacheMessage(it) }
 
@@ -301,13 +320,13 @@ class ChatRepository @Inject constructor(
     // ---- Reactions ----
 
     suspend fun toggleReaction(messageId: Long, emoji: String): Result<List<ChatReaction>> = apiCall {
-        chatApi.toggleReaction(messageId, ReactionCreateDto(emoji = emoji))
+        chatApi.toggleReaction(messageId, ReactionCreate(emoji = emoji))
     }.map { list -> list.map { it.toDomain() } }
 
     // ---- Read receipts ----
 
     suspend fun markAsRead(conversationId: Long, lastMessageId: Long): Result<Unit> = apiCall {
-        chatApi.markAsRead(conversationId, ReadReceiptDto(lastMessageId = lastMessageId))
+        chatApi.markAsRead(conversationId, ReadReceiptRequest(lastMessageId = lastMessageId))
     }
 
     // ---- Helper ----

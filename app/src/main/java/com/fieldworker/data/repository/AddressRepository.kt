@@ -1,8 +1,8 @@
 package com.fieldworker.data.repository
 
 import com.fieldworker.data.api.AddressesApi
-import com.fieldworker.data.dto.AddressParseRequestDto
 import com.fieldworker.data.mapper.toDomain
+import com.fieldworker.data.remote.generated.AddressParseRequest
 import com.fieldworker.domain.model.AddressDetails
 import com.fieldworker.domain.model.Task
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +22,7 @@ class AddressRepository @Inject constructor(
                 return@withContext Result.success(null)
             }
 
-            val parseResponse = addressesApi.parseAddress(AddressParseRequestDto(normalizedQuery))
+            val parseResponse = addressesApi.parseAddress(AddressParseRequest(normalizedQuery))
             val parsedAddress = parseResponse.body()
 
             val searchCandidates = buildSearchCandidates(normalizedQuery, parsedAddress?.street, parsedAddress?.building)

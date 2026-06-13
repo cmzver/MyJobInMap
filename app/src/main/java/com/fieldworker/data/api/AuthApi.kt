@@ -1,14 +1,14 @@
 package com.fieldworker.data.api
 
-import com.fieldworker.data.dto.ChangePasswordRequest
-import com.fieldworker.data.dto.RefreshTokenRequest
-import com.fieldworker.data.dto.ReportSettingsDto
 import com.fieldworker.data.dto.SimpleSuccessDto
-import com.fieldworker.data.dto.TokenResponse
-import com.fieldworker.data.dto.UpdateCheckDto
-import com.fieldworker.data.dto.UpdateProfileRequest
-import com.fieldworker.data.dto.UpdateReportSettingsDto
-import com.fieldworker.data.dto.UserDto
+import com.fieldworker.data.remote.generated.AppUpdateCheck
+import com.fieldworker.data.remote.generated.PasswordChange
+import com.fieldworker.data.remote.generated.ProfileUpdate
+import com.fieldworker.data.remote.generated.RefreshRequest
+import com.fieldworker.data.remote.generated.ReportSettingsResponse
+import com.fieldworker.data.remote.generated.ReportSettingsUpdate
+import com.fieldworker.data.remote.generated.Token
+import com.fieldworker.data.remote.generated.UserResponse
 import okhttp3.MultipartBody
 import okhttp3.ResponseBody
 import retrofit2.Response
@@ -20,7 +20,6 @@ import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
-import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Query
 import retrofit2.http.Streaming
@@ -40,7 +39,7 @@ interface AuthApi {
     suspend fun login(
         @Field("username") username: String,
         @Field("password") password: String
-    ): Response<TokenResponse>
+    ): Response<Token>
     
     /**
      * Обновить access token с помощью refresh token.
@@ -48,8 +47,8 @@ interface AuthApi {
      */
     @POST("api/auth/refresh")
     suspend fun refreshToken(
-        @Body request: RefreshTokenRequest
-    ): Response<TokenResponse>
+        @Body request: RefreshRequest
+    ): Response<Token>
     
     /**
      * Получить информацию о текущем пользователе
@@ -57,15 +56,15 @@ interface AuthApi {
     @GET("api/auth/me")
     suspend fun getCurrentUser(
         @Header("Authorization") token: String
-    ): Response<UserDto>
+    ): Response<UserResponse>
     
     /**
      * Обновить профиль текущего пользователя (имя/email/телефон).
      */
     @PATCH("api/auth/profile")
     suspend fun updateProfile(
-        @Body body: UpdateProfileRequest
-    ): Response<UserDto>
+        @Body body: ProfileUpdate
+    ): Response<UserResponse>
 
     /**
      * Загрузить аватар текущего пользователя (multipart).
@@ -75,29 +74,29 @@ interface AuthApi {
     @POST("api/auth/avatar")
     suspend fun uploadAvatar(
         @Part avatar: MultipartBody.Part
-    ): Response<UserDto>
+    ): Response<UserResponse>
 
     /**
      * Сменить пароль текущего пользователя.
      */
     @PATCH("api/auth/password")
     suspend fun changePassword(
-        @Body body: ChangePasswordRequest
+        @Body body: PasswordChange
     ): Response<SimpleSuccessDto>
 
     /**
      * Получить настройки отправки отчётов
      */
     @GET("api/auth/report-settings")
-    suspend fun getReportSettings(): Response<ReportSettingsDto>
-    
+    suspend fun getReportSettings(): Response<ReportSettingsResponse>
+
     /**
      * Обновить настройки отправки отчётов
      */
-    @PUT("api/auth/report-settings")
+    @PATCH("api/auth/report-settings")
     suspend fun updateReportSettings(
-        @Body settings: UpdateReportSettingsDto
-    ): Response<ReportSettingsDto>
+        @Body settings: ReportSettingsUpdate
+    ): Response<ReportSettingsResponse>
     
     /**
      * Проверить наличие обновления приложения
@@ -108,7 +107,7 @@ interface AuthApi {
     suspend fun checkUpdate(
         @Query("version_code") versionCode: Int,
         @Query("version_name") versionName: String
-    ): Response<UpdateCheckDto>
+    ): Response<AppUpdateCheck>
     
     /**
      * Скачать APK файл обновления

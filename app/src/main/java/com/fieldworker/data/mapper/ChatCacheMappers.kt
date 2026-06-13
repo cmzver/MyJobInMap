@@ -13,17 +13,19 @@ import com.fieldworker.domain.model.ReplyPreview
 import com.fieldworker.domain.model.TaskReference
 import com.fieldworker.domain.model.parseDateTime
 import com.fieldworker.domain.model.parseDateTimeNonNull
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 private val ISO: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
 private fun LocalDateTime.toIso(): String = format(ISO)
 
-private val gson = Gson()
-private val attachmentsListType = object : TypeToken<List<ChatAttachment>>() {}.type
-private val reactionsListType = object : TypeToken<List<ChatReaction>>() {}.type
+private val cacheJson = Json {
+    ignoreUnknownKeys = true
+    explicitNulls = false
+}
 
 // ============================================================================
 // Conversation
@@ -86,9 +88,9 @@ fun ChatMessage.toEntity(): MessageEntity = MessageEntity(
     replyToId = replyTo?.id,
     replyToText = replyTo?.text,
     replyToSenderName = replyTo?.senderName,
-    attachedTaskJson = attachedTask?.let { gson.toJson(it) },
-    attachmentsJson = gson.toJson(attachments),
-    reactionsJson = gson.toJson(reactions),
+    attachedTaskJson = attachedTask?.let { cacheJson.encodeToString(it) },
+    attachmentsJson = cacheJson.encodeToString(attachments),
+    reactionsJson = cacheJson.encodeToString(reactions),
     createdAt = createdAt.toIso(),
     editedAt = editedAt?.toIso(),
 )
@@ -106,13 +108,13 @@ fun MessageEntity.toDomain(): ChatMessage = ChatMessage(
         ReplyPreview(id = it, text = replyToText, senderName = replyToSenderName)
     },
     attachedTask = attachedTaskJson?.let {
-        runCatching { gson.fromJson(it, TaskReference::class.java) }.getOrNull()
+        runCatching { cacheJson.decodeFromString<TaskReference>(it) }.getOrNull()
     },
     attachments = runCatching {
-        gson.fromJson<List<ChatAttachment>>(attachmentsJson, attachmentsListType) ?: emptyList()
+        cacheJson.decodeFromString<List<ChatAttachment>>(attachmentsJson)
     }.getOrDefault(emptyList()),
     reactions = runCatching {
-        gson.fromJson<List<ChatReaction>>(reactionsJson, reactionsListType) ?: emptyList()
+        cacheJson.decodeFromString<List<ChatReaction>>(reactionsJson)
     }.getOrDefault(emptyList()),
     createdAt = parseDateTimeNonNull(createdAt),
     editedAt = parseDateTime(editedAt),

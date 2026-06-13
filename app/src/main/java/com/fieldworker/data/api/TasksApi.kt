@@ -1,14 +1,14 @@
 package com.fieldworker.data.api
 
-import com.fieldworker.data.dto.CommentDto
-import com.fieldworker.data.dto.CreateCommentDto
-import com.fieldworker.data.dto.FCMTokenDto
-import com.fieldworker.data.dto.PaginatedResponseDto
-import com.fieldworker.data.dto.TaskDetailDto
-import com.fieldworker.data.dto.TaskDto
-import com.fieldworker.data.dto.TaskPhotoDto
-import com.fieldworker.data.dto.UpdatePlannedDateDto
-import com.fieldworker.data.dto.UpdateStatusDto
+import com.fieldworker.data.remote.generated.CommentCreate
+import com.fieldworker.data.remote.generated.CommentResponse
+import com.fieldworker.data.remote.generated.DeviceRegister
+import com.fieldworker.data.remote.generated.PaginatedResponseTaskListResponse
+import com.fieldworker.data.remote.generated.PhotoResponse
+import com.fieldworker.data.remote.generated.PlannedDateUpdate
+import com.fieldworker.data.remote.generated.TaskListResponse
+import com.fieldworker.data.remote.generated.TaskResponse
+import com.fieldworker.data.remote.generated.TaskStatusUpdate
 import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.Body
@@ -37,7 +37,7 @@ interface TasksApi {
         @Query("size") size: Int = 100, // Грузим по 100 для обратной совместимости пока не внедрим Paging 3
         @Query("status") status: String? = null,
         @Query("assigned_to_me") assignedToMe: Boolean = true
-    ): Response<PaginatedResponseDto<TaskDto>>
+    ): Response<PaginatedResponseTaskListResponse>
     
     /**
      * Получить детальную информацию о задаче с комментариями
@@ -45,7 +45,7 @@ interface TasksApi {
     @GET("api/tasks/{id}")
     suspend fun getTaskDetail(
         @Path("id") id: Long
-    ): Response<TaskDetailDto>
+    ): Response<TaskResponse>
     
     /**
      * Обновить статус задачи с комментарием
@@ -55,8 +55,8 @@ interface TasksApi {
     @PATCH("api/tasks/{id}/status")
     suspend fun updateTaskStatus(
         @Path("id") id: Long,
-        @Body status: UpdateStatusDto
-    ): Response<TaskDetailDto>
+        @Body status: TaskStatusUpdate
+    ): Response<TaskResponse>
     
     /**
      * Добавить комментарий к задаче
@@ -64,8 +64,8 @@ interface TasksApi {
     @POST("api/tasks/{id}/comments")
     suspend fun addComment(
         @Path("id") id: Long,
-        @Body comment: CreateCommentDto
-    ): Response<CommentDto>
+        @Body comment: CommentCreate
+    ): Response<CommentResponse>
     
     /**
      * Обновить планируемую дату выполнения
@@ -73,8 +73,8 @@ interface TasksApi {
     @PATCH("api/tasks/{id}/planned-date")
     suspend fun updatePlannedDate(
         @Path("id") id: Long,
-        @Body plannedDate: UpdatePlannedDateDto
-    ): Response<TaskDto>
+        @Body plannedDate: PlannedDateUpdate
+    ): Response<TaskListResponse>
     
     /**
      * Получить комментарии к задаче
@@ -82,7 +82,7 @@ interface TasksApi {
     @GET("api/tasks/{id}/comments")
     suspend fun getComments(
         @Path("id") id: Long
-    ): Response<List<CommentDto>>
+    ): Response<List<CommentResponse>>
     
     // ==================== Push Notifications ====================
     
@@ -91,15 +91,15 @@ interface TasksApi {
      */
     @POST("api/devices")
     suspend fun registerDevice(
-        @Body token: FCMTokenDto
+        @Body token: DeviceRegister
     ): Response<Unit>
-    
+
     /**
      * Удалить регистрацию FCM токена
      */
     @HTTP(method = "DELETE", path = "api/devices/unregister", hasBody = true)
     suspend fun unregisterDevice(
-        @Body token: FCMTokenDto
+        @Body token: DeviceRegister
     ): Response<Unit>
     
     // ==================== Task Photos ====================
@@ -110,7 +110,7 @@ interface TasksApi {
     @GET("api/tasks/{id}/photos")
     suspend fun getTaskPhotos(
         @Path("id") taskId: Long
-    ): Response<List<TaskPhotoDto>>
+    ): Response<List<PhotoResponse>>
     
     /**
      * Загрузить фото к заявке
@@ -121,7 +121,7 @@ interface TasksApi {
         @Path("id") taskId: Long,
         @Part file: MultipartBody.Part,
         @Query("photo_type") photoType: String = "completion"
-    ): Response<TaskPhotoDto>
+    ): Response<PhotoResponse>
     
     /**
      * Удалить фото

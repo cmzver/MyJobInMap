@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 /**
  * Локальная копия беседы из чата для оффлайн-показа списка чатов.
  * Поле `lastMessage*` — inline превью последнего сообщения (то же, что
- * сервер шлёт в `ConversationListItemDto.lastMessage`); вынесено плоско,
+ * сервер шлёт в `ConversationListItem.lastMessage`); вынесено плоско,
  * чтобы не плодить отдельную таблицу под одно поле.
  */
 @Entity(tableName = "chat_conversations")

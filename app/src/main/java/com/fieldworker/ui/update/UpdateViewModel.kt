@@ -117,8 +117,8 @@ class UpdateViewModel @Inject constructor(
      */
     fun dismiss() {
         val currentState = _updateState.value
-        if (currentState is UpdateState.Available && !currentState.info.isMandatory) {
-            appPreferences.setDismissedUpdateVersionCode(currentState.info.versionCode)
+        if (currentState is UpdateState.Available && currentState.info.isMandatory != true) {
+            appPreferences.setDismissedUpdateVersionCode(currentState.info.versionCode.toInt())
         }
         _updateState.value = null
     }

@@ -3,13 +3,13 @@ package com.fieldworker.data.repository
 import android.content.Context
 import android.net.Uri
 import com.fieldworker.data.api.AuthApi
-import com.fieldworker.data.dto.ChangePasswordRequest
 import com.fieldworker.data.image.ImageCompressor
-import com.fieldworker.data.dto.ReportSettingsDto
-import com.fieldworker.data.dto.TokenResponse
-import com.fieldworker.data.dto.UpdateProfileRequest
-import com.fieldworker.data.dto.UpdateReportSettingsDto
-import com.fieldworker.data.dto.UserDto
+import com.fieldworker.data.remote.generated.PasswordChange
+import com.fieldworker.data.remote.generated.ProfileUpdate
+import com.fieldworker.data.remote.generated.ReportSettingsResponse
+import com.fieldworker.data.remote.generated.ReportSettingsUpdate
+import com.fieldworker.data.remote.generated.Token
+import com.fieldworker.data.remote.generated.UserResponse
 import com.fieldworker.data.preferences.AppPreferences
 import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -47,7 +47,7 @@ class AuthRepository @Inject constructor(
     /**
      * Авторизация пользователя
      */
-    suspend fun login(username: String, password: String): Result<TokenResponse> {
+    suspend fun login(username: String, password: String): Result<Token> {
         return try {
             val response = authApi.login(username, password)
             if (response.isSuccessful && response.body() != null) {
@@ -59,7 +59,7 @@ class AuthRepository @Inject constructor(
                 prefs.setUserId(token.userId)
                 prefs.setUsername(token.username)
                 prefs.setUserFullName(token.fullName)
-                prefs.setUserRole(token.role)
+                prefs.setUserRole(token.role.value)
                 prefs.setUserAvatarUrl(token.avatarUrl)
                 
                 Result.success(token)
@@ -78,7 +78,7 @@ class AuthRepository @Inject constructor(
     /**
      * Получить информацию о текущем пользователе
      */
-    suspend fun getCurrentUser(): Result<UserDto> {
+    suspend fun getCurrentUser(): Result<UserResponse> {
         val token = prefs.getAuthToken() 
         if (token == null) {
             android.util.Log.w("AuthRepository", "getCurrentUser: No token found")
@@ -100,7 +100,7 @@ class AuthRepository @Inject constructor(
                 if (prefs.getUserId() <= 0) prefs.setUserId(user.id)
                 if (prefs.getUsername().isNullOrBlank()) prefs.setUsername(user.username)
                 if (prefs.getUserFullName().isNullOrBlank()) prefs.setUserFullName(user.fullName)
-                if (prefs.getUserRole().isNullOrBlank()) prefs.setUserRole(user.role)
+                if (prefs.getUserRole().isNullOrBlank()) prefs.setUserRole(user.role.value)
                 // avatar_url синхронизируем всегда — он может меняться без перелогина
                 prefs.setUserAvatarUrl(user.avatarUrl)
                 Result.success(user)
@@ -124,7 +124,7 @@ class AuthRepository @Inject constructor(
     /**
      * Получить настройки отправки отчётов
      */
-    suspend fun getReportSettings(): Result<ReportSettingsDto> {
+    suspend fun getReportSettings(): Result<ReportSettingsResponse> {
         return try {
             val response = authApi.getReportSettings()
             if (response.isSuccessful && response.body() != null) {
@@ -140,9 +140,9 @@ class AuthRepository @Inject constructor(
     /**
      * Обновить настройки отправки отчётов
      */
-    suspend fun updateReportSettings(reportTarget: String, contactPhone: String? = null): Result<ReportSettingsDto> {
+    suspend fun updateReportSettings(reportTarget: String, contactPhone: String? = null): Result<ReportSettingsResponse> {
         return try {
-            val settings = UpdateReportSettingsDto(reportTarget, contactPhone)
+            val settings = ReportSettingsUpdate(reportTarget, contactPhone)
             val response = authApi.updateReportSettings(settings)
             if (response.isSuccessful && response.body() != null) {
                 Result.success(response.body()!!)
@@ -191,9 +191,9 @@ class AuthRepository @Inject constructor(
         fullName: String? = null,
         email: String? = null,
         phone: String? = null
-    ): Result<UserDto> {
+    ): Result<UserResponse> {
         return try {
-            val response = authApi.updateProfile(UpdateProfileRequest(fullName, email, phone))
+            val response = authApi.updateProfile(ProfileUpdate(fullName, email, phone))
             if (response.isSuccessful && response.body() != null) {
                 val user = response.body()!!
                 prefs.setUserFullName(user.fullName)
@@ -210,7 +210,7 @@ class AuthRepository @Inject constructor(
     /**
      * Загрузить новый аватар. Сервер вернёт обновлённого пользователя с avatar_url.
      */
-    suspend fun uploadAvatar(uri: Uri): Result<UserDto> {
+    suspend fun uploadAvatar(uri: Uri): Result<UserResponse> {
         return try {
             // Сжимаем (ресайз до 1920px, JPEG q85). При ошибке декодирования
             // — отправляем оригинал, ограничивая размером 5 МБ как сервер.
@@ -263,7 +263,7 @@ class AuthRepository @Inject constructor(
     suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit> {
         return try {
             val response = authApi.changePassword(
-                ChangePasswordRequest(currentPassword, newPassword)
+                PasswordChange(currentPassword, newPassword)
             )
             if (response.isSuccessful) {
                 Result.success(Unit)

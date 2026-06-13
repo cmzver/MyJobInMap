@@ -1,5 +1,6 @@
 package com.fieldworker.domain.model
 
+import kotlinx.serialization.Serializable
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -107,6 +108,7 @@ data class ReplyPreview(
     val senderName: String?,
 )
 
+@Serializable
 data class TaskReference(
     val id: Long,
     val taskNumber: String?,
@@ -117,6 +119,7 @@ data class TaskReference(
     val accessible: Boolean,
 )
 
+@Serializable
 data class ChatAttachment(
     val id: Long,
     val fileName: String,
@@ -128,6 +131,7 @@ data class ChatAttachment(
     val isImage: Boolean get() = mimeType.startsWith("image/")
 }
 
+@Serializable
 data class ChatReaction(
     val emoji: String,
     val count: Int,

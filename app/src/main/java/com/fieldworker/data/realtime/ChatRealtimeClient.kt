@@ -2,9 +2,16 @@ package com.fieldworker.data.realtime
 
 import android.util.Log
 import com.fieldworker.data.preferences.AppPreferences
-import com.google.gson.Gson
-import com.google.gson.JsonObject
-import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.longOrNull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -50,9 +57,9 @@ data class ChatRealtimeEvent(
 class ChatRealtimeClient @Inject constructor(
     @Named("websocket") private val webSocketClient: OkHttpClient,
     private val preferences: AppPreferences,
+    private val json: Json,
 ) {
 
-    private val gson = Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _events = MutableSharedFlow<ChatRealtimeEvent>(extraBufferCapacity = 64)
 
@@ -94,7 +101,7 @@ class ChatRealtimeClient @Inject constructor(
 
     fun sendTypingIndicator(conversationId: Long, isTyping: Boolean) {
         val socket = webSocket ?: return
-        socket.send(gson.toJson(ChatTypingOutgoingDto(conversationId = conversationId, isTyping = isTyping)))
+        socket.send(json.encodeToString(ChatTypingOutgoingDto(conversationId = conversationId, isTyping = isTyping)))
     }
 
     private fun buildWebSocketUrl(token: String): String? {
@@ -131,16 +138,17 @@ class ChatRealtimeClient @Inject constructor(
 
     private fun handleIncomingMessage(message: String) {
         val envelope = runCatching {
-            gson.fromJson(message, WebSocketEnvelopeDto::class.java)
+            json.parseToJsonElement(message).jsonObject
         }.getOrElse { error ->
             Log.w(TAG, "Failed to parse websocket payload", error)
             return
         }
 
-        val data = envelope.data ?: return
+        val type = envelope.stringOrNull("type") ?: return
+        val data = (envelope["data"] as? JsonObject) ?: return
         val conversationId = data.longOrNull("conversation_id") ?: return
 
-        val event = when (envelope.type) {
+        val event = when (type) {
             "chat_message" -> ChatRealtimeEvent(
                 type = ChatRealtimeEventType.MESSAGE_CREATED,
                 conversationId = conversationId,
@@ -224,33 +232,20 @@ class ChatRealtimeClient @Inject constructor(
         }
     }
 
-    private fun JsonObject.longOrNull(name: String): Long? {
-        val element = get(name) ?: return null
-        if (element.isJsonNull) return null
-        return runCatching { element.asLong }.getOrNull()
-    }
+    private fun JsonObject.longOrNull(name: String): Long? =
+        (this[name] as? JsonPrimitive)?.longOrNull
 
-    private fun JsonObject.booleanOrNull(name: String): Boolean? {
-        val element = get(name) ?: return null
-        if (element.isJsonNull) return null
-        return runCatching { element.asBoolean }.getOrNull()
-    }
+    private fun JsonObject.booleanOrNull(name: String): Boolean? =
+        (this[name] as? JsonPrimitive)?.booleanOrNull
 
-    private fun JsonObject.stringOrNull(name: String): String? {
-        val element = get(name) ?: return null
-        if (element.isJsonNull) return null
-        return runCatching { element.asString }.getOrNull()
-    }
+    private fun JsonObject.stringOrNull(name: String): String? =
+        (this[name] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
 
-    private data class WebSocketEnvelopeDto(
-        @SerializedName("type") val type: String,
-        @SerializedName("data") val data: JsonObject? = null,
-    )
-
+    @Serializable
     private data class ChatTypingOutgoingDto(
-        @SerializedName("type") val type: String = "chat_typing",
-        @SerializedName("conversation_id") val conversationId: Long,
-        @SerializedName("is_typing") val isTyping: Boolean,
+        @SerialName("type") val type: String = "chat_typing",
+        @SerialName("conversation_id") val conversationId: Long,
+        @SerialName("is_typing") val isTyping: Boolean,
     )
 
     companion object {

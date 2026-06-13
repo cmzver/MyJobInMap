@@ -10,6 +10,7 @@ import com.fieldworker.domain.usecase.GetTasksUseCase
 import com.fieldworker.domain.usecase.TaskCommentsUseCase
 import com.fieldworker.domain.usecase.TaskPhotosUseCase
 import com.fieldworker.domain.usecase.UpdateTaskStatusUseCase
+import com.fieldworker.testutil.FakeSharedPreferences
 import com.fieldworker.ui.settings.ConnectionStatus
 import com.fieldworker.ui.utils.TaskSortOrder
 import io.mockk.*
@@ -20,27 +21,18 @@ import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
-import org.junit.BeforeClass
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MapViewModelTest {
 
-    companion object {
-        @JvmStatic
-        @BeforeClass
-        fun setupClass() {
-            mockkStatic(android.util.Log::class)
-            every { android.util.Log.d(any(), any()) } returns 0
-            every { android.util.Log.w(any(), any<String>()) } returns 0
-            every { android.util.Log.e(any(), any(), any()) } returns 0
-            every { android.util.Log.e(any(), any()) } returns 0
-            every { android.util.Log.i(any(), any()) } returns 0
-        }
-    }
+    // android.util.Log возвращает дефолты через testOptions.unitTests
+    // .isReturnDefaultValues, так что mockkStatic(Log) не нужен.
 
-    private val testDispatcher = StandardTestDispatcher()
-    
+    // Свежий планировщик на каждый тест: фоновые корутины утёкших VM остаются
+    // привязаны к планировщику своего теста и не детонируют в следующем.
+    private lateinit var testDispatcher: TestDispatcher
+
     private lateinit var getTasksUseCase: GetTasksUseCase
     private lateinit var updateTaskStatusUseCase: UpdateTaskStatusUseCase
     private lateinit var taskPhotosUseCase: TaskPhotosUseCase
@@ -77,48 +69,39 @@ class MapViewModelTest {
     )
 
     /**
-     * Создаёт стаб AppPreferences на StateFlow.
-     * Не трогаем реальную Android-реализацию prefs в JVM unit tests.
+     * Реальный [AppPreferences] поверх in-memory [FakeSharedPreferences].
+     *
+     * Намеренно НЕ мокаем и НЕ spy'им финальный AppPreferences:
+     *  - стабинг его StateFlow property-геттеров (`statusFilter` и т.п.) хрупок
+     *    из-за межклассового загрязнения inline-mock-maker'а mockk (issue #843);
+     *  - spyk не годится: у класса есть и свойство `val statusFilter: StateFlow`,
+     *    и функция `fun getStatusFilter(): Set` — одноимённые JVM-методы, и spy
+     *    путает перегрузки (ClassCastException Set→StateFlow).
+     * Реальная реализация даёт настоящие StateFlow; проверки делаем по
+     * наблюдаемому эффекту (см. ассерты на `preferences.*.value`).
      */
     private fun createRealPreferences(): AppPreferences {
-        val preferences = mockk<AppPreferences>(relaxed = true)
-        val statusFilterFlow = MutableStateFlow(
-            setOf(TaskStatus.NEW, TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED)
-        )
-        val priorityFilterFlow = MutableStateFlow(emptySet<Priority>())
-        val showMyLocationFlow = MutableStateFlow(true)
-        val hideDoneTasksFlow = MutableStateFlow(true)
-
-        every { preferences.statusFilterUpdates() } returns statusFilterFlow
-        every { preferences.priorityFilterUpdates() } returns priorityFilterFlow
-        every { preferences.showMyLocationUpdates() } returns showMyLocationFlow
-        every { preferences.hideDoneTasksUpdates() } returns hideDoneTasksFlow
-        every { preferences.getFullServerUrl() } returns "invalid-url"
-
-        every { preferences.setStatusFilter(any()) } answers {
-            statusFilterFlow.value = firstArg()
-            Unit
-        }
-        every { preferences.setPriorityFilter(any()) } answers {
-            priorityFilterFlow.value = firstArg()
-            Unit
-        }
-        every { preferences.setShowMyLocation(any()) } answers {
-            showMyLocationFlow.value = firstArg()
-            Unit
-        }
-        every { preferences.setHideDoneTasks(any()) } answers {
-            hideDoneTasksFlow.value = firstArg()
-            Unit
-        }
-
-        return preferences
+        val fakePrefs = FakeSharedPreferences()
+        val context = mockk<android.content.Context>(relaxed = true)
+        every { context.getSharedPreferences(any(), any()) } returns fakePrefs
+        // EncryptedSharedPreferences недоступен в чистой JVM — конструктор
+        // ловит исключение и откатывается на context.getSharedPreferences(...).
+        val prefs = AppPreferences(context)
+        // Невалидный URL → checkServerReachable() падает мгновенно
+        // (MalformedURLException), а не ходит в сеть на 3с.
+        prefs.setServerUrl("invalid-url")
+        return prefs
     }
 
     @Before
     fun setup() {
+        // Без unmockkAll(): моки пересоздаются ниже, а глобальный сброс лишь
+        // ломал бы фоновые корутины утёкших VM (они дёргают эти моки).
+        // AppPreferences больше не мокается, так что прежней причины для
+        // unmockkAll() (issue #843) тоже нет.
+        testDispatcher = StandardTestDispatcher()
         Dispatchers.setMain(testDispatcher)
-        
+
         getTasksUseCase = mockk(relaxed = true)
         every { getTasksUseCase.tasksFlow } returns tasksFlow
         every { getTasksUseCase.pendingActionsCount } returns pendingCountFlow
@@ -147,12 +130,21 @@ class MapViewModelTest {
     private fun createViewModel(): MapViewModel {
         coEvery { authRepository.validateCurrentUser() } returns AuthRepository.ValidationResult.VALID
         coEvery { getTasksUseCase.refreshTasks() } returns Result.success(emptyList())
-        
-        return MapViewModel(
-            getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
-            taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository
-        )
+
+        return buildViewModel()
     }
+
+    /**
+     * Конструирует VM с тестовым диспетчером. Фоновый `startServerReachabilityCheck`
+     * паркуется на реальном Dispatchers.IO; благодаря свежему планировщику на каждый
+     * тест (см. [setup]) его поздний резюм попадает на заброшенный планировщик и
+     * не задевает следующий тест.
+     */
+    private fun buildViewModel(): MapViewModel = MapViewModel(
+        getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
+        taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository,
+        testDispatcher
+    )
 
     // ==================== Инициализация ====================
 
@@ -189,14 +181,11 @@ class MapViewModelTest {
     fun `invalid session triggers logout without loading tasks`() = runTest {
         coEvery { authRepository.validateCurrentUser() } returns AuthRepository.ValidationResult.INVALID
 
-        val viewModel = MapViewModel(
-            getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
-            taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository
-        )
+        val viewModel = buildViewModel()
         advanceUntilIdle()
 
         coVerify { getTasksUseCase.clearCache() }
-        verify { preferences.triggerLogout() }
+        assertTrue(preferences.forcedLogoutRequested)
         assertTrue(viewModel.uiState.value.tasks.isEmpty())
     }
 
@@ -205,10 +194,7 @@ class MapViewModelTest {
         coEvery { authRepository.validateCurrentUser() } returns AuthRepository.ValidationResult.UNKNOWN
         coEvery { getTasksUseCase.refreshTasks() } returns Result.success(listOf(sampleTask()))
 
-        MapViewModel(
-            getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
-            taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository
-        )
+        buildViewModel()
         advanceUntilIdle()
 
         // Должен продолжить загрузку
@@ -260,13 +246,10 @@ class MapViewModelTest {
             Exception("Сессия истекла 401")
         )
 
-        MapViewModel(
-            getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
-            taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository
-        )
+        buildViewModel()
         advanceUntilIdle()
 
-        verify { preferences.triggerLogout() }
+        assertTrue(preferences.forcedLogoutRequested)
     }
 
     // ==================== Выбор задачи ====================
@@ -388,7 +371,7 @@ class MapViewModelTest {
         viewModel.setStatusFilter(filter)
 
         assertEquals(filter, viewModel.uiState.value.statusFilter)
-        verify { preferences.setStatusFilter(filter) }
+        assertEquals(filter, preferences.statusFilter.value)
     }
 
     @Test
@@ -400,7 +383,7 @@ class MapViewModelTest {
         viewModel.setPriorityFilter(filter)
 
         assertEquals(filter, viewModel.uiState.value.priorityFilter)
-        verify { preferences.setPriorityFilter(filter) }
+        assertEquals(filter, preferences.priorityFilter.value)
     }
 
     @Test
@@ -454,14 +437,16 @@ class MapViewModelTest {
     }
 
     @Test
-    fun `toggleShowMyLocation updates state and saves to preferences`() = runTest {
+    fun `showMyLocation preference change is reflected in state`() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
-        viewModel.toggleShowMyLocation(false)
+        // Состояние тянется реактивно из preferences.showMyLocation (StateFlow),
+        // отдельного метода-тоггла во ViewModel больше нет.
+        preferences.setShowMyLocation(false)
+        advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.showMyLocation)
-        verify { preferences.setShowMyLocation(false) }
     }
 
     // ==================== Статус диалог ====================
@@ -503,8 +488,11 @@ class MapViewModelTest {
         networkOnlineFlow.value = true
         advanceUntilIdle()
 
+        // Сервер по-прежнему недоступен → остаёмся офлайн…
         assertTrue(viewModel.uiState.value.isOffline)
-        verify(exactly = 0) { syncManager.triggerImmediateSync() }
+        // …но возврат сети после офлайна намеренно дёргает sync-ретрай
+        // (MapViewModel: `if (reachable || wasOffline) triggerImmediateSync()`).
+        verify(exactly = 1) { syncManager.triggerImmediateSync() }
     }
 
     // ==================== Подключение ====================
@@ -617,8 +605,8 @@ class MapViewModelTest {
             statusFilter = setOf(TaskStatus.NEW)
         )
 
-        assertEquals(1, state.filteredTasks.size)
-        assertEquals(TaskStatus.NEW, state.filteredTasks[0].status)
+        assertEquals(1, state.applyFilters().size)
+        assertEquals(TaskStatus.NEW, state.applyFilters()[0].status)
     }
 
     @Test
@@ -632,7 +620,7 @@ class MapViewModelTest {
             priorityFilter = setOf(Priority.URGENT, Priority.EMERGENCY)
         )
 
-        assertEquals(2, state.filteredTasks.size)
+        assertEquals(2, state.applyFilters().size)
     }
 
     @Test
@@ -646,8 +634,8 @@ class MapViewModelTest {
             searchQuery = "ремонт"
         )
 
-        assertEquals(1, state.filteredTasks.size)
-        assertEquals("Ремонт крана", state.filteredTasks[0].title)
+        assertEquals(1, state.applyFilters().size)
+        assertEquals("Ремонт крана", state.applyFilters()[0].title)
     }
 
     @Test
@@ -655,7 +643,7 @@ class MapViewModelTest {
         val tasks = listOf(sampleTask(1), sampleTask(2), sampleTask(3))
         val state = MapUiState(tasks = tasks)
 
-        assertEquals(3, state.filteredTasks.size)
+        assertEquals(3, state.applyFilters().size)
     }
 
     @Test
@@ -669,8 +657,8 @@ class MapViewModelTest {
             searchQuery = "Z-42"
         )
 
-        assertEquals(1, state.filteredTasks.size)
-        assertEquals(42L, state.filteredTasks[0].id)
+        assertEquals(1, state.applyFilters().size)
+        assertEquals(42L, state.applyFilters()[0].id)
     }
 
     @Test
@@ -684,8 +672,8 @@ class MapViewModelTest {
             searchQuery = "Ленина"
         )
 
-        assertEquals(1, state.filteredTasks.size)
-        assertEquals("ул. Ленина 10", state.filteredTasks[0].address)
+        assertEquals(1, state.applyFilters().size)
+        assertEquals("ул. Ленина 10", state.applyFilters()[0].address)
     }
 
     @Test
@@ -701,7 +689,7 @@ class MapViewModelTest {
             searchQuery = "ремонт"
         )
 
-        assertEquals(1, state.filteredTasks.size)
-        assertEquals(1L, state.filteredTasks[0].id)
+        assertEquals(1, state.applyFilters().size)
+        assertEquals(1L, state.applyFilters()[0].id)
     }
 }

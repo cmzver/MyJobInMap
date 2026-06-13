@@ -2,8 +2,9 @@ package com.fieldworker.data.repository
 
 import android.util.Log
 import com.fieldworker.data.api.TasksApi
-import com.fieldworker.data.dto.FCMTokenDto
+import com.fieldworker.data.dto.deviceRegisterWithInfo
 import com.fieldworker.data.preferences.AppPreferences
+import com.fieldworker.data.remote.generated.DeviceRegister
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -44,7 +45,7 @@ class DeviceRepository @Inject constructor(
             preferences.setFcmToken(token)
             
             // Отправляем на сервер
-            val dto = FCMTokenDto.withDeviceInfo(token)
+            val dto = deviceRegisterWithInfo(token)
             Log.d(TAG, "Registering device: ${dto.deviceName}")
             
             val response = tasksApi.registerDevice(dto)
@@ -70,7 +71,7 @@ class DeviceRepository @Inject constructor(
         try {
             val token = preferences.getFcmToken() ?: return@withContext Result.success(true)
             
-            val response = tasksApi.unregisterDevice(FCMTokenDto(token))
+            val response = tasksApi.unregisterDevice(DeviceRegister(token = token))
             
             if (response.isSuccessful) {
                 preferences.setFcmToken(null)
