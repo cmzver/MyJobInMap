@@ -16,9 +16,14 @@ import com.fieldworker.R
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.ui.MainActivity
 import com.fieldworker.data.notification.FCMService
-import com.google.gson.Gson
-import com.google.gson.JsonObject
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.longOrNull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -44,7 +49,9 @@ class RealtimePushService : Service() {
     @Inject
     lateinit var preferences: AppPreferences
 
-    private val gson = Gson()
+    @Inject
+    lateinit var json: Json
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var webSocket: WebSocket? = null
     private var reconnectJob: Job? = null
@@ -175,21 +182,21 @@ class RealtimePushService : Service() {
 
     private fun handleIncomingMessage(text: String) {
         try {
-            val envelope = gson.fromJson(text, JsonObject::class.java)
-            val type = envelope.get("type")?.asString ?: return
-            val data = envelope.getAsJsonObject("data") ?: return
+            val envelope = json.parseToJsonElement(text).jsonObject
+            val type = envelope.stringOrNull("type") ?: return
+            val data = (envelope["data"] as? JsonObject) ?: return
 
             when (type) {
                 "chat_message" -> {
                     if (preferences.getNotifyChatMessages()) {
-                        val senderId = data.get("sender_id")?.asLong
+                        val senderId = data.longOrNull("sender_id")
                         val myId = preferences.getUserId()
                         if (senderId != null && senderId == myId) return
-                        
-                        val convId = data.get("conversation_id")?.asLong?.toString() ?: return
-                        val textStr = data.get("text")?.asString ?: "Новое сообщение"
-                        val senderName = data.get("sender_name")?.asString
-                        val convName = data.get("conversation_name")?.takeIf { !it.isJsonNull }?.asString
+
+                        val convId = data.longOrNull("conversation_id")?.toString() ?: return
+                        val textStr = data.stringOrNull("text") ?: "Новое сообщение"
+                        val senderName = data.stringOrNull("sender_name")
+                        val convName = data.stringOrNull("conversation_name")
                         val title = convName ?: senderName ?: "Новое сообщение"
                         showNotification(
                             channelId = FCMService.CHANNEL_ID_CHAT,
@@ -202,9 +209,9 @@ class RealtimePushService : Service() {
                 }
                 "task_assigned", "task_assigned_to_me", "task_created" -> {
                     if (preferences.getNotifyNewTasks()) {
-                        val taskId = data.get("task_id")?.asLong?.toString() ?: return
-                        val taskNum = data.get("task_number")?.asString ?: taskId
-                        val title = data.get("title")?.asString ?: "Вам назначена заявка"
+                        val taskId = data.longOrNull("task_id")?.toString() ?: return
+                        val taskNum = data.stringOrNull("task_number") ?: taskId
+                        val title = data.stringOrNull("title") ?: "Вам назначена заявка"
                         showNotification(
                             channelId = FCMService.CHANNEL_ID_TASKS,
                             title = "Новая заявка: $taskNum",
@@ -216,9 +223,9 @@ class RealtimePushService : Service() {
                 }
                 "task_status_changed" -> {
                     if (preferences.getNotifyStatusChange()) {
-                        val taskId = data.get("task_id")?.asLong?.toString() ?: return
-                        val taskNum = data.get("task_number")?.asString ?: taskId
-                        val newStatus = data.get("new_status")?.asString ?: ""
+                        val taskId = data.longOrNull("task_id")?.toString() ?: return
+                        val taskNum = data.stringOrNull("task_number") ?: taskId
+                        val newStatus = data.stringOrNull("new_status") ?: ""
                         showNotification(
                             channelId = FCMService.CHANNEL_ID_STATUS,
                             title = "Статус изменён",
@@ -229,11 +236,11 @@ class RealtimePushService : Service() {
                     }
                 }
                 "notification_created" -> {
-                    val title = data.get("title")?.asString ?: "FieldWorker"
-                    val message = data.get("message")?.asString ?: ""
-                    val notifType = data.get("type")?.asString ?: "general"
-                    val taskId = data.get("task_id")?.asLong?.toString()
-                    val notifId = data.get("notification_id")?.asInt ?: title.hashCode()
+                    val title = data.stringOrNull("title") ?: "FieldWorker"
+                    val message = data.stringOrNull("message") ?: ""
+                    val notifType = data.stringOrNull("type") ?: "general"
+                    val taskId = data.longOrNull("task_id")?.toString()
+                    val notifId = data.intOrNull("notification_id") ?: title.hashCode()
                     val resolvedNotificationId = taskId?.hashCode() ?: notifId
                     
                     val channelId = when (notifType) {
@@ -254,6 +261,15 @@ class RealtimePushService : Service() {
             Log.w(TAG, "Failed to handle websocket message", e)
         }
     }
+
+    private fun JsonObject.longOrNull(name: String): Long? =
+        (this[name] as? JsonPrimitive)?.longOrNull
+
+    private fun JsonObject.intOrNull(name: String): Int? =
+        (this[name] as? JsonPrimitive)?.intOrNull
+
+    private fun JsonObject.stringOrNull(name: String): String? =
+        (this[name] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
 
     private fun showNotification(channelId: String, title: String, body: String, id: Int, taskId: String? = null, chatId: String? = null) {
         val dedupKey = "$channelId|${taskId ?: "-"}|${chatId ?: "-"}|$title|$body"
