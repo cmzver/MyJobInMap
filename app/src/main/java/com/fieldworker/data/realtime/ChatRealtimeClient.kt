@@ -11,7 +11,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -145,7 +144,7 @@ class ChatRealtimeClient @Inject constructor(
             return
         }
 
-        val type = envelope["type"]?.jsonPrimitive?.contentOrNull ?: return
+        val type = envelope.stringOrNull("type") ?: return
         val data = (envelope["data"] as? JsonObject) ?: return
         val conversationId = data.longOrNull("conversation_id") ?: return
 
