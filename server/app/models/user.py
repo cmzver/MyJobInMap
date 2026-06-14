@@ -4,11 +4,20 @@ User Models
 Модели пользователей и устройств.
 """
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import relationship
+from datetime import datetime
+from typing import TYPE_CHECKING, List, Optional
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, utcnow
 from app.models.enums import UserRole
+
+if TYPE_CHECKING:
+    from app.models.notification import NotificationModel
+    from app.models.organization import OrganizationModel
+    from app.models.support import SupportTicketCommentModel, SupportTicketModel
+    from app.models.task import TaskModel
 
 
 class UserModel(Base):
@@ -16,47 +25,59 @@ class UserModel(Base):
 
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(50), unique=True, nullable=False, index=True)
-    password_hash = Column(String(255), nullable=False)
-    full_name = Column(String(100), default="")
-    email = Column(String(100), nullable=True)
-    phone = Column(String(20), nullable=True)
-    avatar_path = Column(String(500), nullable=True)
-    role = Column(String(20), default=UserRole.WORKER.value)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=utcnow)
-    last_login = Column(DateTime, nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    username: Mapped[str] = mapped_column(
+        String(50), unique=True, nullable=False, index=True
+    )
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    full_name: Mapped[str] = mapped_column(String(100), default="", nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    avatar_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    role: Mapped[str] = mapped_column(
+        String(20), default=UserRole.WORKER.value, nullable=True
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+    last_login: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Multi-tenant
-    organization_id = Column(
+    organization_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("organizations.id"), nullable=True, index=True
     )
 
     # Настройки отправки отчётов: 'group', 'contact', 'none'
-    report_target = Column(String(20), default="group")
+    report_target: Mapped[str] = mapped_column(
+        String(20), default="group", nullable=True
+    )
     # Номер телефона для отправки отчётов (если report_target='contact')
-    report_contact_phone = Column(String(20), nullable=True)
+    report_contact_phone: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True
+    )
 
     # FCM токены устройств пользователя
-    devices = relationship(
+    devices: Mapped[List["DeviceModel"]] = relationship(
         "DeviceModel", back_populates="user", cascade="all, delete-orphan"
     )
 
     # Назначенные задачи
-    assigned_tasks = relationship("TaskModel", back_populates="assigned_user")
+    assigned_tasks: Mapped[List["TaskModel"]] = relationship(
+        "TaskModel", back_populates="assigned_user"
+    )
 
     # Уведомления пользователя
-    notifications = relationship(
+    notifications: Mapped[List["NotificationModel"]] = relationship(
         "NotificationModel", back_populates="user", cascade="all, delete-orphan"
     )
-    support_tickets_created = relationship(
+    support_tickets_created: Mapped[List["SupportTicketModel"]] = relationship(
         "SupportTicketModel",
         back_populates="created_by",
         foreign_keys="SupportTicketModel.created_by_id",
         cascade="all, delete-orphan",
     )
-    support_comments_authored = relationship(
+    support_comments_authored: Mapped[List["SupportTicketCommentModel"]] = relationship(
         "SupportTicketCommentModel",
         back_populates="author",
         foreign_keys="SupportTicketCommentModel.author_id",
@@ -64,7 +85,9 @@ class UserModel(Base):
     )
 
     # Организация
-    organization = relationship("OrganizationModel", back_populates="users")
+    organization: Mapped[Optional["OrganizationModel"]] = relationship(
+        "OrganizationModel", back_populates="users"
+    )
 
 
 class DeviceModel(Base):
@@ -72,11 +95,17 @@ class DeviceModel(Base):
 
     __tablename__ = "devices"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    fcm_token = Column(String(500), unique=True, nullable=False)
-    device_name = Column(String(100), nullable=True)
-    created_at = Column(DateTime, default=utcnow)
-    last_active = Column(DateTime, default=utcnow)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    fcm_token: Mapped[str] = mapped_column(String(500), unique=True, nullable=False)
+    device_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+    last_active: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
 
-    user = relationship("UserModel", back_populates="devices")
+    user: Mapped["UserModel"] = relationship("UserModel", back_populates="devices")

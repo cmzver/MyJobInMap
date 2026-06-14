@@ -2,12 +2,18 @@
 Support ticket models.
 """
 
+from datetime import datetime
 from enum import Enum
+from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, utcnow
+
+if TYPE_CHECKING:
+    from app.models.organization import OrganizationModel
+    from app.models.user import UserModel
 
 
 class SupportTicketCategory(str, Enum):
@@ -38,29 +44,39 @@ class SupportTicketModel(Base):
         Index("ix_support_tickets_updated_at", "updated_at"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(200), nullable=False)
-    description = Column(Text, nullable=False)
-    category = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[str] = mapped_column(
         String(20), nullable=False, default=SupportTicketCategory.FEEDBACK.value
     )
-    status = Column(String(20), nullable=False, default=SupportTicketStatus.NEW.value)
-    admin_response = Column(Text, nullable=True)
-    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    organization_id = Column(
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=SupportTicketStatus.NEW.value
+    )
+    admin_response: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_by_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    organization_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("organizations.id"), nullable=True, index=True
     )
-    created_at = Column(DateTime, default=utcnow, nullable=False)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
-    resolved_at = Column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
+    )
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
-    created_by = relationship(
+    created_by: Mapped["UserModel"] = relationship(
         "UserModel",
         back_populates="support_tickets_created",
         foreign_keys=[created_by_id],
     )
-    organization = relationship("OrganizationModel", back_populates="support_tickets")
-    comments = relationship(
+    organization: Mapped[Optional["OrganizationModel"]] = relationship(
+        "OrganizationModel", back_populates="support_tickets"
+    )
+    comments: Mapped[List["SupportTicketCommentModel"]] = relationship(
         "SupportTicketCommentModel",
         back_populates="ticket",
         cascade="all, delete-orphan",
@@ -76,19 +92,27 @@ class SupportTicketCommentModel(Base):
         Index("ix_support_ticket_comments_type", "comment_type"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    ticket_id = Column(Integer, ForeignKey("support_tickets.id"), nullable=False)
-    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    comment_type = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    ticket_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("support_tickets.id"), nullable=False
+    )
+    author_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    comment_type: Mapped[str] = mapped_column(
         String(20), nullable=False, default=SupportTicketCommentType.COMMENT.value
     )
-    body = Column(Text, nullable=True)
-    old_status = Column(String(20), nullable=True)
-    new_status = Column(String(20), nullable=True)
-    created_at = Column(DateTime, default=utcnow, nullable=False)
+    body: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    old_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    new_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=False
+    )
 
-    ticket = relationship("SupportTicketModel", back_populates="comments")
-    author = relationship(
+    ticket: Mapped["SupportTicketModel"] = relationship(
+        "SupportTicketModel", back_populates="comments"
+    )
+    author: Mapped["UserModel"] = relationship(
         "UserModel",
         back_populates="support_comments_authored",
         foreign_keys=[author_id],

@@ -122,8 +122,8 @@ def _org_to_response(org: OrganizationModel, db: Session) -> OrganizationRespons
         user_count=user_count,
         task_count=task_count,
         address_count=address_count,
-        created_at=org.created_at.isoformat() if org.created_at else None,
-        updated_at=org.updated_at.isoformat() if org.updated_at else None,
+        created_at=org.created_at.isoformat() if org.created_at is not None else None,
+        updated_at=org.updated_at.isoformat() if org.updated_at is not None else None,
     )
 
 

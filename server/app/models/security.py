@@ -8,7 +8,11 @@ Security Models
 портала для просмотра и ручного управления блокировками.
 """
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, utcnow
 
@@ -23,23 +27,33 @@ class BlockedIPModel(Base):
 
     __tablename__ = "blocked_ips"
 
-    id = Column(Integer, primary_key=True, index=True)
-    ip_address = Column(String(45), unique=True, nullable=False, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    ip_address: Mapped[str] = mapped_column(
+        String(45), unique=True, nullable=False, index=True
+    )
 
     # Причина и происхождение бана
-    reason = Column(String(255), nullable=True)
-    is_manual = Column(Boolean, default=False)  # добавлен администратором вручную
-    is_permanent = Column(Boolean, default=False)  # никогда не истекает
+    reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    is_manual: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=True
+    )  # добавлен администратором вручную
+    is_permanent: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=True
+    )  # никогда не истекает
 
-    created_at = Column(DateTime, default=utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, index=True, nullable=True
+    )
     # NULL => постоянная блокировка
-    expires_at = Column(DateTime, nullable=True, index=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True, index=True
+    )
 
-    hit_count = Column(Integer, default=0)
-    last_hit_at = Column(DateTime, nullable=True)
+    hit_count: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
+    last_hit_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # username администратора, либо "system" для авто-бана
-    created_by = Column(String(100), nullable=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
 
 class IPAllowlistModel(Base):
@@ -50,11 +64,15 @@ class IPAllowlistModel(Base):
 
     __tablename__ = "ip_allowlist"
 
-    id = Column(Integer, primary_key=True, index=True)
-    ip_address = Column(String(45), unique=True, nullable=False, index=True)
-    note = Column(String(255), nullable=True)
-    created_at = Column(DateTime, default=utcnow)
-    created_by = Column(String(100), nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    ip_address: Mapped[str] = mapped_column(
+        String(45), unique=True, nullable=False, index=True
+    )
+    note: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+    created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
 
 class IPSecurityEventModel(Base):
@@ -66,9 +84,13 @@ class IPSecurityEventModel(Base):
 
     __tablename__ = "ip_security_events"
 
-    id = Column(Integer, primary_key=True, index=True)
-    ip_address = Column(String(45), nullable=False, index=True)
-    event_type = Column(String(40), nullable=False, index=True)
-    username = Column(String(150), nullable=True)  # для login_failed — введённый логин
-    detail = Column(String(255), nullable=True)
-    created_at = Column(DateTime, default=utcnow, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    ip_address: Mapped[str] = mapped_column(String(45), nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    username: Mapped[Optional[str]] = mapped_column(
+        String(150), nullable=True
+    )  # для login_failed — введённый логин
+    detail: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, index=True, nullable=True
+    )

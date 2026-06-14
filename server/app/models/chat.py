@@ -5,10 +5,11 @@ Chat Models
 """
 
 import enum
+from datetime import datetime
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import (
     Boolean,
-    Column,
     DateTime,
     ForeignKey,
     Index,
@@ -17,9 +18,14 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, utcnow
+
+if TYPE_CHECKING:
+    from app.models.organization import OrganizationModel
+    from app.models.task import TaskModel
+    from app.models.user import UserModel
 
 
 class ConversationType(str, enum.Enum):
@@ -59,34 +65,50 @@ class ConversationModel(Base):
         Index("ix_conversations_type", "type"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    type = Column(String(20), nullable=False)  # ConversationType
-    name = Column(String(200), nullable=True)  # Для group/org_general
-    avatar_url = Column(String(500), nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    type: Mapped[str] = mapped_column(String(20), nullable=False)  # ConversationType
+    name: Mapped[Optional[str]] = mapped_column(
+        String(200), nullable=True
+    )  # Для group/org_general
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     # Привязка к заявке (только для type=task)
-    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True, unique=True)
+    task_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("tasks.id"), nullable=True, unique=True
+    )
 
     # Multi-tenant
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    organization_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("organizations.id"), nullable=True
+    )
 
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    created_by: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
+    )
 
     # Denormalized для быстрой сортировки списка чатов
-    last_message_at = Column(DateTime, nullable=True)
+    last_message_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Relationships
-    task = relationship("TaskModel", back_populates="conversation")
-    organization = relationship("OrganizationModel", back_populates="conversations")
-    creator = relationship("UserModel", foreign_keys=[created_by])
-    members = relationship(
+    task: Mapped[Optional["TaskModel"]] = relationship(
+        "TaskModel", back_populates="conversation"
+    )
+    organization: Mapped[Optional["OrganizationModel"]] = relationship(
+        "OrganizationModel", back_populates="conversations"
+    )
+    creator: Mapped["UserModel"] = relationship("UserModel", foreign_keys=[created_by])
+    members: Mapped[List["ConversationMemberModel"]] = relationship(
         "ConversationMemberModel",
         back_populates="conversation",
         cascade="all, delete-orphan",
     )
-    messages = relationship(
+    messages: Mapped[List["MessageModel"]] = relationship(
         "MessageModel",
         back_populates="conversation",
         cascade="all, delete-orphan",
@@ -102,23 +124,29 @@ class ConversationMemberModel(Base):
         Index("ix_conv_members_user", "user_id"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    conversation_id = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    conversation_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
     )
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    role = Column(String(20), default=ConversationMemberRole.MEMBER.value)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    role: Mapped[str] = mapped_column(
+        String(20), default=ConversationMemberRole.MEMBER.value, nullable=True
+    )
 
     # Прочтение: ID последнего прочитанного сообщения
-    last_read_message_id = Column(Integer, nullable=True)
+    last_read_message_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
-    is_muted = Column(Boolean, default=False)
-    is_archived = Column(Boolean, default=False)
-    joined_at = Column(DateTime, default=utcnow)
+    is_muted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
+    is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
+    joined_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=True)
 
     # Relationships
-    conversation = relationship("ConversationModel", back_populates="members")
-    user = relationship("UserModel")
+    conversation: Mapped["ConversationModel"] = relationship(
+        "ConversationModel", back_populates="members"
+    )
+    user: Mapped["UserModel"] = relationship("UserModel")
 
 
 class MessageModel(Base):
@@ -131,47 +159,65 @@ class MessageModel(Base):
         Index("ix_messages_task", "task_id"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    conversation_id = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    conversation_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
     )
-    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    sender_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
 
-    text = Column(Text, nullable=True)  # Nullable если только вложение
-    message_type = Column(String(20), default=MessageType.TEXT.value)
+    text: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # Nullable если только вложение
+    message_type: Mapped[str] = mapped_column(
+        String(20), default=MessageType.TEXT.value, nullable=True
+    )
 
     # Ответ на сообщение
-    reply_to_id = Column(Integer, ForeignKey("messages.id"), nullable=True)
+    reply_to_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("messages.id"), nullable=True
+    )
 
     # Прикреплённая заявка (для type=task). Превью собирается живым при сериализации.
-    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)
+    task_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("tasks.id"), nullable=True
+    )
 
-    is_edited = Column(Boolean, default=False)
-    edited_at = Column(DateTime, nullable=True)
-    is_deleted = Column(Boolean, default=False)  # Soft delete
+    is_edited: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
+    edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=True
+    )  # Soft delete
 
-    created_at = Column(DateTime, default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
 
     # Relationships
-    conversation = relationship("ConversationModel", back_populates="messages")
-    sender = relationship("UserModel", foreign_keys=[sender_id])
-    reply_to = relationship(
+    conversation: Mapped["ConversationModel"] = relationship(
+        "ConversationModel", back_populates="messages"
+    )
+    sender: Mapped["UserModel"] = relationship("UserModel", foreign_keys=[sender_id])
+    reply_to: Mapped[Optional["MessageModel"]] = relationship(
         "MessageModel", remote_side="MessageModel.id", uselist=False
     )
     # Одно-направленная ссылка на заявку (уникальную связь чат↔заявка держит
     # ConversationModel.task_id; здесь связь не уникальна и без back_populates).
-    task = relationship("TaskModel", foreign_keys=[task_id])
-    attachments = relationship(
+    task: Mapped[Optional["TaskModel"]] = relationship(
+        "TaskModel", foreign_keys=[task_id]
+    )
+    attachments: Mapped[List["MessageAttachmentModel"]] = relationship(
         "MessageAttachmentModel",
         back_populates="message",
         cascade="all, delete-orphan",
     )
-    reactions = relationship(
+    reactions: Mapped[List["MessageReactionModel"]] = relationship(
         "MessageReactionModel",
         back_populates="message",
         cascade="all, delete-orphan",
     )
-    mentions = relationship(
+    mentions: Mapped[List["MessageMentionModel"]] = relationship(
         "MessageMentionModel",
         back_populates="message",
         cascade="all, delete-orphan",
@@ -184,21 +230,29 @@ class MessageAttachmentModel(Base):
     __tablename__ = "message_attachments"
     __table_args__ = (Index("ix_msg_attachments_message", "message_id"),)
 
-    id = Column(Integer, primary_key=True, index=True)
-    message_id = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    message_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=False
     )
 
-    file_path = Column(String(500), nullable=False)
-    file_name = Column(String(255), nullable=False)
-    file_size = Column(Integer, default=0)  # bytes
-    mime_type = Column(String(100), default="application/octet-stream")
-    thumbnail_path = Column(String(500), nullable=True)  # Для изображений
+    file_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_size: Mapped[int] = mapped_column(Integer, default=0, nullable=True)  # bytes
+    mime_type: Mapped[str] = mapped_column(
+        String(100), default="application/octet-stream", nullable=True
+    )
+    thumbnail_path: Mapped[Optional[str]] = mapped_column(
+        String(500), nullable=True
+    )  # Для изображений
 
-    created_at = Column(DateTime, default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
 
     # Relationships
-    message = relationship("MessageModel", back_populates="attachments")
+    message: Mapped["MessageModel"] = relationship(
+        "MessageModel", back_populates="attachments"
+    )
 
 
 class MessageReactionModel(Base):
@@ -210,17 +264,23 @@ class MessageReactionModel(Base):
         Index("ix_reactions_message", "message_id"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    message_id = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    message_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=False
     )
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    emoji = Column(String(10), nullable=False)
-    created_at = Column(DateTime, default=utcnow)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    emoji: Mapped[str] = mapped_column(String(10), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
 
     # Relationships
-    message = relationship("MessageModel", back_populates="reactions")
-    user = relationship("UserModel")
+    message: Mapped["MessageModel"] = relationship(
+        "MessageModel", back_populates="reactions"
+    )
+    user: Mapped["UserModel"] = relationship("UserModel")
 
 
 class MessageMentionModel(Base):
@@ -232,16 +292,22 @@ class MessageMentionModel(Base):
         Index("ix_mentions_user", "user_id"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    message_id = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    message_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=False
     )
-    user_id = Column(
+    user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=False
     )  # Упомянутый пользователь
-    offset = Column(Integer, default=0)  # Позиция в тексте
-    length = Column(Integer, default=0)  # Длина упоминания в тексте
+    offset: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=True
+    )  # Позиция в тексте
+    length: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=True
+    )  # Длина упоминания в тексте
 
     # Relationships
-    message = relationship("MessageModel", back_populates="mentions")
-    user = relationship("UserModel")
+    message: Mapped["MessageModel"] = relationship(
+        "MessageModel", back_populates="mentions"
+    )
+    user: Mapped["UserModel"] = relationship("UserModel")

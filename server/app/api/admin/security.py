@@ -229,6 +229,8 @@ async def block_ip(
         is_manual=True,
         event_type="manual_banned",
     )
+    if row is None:
+        raise HTTPException(status_code=500, detail="Не удалось заблокировать IP.")
     logger.info("Admin %s manually blocked IP %s", admin.username, payload.ip_address)
     return _ban_to_dict(row)
 

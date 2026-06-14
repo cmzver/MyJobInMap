@@ -4,9 +4,11 @@ Task Models
 Модели заявок, комментариев и фотографий.
 """
 
+from datetime import datetime
+from typing import TYPE_CHECKING, List, Optional
+
 from sqlalchemy import (
     Boolean,
-    Column,
     DateTime,
     Float,
     ForeignKey,
@@ -15,10 +17,16 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, utcnow
 from app.models.enums import TaskPriority, TaskStatus
+
+if TYPE_CHECKING:
+    from app.models.chat import ConversationModel
+    from app.models.notification import NotificationModel
+    from app.models.organization import OrganizationModel
+    from app.models.user import UserModel
 
 
 class TaskModel(Base):
@@ -34,53 +42,81 @@ class TaskModel(Base):
         Index("ix_tasks_completed_at", "completed_at"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    task_number = Column(String, nullable=True, index=True)  # Номер от диспетчера
-    title = Column(String, nullable=False)
-    raw_address = Column(String, nullable=False)
-    description = Column(String, default="")
-    customer_name = Column(String(200), nullable=True, index=True)
-    customer_phone = Column(String(50), nullable=True, index=True)
-    lat = Column(Float, default=0.0)
-    lon = Column(Float, default=0.0)
-    status = Column(String, default=TaskStatus.NEW.value)
-    priority = Column(String, default=TaskPriority.PLANNED.value)
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
-    planned_date = Column(DateTime, nullable=True)  # Планируемая дата выполнения
-    completed_at = Column(DateTime, nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    task_number: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True, index=True
+    )  # Номер от диспетчера
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    raw_address: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, default="", nullable=True)
+    customer_name: Mapped[Optional[str]] = mapped_column(
+        String(200), nullable=True, index=True
+    )
+    customer_phone: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True, index=True
+    )
+    lat: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
+    lon: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String, default=TaskStatus.NEW.value, nullable=True
+    )
+    priority: Mapped[str] = mapped_column(
+        String, default=TaskPriority.PLANNED.value, nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
+    )
+    planned_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )  # Планируемая дата выполнения
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Назначенный пользователь
-    assigned_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    assigned_user = relationship("UserModel", back_populates="assigned_tasks")
+    assigned_user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    assigned_user: Mapped[Optional["UserModel"]] = relationship(
+        "UserModel", back_populates="assigned_tasks"
+    )
 
     # Multi-tenant
-    organization_id = Column(
+    organization_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("organizations.id"), nullable=True, index=True
     )
 
     # Система и тип неисправности
-    system_id = Column(Integer, ForeignKey("address_systems.id"), nullable=True)
-    system_type = Column(
+    system_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("address_systems.id"), nullable=True
+    )
+    system_type: Mapped[Optional[str]] = mapped_column(
         String(50), nullable=True
     )  # Тип системы (video_surveillance, intercom, etc.)
-    defect_type = Column(String(200), nullable=True)  # Название типа неисправности
+    defect_type: Mapped[Optional[str]] = mapped_column(
+        String(200), nullable=True
+    )  # Название типа неисправности
 
     # Финансовые поля
-    is_remote = Column(Boolean, default=False)
-    is_paid = Column(Boolean, default=False)
-    payment_amount = Column(Float, default=0.0)
+    is_remote: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
+    is_paid: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
+    payment_amount: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
 
     # Связи
-    comments = relationship(
+    comments: Mapped[List["CommentModel"]] = relationship(
         "CommentModel", back_populates="task", cascade="all, delete-orphan"
     )
-    photos = relationship(
+    photos: Mapped[List["TaskPhotoModel"]] = relationship(
         "TaskPhotoModel", back_populates="task", cascade="all, delete-orphan"
     )
-    notifications = relationship("NotificationModel", back_populates="task")
-    organization = relationship("OrganizationModel", back_populates="tasks")
-    conversation = relationship(
+    notifications: Mapped[List["NotificationModel"]] = relationship(
+        "NotificationModel", back_populates="task"
+    )
+    organization: Mapped[Optional["OrganizationModel"]] = relationship(
+        "OrganizationModel", back_populates="tasks"
+    )
+    conversation: Mapped[Optional["ConversationModel"]] = relationship(
         "ConversationModel", back_populates="task", uselist=False
     )
 
@@ -91,18 +127,24 @@ class CommentModel(Base):
     __tablename__ = "comments"
     __table_args__ = (Index("ix_comments_task_id", "task_id"),)
 
-    id = Column(Integer, primary_key=True, index=True)
-    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
-    text = Column(Text, nullable=False)
-    author = Column(String, default="Система")
-    author_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    old_status = Column(String, nullable=True)
-    new_status = Column(String, nullable=True)
-    old_assignee = Column(String, nullable=True)
-    new_assignee = Column(String, nullable=True)
-    created_at = Column(DateTime, default=utcnow)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    task_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tasks.id"), nullable=False
+    )
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    author: Mapped[str] = mapped_column(String, default="Система", nullable=True)
+    author_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    old_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    new_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    old_assignee: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    new_assignee: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
 
-    task = relationship("TaskModel", back_populates="comments")
+    task: Mapped["TaskModel"] = relationship("TaskModel", back_populates="comments")
 
 
 class TaskPhotoModel(Base):
@@ -114,15 +156,25 @@ class TaskPhotoModel(Base):
         Index("ix_task_photos_filename", "filename"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
-    filename = Column(String(255), nullable=False)
-    original_name = Column(String(255), nullable=True)
-    file_size = Column(Integer, default=0)
-    mime_type = Column(String(50), default="image/jpeg")
-    uploaded_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    photo_type = Column(String(20), default="completion")  # before/after/completion
-    created_at = Column(DateTime, default=utcnow)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    task_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tasks.id"), nullable=False
+    )
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    original_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    file_size: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
+    mime_type: Mapped[str] = mapped_column(
+        String(50), default="image/jpeg", nullable=True
+    )
+    uploaded_by_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    photo_type: Mapped[str] = mapped_column(
+        String(20), default="completion", nullable=True
+    )  # before/after/completion
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
 
-    task = relationship("TaskModel", back_populates="photos")
-    uploaded_by = relationship("UserModel")
+    task: Mapped["TaskModel"] = relationship("TaskModel", back_populates="photos")
+    uploaded_by: Mapped[Optional["UserModel"]] = relationship("UserModel")

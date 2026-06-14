@@ -4,10 +4,20 @@ Organization Model
 Модель организации для multi-tenant поддержки.
 """
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
-from sqlalchemy.orm import relationship
+from datetime import datetime
+from typing import TYPE_CHECKING, List, Optional
+
+from sqlalchemy import Boolean, DateTime, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, utcnow
+
+if TYPE_CHECKING:
+    from app.models.address import AddressModel
+    from app.models.chat import ConversationModel
+    from app.models.support import SupportTicketModel
+    from app.models.task import TaskModel
+    from app.models.user import UserModel
 
 
 class OrganizationModel(Base):
@@ -15,28 +25,46 @@ class OrganizationModel(Base):
 
     __tablename__ = "organizations"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(200), nullable=False, unique=True, index=True)
-    slug = Column(String(100), nullable=False, unique=True, index=True)
-    description = Column(Text, nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(
+        String(200), nullable=False, unique=True, index=True
+    )
+    slug: Mapped[str] = mapped_column(
+        String(100), nullable=False, unique=True, index=True
+    )
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Контактная информация
-    email = Column(String(200), nullable=True)
-    phone = Column(String(50), nullable=True)
-    address = Column(String(500), nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    address: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     # Настройки
-    is_active = Column(Boolean, default=True)
-    max_users = Column(Integer, default=50, nullable=False)
-    max_tasks = Column(Integer, default=10000, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=True)
+    max_users: Mapped[int] = mapped_column(Integer, default=50, nullable=False)
+    max_tasks: Mapped[int] = mapped_column(Integer, default=10000, nullable=False)
 
     # Метаданные
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
+    )
 
     # Связи
-    users = relationship("UserModel", back_populates="organization")
-    tasks = relationship("TaskModel", back_populates="organization")
-    addresses = relationship("AddressModel", back_populates="organization")
-    conversations = relationship("ConversationModel", back_populates="organization")
-    support_tickets = relationship("SupportTicketModel", back_populates="organization")
+    users: Mapped[List["UserModel"]] = relationship(
+        "UserModel", back_populates="organization"
+    )
+    tasks: Mapped[List["TaskModel"]] = relationship(
+        "TaskModel", back_populates="organization"
+    )
+    addresses: Mapped[List["AddressModel"]] = relationship(
+        "AddressModel", back_populates="organization"
+    )
+    conversations: Mapped[List["ConversationModel"]] = relationship(
+        "ConversationModel", back_populates="organization"
+    )
+    support_tickets: Mapped[List["SupportTicketModel"]] = relationship(
+        "SupportTicketModel", back_populates="organization"
+    )

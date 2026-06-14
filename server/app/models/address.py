@@ -5,11 +5,12 @@
 ������������, ���������, ��������, �������.
 """
 
+from datetime import datetime
 from enum import Enum
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import (
     Boolean,
-    Column,
     DateTime,
     Float,
     ForeignKey,
@@ -18,9 +19,13 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, utcnow
+
+if TYPE_CHECKING:
+    from app.models.organization import OrganizationModel
+    from app.models.user import UserModel
 
 # ============================================
 # Enums
@@ -117,63 +122,97 @@ class AddressModel(Base):
 
     __tablename__ = "addresses"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
 
     # �������� ����������
-    address = Column(String(500), nullable=False, index=True, unique=True)
-    city = Column(String(100), nullable=True, default="")  # �����
-    street = Column(String(200), nullable=True, default="")  # �����
-    building = Column(String(50), nullable=True, default="")  # ����� ����
-    corpus = Column(String(20), nullable=True, default="")  # ������/��������
-    entrance = Column(String(10), nullable=True, default="")  # �������
+    address: Mapped[str] = mapped_column(
+        String(500), nullable=False, index=True, unique=True
+    )
+    city: Mapped[str] = mapped_column(String(100), nullable=True, default="")  # �����
+    street: Mapped[str] = mapped_column(String(200), nullable=True, default="")  # �����
+    building: Mapped[str] = mapped_column(
+        String(50), nullable=True, default=""
+    )  # ����� ����
+    corpus: Mapped[str] = mapped_column(
+        String(20), nullable=True, default=""
+    )  # ������/��������
+    entrance: Mapped[str] = mapped_column(
+        String(10), nullable=True, default=""
+    )  # �������
 
     # ����������
-    lat = Column(Float, nullable=True)
-    lon = Column(Float, nullable=True)
+    lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     # ���������� � ������
-    entrance_count = Column(Integer, nullable=True, default=1)  # ���������� ���������
-    floor_count = Column(Integer, nullable=True, default=1)  # ���������� ������
-    apartment_count = Column(Integer, nullable=True)  # ���������� �������
-    has_elevator = Column(Boolean, nullable=True, default=False)  # ���� ����
-    has_intercom = Column(Boolean, nullable=True, default=False)  # ���� �������
-    intercom_code = Column(String(50), nullable=True, default="")  # ��� ��������
+    entrance_count: Mapped[int] = mapped_column(
+        Integer, nullable=True, default=1
+    )  # ���������� ���������
+    floor_count: Mapped[int] = mapped_column(
+        Integer, nullable=True, default=1
+    )  # ���������� ������
+    apartment_count: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True
+    )  # ���������� �������
+    has_elevator: Mapped[bool] = mapped_column(
+        Boolean, nullable=True, default=False
+    )  # ���� ����
+    has_intercom: Mapped[bool] = mapped_column(
+        Boolean, nullable=True, default=False
+    )  # ���� �������
+    intercom_code: Mapped[str] = mapped_column(
+        String(50), nullable=True, default=""
+    )  # ��� ��������
 
     # ���������� ����������
-    management_company = Column(String(200), nullable=True, default="")  # ��
-    management_phone = Column(String(50), nullable=True, default="")  # ������� ��
+    management_company: Mapped[str] = mapped_column(
+        String(200), nullable=True, default=""
+    )  # ��
+    management_phone: Mapped[str] = mapped_column(
+        String(50), nullable=True, default=""
+    )  # ������� ��
 
     # �������������
-    notes = Column(Text, nullable=True, default="")  # �������
-    extra_info = Column(Text, nullable=True, default="")  # �������������� ����������
-    is_active = Column(Boolean, nullable=False, default=True)  # ������� �� �����
+    notes: Mapped[str] = mapped_column(Text, nullable=True, default="")  # �������
+    extra_info: Mapped[str] = mapped_column(
+        Text, nullable=True, default=""
+    )  # �������������� ����������
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )  # ������� �� �����
 
     # ����������
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
+    )
 
     # Multi-tenant
-    organization_id = Column(
+    organization_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("organizations.id"), nullable=True, index=True
     )
 
     # Relationships
-    systems = relationship(
+    systems: Mapped[List["AddressSystemModel"]] = relationship(
         "AddressSystemModel", back_populates="address", cascade="all, delete-orphan"
     )
-    equipment = relationship(
+    equipment: Mapped[List["AddressEquipmentModel"]] = relationship(
         "AddressEquipmentModel", back_populates="address", cascade="all, delete-orphan"
     )
-    documents = relationship(
+    documents: Mapped[List["AddressDocumentModel"]] = relationship(
         "AddressDocumentModel", back_populates="address", cascade="all, delete-orphan"
     )
-    contacts = relationship(
+    contacts: Mapped[List["AddressContactModel"]] = relationship(
         "AddressContactModel", back_populates="address", cascade="all, delete-orphan"
     )
-    history = relationship(
+    history: Mapped[List["AddressHistoryModel"]] = relationship(
         "AddressHistoryModel", back_populates="address", cascade="all, delete-orphan"
     )
-    organization = relationship("OrganizationModel", back_populates="addresses")
+    organization: Mapped[Optional["OrganizationModel"]] = relationship(
+        "OrganizationModel", back_populates="addresses"
+    )
 
     def __repr__(self):
         return f"<Address(id={self.id}, address='{self.address}')>"
@@ -188,28 +227,46 @@ class AddressSystemModel(Base):
         Index("ix_address_systems_type", "system_type"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    address_id = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    address_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("addresses.id", ondelete="CASCADE"), nullable=False
     )
 
-    system_type = Column(String(50), nullable=False, default=SystemType.OTHER.value)
-    name = Column(String(200), nullable=False)
-    status = Column(String(20), nullable=False, default=SystemStatus.ACTIVE.value)
+    system_type: Mapped[str] = mapped_column(
+        String(50), nullable=False, default=SystemType.OTHER.value
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=SystemStatus.ACTIVE.value
+    )
 
-    contract_number = Column(String(100), nullable=True)  # ����� ��������
-    service_start_date = Column(DateTime, nullable=True)  # ������ ������������
-    service_end_date = Column(DateTime, nullable=True)  # ����� ������������
-    monthly_cost = Column(Float, nullable=True, default=0)  # ����������� �����
+    contract_number: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True
+    )  # ����� ��������
+    service_start_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )  # ������ ������������
+    service_end_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )  # ����� ������������
+    monthly_cost: Mapped[float] = mapped_column(
+        Float, nullable=True, default=0
+    )  # ����������� �����
 
-    notes = Column(Text, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
+    )
 
     # Relationships
-    address = relationship("AddressModel", back_populates="systems")
-    equipment = relationship(
+    address: Mapped["AddressModel"] = relationship(
+        "AddressModel", back_populates="systems"
+    )
+    equipment: Mapped[List["AddressEquipmentModel"]] = relationship(
         "AddressEquipmentModel", back_populates="system", cascade="all, delete-orphan"
     )
 
@@ -227,35 +284,53 @@ class AddressEquipmentModel(Base):
         Index("ix_address_equipment_type", "equipment_type"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    address_id = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    address_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("addresses.id", ondelete="CASCADE"), nullable=False
     )
-    system_id = Column(
+    system_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("address_systems.id", ondelete="SET NULL"), nullable=True
     )
 
-    equipment_type = Column(
+    equipment_type: Mapped[str] = mapped_column(
         String(50), nullable=False, default=EquipmentType.OTHER.value
     )
-    name = Column(String(200), nullable=False)
-    model = Column(String(100), nullable=True)
-    serial_number = Column(String(100), nullable=True)
-    quantity = Column(Integer, nullable=False, default=1)  # ����������
-    location = Column(String(200), nullable=True)  # ������������
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    serial_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    quantity: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1
+    )  # ����������
+    location: Mapped[Optional[str]] = mapped_column(
+        String(200), nullable=True
+    )  # ������������
 
-    install_date = Column(DateTime, nullable=True)  # ���� ���������
-    warranty_until = Column(DateTime, nullable=True)  # �������� ��
-    status = Column(String(20), nullable=False, default=EquipmentStatus.WORKING.value)
+    install_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )  # ���� ���������
+    warranty_until: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )  # �������� ��
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=EquipmentStatus.WORKING.value
+    )
 
-    notes = Column(Text, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
+    )
 
     # Relationships
-    address = relationship("AddressModel", back_populates="equipment")
-    system = relationship("AddressSystemModel", back_populates="equipment")
+    address: Mapped["AddressModel"] = relationship(
+        "AddressModel", back_populates="equipment"
+    )
+    system: Mapped[Optional["AddressSystemModel"]] = relationship(
+        "AddressSystemModel", back_populates="equipment"
+    )
 
     def __repr__(self):
         return (
@@ -272,30 +347,42 @@ class AddressDocumentModel(Base):
         Index("ix_address_documents_type", "doc_type"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    address_id = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    address_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("addresses.id", ondelete="CASCADE"), nullable=False
     )
 
-    name = Column(String(300), nullable=False)
-    doc_type = Column(String(50), nullable=False, default=DocumentType.OTHER.value)
-    file_path = Column(String(500), nullable=False)
-    file_size = Column(Integer, nullable=False, default=0)
-    mime_type = Column(String(100), nullable=True, default="application/octet-stream")
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    doc_type: Mapped[str] = mapped_column(
+        String(50), nullable=False, default=DocumentType.OTHER.value
+    )
+    file_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    file_size: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    mime_type: Mapped[str] = mapped_column(
+        String(100), nullable=True, default="application/octet-stream"
+    )
 
-    valid_from = Column(DateTime, nullable=True)  # ��������� �
-    valid_until = Column(DateTime, nullable=True)  # ��������� ��
+    valid_from: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )  # ��������� �
+    valid_until: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )  # ��������� ��
 
-    notes = Column(Text, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    created_at = Column(DateTime, default=utcnow)
-    created_by_id = Column(
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+    created_by_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
 
     # Relationships
-    address = relationship("AddressModel", back_populates="documents")
-    created_by = relationship("UserModel")
+    address: Mapped["AddressModel"] = relationship(
+        "AddressModel", back_populates="documents"
+    )
+    created_by: Mapped[Optional["UserModel"]] = relationship("UserModel")
 
     def __repr__(self):
         return f"<AddressDocument(id={self.id}, name='{self.name}')>"
@@ -307,24 +394,36 @@ class AddressContactModel(Base):
     __tablename__ = "address_contacts"
     __table_args__ = (Index("ix_address_contacts_address_id", "address_id"),)
 
-    id = Column(Integer, primary_key=True, index=True)
-    address_id = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    address_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("addresses.id", ondelete="CASCADE"), nullable=False
     )
 
-    contact_type = Column(String(50), nullable=False, default=ContactType.OTHER.value)
-    name = Column(String(200), nullable=False)
-    position = Column(String(200), nullable=True)  # ���������
-    phone = Column(String(50), nullable=True)
-    email = Column(String(200), nullable=True)
-    notes = Column(Text, nullable=True)
-    is_primary = Column(Boolean, nullable=False, default=False)  # �������� �������
+    contact_type: Mapped[str] = mapped_column(
+        String(50), nullable=False, default=ContactType.OTHER.value
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    position: Mapped[Optional[str]] = mapped_column(
+        String(200), nullable=True
+    )  # ���������
+    phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_primary: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )  # �������� �������
 
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
+    )
 
     # Relationships
-    address = relationship("AddressModel", back_populates="contacts")
+    address: Mapped["AddressModel"] = relationship(
+        "AddressModel", back_populates="contacts"
+    )
 
     def __repr__(self):
         return f"<AddressContact(id={self.id}, name='{self.name}')>"
@@ -339,22 +438,26 @@ class AddressHistoryModel(Base):
         Index("ix_address_history_created_at", "created_at"),
     )
 
-    id = Column(Integer, primary_key=True, index=True)
-    address_id = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    address_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("addresses.id", ondelete="CASCADE"), nullable=False
     )
 
-    event_type = Column(String(50), nullable=False)
-    description = Column(Text, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
 
-    user_id = Column(
+    user_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    created_at = Column(DateTime, default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
 
     # Relationships
-    address = relationship("AddressModel", back_populates="history")
-    user = relationship("UserModel")
+    address: Mapped["AddressModel"] = relationship(
+        "AddressModel", back_populates="history"
+    )
+    user: Mapped[Optional["UserModel"]] = relationship("UserModel")
 
     def __repr__(self):
         return f"<AddressHistory(id={self.id}, event='{self.event_type}')>"

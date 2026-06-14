@@ -11,9 +11,11 @@ Settings Models
 """
 
 import logging
+from datetime import datetime
+from typing import Any, Optional
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text
-from sqlalchemy.orm import Session
+from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text
+from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from app.config import settings as app_settings
 from app.models.base import Base, utcnow
@@ -34,40 +36,44 @@ class SystemSettingModel(Base):
 
     __tablename__ = "system_settings"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
 
     # Ключ настройки (уникальный)
-    key = Column(String(100), unique=True, nullable=False, index=True)
+    key: Mapped[str] = mapped_column(
+        String(100), unique=True, nullable=False, index=True
+    )
 
     # Значение (строка, парсится по типу)
-    value = Column(Text, nullable=True)
+    value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Тип значения: string, int, float, bool, json, select
-    value_type = Column(String(20), default="string")
+    value_type: Mapped[str] = mapped_column(String(20), default="string", nullable=True)
 
     # Группа настроек для UI
-    group = Column(String(50), default="general")
+    group: Mapped[str] = mapped_column(String(50), default="general", nullable=True)
 
     # Отображаемое название
-    label = Column(String(100), nullable=False)
+    label: Mapped[str] = mapped_column(String(100), nullable=False)
 
     # Описание настройки
-    description = Column(String(500), nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     # Опции для select типа (JSON массив)
-    options = Column(JSON, nullable=True)
+    options: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
 
     # Порядок отображения
-    sort_order = Column(Integer, default=0)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
 
     # Скрытая настройка (не показывать в UI)
-    is_hidden = Column(Boolean, default=False)
+    is_hidden: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
 
     # Только для чтения
-    is_readonly = Column(Boolean, default=False)
+    is_readonly: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
 
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
-    updated_by = Column(String(100), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
+    )
+    updated_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     def get_typed_value(self):
         """Получить значение с правильным типом"""
@@ -123,46 +129,54 @@ class CustomFieldModel(Base):
 
     __tablename__ = "custom_fields"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
 
     # Системное имя поля (латиница, без пробелов)
-    name = Column(String(50), unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(
+        String(50), unique=True, nullable=False, index=True
+    )
 
     # Отображаемое название
-    label = Column(String(100), nullable=False)
+    label: Mapped[str] = mapped_column(String(100), nullable=False)
 
     # Тип поля: text, number, select, date, checkbox, textarea
-    field_type = Column(String(20), default="text")
+    field_type: Mapped[str] = mapped_column(String(20), default="text", nullable=True)
 
     # Обязательное поле
-    is_required = Column(Boolean, default=False)
+    is_required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
 
     # Активно (показывать в формах)
-    is_active = Column(Boolean, default=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=True)
 
     # Показывать в списке заявок
-    show_in_list = Column(Boolean, default=False)
+    show_in_list: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
 
     # Показывать в карточке заявки
-    show_in_card = Column(Boolean, default=True)
+    show_in_card: Mapped[bool] = mapped_column(Boolean, default=True, nullable=True)
 
     # Опции для select типа (JSON массив строк)
-    options = Column(JSON, nullable=True)
+    options: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
 
     # Значение по умолчанию
-    default_value = Column(String(255), nullable=True)
+    default_value: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Placeholder для текстовых полей
-    placeholder = Column(String(255), nullable=True)
+    placeholder: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Порядок отображения
-    sort_order = Column(Integer, default=0)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
 
     # Группа полей (для организации в UI)
-    field_group = Column(String(50), default="custom")
+    field_group: Mapped[str] = mapped_column(
+        String(50), default="custom", nullable=True
+    )
 
-    created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
+    )
 
 
 class CustomFieldValueModel(Base):
@@ -172,18 +186,20 @@ class CustomFieldValueModel(Base):
 
     __tablename__ = "custom_field_values"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
 
     # Связь с заявкой
-    task_id = Column(Integer, nullable=False, index=True)
+    task_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
 
     # Связь с полем
-    field_id = Column(Integer, nullable=False, index=True)
+    field_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
 
     # Значение поля
-    value = Column(Text, nullable=True)
+    value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
+    )
 
 
 # ============================================
@@ -201,16 +217,16 @@ class RolePermissionModel(Base):
 
     __tablename__ = "role_permissions"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
 
     # Роль: admin, dispatcher, worker
-    role = Column(String(20), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
 
     # Код разрешения
-    permission = Column(String(50), nullable=False)
+    permission: Mapped[str] = mapped_column(String(50), nullable=False)
 
     # Разрешено или запрещено
-    is_allowed = Column(Boolean, default=True)
+    is_allowed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=True)
 
 
 # ============================================
@@ -230,9 +246,9 @@ def set_setting(
     db: Session,
     key: str,
     value,
-    updated_by: str = None,
-    description: str = None,
-    group: str = None,
+    updated_by: Optional[str] = None,
+    description: Optional[str] = None,
+    group: Optional[str] = None,
 ):
     """Установить значение настройки (upsert — создаёт если не существует)."""
     setting = db.query(SystemSettingModel).filter(SystemSettingModel.key == key).first()
