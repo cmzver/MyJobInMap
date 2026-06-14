@@ -66,10 +66,15 @@ def _is_internal_ip(ip: str) -> bool:
     адреса трактуем как доверенные (как allowlist) — это также авто-снимает уже
     существующий ошибочный бан loopback после деплоя фикса.
     """
+    s = ip.strip()
     try:
-        addr = ipaddress.ip_address(ip.strip())
+        addr = ipaddress.ip_address(s)
     except ValueError:
-        return True  # не смогли распарсить — не баним (fail-safe)
+        # Может прийти CIDR-ключ (напр. IPv6 /64 из _ban_key) — берём сеть.
+        try:
+            addr = ipaddress.ip_network(s, strict=False).network_address
+        except ValueError:
+            return True  # не смогли распарсить — не баним (fail-safe)
     return (
         addr.is_loopback
         or addr.is_private
@@ -77,6 +82,23 @@ def _is_internal_ip(ip: str) -> bool:
         or addr.is_reserved
         or addr.is_unspecified
     )
+
+
+def _ban_key(ip: str) -> str:
+    """Единица бана и подсчёта.
+
+    Для IPv6 — префикс ``/64``: адреса внутри одного /64 принадлежат одному
+    клиенту/подсети, поэтому ротация адресов внутри него не должна обходить бан
+    или счётчик брутфорса/DDoS. Для IPv4 — точный (нормализованный) адрес.
+    При ошибке разбора возвращаем исходную строку.
+    """
+    try:
+        addr = ipaddress.ip_address(ip.strip())
+    except ValueError:
+        return ip.strip()
+    if addr.version == 6:
+        return str(ipaddress.ip_network(f"{addr}/64", strict=False))
+    return str(addr)
 
 
 class IPGuard:
@@ -240,20 +262,35 @@ class IPGuard:
         if _is_internal_ip(ip):
             return None
 
+        # Единица бана/счёта: точный IPv4 или /64 для IPv6 (см. _ban_key)
+        key = _ban_key(ip)
+
         with self._lock:
+            # allowlist — по точному адресу (админ заносит конкретные IP)
             if ip in self._allow:
                 return None
 
             protection_on = self._cfg_bool("ip_protection_enabled")
-            if protection_on and ip in self._blocked:
-                exp = self._blocked[ip]
-                now = time.time()
-                if exp is None or exp > now:
-                    self._pending_hits[ip] = self._pending_hits.get(ip, 0) + 1
-                    retry = int(exp - now) if exp else None
-                    return {"status": 403, "reason": "blocked", "retry_after": retry}
-                # истёк — убираем из кэша (из БД удалит refresh)
-                del self._blocked[ip]
+            if protection_on:
+                # Ручной бан хранится по точному IP, авто-бан — по ключу (/64)
+                hit = (
+                    key
+                    if key in self._blocked
+                    else (ip if ip in self._blocked else None)
+                )
+                if hit is not None:
+                    exp = self._blocked[hit]
+                    now = time.time()
+                    if exp is None or exp > now:
+                        self._pending_hits[hit] = self._pending_hits.get(hit, 0) + 1
+                        retry = int(exp - now) if exp else None
+                        return {
+                            "status": 403,
+                            "reason": "blocked",
+                            "retry_after": retry,
+                        }
+                    # истёк — убираем из кэша (из БД удалит refresh)
+                    del self._blocked[hit]
 
             ddos_on = self._cfg_bool("ddos_protection_enabled")
             ddos = self._ddos
@@ -261,11 +298,11 @@ class IPGuard:
 
         # RateLimiter имеет собственный лок — считаем вне нашего лока
         if ddos_on:
-            allowed, _ = ddos.is_allowed(ip)
+            allowed, _ = ddos.is_allowed(key)
             if not allowed:
                 self.block_ip(
                     db,
-                    ip,
+                    key,
                     reason="auto: превышен лимит запросов (DDoS-защита)",
                     duration_minutes=ban_minutes,
                     created_by="system",
@@ -382,7 +419,10 @@ class IPGuard:
     # ------------------------------------------------------------------ login
     def record_login_failure(self, db, ip: str, username: str) -> None:
         """Записать неудачный вход и при превышении порога — авто-бан IP."""
-        self._record_event(db, ip, "login_failed", username=username)
+        # Считаем и баним по ключу (точный IPv4 / IPv6 /64), точный IP — в detail
+        key = _ban_key(ip)
+        detail = ip if ip != key else None
+        self._record_event(db, key, "login_failed", username=username, detail=detail)
         db.commit()
 
         if not get_setting(
@@ -394,7 +434,7 @@ class IPGuard:
         if _is_internal_ip(ip):
             return
 
-        # Белый список не банится
+        # Белый список не банится (по точному адресу)
         if db.query(IPAllowlistModel).filter(IPAllowlistModel.ip_address == ip).first():
             return
 
@@ -414,7 +454,7 @@ class IPGuard:
         last_success = (
             db.query(IPSecurityEventModel.created_at)
             .filter(
-                IPSecurityEventModel.ip_address == ip,
+                IPSecurityEventModel.ip_address == key,
                 IPSecurityEventModel.event_type == "login_success",
             )
             .order_by(IPSecurityEventModel.created_at.desc())
@@ -429,7 +469,7 @@ class IPGuard:
         recent = (
             db.query(IPSecurityEventModel)
             .filter(
-                IPSecurityEventModel.ip_address == ip,
+                IPSecurityEventModel.ip_address == key,
                 IPSecurityEventModel.event_type == "login_failed",
                 IPSecurityEventModel.created_at >= since,
             )
@@ -439,7 +479,7 @@ class IPGuard:
             ban_min = int(get_setting(db, "ip_ban_minutes", DEFAULTS["ip_ban_minutes"]))
             self.block_ip(
                 db,
-                ip,
+                key,
                 reason=f"auto: {recent} неудачных входов за {window_min} мин",
                 duration_minutes=ban_min,
                 created_by="system",
@@ -456,8 +496,12 @@ class IPGuard:
         считает неудачи только после последнего успеха, поэтому счётчик
         сбрасывается без потери истории.
         """
+        key = _ban_key(ip)
+        detail = ip if ip != key else None
         try:
-            self._record_event(db, ip, "login_success", username=username)
+            self._record_event(
+                db, key, "login_success", username=username, detail=detail
+            )
             db.commit()
         except Exception:
             db.rollback()
