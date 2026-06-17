@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import Select from '@/components/Select'
 import Spinner from '@/components/Spinner'
+import PageHeader from '@/components/PageHeader'
 import { useAuthStore } from '@/store/authStore'
 import apiClient from '@/api/client'
 import { myTaskKeys } from '@/hooks/useTasks'
@@ -217,10 +218,7 @@ export default function MyTasksPage() {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Мои заявки</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Список заявок, назначенных вам.</p>
-      </div>
+      <PageHeader title="Мои заявки" description="Список заявок, назначенных вам." />
 
       <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <div className="relative mb-4">

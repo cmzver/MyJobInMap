@@ -1,13 +1,16 @@
 import { useState, useRef } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Upload, Trash2, Download, Smartphone, AlertTriangle, RefreshCw, ExternalLink } from 'lucide-react'
+import { Upload, Trash2, Download, Smartphone, RefreshCw, ExternalLink } from 'lucide-react'
 import toast from 'react-hot-toast'
-import Card from '@/components/Card'
 import Button from '@/components/Button'
 import Spinner from '@/components/Spinner'
 import EmptyState from '@/components/EmptyState'
 import Modal from '@/components/Modal'
 import Textarea from '@/components/Textarea'
+import PageHeader from '@/components/PageHeader'
+import { SettingsCard, StatRow, SettingsIconButton } from '@/components/settings/SettingsSection'
+import { settingsTokens } from '@/components/settings/tokens'
+import Badge from '@/components/Badge'
 import { useUpdates, useUploadUpdate, useDeleteUpdate } from '@/hooks/useUpdates'
 import { getApiErrorMessage } from '@/utils/apiError'
 import { getAdminSettingsPath } from '@/utils/adminSettingsTabs'
@@ -100,41 +103,13 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
   }
 
   return (
-    <div className="space-y-6">
+    <div className={settingsTokens.stack}>
       {!embedded && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Обновления приложения
-            </h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Управление версиями Android-приложения
-            </p>
-          </div>
-          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-            <Button variant="ghost" onClick={() => refetch()} disabled={isFetching}>
-              <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-            </Button>
-            <Button onClick={() => setShowUploadModal(true)}>
-              <Upload className="w-4 h-4 mr-2" />
-              Загрузить APK
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {embedded && (
-        <Card className="p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Обновления Android-приложения
-              </h2>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Публикация APK, контроль обязательных релизов и история версий.
-              </p>
-            </div>
-            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+        <PageHeader
+          title="Обновления приложения"
+          description="Управление версиями Android-приложения"
+          actions={
+            <>
               <Button variant="ghost" onClick={() => refetch()} disabled={isFetching}>
                 <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
               </Button>
@@ -142,71 +117,36 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
                 <Upload className="w-4 h-4 mr-2" />
                 Загрузить APK
               </Button>
-            </div>
-          </div>
-        </Card>
+            </>
+          }
+        />
+      )}
+
+      {embedded && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button size="sm" onClick={() => setShowUploadModal(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Загрузить APK
+          </Button>
+        </div>
       )}
 
       {/* Stats */}
       {updates && updates.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <Smartphone className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Последняя версия</p>
-                <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {latestUpdate?.version_name}
-                </p>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <Upload className="w-5 h-5 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Всего версий</p>
-                <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {updates.length}
-                </p>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Обязательных</p>
-                <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {updates.filter(u => u.is_mandatory).length}
-                </p>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg">
-                <Download className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Публикация</p>
-                <p className="break-all text-sm font-semibold text-gray-900 dark:text-white">
-                  {latestUpdate?.download_url ?? '/api/updates/download'}
-                </p>
-              </div>
-            </div>
-          </Card>
-        </div>
+        <SettingsCard title="Сводка" icon={Smartphone}>
+          <div>
+            <StatRow label="Всего версий" value={updates.length} />
+            <StatRow label="Обязательных обновлений" value={updates.filter((u) => u.is_mandatory).length} />
+            <StatRow label="Endpoint публикации" value={latestUpdate?.download_url ?? '/api/updates/download'} mono />
+          </div>
+        </SettingsCard>
       )}
 
       {latestUpdate && (
-        <Card className="p-4">
+        <SettingsCard title="Текущий релиз" icon={Download}>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-1">
               <p className="text-sm font-medium text-gray-900 dark:text-white">
@@ -218,35 +158,37 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
             </div>
             <a
               href="/api/updates/download"
-              className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              className="inline-flex items-center gap-2 whitespace-nowrap text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
             >
               Скачать актуальный APK
-              <ExternalLink className="w-4 h-4" />
+              <ExternalLink className="h-4 w-4" />
             </a>
           </div>
-        </Card>
+        </SettingsCard>
       )}
 
       {/* Table */}
       {!updates || updates.length === 0 ? (
-        <EmptyState
-          icon={Smartphone}
-          title="Нет загруженных обновлений"
-          description="Загрузите APK файл для распространения обновлений"
-        />
+        <SettingsCard title="Версии" icon={Smartphone}>
+          <EmptyState
+            icon={Smartphone}
+            title="Нет загруженных обновлений"
+            description="Загрузите APK файл для распространения обновлений"
+          />
+        </SettingsCard>
       ) : (
-        <Card>
+        <SettingsCard title="Версии" icon={Smartphone} bodyClassName="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
+              <thead className="bg-gray-50/80 dark:bg-gray-800/60">
                 <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Версия</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Код</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Размер</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Тип</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Описание</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Дата</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-gray-400">Действия</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Версия</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Код</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Размер</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Тип</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Описание</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Дата</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Действия</th>
                 </tr>
               </thead>
               <tbody>
@@ -255,64 +197,54 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
                     key={update.version_code}
                     className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                   >
-                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                    <td className="px-4 py-1.5 font-medium text-gray-900 dark:text-white">
                       <div className="flex items-center gap-2">
                         <span>v{update.version_name}</span>
                         {latestUpdate?.version_code === update.version_code && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                            Последняя
-                          </span>
+                          <Badge variant="info">Последняя</Badge>
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                    <td className="px-4 py-1.5 text-gray-600 dark:text-gray-300">
                       {update.version_code}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                    <td className="px-4 py-1.5 text-gray-600 dark:text-gray-300">
                       {formatFileSize(update.file_size)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-1.5">
                       {update.is_mandatory ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
-                          Обязательное
-                        </span>
+                        <Badge variant="danger">Обязательное</Badge>
                       ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                          Обычное
-                        </span>
+                        <Badge variant="gray">Обычное</Badge>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300 max-w-[200px] truncate">
+                    <td className="px-4 py-1.5 text-gray-600 dark:text-gray-300 max-w-[200px] truncate">
                       {update.release_notes || '—'}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                    <td className="px-4 py-1.5 text-gray-600 dark:text-gray-300 whitespace-nowrap">
                       {formatDateTime(update.created_at)}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-1.5 text-right">
                       <div className="flex items-center justify-end gap-1">
                         {latestUpdate?.version_code === update.version_code ? (
                           <a
                             href="/api/updates/download"
-                            className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                            className="rounded p-1 text-gray-400 transition-colors hover:text-primary-500 dark:text-gray-500 dark:hover:text-primary-400"
                             title="Скачать APK"
                           >
-                            <Download className="w-4 h-4" />
+                            <Download className="h-3.5 w-3.5" />
                           </a>
                         ) : (
                           <span
-                            className="p-1.5 text-gray-300 dark:text-gray-600 cursor-not-allowed"
+                            className="p-1 text-gray-300 dark:text-gray-600"
                             title="Сервер отдаёт только последнюю опубликованную версию"
                           >
-                            <Download className="w-4 h-4" />
+                            <Download className="h-3.5 w-3.5" />
                           </span>
                         )}
-                        <button
-                          onClick={() => setDeleteTarget(update)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                          title="Удалить"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <SettingsIconButton title="Удалить" tone="danger" onClick={() => setDeleteTarget(update)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </SettingsIconButton>
                       </div>
                     </td>
                   </tr>
@@ -320,10 +252,10 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
               </tbody>
             </table>
           </div>
-          <div className="border-t border-gray-200 px-4 py-3 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          <div className="border-t border-gray-100 px-5 py-2.5 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
             Для скачивания доступна только последняя опубликованная версия, потому что серверный endpoint {`/api/updates/download`} всегда отдаёт актуальный APK.
           </div>
-        </Card>
+        </SettingsCard>
       )}
 
       {/* Upload Modal */}
@@ -334,7 +266,7 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
+            <div className="col-span-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-sm text-primary-800 dark:border-primary-900/40 dark:bg-primary-950/30 dark:text-primary-200">
               versionName и versionCode будут автоматически извлечены из AndroidManifest.xml внутри выбранного APK.
             </div>
           </div>
@@ -365,8 +297,8 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
               className="block w-full text-sm text-gray-500 dark:text-gray-400
                 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0
                 file:text-sm file:font-medium
-                file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/30 dark:file:text-blue-400
-                file:cursor-pointer hover:file:bg-blue-100 dark:hover:file:bg-blue-900/50"
+                file:bg-primary-50 file:text-primary-700 dark:file:bg-primary-900/30 dark:file:text-primary-400
+                file:cursor-pointer hover:file:bg-primary-100 dark:hover:file:bg-primary-900/50"
             />
             {apkFile && (
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">

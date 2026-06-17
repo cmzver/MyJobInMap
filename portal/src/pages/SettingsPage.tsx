@@ -13,6 +13,7 @@ import apiClient from '@/api/client'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
 import Card from '@/components/Card'
+import PageHeader from '@/components/PageHeader'
 import { getRoleLabel } from '@/types/user'
 
 export default function SettingsPage() {
@@ -84,12 +85,11 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-2xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Настройки</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Управление профилем и настройками аккаунта
-        </p>
-      </div>
+      <PageHeader
+        className="mb-6"
+        title="Настройки"
+        description="Управление профилем и настройками аккаунта"
+      />
 
       <div className="space-y-6">
         {/* Profile Settings */}

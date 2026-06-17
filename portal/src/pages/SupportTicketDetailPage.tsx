@@ -182,7 +182,7 @@ export default function SupportTicketDetailPage() {
               <CategoryIcon className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{ticket.title}</h1>
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{ticket.title}</h1>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <Badge variant={categoryMeta[ticket.category].badge}>{categoryMeta[ticket.category].label}</Badge>
                 <Badge variant={statusMeta[ticket.status].badge}>{statusMeta[ticket.status].label}</Badge>
@@ -243,12 +243,19 @@ export default function SupportTicketDetailPage() {
                     </div>
 
                     {comment.comment_type === 'status_change' ? (
-                      <div className="mt-3 flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
-                        <Clock3 className="h-4 w-4 text-primary-500" />
-                        <span>
-                          Статус изменён: {statusMeta[comment.old_status ?? 'new'].label} →{' '}
-                          {statusMeta[comment.new_status ?? 'new'].label}
-                        </span>
+                      <div className="mt-3 space-y-3">
+                        <div className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
+                          <Clock3 className="h-4 w-4 text-primary-500" />
+                          <span>
+                            Статус изменён: {statusMeta[comment.old_status ?? 'new'].label} →{' '}
+                            {statusMeta[comment.new_status ?? 'new'].label}
+                          </span>
+                        </div>
+                        {comment.body && (
+                          <p className="whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-300">
+                            {comment.body}
+                          </p>
+                        )}
                       </div>
                     ) : (
                       <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-300">
@@ -264,22 +271,34 @@ export default function SupportTicketDetailPage() {
 
         <div className="space-y-6">
           <Card title="Новый комментарий">
-            <form className="space-y-4" onSubmit={handleAddComment}>
-              <Textarea
-                label="Комментарий"
-                placeholder="Уточните детали, задайте вопрос или дайте промежуточный ответ."
-                value={commentBody}
-                onChange={(event) => setCommentBody(event.target.value)}
-                rows={5}
-                required
+            {ticket.status === 'closed' ? (
+              <EmptyState
+                icon={MessageSquare}
+                title="Тикет закрыт"
+                description={
+                  canManage
+                    ? 'Чтобы продолжить обсуждение, измените статус тикета.'
+                    : 'Комментарии недоступны для закрытого обращения.'
+                }
               />
-              <div className="flex justify-end">
-                <Button type="submit" isLoading={createCommentMutation.isPending}>
-                  <Send className="mr-2 h-4 w-4" />
-                  Отправить
-                </Button>
-              </div>
-            </form>
+            ) : (
+              <form className="space-y-4" onSubmit={handleAddComment}>
+                <Textarea
+                  label="Комментарий"
+                  placeholder="Уточните детали, задайте вопрос или дайте промежуточный ответ."
+                  value={commentBody}
+                  onChange={(event) => setCommentBody(event.target.value)}
+                  rows={5}
+                  required
+                />
+                <div className="flex justify-end">
+                  <Button type="submit" isLoading={createCommentMutation.isPending}>
+                    <Send className="mr-2 h-4 w-4" />
+                    Отправить
+                  </Button>
+                </div>
+              </form>
+            )}
           </Card>
 
           {canManage && (

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
+import PageHeader from '@/components/PageHeader'
 import OverviewSection from '@/components/analytics/OverviewSection'
 import SlaSection from '@/components/analytics/SlaSection'
 import { complianceColor, formatHours } from '@/components/analytics/analyticsUtils'
@@ -127,12 +128,10 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Аналитика</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Сводка по заявкам, исполнителям и соблюдению SLA за выбранный период.
-        </p>
-      </div>
+      <PageHeader
+        title="Аналитика"
+        description="Сводка по заявкам, исполнителям и соблюдению SLA за выбранный период."
+      />
 
       <Card>
         <div className="space-y-4 p-5">

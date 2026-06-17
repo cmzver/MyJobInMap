@@ -33,6 +33,7 @@ import {
 } from '@/hooks/useOrganizations'
 import type { Organization, CreateOrganizationData, UpdateOrganizationData } from '@/types/organization'
 import Button from '@/components/Button'
+import PageHeader from '@/components/PageHeader'
 import Input from '@/components/Input'
 import Card from '@/components/Card'
 import Badge from '@/components/Badge'
@@ -405,39 +406,35 @@ export default function OrganizationsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Организации
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Управление организациями (multi-tenant)
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowInactive(!showInactive)}
-            title={showInactive ? 'Скрыть неактивные' : 'Показать неактивные'}
-          >
-            {showInactive ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            {showInactive ? 'Скрыть неактивные' : 'Показать неактивные'}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isFetching}
-          >
-            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-          </Button>
-          <Button onClick={handleOpenCreate}>
-            <Plus className="w-4 h-4 mr-1" />
-            Добавить
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Организации"
+        description="Управление организациями (multi-tenant)"
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowInactive(!showInactive)}
+              title={showInactive ? 'Скрыть неактивные' : 'Показать неактивные'}
+            >
+              {showInactive ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {showInactive ? 'Скрыть неактивные' : 'Показать неактивные'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+            >
+              <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button onClick={handleOpenCreate}>
+              <Plus className="w-4 h-4 mr-1" />
+              Добавить
+            </Button>
+          </>
+        }
+      />
 
       {/* Stats cards */}
       {organizations && organizations.length > 0 && (

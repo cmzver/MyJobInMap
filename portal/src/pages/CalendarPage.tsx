@@ -8,6 +8,7 @@ import {
   Plus
 } from 'lucide-react'
 import Card from '@/components/Card'
+import PageHeader from '@/components/PageHeader'
 import Spinner from '@/components/Spinner'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
@@ -91,22 +92,21 @@ export default function CalendarPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Календарь</h1>
-          <p className="text-gray-500 dark:text-gray-400">Планирование заявок по датам</p>
-        </div>
-        
-        {!isWorker && (
-          <Link
-            to="/tasks/new"
-            className="inline-flex items-center px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition font-medium"
-          >
-            <Plus size={20} className="mr-2" />
-            Новая заявка
-          </Link>
-        )}
-      </div>
+      <PageHeader
+        title="Календарь"
+        description="Планирование заявок по датам"
+        actions={
+          !isWorker && (
+            <Link
+              to="/tasks/new"
+              className="inline-flex items-center px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition font-medium"
+            >
+              <Plus size={20} className="mr-2" />
+              Новая заявка
+            </Link>
+          )
+        }
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Calendar */}

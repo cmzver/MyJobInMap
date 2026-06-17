@@ -55,6 +55,7 @@ import {
 import { useUpdateAddress } from '@/hooks/useAddresses'
 import { addressesApi } from '@/api/addresses'
 import Button from '@/components/Button'
+import PageHeader from '@/components/PageHeader'
 import Card from '@/components/Card'
 import Spinner from '@/components/Spinner'
 import Modal from '@/components/Modal'
@@ -403,37 +404,29 @@ export default function AddressDetailPage() {
   return (
     <div className="p-6 space-y-6">
       {/* Заголовок */}
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div className="flex min-w-0 items-start gap-4">
-          <Button variant="ghost" onClick={() => navigate('/addresses')}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="min-w-0">
-            <h1 className="flex min-w-0 items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">
-              <MapPin className="h-6 w-6 text-blue-500" />
-              <span className="truncate">{address.address}</span>
-            </h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">
-              Карточка объекта
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setAddressModal(true)}>
-            <Edit className="h-4 w-4 mr-2" />
-            Редактировать
-          </Button>
-          {address.lat && address.lon && (
-            <Button 
-              variant="outline"
-              onClick={() => window.open(`https://yandex.ru/maps/?pt=${address.lon},${address.lat}&z=17`, '_blank')}
-            >
-              <ExternalLink className="h-4 w-4 mr-2" />
-              На карте
+      <PageHeader
+        onBack={() => navigate('/addresses')}
+        icon={MapPin}
+        title={<span className="truncate">{address.address}</span>}
+        description="Карточка объекта"
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setAddressModal(true)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Редактировать
             </Button>
-          )}
-        </div>
-      </div>
+            {address.lat && address.lon && (
+              <Button
+                variant="outline"
+                onClick={() => window.open(`https://yandex.ru/maps/?pt=${address.lon},${address.lat}&z=17`, '_blank')}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                На карте
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {/* Метрики */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

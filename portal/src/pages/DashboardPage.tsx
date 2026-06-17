@@ -14,6 +14,7 @@ import {
 import { format, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import Card from '@/components/Card'
+import PageHeader from '@/components/PageHeader'
 import Spinner from '@/components/Spinner'
 import { SkeletonStats, SkeletonTaskList } from '@/components/Skeleton'
 import PriorityBadge from '@/components/PriorityBadge'
@@ -146,12 +147,10 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Дашборд</h1>
-        <p className="max-w-3xl text-sm text-gray-500 dark:text-gray-400">
-          Сводка по очереди заявок, работе исполнителей и активности за неделю.
-        </p>
-      </div>
+      <PageHeader
+        title="Дашборд"
+        description="Сводка по очереди заявок, работе исполнителей и активности за неделю."
+      />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
         {statsLoading ? (

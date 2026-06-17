@@ -11,6 +11,7 @@ import {
 import Card from '@/components/Card'
 import Spinner from '@/components/Spinner'
 import Button from '@/components/Button'
+import PageHeader from '@/components/PageHeader'
 import apiClient from '@/api/client'
 import { type Notification } from '@/hooks/useNotifications'
 import { formatDateRelative as formatDate } from '@/utils/dateFormat'
@@ -82,25 +83,22 @@ export default function NotificationsPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Уведомления</h1>
-          <p className="text-gray-500 dark:text-gray-400">
-            {unreadCount > 0 ? `${unreadCount} непрочитанных` : 'Все прочитано'}
-          </p>
-        </div>
-        
-        {unreadCount > 0 && (
-          <Button
-            variant="secondary"
-            onClick={() => markAllAsReadMutation.mutate()}
-            isLoading={markAllAsReadMutation.isPending}
-          >
-            <CheckCheck size={18} className="mr-2" />
-            Прочитать все
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Уведомления"
+        description={unreadCount > 0 ? `${unreadCount} непрочитанных` : 'Все прочитано'}
+        actions={
+          unreadCount > 0 && (
+            <Button
+              variant="secondary"
+              onClick={() => markAllAsReadMutation.mutate()}
+              isLoading={markAllAsReadMutation.isPending}
+            >
+              <CheckCheck size={18} className="mr-2" />
+              Прочитать все
+            </Button>
+          )
+        }
+      />
 
       {/* Filters */}
       <div className="flex space-x-2">
