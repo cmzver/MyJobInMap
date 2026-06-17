@@ -125,3 +125,6 @@ portal/openapi.json
 
 # Loose screenshots dropped at repo root (ad-hoc, not committed)
 /*.png
+
+# Claude Code local (per-developer) settings; shared .claude/ files stay tracked
+.claude/settings.local.json
