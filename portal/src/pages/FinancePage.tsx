@@ -19,6 +19,7 @@ import { format } from 'date-fns'
 import { useFinanceStats, useWorkerStats } from '@/hooks/useFinance'
 import { useUsers } from '@/hooks/useUsers'
 import Button from '@/components/Button'
+import PageHeader from '@/components/PageHeader'
 import Select from '@/components/Select'
 import Spinner from '@/components/Spinner'
 import EmptyState from '@/components/EmptyState'
@@ -105,38 +106,36 @@ export default function FinancePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Финансы и статистика</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Отслеживание выполненных работ и заработка
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Select
-            value={period}
-            onChange={(v) => setPeriod(v as Period)}
-            options={periodOptions}
-            className="w-40"
-          />
-          <Select
-            value={selectedUserId}
-            onChange={(v) => setSelectedUserId(v)}
-            options={[
-              { value: '', label: 'Все исполнители' },
-              ...workers.map(w => ({ value: String(w.id), label: w.full_name || w.username }))
-            ]}
-            className="w-48"
-          />
-          <Button
-            variant="secondary"
-            onClick={handleRefresh}
-            disabled={isFetching}
-          >
-            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Финансы и статистика"
+        description="Отслеживание выполненных работ и заработка"
+        actions={
+          <>
+            <Select
+              value={period}
+              onChange={(v) => setPeriod(v as Period)}
+              options={periodOptions}
+              className="w-40"
+            />
+            <Select
+              value={selectedUserId}
+              onChange={(v) => setSelectedUserId(v)}
+              options={[
+                { value: '', label: 'Все исполнители' },
+                ...workers.map(w => ({ value: String(w.id), label: w.full_name || w.username }))
+              ]}
+              className="w-48"
+            />
+            <Button
+              variant="secondary"
+              onClick={handleRefresh}
+              disabled={isFetching}
+            >
+              <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+            </Button>
+          </>
+        }
+      />
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

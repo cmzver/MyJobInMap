@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import Card from '@/components/Card'
 import Button from '@/components/Button'
+import PageHeader from '@/components/PageHeader'
 import Input from '@/components/Input'
 import UserAvatar from '@/components/UserAvatar'
 import { useAuthStore } from '@/store/authStore'
@@ -164,10 +165,7 @@ export default function ProfilePage() {
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Профиль</h1>
-        <p className="text-gray-500 dark:text-gray-400">Управление вашим аккаунтом</p>
-      </div>
+      <PageHeader title="Профиль" description="Управление вашим аккаунтом" />
 
       {/* User Card */}
       <Card className="p-6">

@@ -24,6 +24,7 @@ import {
 } from '@/hooks/useAddresses'
 import { addressesApi } from '@/api/addresses'
 import Button from '@/components/Button'
+import PageHeader from '@/components/PageHeader'
 import Input from '@/components/Input'
 import Textarea from '@/components/Textarea'
 import Card from '@/components/Card'
@@ -241,20 +242,17 @@ export default function AddressesPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            База адресов
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Управление адресами и информацией о зданиях
-          </p>
-        </div>
-        <Button onClick={handleOpenCreate}>
-          <Plus className="h-4 w-4 mr-2" />
-          Добавить адрес
-        </Button>
-      </div>
+      <PageHeader
+        className="mb-6"
+        title="База адресов"
+        description="Управление адресами и информацией о зданиях"
+        actions={
+          <Button onClick={handleOpenCreate}>
+            <Plus className="h-4 w-4 mr-2" />
+            Добавить адрес
+          </Button>
+        }
+      />
 
       {/* Search */}
       <Card className="mb-6">

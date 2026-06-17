@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
@@ -45,6 +45,24 @@ import { formatDateTime as formatDate } from '@/utils/dateFormat'
 import { cn } from '@/utils/cn'
 import { UpdatesManagementSection } from '@/pages/UpdatesPage'
 import IpProtectionPanel from '@/components/security/IpProtectionPanel'
+import type { LucideIcon } from 'lucide-react'
+import {
+  SettingsCard,
+  SettingsField,
+  SettingsToggle,
+  SettingsRows,
+  SettingsSelect,
+  SettingsIconButton,
+  SettingRow,
+  StatRow,
+} from '@/components/settings/SettingsSection'
+import { settingsTokens } from '@/components/settings/tokens'
+import Badge from '@/components/Badge'
+import {
+  SettingsSaveContext,
+  useRegisterSettingsSave,
+} from '@/components/settings/SettingsSaveContext'
+import type { SettingsSaveState } from '@/components/settings/SettingsSaveContext'
 
 // Types
 
@@ -95,209 +113,178 @@ type SettingsPanelId =
   | 'permissions-matrix'
   | 'telegram-bot'
 
-type SettingsMenuGroup = {
-  id: string
+type SettingsTabId = 'system' | 'tasks' | 'notifications' | 'security' | 'portal' | 'integrations'
+
+type SettingsTab = {
+  id: SettingsTabId
   label: string
-  items: Array<{
-    id: SettingsPanelId
-    label: string
-    description: string
-    icon: typeof Settings
-  }>
+  description: string
+  icon: LucideIcon
+  panels: SettingsPanelId[]
 }
 
-const settingsMenuGroups: SettingsMenuGroup[] = [
-  {
-    id: 'system',
-    label: 'Система',
-    items: [
-      { id: 'portal-branding', label: 'Брендинг и доступ', description: 'Экран входа, бренд и блок поддержки', icon: Palette },
-      { id: 'overview', label: 'Обзор и БД', description: 'Состояние сервера и сервисные операции', icon: Server },
-      { id: 'backups', label: 'Резервные копии', description: 'Создание, скачивание и восстановление', icon: HardDrive },
-      { id: 'security', label: 'Безопасность', description: 'Rate limiting, сессии и защита входа', icon: Shield },
-      { id: 'interface', label: 'Веб-портал', description: 'Поведение таблиц и интерфейса', icon: Settings },
-    ],
-  },
-  {
-    id: 'mobile',
-    label: 'Мобильное',
-    items: [
-      { id: 'mobile-updates', label: 'Обновления APK', description: 'Публикация и управление релизами', icon: Smartphone },
-      { id: 'mobile-notifications', label: 'Push-уведомления', description: 'Канал Firebase и сценарии оповещений', icon: Bell },
-      { id: 'mobile-devices', label: 'Устройства', description: 'FCM токены и действия по устройствам', icon: Smartphone },
-    ],
-  },
-  {
-    id: 'tasks',
-    label: 'Заявки',
-    items: [
-      { id: 'task-defaults', label: 'По умолчанию', description: 'Стартовые параметры новых заявок', icon: Puzzle },
-      { id: 'task-media', label: 'Изображения', description: 'Оптимизация фото и параметры загрузки', icon: Puzzle },
-      { id: 'task-fields', label: 'Доп. поля', description: 'Конструктор пользовательских полей', icon: Puzzle },
-      { id: 'task-layout', label: 'Макет карточки', description: 'Структура отображения заявки', icon: Puzzle },
-    ],
-  },
-  {
-    id: 'permissions',
-    label: 'Права доступа',
-    items: [
-      { id: 'permissions-matrix', label: 'Матрица прав', description: 'Разрешения по ролям и доступам', icon: UserCog },
-    ],
-  },
-  {
-    id: 'integrations',
-    label: 'Интеграции',
-    items: [
-      { id: 'telegram-bot', label: 'Telegram бот', description: 'Маппинг групп, автоназначение, дедупликация', icon: Bot },
-    ],
-  },
+const SETTINGS_TABS: SettingsTab[] = [
+  { id: 'system', label: 'Система', description: 'Состояние сервера, база данных и резервные копии.', icon: Server, panels: ['overview'] },
+  { id: 'tasks', label: 'Заявки', description: 'Параметры новых заявок, поля и отображение карточки.', icon: Puzzle, panels: ['task-defaults', 'task-media', 'task-fields', 'task-layout'] },
+  { id: 'notifications', label: 'Уведомления', description: 'Push-канал и зарегистрированные устройства.', icon: Bell, panels: ['mobile-notifications', 'mobile-devices'] },
+  { id: 'security', label: 'Безопасность', description: 'Защита входа, IP-ограничения и права ролей.', icon: Shield, panels: ['security', 'permissions-matrix'] },
+  { id: 'portal', label: 'Портал', description: 'Брендинг экрана входа и поведение интерфейса.', icon: Palette, panels: ['portal-branding', 'interface'] },
+  { id: 'integrations', label: 'Интеграции', description: 'Telegram-бот и обновления мобильного приложения.', icon: Bot, panels: ['telegram-bot', 'mobile-updates'] },
 ]
 
-const settingsMenuItems = settingsMenuGroups.flatMap((group) => group.items)
-
-function isSettingsPanelId(value: string | null): value is SettingsPanelId {
-  return value !== null && settingsMenuItems.some((item) => item.id === value)
+function getInitialTabId(searchParams: URLSearchParams): SettingsTabId {
+  const tab = searchParams.get('tab')
+  if (tab && SETTINGS_TABS.some((t) => t.id === tab)) {
+    return tab as SettingsTabId
+  }
+  // Back-compat with old deep links: ?panel=<id>
+  const panel = searchParams.get('panel')
+  const owner = SETTINGS_TABS.find((t) => t.panels.includes(panel as SettingsPanelId))
+  return owner?.id ?? 'system'
 }
 
-function getInitialPanelId(searchParams: URLSearchParams): SettingsPanelId {
-  const panel = searchParams.get('panel')
-  if (isSettingsPanelId(panel)) {
-    return panel
-  }
-
-  switch (searchParams.get('tab')) {
-    case 'mobile':
-      return 'mobile-updates'
-    case 'tasks':
-      return 'task-defaults'
-    case 'permissions':
-      return 'permissions-matrix'
-    case 'system':
+function renderPanel(
+  panelId: SettingsPanelId,
+  ctx: { showClearConfirm: boolean; setShowClearConfirm: (show: boolean) => void }
+) {
+  switch (panelId) {
+    case 'overview':
+      return (
+        <GeneralSettingsTab
+          showClearConfirm={ctx.showClearConfirm}
+          setShowClearConfirm={ctx.setShowClearConfirm}
+        />
+      )
+    case 'backups':
+      return <BackupSettingsTab />
+    case 'security':
+      return <SecuritySettingsTab />
+    case 'permissions-matrix':
+      return <PermissionsTab />
+    case 'interface':
+      return <InterfaceSettingsCard />
+    case 'portal-branding':
+      return <PortalBrandingSettingsTab />
+    case 'mobile-updates':
+      return <UpdatesManagementSection embedded />
+    case 'mobile-notifications':
+      return <NotificationSettingsTab />
+    case 'mobile-devices':
+      return <DevicesTab />
+    case 'task-defaults':
+      return <TaskDefaultsCard />
+    case 'task-media':
+      return <ImageSettingsTab />
+    case 'task-fields':
+      return <CustomFieldsTab />
+    case 'task-layout':
+      return <CardBuilderTab />
+    case 'telegram-bot':
+      return <TelegramBotSettingsTab />
     default:
-      return 'overview'
+      return null
   }
 }
 
 export default function AdminSettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [showClearConfirm, setShowClearConfirm] = useState(false)
-  const activePanel = getInitialPanelId(searchParams)
-  const activeMenuItem = settingsMenuItems.find((item) => item.id === activePanel) ?? {
-    id: 'overview' as const,
-    label: 'Обзор и БД',
-    description: 'Состояние сервера и сервисные операции',
-    icon: Server,
-  }
-  const ActivePanelIcon = activeMenuItem.icon
+  const [saveState, setSaveState] = useState<SettingsSaveState | null>(null)
+  const activeTabId = getInitialTabId(searchParams)
+  const activeTab = (SETTINGS_TABS.find((t) => t.id === activeTabId) ?? SETTINGS_TABS[0])!
 
   useEffect(() => {
     const nextParams = new URLSearchParams(searchParams)
-    nextParams.delete('tab')
-    nextParams.set('panel', activePanel)
+    nextParams.delete('panel')
+    nextParams.set('tab', activeTabId)
 
     if (nextParams.toString() === searchParams.toString()) {
       return
     }
 
     setSearchParams(nextParams, { replace: true })
-  }, [activePanel, searchParams, setSearchParams])
+  }, [activeTabId, searchParams, setSearchParams])
 
-  const handlePanelChange = (panelId: SettingsPanelId) => {
+  const handleTabChange = (tabId: SettingsTabId) => {
     const nextParams = new URLSearchParams(searchParams)
-    nextParams.delete('tab')
-    nextParams.set('panel', panelId)
+    nextParams.delete('panel')
+    nextParams.set('tab', tabId)
     setSearchParams(nextParams, { replace: true })
+    setSaveState(null)
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start">
-      <aside className="rounded-lg border border-gray-200 bg-white p-2 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <div className="mb-2 px-2 py-2">
-          <div className="text-sm font-semibold text-gray-900 dark:text-white">Настройки портала</div>
-          <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">Разделы администрирования и системные параметры.</div>
-        </div>
-        <nav className="flex flex-col gap-2" aria-label="Разделы настроек">
-          {settingsMenuGroups.map((group) => (
-            <div key={group.id} className="rounded-lg border border-gray-200 bg-gray-50 px-1.5 py-1.5 dark:border-gray-800 dark:bg-gray-800/40">
-              <div className="px-2 py-1 text-sm font-medium text-gray-500 dark:text-gray-400">
-                {group.label}
-              </div>
-              <div className="mt-1 flex flex-col gap-1">
-                {group.items.map((item) => {
-                  const Icon = item.icon
-                  const isActive = activePanel === item.id
-
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => handlePanelChange(item.id)}
-                      className={cn(
-                        'flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
-                        isActive
-                          ? 'bg-primary-50 text-primary-700 dark:bg-primary-950/40 dark:text-primary-300'
-                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'
-                      )}
-                    >
-                      <Icon className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                      <span className="min-w-0">
-                        <span className="block text-sm font-medium">{item.label}</span>
-                        <span className="mt-0.5 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{item.description}</span>
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+    <SettingsSaveContext.Provider value={{ state: saveState, setState: setSaveState }}>
+      <div className="space-y-4">
+        {/* Breadcrumbs */}
+        <nav
+          className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400"
+          aria-label="Хлебные крошки"
+        >
+          <span>Настройки</span>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span className="font-medium text-gray-700 dark:text-gray-300">{activeTab.label}</span>
         </nav>
-      </aside>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-        <div className="border-b border-gray-200 px-1 pb-2.5 dark:border-gray-800">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-              <ActivePanelIcon className="h-4 w-4" />
-            </div>
-            <div>
-              <h1 className="text-base font-semibold text-gray-900 dark:text-white">{activeMenuItem.label}</h1>
-            </div>
+        {/* Header */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Настройки портала</h1>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{activeTab.description}</p>
           </div>
-
-          {activePanel !== 'portal-branding' && (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-800 dark:bg-gray-800/40">
-              <div>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">Брендирование входа находится в отдельном разделе</p>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Откройте раздел «Брендинг и доступ», чтобы изменить экран входа, название портала и контакты поддержки.
-                </p>
-              </div>
-              <Button type="button" size="sm" onClick={() => handlePanelChange('portal-branding')}>
-                <Palette className="mr-2 h-4 w-4" />
-                Открыть брендирование
+          {saveState && (
+            <div className="flex flex-shrink-0 items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={saveState.onReset}
+                disabled={!saveState.dirty || saveState.saving}
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Сбросить
+              </Button>
+              <Button size="sm" onClick={saveState.onSave} disabled={!saveState.dirty || saveState.saving}>
+                <Save className="mr-2 h-4 w-4" />
+                {saveState.saving ? 'Сохранение...' : 'Сохранить изменения'}
               </Button>
             </div>
           )}
         </div>
 
-        <div className="pt-2.5">
-          {activePanel === 'overview' && <GeneralSettingsTab showClearConfirm={showClearConfirm} setShowClearConfirm={setShowClearConfirm} />}
-          {activePanel === 'backups' && <BackupSettingsTab />}
-          {activePanel === 'security' && <SecuritySettingsTab />}
-          {activePanel === 'interface' && <InterfaceSettingsCard />}
-          {activePanel === 'portal-branding' && <PortalBrandingSettingsTab />}
-          {activePanel === 'mobile-updates' && <UpdatesManagementSection embedded />}
-          {activePanel === 'mobile-notifications' && <NotificationSettingsTab />}
-          {activePanel === 'mobile-devices' && <DevicesTab />}
-          {activePanel === 'task-defaults' && <TaskDefaultsCard />}
-          {activePanel === 'task-media' && <ImageSettingsTab />}
-          {activePanel === 'task-fields' && <CustomFieldsTab />}
-          {activePanel === 'task-layout' && <CardBuilderTab />}
-          {activePanel === 'permissions-matrix' && <PermissionsTab />}
-          {activePanel === 'telegram-bot' && <TelegramBotSettingsTab />}
+        {/* Horizontal tab strip */}
+        <div className="border-b border-gray-200 dark:border-gray-800">
+          <nav className="-mb-px flex gap-1 overflow-x-auto" aria-label="Разделы настроек">
+            {SETTINGS_TABS.map((tab) => {
+              const Icon = tab.icon
+              const isActive = tab.id === activeTabId
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleTabChange(tab.id)}
+                  className={cn(
+                    'flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+                    isActive
+                      ? 'border-primary-500 text-primary-600 dark:border-primary-400 dark:text-primary-300'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:text-gray-200'
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </button>
+              )
+            })}
+          </nav>
         </div>
-      </section>
-    </div>
+
+        {/* Active tab content: stacked titled cards */}
+        <div className={settingsTokens.stack}>
+          {activeTab.panels.map((panelId) => (
+            <div key={panelId}>{renderPanel(panelId, { showClearConfirm, setShowClearConfirm })}</div>
+          ))}
+        </div>
+      </div>
+    </SettingsSaveContext.Provider>
   )
 }
 
@@ -313,7 +300,6 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
     },
   })
   const apiHost = typeof window !== 'undefined' ? window.location.origin : '—'
-  const uiFramework = 'React 18 + TypeScript, TailwindCSS'
 
   const seedMutation = useMutation({
     mutationFn: () => apiClient.post('/admin/db/seed'),
@@ -408,136 +394,127 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
     return <div className="flex justify-center py-12"><Spinner /></div>
   }
 
-  const serverInfoItems = [
-    { label: 'Версия API', value: serverInfo?.version || '2.0.0' },
-    { label: 'Время работы', value: serverInfo?.uptime || 'N/A' },
-    { label: 'Адрес API', value: apiHost, monospace: true },
-    { label: 'Стек портала', value: uiFramework },
+  const maintenanceOps = [
     {
-      label: 'Firebase',
-      value: (
-        <CompactStatusBadge tone={serverInfo?.firebase_enabled ? 'success' : 'danger'}>
-          {serverInfo?.firebase_enabled ? 'Включён' : 'Выключен'}
-        </CompactStatusBadge>
+      title: 'VACUUM',
+      desc: 'Освобождает неиспользуемое пространство и уменьшает размер SQLite-файла.',
+      button: (
+        <Button variant="secondary" size="sm" onClick={() => vacuumMutation.mutate()} disabled={vacuumMutation.isPending}>
+          <RefreshCw className="mr-1.5 h-4 w-4" />
+          {vacuumMutation.isPending ? '...' : 'Запустить'}
+        </Button>
       ),
     },
-    { label: 'Кэш геокодинга', value: `${serverInfo?.geocoding_cache_size || 0} записей` },
+    {
+      title: 'ANALYZE + VACUUM',
+      desc: 'Перестраивает статистику и оптимизирует таблицы после больших изменений данных.',
+      button: (
+        <Button variant="secondary" size="sm" onClick={() => optimizeMutation.mutate()} disabled={optimizeMutation.isPending}>
+          <RefreshCw className="mr-1.5 h-4 w-4" />
+          {optimizeMutation.isPending ? '...' : 'Оптимизировать'}
+        </Button>
+      ),
+    },
+    {
+      title: 'Проверка целостности',
+      desc: 'Запускает встроенную integrity_check-проверку текущей базы данных.',
+      button: (
+        <Button variant="secondary" size="sm" onClick={() => integrityMutation.mutate()} disabled={integrityMutation.isPending}>
+          <Shield className="mr-1.5 h-4 w-4" />
+          {integrityMutation.isPending ? '...' : 'Проверить'}
+        </Button>
+      ),
+    },
+    {
+      title: 'Тестовые данные',
+      desc: 'Создаёт пользователей и примерные заявки для локальной проверки сценариев.',
+      button: (
+        <Button variant="secondary" size="sm" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending}>
+          <Plus className="mr-1.5 h-4 w-4" />
+          {seedMutation.isPending ? '...' : 'Seed'}
+        </Button>
+      ),
+    },
   ]
 
-  const databaseInfoItems = dbStats
-    ? [
-        { label: 'Тип БД', value: dbStats.database.type },
-        { label: 'Размер файла', value: `${dbStats.database.size_mb} MB` },
-        { label: 'Заявки', value: String(dbStats.tables.tasks), highlight: true },
-        { label: 'Пользователи', value: String(dbStats.tables.users), highlight: true },
-        { label: 'Комментарии', value: String(dbStats.tables.comments), highlight: true },
-        { label: 'Фото', value: String(dbStats.tables.photos), highlight: true },
-        { label: 'Устройства', value: String(dbStats.tables.devices), highlight: true },
-        { label: 'Бэкапы', value: String(dbStats.backups_count), highlight: true },
-        ...(dbStats.last_activity
-          ? [{ label: 'Последняя активность', value: formatDate(dbStats.last_activity) }]
-          : []),
-      ]
-    : []
-
   return (
-    <div className="space-y-3">
-      <CompactInfoMatrix title="Сервер" icon={Server} items={serverInfoItems} />
-      <CompactDatabaseSection title="База данных" icon={Database} items={databaseInfoItems}>
-        <CompactActionTile
-          title="VACUUM"
-          description="Освобождает неиспользуемое пространство и уменьшает размер SQLite-файла."
-          actions={
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => vacuumMutation.mutate()}
-              disabled={vacuumMutation.isPending}
-              title="Очистить неиспользуемое пространство"
-            >
-              <RefreshCw className="h-4 w-4 mr-1" />
-              {vacuumMutation.isPending ? 'Выполняется...' : 'Запустить'}
-            </Button>
-          }
-        />
-        <CompactActionTile
-          title="ANALYZE + VACUUM"
-          description="Перестраивает статистику и оптимизирует таблицы после больших изменений данных."
-          actions={
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => optimizeMutation.mutate()}
-              disabled={optimizeMutation.isPending}
-              title="Анализ и дефрагментация"
-            >
-              <RefreshCw className="h-4 w-4 mr-1" />
-              {optimizeMutation.isPending ? 'Выполняется...' : 'Оптимизировать'}
-            </Button>
-          }
-        />
-        <CompactActionTile
-          title="Проверка целостности"
-          description="Запускает встроенную integrity_check-проверку для текущей базы данных."
-          actions={
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => integrityMutation.mutate()}
-              disabled={integrityMutation.isPending}
-              title="Проверка целостности БД"
-            >
-              <Shield className="h-4 w-4 mr-1" />
-              {integrityMutation.isPending ? 'Проверка...' : 'Проверить'}
-            </Button>
-          }
-        />
-        <CompactActionTile
-          title="Удаление старых заявок"
-          description={`Удаляет выполненные и отменённые заявки старше ${cleanupDays} дней вместе с комментариями и фото.`}
-          actions={
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setShowCleanupConfirm(true)}
-              title="Удалить старые заявки"
-            >
-              <Trash2 className="h-4 w-4 mr-1" />
-              Очистка
-            </Button>
-          }
-        />
-        <CompactActionTile
-          title="Тестовые данные"
-          description="Создаёт пользователей и примерные заявки для локальной проверки сценариев."
-          actions={
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => seedMutation.mutate()}
-              disabled={seedMutation.isPending}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              {seedMutation.isPending ? 'Загрузка...' : 'Seed'}
-            </Button>
-          }
-        />
-        <CompactActionTile
-          title="Очистить заявки и комментарии"
-          description="Удаляет текущие заявки, комментарии и связанные файлы фото из рабочей базы."
-          actions={
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => setShowClearConfirm(true)}
-              disabled={clearMutation.isPending}
-            >
-              <Trash2 className="h-4 w-4 mr-1" />
-              {clearMutation.isPending ? 'Удаление...' : 'Очистить всё'}
-            </Button>
-          }
-        />
-      </CompactDatabaseSection>
+    <div className={settingsTokens.stack}>
+      <div className="grid gap-3 lg:grid-cols-3 lg:items-start">
+        {/* Main column: maintenance + backups */}
+        <div className={cn(settingsTokens.stack, 'lg:col-span-2')}>
+          <SettingsCard title="Обслуживание базы данных" icon={Database}>
+            <SettingsRows>
+              {maintenanceOps.map((op) => (
+                <SettingRow key={op.title} title={op.title} description={op.desc}>
+                  {op.button}
+                </SettingRow>
+              ))}
+            </SettingsRows>
+          </SettingsCard>
+          <BackupSettingsTab />
+        </div>
+
+        {/* Status rail + danger zone (sticky) */}
+        <div className={cn(settingsTokens.stack, 'lg:sticky lg:top-4')}>
+          <SettingsCard title="Статус сервера" icon={Server}>
+            <div>
+              <StatRow label="Версия API" value={serverInfo?.version || '2.0.0'} />
+              <StatRow label="Время работы" value={serverInfo?.uptime || 'N/A'} />
+              <StatRow label="Адрес API" value={apiHost} mono copyText={apiHost} />
+              <StatRow
+                label="Firebase"
+                value={
+                  <Badge variant={serverInfo?.firebase_enabled ? 'success' : 'danger'}>
+                    {serverInfo?.firebase_enabled ? 'Включён' : 'Выключен'}
+                  </Badge>
+                }
+              />
+              <StatRow label="Кэш геокодинга" value={`${serverInfo?.geocoding_cache_size || 0}`} />
+              {dbStats && (
+                <>
+                  <StatRow label="Тип БД" value={dbStats.database.type} />
+                  <StatRow label="Размер БД" value={`${dbStats.database.size_mb} MB`} />
+                  <StatRow label="Заявки" value={dbStats.tables.tasks} />
+                  <StatRow label="Пользователи" value={dbStats.tables.users} />
+                  <StatRow label="Фото" value={dbStats.tables.photos} />
+                  <StatRow label="Бэкапы" value={dbStats.backups_count} />
+                </>
+              )}
+            </div>
+          </SettingsCard>
+
+          <SettingsCard
+            title="Опасные действия"
+            icon={Trash2}
+            className="border-red-200 dark:border-red-900/50"
+          >
+            <div className="space-y-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-full justify-center"
+                onClick={() => setShowCleanupConfirm(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Удалить старые заявки
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                className="w-full justify-center"
+                onClick={() => setShowClearConfirm(true)}
+                disabled={clearMutation.isPending}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {clearMutation.isPending ? 'Удаление...' : 'Очистить заявки и комментарии'}
+              </Button>
+            </div>
+            <p className="mt-2.5 text-xs leading-5 text-gray-500 dark:text-gray-400">
+              Действия необратимы. Перед очисткой создайте резервную копию.
+            </p>
+          </SettingsCard>
+        </div>
+      </div>
 
       {/* Cleanup Confirmation Modal */}
       {showCleanupConfirm && (
@@ -596,32 +573,28 @@ function InterfaceSettingsCard() {
   const isCompactEnabled = Boolean(compactSetting?.value ?? false)
 
   return (
-    <div className="space-y-3">
-      <CompactToggleRow
-        title="Изменяемая ширина колонок"
-        description="Перетаскивание границ колонок в таблицах портала."
-        checked={isResizableEnabled}
-        disabled={resizableLoading || updateSettingMutation.isPending}
-        onChange={(checked) =>
-          updateSettingMutation.mutate({
-            key: 'enable_resizable_columns',
-            value: checked,
-          })
-        }
-      />
-      <CompactToggleRow
-        title="Компактный вид таблиц"
-        description="Уменьшенные вертикальные отступы и плотная подача данных."
-        checked={isCompactEnabled}
-        disabled={compactLoading || updateSettingMutation.isPending}
-        onChange={(checked) =>
-          updateSettingMutation.mutate({
-            key: 'compact_table_view',
-            value: checked,
-          })
-        }
-      />
-    </div>
+    <SettingsCard title="Таблицы" icon={Settings}>
+      <SettingsRows>
+        <SettingsToggle
+          title="Изменяемая ширина колонок"
+          description="Перетаскивание границ колонок в таблицах портала."
+          checked={isResizableEnabled}
+          disabled={resizableLoading || updateSettingMutation.isPending}
+          onChange={(checked) =>
+            updateSettingMutation.mutate({ key: 'enable_resizable_columns', value: checked })
+          }
+        />
+        <SettingsToggle
+          title="Компактный вид таблиц"
+          description="Уменьшенные вертикальные отступы и плотная подача данных."
+          checked={isCompactEnabled}
+          disabled={compactLoading || updateSettingMutation.isPending}
+          onChange={(checked) =>
+            updateSettingMutation.mutate({ key: 'compact_table_view', value: checked })
+          }
+        />
+      </SettingsRows>
+    </SettingsCard>
   )
 }
 
@@ -698,14 +671,13 @@ function PortalBrandingSettingsTab() {
   }
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-xl border border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-gray-900/70">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Бренд-блок страницы входа</h2>
-        <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
-          Эти параметры отображаются на экране авторизации до входа в систему и доступны без авторизации через публичный endpoint.
-        </p>
-
-        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+    <div className={settingsTokens.stack}>
+      <SettingsCard
+        title="Бренд-блок страницы входа"
+        icon={Palette}
+        description="Параметры отображаются на экране авторизации до входа и доступны без авторизации через публичный endpoint."
+      >
+        <div className="grid gap-3 lg:grid-cols-2">
           <Input
             label="Название приложения"
             value={form.login_app_name}
@@ -740,15 +712,14 @@ function PortalBrandingSettingsTab() {
             className="lg:col-span-2"
           />
         </div>
-      </div>
+      </SettingsCard>
 
-      <div className="rounded-xl border border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-gray-900/70">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Блок поддержки и получения доступа</h2>
-        <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
-          Заполните email и или телефон, если на странице входа должен показываться блок с контактами для получения доступа.
-        </p>
-
-        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <SettingsCard
+        title="Блок поддержки и доступа"
+        icon={User}
+        description="Заполните email или телефон, если на странице входа должен показываться блок с контактами."
+      >
+        <div className="grid gap-3 lg:grid-cols-2">
           <Input
             label="Email поддержки"
             value={form.support_email}
@@ -769,44 +740,42 @@ function PortalBrandingSettingsTab() {
             className="lg:col-span-2"
           />
         </div>
-      </div>
+      </SettingsCard>
 
-      <CompactActionRow
-        title="Сохранить настройки экрана входа"
-        description="Применяет новые брендовые тексты и контакты поддержки на публичной странице авторизации."
-        actions={
-          <Button onClick={() => saveMutation.mutate(form)} disabled={saveMutation.isPending}>
-            <Save className="mr-2 h-4 w-4" />
-            {saveMutation.isPending ? 'Сохранение...' : 'Сохранить'}
-          </Button>
-        }
-      />
+      <div className="flex justify-end">
+        <Button size="sm" onClick={() => saveMutation.mutate(form)} disabled={saveMutation.isPending}>
+          <Save className="mr-2 h-4 w-4" />
+          {saveMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+        </Button>
+      </div>
     </div>
   )
 }
 
 function TaskDefaultsCard() {
   return (
-    <div className="space-y-3">
-      <CompactFieldRow
-        label="Приоритет новых заявок"
-        description="Базовый приоритет для новых заявок до ручной корректировки диспетчером."
-        control={
-          <select className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white sm:w-56">
+    <SettingsCard title="Параметры по умолчанию" icon={Puzzle}>
+      <SettingsRows>
+        <SettingsField
+          label="Приоритет новых заявок"
+          help="Базовый приоритет для новых заявок до ручной корректировки диспетчером."
+          className="sm:max-w-xs"
+        >
+          <SettingsSelect>
             <option value="CURRENT">Текущая</option>
             <option value="PLANNED">Плановая</option>
             <option value="URGENT">Срочная</option>
             <option value="EMERGENCY">Аварийная</option>
-          </select>
-        }
-      />
-      <CompactToggleRow
-        title="Автогеокодинг"
-        description="Автоматически определять координаты по адресу при создании заявки."
-        checked
-        onChange={() => undefined}
-      />
-    </div>
+          </SettingsSelect>
+        </SettingsField>
+        <SettingsToggle
+          title="Автогеокодинг"
+          description="Автоматически определять координаты по адресу при создании заявки."
+          checked
+          onChange={() => undefined}
+        />
+      </SettingsRows>
+    </SettingsCard>
   )
 }
 
@@ -830,40 +799,57 @@ function ImageSettingsTab() {
   const convertToWebp = convertWebpSetting?.value === 'true'
 
   return (
-    <div className="space-y-3">
-      <CompactToggleRow
-        title="Оптимизация изображений"
-        description="Автоматически сжимать и оптимизировать загружаемые фотографии."
-        checked={isEnabled}
-        onChange={(checked) => updateSetting.mutate({ key: 'image_optimization_enabled', value: String(checked) })}
-      />
-      <CompactSliderRow
-        label="Качество изображения"
-        description="Баланс между степенью сжатия и сохранением визуального качества файла."
-        value={quality}
-        min={10}
-        max={100}
-        onChange={(value) => updateSetting.mutate({ key: 'image_quality', value: String(value) })}
-      />
-      <CompactFieldRow
-        label="Максимальный размер (px)"
-        description="Ограничение по наибольшей стороне загружаемых изображений."
-        control={
+    <SettingsCard title="Изображения" icon={Puzzle}>
+      <SettingsRows>
+        <SettingsToggle
+          title="Оптимизация изображений"
+          description="Автоматически сжимать и оптимизировать загружаемые фотографии."
+          checked={isEnabled}
+          onChange={(checked) =>
+            updateSetting.mutate({ key: 'image_optimization_enabled', value: String(checked) })
+          }
+        />
+        <SettingsField
+          label="Качество изображения"
+          help="Баланс между степенью сжатия и сохранением визуального качества файла."
+        >
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={10}
+              max={100}
+              value={quality}
+              onChange={(e) => updateSetting.mutate({ key: 'image_quality', value: e.target.value })}
+              className="flex-1 accent-primary-500"
+            />
+            <span className="w-10 text-right text-sm font-medium tabular-nums text-gray-900 dark:text-white">
+              {quality}
+            </span>
+          </div>
+        </SettingsField>
+        <SettingsField
+          label="Максимальный размер, px"
+          help="Ограничение по наибольшей стороне загружаемых изображений."
+          className="sm:max-w-xs"
+        >
           <Input
             type="number"
             value={maxDimension}
-            onChange={(e) => updateSetting.mutate({ key: 'image_max_dimension', value: e.target.value })}
-            className="sm:w-36"
+            onChange={(e) =>
+              updateSetting.mutate({ key: 'image_max_dimension', value: e.target.value })
+            }
           />
-        }
-      />
-      <CompactToggleRow
-        title="Конвертация в WebP"
-        description="Автоматически конвертировать загружаемые изображения в формат WebP."
-        checked={convertToWebp}
-        onChange={(checked) => updateSetting.mutate({ key: 'image_convert_to_webp', value: String(checked) })}
-      />
-    </div>
+        </SettingsField>
+        <SettingsToggle
+          title="Конвертация в WebP"
+          description="Автоматически конвертировать загружаемые изображения в формат WebP."
+          checked={convertToWebp}
+          onChange={(checked) =>
+            updateSetting.mutate({ key: 'image_convert_to_webp', value: String(checked) })
+          }
+        />
+      </SettingsRows>
+    </SettingsCard>
   )
 }
 
@@ -995,121 +981,111 @@ function BackupSettingsTab() {
   }
 
   return (
-    <div className="space-y-4">
-      {settingsLoading ? (
-        <div className="flex justify-center py-8"><Spinner /></div>
-      ) : (
-        <>
-          <CompactToggleRow
-            title="Автоматический бэкап"
-            description="Ежедневное резервное копирование базы данных по расписанию."
-            checked={autoBackup}
-            onChange={setAutoBackup}
-          />
-          <CompactFieldRow
-            label="Расписание"
-            description="Частота автоматического создания резервных копий."
-            control={
-              <select
-                value={schedule}
-                onChange={(e) => setSchedule(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white sm:w-64"
-              >
-                <option value="daily">Ежедневно в 03:00</option>
-                <option value="weekly">Еженедельно (Вс, 03:00)</option>
-                <option value="manual">Только вручную</option>
-              </select>
-            }
-          />
-          <CompactFieldRow
-            label="Срок хранения"
-            description="Сколько дней держать резервные копии перед автоматической ротацией."
-            control={
-              <Input
-                type="number"
-                value={retentionDays}
-                onChange={(e) => setRetentionDays(Number(e.target.value))}
-                className="sm:w-36"
-              />
-            }
-          />
-          <CompactActionRow
-            title="Сохранить параметры резервного копирования"
-            description="Применяет текущее расписание и параметры ротации."
-            actions={
-              <Button
-                onClick={handleSaveSettings}
-                disabled={saveSettingsMutation.isPending}
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {saveSettingsMutation.isPending ? 'Сохранение...' : 'Сохранить'}
-              </Button>
-            }
-          />
-        </>
-      )}
+    <div className={settingsTokens.stack}>
+      <SettingsCard
+        title="Автоматическое копирование"
+        icon={HardDrive}
+        action={
+          !settingsLoading && (
+            <Button size="sm" onClick={handleSaveSettings} disabled={saveSettingsMutation.isPending}>
+              <Save className="mr-2 h-4 w-4" />
+              {saveSettingsMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+            </Button>
+          )
+        }
+      >
+        {settingsLoading ? (
+          <div className="flex justify-center py-4">
+            <Spinner />
+          </div>
+        ) : (
+          <div className={settingsTokens.stack}>
+            <SettingsToggle
+              title="Автоматический бэкап"
+              description="Ежедневное резервное копирование базы данных по расписанию."
+              checked={autoBackup}
+              onChange={setAutoBackup}
+            />
+            <div className="grid gap-3 border-t border-gray-100 pt-4 dark:border-gray-800 sm:grid-cols-2">
+              <SettingsField label="Расписание" help="Частота автоматического создания копий.">
+                <SettingsSelect value={schedule} onChange={(e) => setSchedule(e.target.value)}>
+                  <option value="daily">Ежедневно в 03:00</option>
+                  <option value="weekly">Еженедельно (Вс, 03:00)</option>
+                  <option value="manual">Только вручную</option>
+                </SettingsSelect>
+              </SettingsField>
+              <SettingsField label="Срок хранения, дней" help="Через сколько дней удалять старые копии.">
+                <Input
+                  type="number"
+                  value={retentionDays}
+                  onChange={(e) => setRetentionDays(Number(e.target.value))}
+                />
+              </SettingsField>
+            </div>
+          </div>
+        )}
+      </SettingsCard>
 
-      <CompactActionRow
-        title="Создать резервную копию сейчас"
-        description="Ручной снимок базы данных с сохранением в каталог backups."
-        actions={
+      <SettingsCard
+        title="Резервные копии"
+        icon={HardDrive}
+        description="Снимки базы данных в каталоге backups."
+        action={
           <Button
             size="sm"
             onClick={() => createBackupMutation.mutate()}
             disabled={createBackupMutation.isPending}
           >
-            <Play className="h-4 w-4 mr-1" />
+            <Play className="mr-2 h-4 w-4" />
             {createBackupMutation.isPending ? 'Создание...' : 'Создать'}
           </Button>
         }
-      />
-
-      <CompactGroupLabel icon={HardDrive} title="Доступные резервные копии" className="pt-4" />
-      {isLoading ? (
-        <div className="flex justify-center py-8"><Spinner /></div>
-      ) : !backups?.length ? (
-        <p className="rounded-xl border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-          Нет резервных копий
-        </p>
-      ) : (
-        <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
-          {backups.map((backup, index) => (
-            <div
-              key={backup.name}
-              className={cn(
-                'flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between',
-                index !== backups.length - 1 && 'border-b border-gray-200 dark:border-gray-800'
-              )}
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{backup.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {formatBytes(backup.size)} • {new Date(backup.created).toLocaleString('ru-RU')}
-                </p>
+      >
+        {isLoading ? (
+          <div className="flex justify-center py-4">
+            <Spinner />
+          </div>
+        ) : !backups?.length ? (
+          <p className="rounded-xl border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            Нет резервных копий
+          </p>
+        ) : (
+          <div className="max-h-72 divide-y divide-gray-100 overflow-y-auto dark:divide-gray-800">
+            {backups.map((backup) => (
+              <div key={backup.name} className="flex items-center gap-2 py-1">
+                <span
+                  className="min-w-0 flex-1 truncate text-sm text-gray-800 dark:text-gray-200"
+                  title={backup.name}
+                >
+                  {backup.name}
+                </span>
+                <span className="shrink-0 text-xs tabular-nums text-gray-400 dark:text-gray-500">
+                  {formatBytes(backup.size)} · {new Date(backup.created).toLocaleDateString('ru-RU')}
+                </span>
+                <div className="flex shrink-0 items-center">
+                  <SettingsIconButton
+                    title="Восстановить из этого бэкапа"
+                    onClick={() => handleRestore(backup.name)}
+                    disabled={restoreBackupMutation.isPending}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  </SettingsIconButton>
+                  <SettingsIconButton title="Скачать" onClick={() => handleDownload(backup.name)}>
+                    <Download className="h-3.5 w-3.5" />
+                  </SettingsIconButton>
+                  <SettingsIconButton
+                    title="Удалить"
+                    onClick={() => handleDelete(backup.name)}
+                    tone="danger"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </SettingsIconButton>
+                </div>
               </div>
-              <div className="flex items-center gap-2 self-start sm:self-center">
-                <IconActionButton
-                  title="Восстановить из этого бэкапа"
-                  onClick={() => handleRestore(backup.name)}
-                  disabled={restoreBackupMutation.isPending}
-                  icon={<RotateCcw className="h-4 w-4" />}
-                />
-                <IconActionButton
-                  title="Скачать"
-                  onClick={() => handleDownload(backup.name)}
-                  icon={<Download className="h-4 w-4" />}
-                />
-                <IconActionButton
-                  title="Удалить"
-                  onClick={() => handleDelete(backup.name)}
-                  tone="danger"
-                  icon={<Trash2 className="h-4 w-4" />}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </SettingsCard>
     </div>
   )
 }
@@ -1151,74 +1127,80 @@ function NotificationSettingsTab() {
   }
 
   return (
-    <div className="space-y-4">
-      {settingsLoading ? (
-        <div className="flex justify-center py-8"><Spinner /></div>
-      ) : (
-        <>
-          <CompactToggleRow
-            title="Push-уведомления"
-            description="Отправлять push через Firebase на зарегистрированные устройства."
-            checked={isPushEnabled}
-            disabled={isSaving}
-            onChange={(checked) => handleToggle('push_enabled', checked, 'Настройки push-уведомлений сохранены')}
-          />
-          <CompactToggleRow
-            title="При создании заявки"
-            description="Уведомлять исполнителя о появлении новой назначенной заявки."
-            checked={Boolean(notifyOnNewTask?.value ?? true)}
-            disabled={isSaving}
-            onChange={(checked) => handleToggle('notify_on_new_task', checked, 'Сценарий уведомлений о новых заявках сохранён')}
-          />
-          <CompactToggleRow
-            title="При смене статуса"
-            description="Уведомлять диспетчера при изменении статуса заявки."
-            checked={Boolean(notifyOnStatusChange?.value ?? true)}
-            disabled={isSaving}
-            onChange={(checked) => handleToggle('notify_on_status_change', checked, 'Сценарий уведомлений о смене статуса сохранён')}
-          />
-          <CompactNotice tone="warning">
-            Email-уведомления пока не поддерживаются сервером и не вынесены в сохраняемые системные параметры.
-          </CompactNotice>
-        </>
-      )}
+    <div className={settingsTokens.stack}>
+      <SettingsCard title="Сценарии уведомлений" icon={Bell}>
+        {settingsLoading ? (
+          <div className="flex justify-center py-4">
+            <Spinner />
+          </div>
+        ) : (
+          <>
+            <SettingsRows>
+              <SettingsToggle
+                title="Push-уведомления"
+                description="Отправлять push через Firebase на зарегистрированные устройства."
+                checked={isPushEnabled}
+                disabled={isSaving}
+                onChange={(checked) =>
+                  handleToggle('push_enabled', checked, 'Настройки push-уведомлений сохранены')
+                }
+              />
+              <SettingsToggle
+                title="При создании заявки"
+                description="Уведомлять исполнителя о появлении новой назначенной заявки."
+                checked={Boolean(notifyOnNewTask?.value ?? true)}
+                disabled={isSaving}
+                onChange={(checked) =>
+                  handleToggle('notify_on_new_task', checked, 'Сценарий уведомлений о новых заявках сохранён')
+                }
+              />
+              <SettingsToggle
+                title="При смене статуса"
+                description="Уведомлять диспетчера при изменении статуса заявки."
+                checked={Boolean(notifyOnStatusChange?.value ?? true)}
+                disabled={isSaving}
+                onChange={(checked) =>
+                  handleToggle('notify_on_status_change', checked, 'Сценарий уведомлений о смене статуса сохранён')
+                }
+              />
+            </SettingsRows>
+            <div className="mt-4">
+              <CompactNotice tone="warning">
+                Email-уведомления пока не поддерживаются сервером и не вынесены в сохраняемые системные параметры.
+              </CompactNotice>
+            </div>
+          </>
+        )}
+      </SettingsCard>
 
-      <CompactInfoMatrix
+      <SettingsCard
         title="Статус Firebase"
         icon={Bell}
-        items={[
-          {
-            label: 'Push-канал',
-            value: (
-              <CompactStatusBadge tone={isPushEnabled ? 'success' : 'danger'}>
-                {isPushEnabled ? 'Включён' : 'Отключён'}
-              </CompactStatusBadge>
-            ),
-          },
-          {
-            label: 'Состояние отправки',
-            value: isPushEnabled
-              ? 'Уведомления будут отправляться на зарегистрированные устройства.'
-              : 'Отправка push-уведомлений отключена системной настройкой.',
-          },
-        ]}
-      />
-
-      <CompactActionRow
-        title="Тестовая отправка"
-        description="Проверяет push-канал и доставку уведомлений на зарегистрированные устройства."
-        actions={
+        action={
           <Button
             variant="secondary"
+            size="sm"
             onClick={() => testPushMutation.mutate()}
             disabled={!isPushEnabled}
             isLoading={testPushMutation.isPending}
           >
-            <Bell className="h-4 w-4 mr-2" />
-            Отправить тестовое уведомление
+            <Bell className="mr-2 h-4 w-4" />
+            Отправить тест
           </Button>
         }
-      />
+      >
+        <div>
+          <StatRow
+            label="Push-канал"
+            value={
+              <Badge variant={isPushEnabled ? 'success' : 'danger'}>
+                {isPushEnabled ? 'Включён' : 'Отключён'}
+              </Badge>
+            }
+          />
+          <StatRow label="Доставка" value={isPushEnabled ? 'На устройства' : 'Отключена'} />
+        </div>
+      </SettingsCard>
     </div>
   )
 }
@@ -1230,31 +1212,29 @@ function SecuritySettingsTab() {
   const { data: sessionTimeoutHours, isLoading: sessionLoading } = useSetting('session_timeout_hours')
   const updateSettingMutation = useUpdateSetting()
 
-  const [attempts, setAttempts] = useState(5)
-  const [windowSeconds, setWindowSeconds] = useState(60)
-  const [sessionHours, setSessionHours] = useState(168)
+  const serverAttempts = typeof rateLimitAttempts?.value === 'number' ? rateLimitAttempts.value : 5
+  const serverWindow = typeof rateLimitWindow?.value === 'number' ? rateLimitWindow.value : 60
+  const serverSession = typeof sessionTimeoutHours?.value === 'number' ? sessionTimeoutHours.value : 168
 
-  useEffect(() => {
-    if (typeof rateLimitAttempts?.value === 'number') {
-      setAttempts(rateLimitAttempts.value)
-    }
-  }, [rateLimitAttempts])
+  const [attempts, setAttempts] = useState(serverAttempts)
+  const [windowSeconds, setWindowSeconds] = useState(serverWindow)
+  const [sessionHours, setSessionHours] = useState(serverSession)
 
-  useEffect(() => {
-    if (typeof rateLimitWindow?.value === 'number') {
-      setWindowSeconds(rateLimitWindow.value)
-    }
-  }, [rateLimitWindow])
-
-  useEffect(() => {
-    if (typeof sessionTimeoutHours?.value === 'number') {
-      setSessionHours(sessionTimeoutHours.value)
-    }
-  }, [sessionTimeoutHours])
+  useEffect(() => setAttempts(serverAttempts), [serverAttempts])
+  useEffect(() => setWindowSeconds(serverWindow), [serverWindow])
+  useEffect(() => setSessionHours(serverSession), [serverSession])
 
   const settingsLoading = attemptsLoading || windowLoading || sessionLoading
+  const dirty =
+    attempts !== serverAttempts || windowSeconds !== serverWindow || sessionHours !== serverSession
 
-  const handleSave = async () => {
+  const handleReset = useCallback(() => {
+    setAttempts(serverAttempts)
+    setWindowSeconds(serverWindow)
+    setSessionHours(serverSession)
+  }, [serverAttempts, serverWindow, serverSession])
+
+  const handleSave = useCallback(async () => {
     const updates = [
       { key: 'rate_limit_attempts', value: Math.max(1, attempts) },
       { key: 'rate_limit_window', value: Math.max(10, windowSeconds) },
@@ -1269,74 +1249,77 @@ function SecuritySettingsTab() {
     } catch (error) {
       showApiError(error, 'Не удалось сохранить настройки безопасности')
     }
+  }, [attempts, windowSeconds, sessionHours, updateSettingMutation])
+
+  useRegisterSettingsSave({
+    dirty,
+    saving: updateSettingMutation.isPending,
+    onSave: handleSave,
+    onReset: handleReset,
+  })
+
+  if (settingsLoading) {
+    return (
+      <div className="flex justify-center py-8">
+        <Spinner />
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-6">
-      {settingsLoading ? (
-        <div className="flex justify-center py-8"><Spinner /></div>
-      ) : (
-        <>
-          <CompactGroupLabel icon={Shield} title="Ограничение попыток входа" />
-          <CompactFieldRow
+    <div className={settingsTokens.stack}>
+      <SettingsCard
+        title="Вход и сессии"
+        icon={Shield}
+        description="Защита от перебора паролей и срок жизни сессии."
+      >
+        <div className={settingsTokens.grid3}>
+          <SettingsField
             label="Максимум попыток"
-            description="После превышения лимита IP временно блокируется."
-            control={
-              <Input
-                type="number"
-                value={attempts}
-                onChange={(event) => setAttempts(Number(event.target.value) || 1)}
-                className="sm:w-32"
-              />
-            }
-          />
-          <CompactFieldRow
-            label="Окно в секундах"
-            description="Интервал, внутри которого считаются неудачные попытки входа."
-            control={
-              <Input
-                type="number"
-                value={windowSeconds}
-                onChange={(event) => setWindowSeconds(Number(event.target.value) || 10)}
-                className="sm:w-32"
-              />
-            }
-          />
-
-          <CompactGroupLabel icon={Clock} title="Сессии" className="pt-4" />
-          <CompactFieldRow
-            label="Время жизни токена"
-            description="Сколько часов access token остаётся действительным после входа."
-            control={
-              <Input
-                type="number"
-                value={sessionHours}
-                onChange={(event) => setSessionHours(Number(event.target.value) || 1)}
-                className="sm:w-32"
-              />
-            }
-          />
-
-          <CompactGroupLabel icon={Shield} title="Политика паролей" className="pt-4" />
+            help="После превышения лимита IP временно блокируется."
+            htmlFor="sec-attempts"
+          >
+            <Input
+              id="sec-attempts"
+              type="number"
+              value={attempts}
+              onChange={(event) => setAttempts(Number(event.target.value) || 1)}
+            />
+          </SettingsField>
+          <SettingsField
+            label="Окно, сек"
+            help="Интервал подсчёта неудачных попыток входа."
+            htmlFor="sec-window"
+          >
+            <Input
+              id="sec-window"
+              type="number"
+              value={windowSeconds}
+              onChange={(event) => setWindowSeconds(Number(event.target.value) || 10)}
+            />
+          </SettingsField>
+          <SettingsField
+            label="Время жизни токена, ч"
+            help="Сколько часов токен действителен после входа."
+            htmlFor="sec-session"
+          >
+            <Input
+              id="sec-session"
+              type="number"
+              value={sessionHours}
+              onChange={(event) => setSessionHours(Number(event.target.value) || 1)}
+            />
+          </SettingsField>
+        </div>
+        <div className="mt-3">
           <CompactNotice>
-            Сервер пока не хранит отдельные параметры парольной политики в системных настройках. Когда появятся backend-ключи, этот блок можно будет перевести на такое же сохранение, как rate limiting и сессии.
+            Парольная политика пока не хранится в системных настройках — появится, когда добавим
+            backend-ключи.
           </CompactNotice>
+        </div>
+      </SettingsCard>
 
-          <CompactActionRow
-            title="Сохранить настройки безопасности"
-            description="Применяет значения rate limiting и времени жизни токена."
-            actions={
-              <Button onClick={handleSave} disabled={updateSettingMutation.isPending}>
-                <Save className="h-4 w-4 mr-2" />
-                {updateSettingMutation.isPending ? 'Сохранение...' : 'Сохранить'}
-              </Button>
-            }
-          />
-
-          <CompactGroupLabel icon={Shield} title="Защита по IP (бан / DDoS / перебор паролей)" className="pt-6" />
-          <IpProtectionPanel />
-        </>
-      )}
+      <IpProtectionPanel />
     </div>
   )
 }
@@ -1370,27 +1353,20 @@ function CustomFieldsTab() {
   }
 
   return (
-    <div>
-      <div className="space-y-3 rounded-2xl border border-gray-200 bg-white/90 p-3.5 shadow-sm dark:border-gray-800 dark:bg-gray-900/70">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Конструктор полей заявок</h4>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Создавайте дополнительные поля для заявок. Они будут отображаться в форме создания и редактирования.
-            </p>
-          </div>
+    <>
+      <SettingsCard
+        title="Конструктор полей заявок"
+        icon={Puzzle}
+        description="Создавайте дополнительные поля для заявок — они появятся в форме создания и редактирования."
+        action={
           <Button size="sm" onClick={() => { setEditingField(null); setShowModal(true) }}>
-            <Plus className="h-4 w-4 mr-1" />
+            <Plus className="mr-1.5 h-4 w-4" />
             Добавить поле
           </Button>
-        </div>
-
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Создавайте дополнительные поля для заявок. Они будут отображаться в форме создания/редактирования.
-        </p>
-
+        }
+      >
         {isLoading ? (
-          <div className="flex justify-center py-8"><Spinner /></div>
+          <div className="flex justify-center py-4"><Spinner /></div>
         ) : !fields?.length ? (
           <CompactEmptyPanel title="Нет кастомных полей" description="Добавьте первое поле, чтобы расширить форму заявки." icon={Puzzle} />
         ) : (
@@ -1413,37 +1389,31 @@ function CustomFieldsTab() {
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <div className="flex gap-2 text-xs">
-                    {field.show_in_list && (
-                      <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded">
-                        В списке
-                      </span>
-                    )}
-                    {field.show_in_card && (
-                      <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">
-                        В карточке
-                      </span>
-                    )}
+                  <div className="flex gap-1.5">
+                    {field.show_in_list && <Badge variant="info">В списке</Badge>}
+                    {field.show_in_card && <Badge variant="success">В карточке</Badge>}
                   </div>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => { setEditingField(field); setShowModal(true) }}
-                      className="p-1.5 text-gray-500 hover:text-primary-500 transition-colors"
+                  <div className="flex items-center">
+                    <SettingsIconButton
+                      title="Редактировать"
+                      onClick={() => {
+                        setEditingField(field)
+                        setShowModal(true)
+                      }}
                     >
-                      <Edit2 className="h-4 w-4" />
-                    </button>
-                    <button className="p-1.5 text-gray-500 hover:text-red-500 transition-colors">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                      <Edit2 className="h-3.5 w-3.5" />
+                    </SettingsIconButton>
+                    <SettingsIconButton title="Удалить" tone="danger" onClick={() => undefined}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </SettingsIconButton>
                   </div>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </SettingsCard>
 
-      {/* Custom Field Modal */}
       {showModal && (
         <CustomFieldModal
           field={editingField}
@@ -1454,7 +1424,7 @@ function CustomFieldsTab() {
           }}
         />
       )}
-    </div>
+    </>
   )
 }
 
@@ -1508,10 +1478,9 @@ function CustomFieldModal({
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Тип поля
             </label>
-            <select
+            <SettingsSelect
               value={formData.field_type}
               onChange={(e) => setFormData({ ...formData, field_type: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
             >
               <option value="text">Текст (одна строка)</option>
               <option value="textarea">Текст (многострочный)</option>
@@ -1519,7 +1488,7 @@ function CustomFieldModal({
               <option value="select">Выпадающий список</option>
               <option value="checkbox">Флажок (да/нет)</option>
               <option value="date">Дата</option>
-            </select>
+            </SettingsSelect>
           </div>
 
           {formData.field_type === 'select' && (
@@ -1610,13 +1579,7 @@ function CardBuilderTab() {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <div>
-        <div className="rounded-2xl border border-gray-200 bg-white/90 p-3.5 shadow-sm dark:border-gray-800 dark:bg-gray-900/70">
-          <div className="mb-4 flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300">
-              <Puzzle className="h-4 w-4" />
-            </div>
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Доступные поля</h4>
-          </div>
+        <SettingsCard title="Доступные поля" icon={Puzzle}>
           <div className="space-y-2">
             {availableFields.map((field) => (
               <div
@@ -1629,16 +1592,11 @@ function CardBuilderTab() {
               </div>
             ))}
           </div>
-        </div>
-        
-
+        </SettingsCard>
       </div>
 
       <div className="lg:col-span-2">
-        <div className="rounded-2xl border border-gray-200 bg-white/90 p-3.5 shadow-sm dark:border-gray-800 dark:bg-gray-900/70">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Предпросмотр карточки</h4>
-          </div>
+        <SettingsCard title="Предпросмотр карточки" icon={Puzzle}>
           <CompactNotice tone="warning">
             Макет карточки пока не сохраняется и не применяется в портале. Здесь только визуальный черновик компоновки.
           </CompactNotice>
@@ -1668,7 +1626,7 @@ function CardBuilderTab() {
               </div>
             ))}
           </div>
-        </div>
+        </SettingsCard>
       </div>
     </div>
   )
@@ -1722,75 +1680,67 @@ function PermissionsTab() {
   const isDisabled = (role: string) => role === 'admin' || updatePermissionsMutation.isPending
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900/70">
-        <div className="border-b border-gray-200 px-3 py-2 dark:border-gray-800">
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300">
-              <UserCog className="h-4 w-4" />
-            </div>
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Права доступа по ролям</h4>
-          </div>
+    <SettingsCard
+      title="Права доступа по ролям"
+      icon={UserCog}
+      description="Отметьте доступные действия для каждой роли. У администратора включено всё."
+    >
+      {isLoading ? (
+        <div className="flex justify-center py-4">
+          <Spinner />
         </div>
-        <div className="p-2.5">
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Spinner />
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-              <table className="w-full">
-                <thead className="bg-gray-50/80 dark:bg-gray-800/60">
-                  <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Разрешение
-                    </th>
-                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Админ
-                    </th>
-                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Диспетчер
-                    </th>
-                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Исполнитель
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.id} className="border-b border-gray-100 transition-colors hover:bg-gray-50/80 dark:border-gray-800 dark:hover:bg-gray-800/40">
-                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                        {row.label}
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+          <table className="w-full">
+            <thead className="bg-gray-50/80 dark:bg-gray-800/60">
+              <tr className="border-b border-gray-200 dark:border-gray-700">
+                <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Разрешение
+                </th>
+                <th className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Админ
+                </th>
+                <th className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Диспетчер
+                </th>
+                <th className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Исполнитель
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id} className="border-b border-gray-100 transition-colors last:border-0 hover:bg-gray-50/80 dark:border-gray-800 dark:hover:bg-gray-800/40">
+                  <td className="px-4 py-1 text-sm text-gray-700 dark:text-gray-300">
+                    {row.label}
+                  </td>
+                  {(['admin', 'dispatcher', 'worker'] as const).map((role) => {
+                    const checked = permissions?.[role]?.[row.id] ?? (role === 'admin')
+                    return (
+                      <td key={role} className="px-4 py-1 text-center">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={isDisabled(role)}
+                          onChange={(event) =>
+                            updatePermissionsMutation.mutate({
+                              role,
+                              permission: row.id,
+                              value: event.target.checked,
+                            })
+                          }
+                          className="h-4 w-4 rounded border-gray-300 text-primary-500 disabled:opacity-50 dark:border-gray-600"
+                        />
                       </td>
-                      {(['admin', 'dispatcher', 'worker'] as const).map((role) => {
-                        const checked = permissions?.[role]?.[row.id] ?? (role === 'admin')
-                        return (
-                          <td key={role} className="px-4 py-3 text-center">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              disabled={isDisabled(role)}
-                              onChange={(event) =>
-                                updatePermissionsMutation.mutate({
-                                  role,
-                                  permission: row.id,
-                                  value: event.target.checked,
-                                })
-                              }
-                              className="w-4 h-4 rounded border-gray-300 text-primary-500 disabled:opacity-50 dark:border-gray-600"
-                            />
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </div>
-    </div>
+      )}
+    </SettingsCard>
   )
 }
 
@@ -1831,53 +1781,52 @@ function DevicesTab() {
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-900 dark:text-white">
-            Устройства и push-канал
-          </p>
-        </div>
-        <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:justify-end">
+    <SettingsCard
+      title="Устройства и push-канал"
+      icon={Smartphone}
+      bodyClassName="p-0"
+      action={
+        <div className="flex items-center gap-2">
           <Button
             variant="primary"
+            size="sm"
             onClick={() => handleSendTest()}
             disabled={sendNotification.isPending}
           >
-            <Bell className="w-4 h-4 mr-2" />
+            <Bell className="mr-2 h-4 w-4" />
             Тест всем
           </Button>
           <Button
             variant="secondary"
+            size="sm"
             onClick={() => refetch()}
             disabled={isFetching}
           >
-            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
           </Button>
         </div>
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white/90 dark:border-gray-800 dark:bg-gray-900/70">
+      }
+    >
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-800/50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-4 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   ID
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-4 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Пользователь
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-4 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Устройство
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-4 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   FCM токен
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-4 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Последняя активность
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-4 py-1.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Действия
                 </th>
               </tr>
@@ -1905,12 +1854,12 @@ function DevicesTab() {
                     key={device.id}
                     className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
                   >
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-4 py-1.5 whitespace-nowrap">
                       <span className="rounded bg-gray-100 px-2 py-1 text-sm font-mono dark:bg-gray-700">
                         {device.id}
                       </span>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-4 py-1.5 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-gray-400" />
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -1918,12 +1867,12 @@ function DevicesTab() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-4 py-1.5 whitespace-nowrap">
                       <span className="text-sm text-gray-600 dark:text-gray-400">
                         {device.device_name || 'Unknown Device'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-4 py-1.5 whitespace-nowrap">
                       <span
                         className="cursor-help text-xs font-mono text-gray-500 dark:text-gray-400"
                         title={device.fcm_token}
@@ -1931,13 +1880,13 @@ function DevicesTab() {
                         {truncateToken(device.fcm_token, 30)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-4 py-1.5 whitespace-nowrap">
                       <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <Clock className="w-4 h-4" />
                         {formatDate(device.last_active)}
                       </div>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-right">
+                    <td className="px-4 py-1.5 whitespace-nowrap text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Button
                           variant="ghost"
@@ -1988,14 +1937,13 @@ function DevicesTab() {
         </div>
 
         {devices && devices.length > 0 && (
-          <div className="border-t border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/50">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+          <div className="border-t border-gray-100 px-5 py-2.5 dark:border-gray-800">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               Всего устройств: {devices.length}
             </p>
           </div>
         )}
-      </div>
-    </div>
+    </SettingsCard>
   )
 }
 
@@ -2088,34 +2036,46 @@ function TelegramBotSettingsTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className={settingsTokens.stack}>
       {isLoading ? (
-        <div className="flex justify-center py-8"><Spinner /></div>
+        <SettingsCard>
+          <div className="flex justify-center py-4"><Spinner /></div>
+        </SettingsCard>
       ) : (
         <>
-          <CompactGroupLabel icon={Bot} title="Основные настройки" />
+          <SettingsCard title="Основные настройки" icon={Bot}>
+            <SettingsRows>
+              <SettingsToggle
+                title="Бот включён"
+                description="Разрешить боту создавать заявки из Telegram-групп"
+                checked={enabled}
+                onChange={setEnabled}
+              />
+              <SettingsToggle
+                title="Дедупликация заявок"
+                description="При повторной заявке с тем же номером — добавлять комментарий вместо дубликата"
+                checked={dedupEnabled}
+                onChange={setDedupEnabled}
+              />
+            </SettingsRows>
+          </SettingsCard>
 
-          <CompactToggleRow
-            title="Бот включён"
-            description="Разрешить боту создавать заявки из Telegram-групп"
-            checked={enabled}
-            onChange={setEnabled}
-          />
-
-          <CompactToggleRow
-            title="Дедупликация заявок"
-            description="При повторной заявке с тем же номером — добавлять комментарий вместо дубликата"
-            checked={dedupEnabled}
-            onChange={setDedupEnabled}
-          />
-
-          <CompactGroupLabel icon={User} title="Маппинг групп → работники" className="pt-4" />
-
-          <CompactNotice>
-            Подстрока названия Telegram-группы (в нижнем регистре) сопоставляется с username работника.
-            Например: группа «Заявки Иванов» → работник «ivanov».
-            {knownGroups.length > 0 && ' Группы, в которых бот уже работает, доступны для выбора.'}
-          </CompactNotice>
+          <SettingsCard
+            title="Маппинг групп → работники"
+            icon={User}
+            action={
+              <Button size="sm" onClick={handleSave} disabled={updateMutation.isPending}>
+                <Save className="mr-2 h-4 w-4" />
+                {updateMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+              </Button>
+            }
+          >
+            <div className="space-y-3">
+              <CompactNotice>
+                Подстрока названия Telegram-группы (в нижнем регистре) сопоставляется с username работника.
+                Например: группа «Заявки Иванов» → работник «ivanov».
+                {knownGroups.length > 0 && ' Группы, в которых бот уже работает, доступны для выбора.'}
+              </CompactNotice>
 
           {mappings.length > 0 && (
             <div className="space-y-2">
@@ -2131,28 +2091,25 @@ function TelegramBotSettingsTab() {
                   <div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Работник</p>
                     {workers.length > 0 ? (
-                      <select
+                      <SettingsSelect
                         value={m.username}
                         onChange={(e) => handleChangeWorker(index, e.target.value)}
-                        className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                       >
                         {workers.map((w) => (
                           <option key={w.id} value={w.username}>
                             {w.full_name || w.username} ({w.username})
                           </option>
                         ))}
-                      </select>
+                      </SettingsSelect>
                     ) : (
                       <p className="text-sm font-medium text-gray-900 dark:text-white">{getUserDisplayName(m.username)}</p>
                     )}
                   </div>
-                  <button
-                    onClick={() => handleRemoveMapping(index)}
-                    className="self-center rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950"
-                    title="Удалить"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="self-center">
+                    <SettingsIconButton title="Удалить" tone="danger" onClick={() => handleRemoveMapping(index)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </SettingsIconButton>
+                  </div>
                 </div>
               ))}
             </div>
@@ -2169,10 +2126,9 @@ function TelegramBotSettingsTab() {
           <div className="grid grid-cols-[1fr_1fr_auto] gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-800 dark:bg-gray-900/70">
             <div>
               {availableGroups.length > 0 ? (
-                <select
+                <SettingsSelect
                   value={newGroupName}
                   onChange={(e) => setNewGroupName(e.target.value)}
-                  className="h-full w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                 >
                   <option value="">Выберите группу</option>
                   {availableGroups.map((g) => (
@@ -2181,7 +2137,7 @@ function TelegramBotSettingsTab() {
                     </option>
                   ))}
                   <option value="__custom__">Ввести вручную...</option>
-                </select>
+                </SettingsSelect>
               ) : (
                 <Input
                   placeholder="Подстрока группы, напр. заявки иванов"
@@ -2203,10 +2159,9 @@ function TelegramBotSettingsTab() {
             </div>
             <div>
               {workers.length > 0 ? (
-                <select
+                <SettingsSelect
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.target.value)}
-                  className="h-full w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                 >
                   <option value="">Выберите работника</option>
                   {workers.map((w) => (
@@ -2214,7 +2169,7 @@ function TelegramBotSettingsTab() {
                       {w.full_name || w.username} ({w.username})
                     </option>
                   ))}
-                </select>
+                </SettingsSelect>
               ) : (
                 <Input
                   placeholder="Username работника"
@@ -2224,26 +2179,19 @@ function TelegramBotSettingsTab() {
                 />
               )}
             </div>
-            <button
+            <Button
+              size="sm"
               onClick={handleAddMapping}
               disabled={!(newGroupName === '__custom__' ? customGroupName.trim() : newGroupName.trim()) || !newUsername.trim()}
-              className="self-center rounded-md bg-blue-600 p-2 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
               title="Добавить маппинг"
+              className="self-center"
             >
               <Plus className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
 
-          <CompactActionRow
-            title="Сохранить настройки бота"
-            description="Применяет флаги и маппинг групп"
-            actions={
-              <Button onClick={handleSave} disabled={updateMutation.isPending}>
-                <Save className="h-4 w-4 mr-2" />
-                {updateMutation.isPending ? 'Сохранение...' : 'Сохранить'}
-              </Button>
-            }
-          />
+            </div>
+          </SettingsCard>
         </>
       )}
     </div>
@@ -2295,297 +2243,24 @@ function ClearDatabaseModal({ setShowClearConfirm }: { setShowClearConfirm: (sho
         </div>
 
         {/* Buttons */}
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex gap-3">
-          <button
+        <div className="flex gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800/50">
+          <Button
+            variant="secondary"
+            className="flex-1"
             onClick={() => setShowClearConfirm(false)}
             disabled={clearMutation.isPending}
-            className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Отмена
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="danger"
+            className="flex-1"
             onClick={() => clearMutation.mutate()}
-            disabled={clearMutation.isPending}
-            className="flex-1 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600 text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            isLoading={clearMutation.isPending}
           >
-            {clearMutation.isPending ? (
-              <>
-                <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Удаление...
-              </>
-            ) : (
-              <>
-                <Trash2 className="h-4 w-4" />
-                Удалить все
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function CompactGroupLabel({
-  icon: Icon,
-  title,
-  className,
-}: {
-  icon: typeof Settings
-  title: string
-  className?: string
-}) {
-  return (
-    <div
-      className={cn(
-        'flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-800/60',
-        className
-      )}
-    >
-      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
-        <Icon className="h-4 w-4" />
-      </div>
-      <div>
-        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h4>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Настройки и действия внутри этого блока сгруппированы в отдельные карточки.</p>
-      </div>
-    </div>
-  )
-}
-
-function CompactInfoMatrix({
-  title,
-  icon: Icon,
-  items,
-}: {
-  title: string
-  icon: typeof Settings
-  items: Array<{ label: string; value: React.ReactNode; monospace?: boolean; highlight?: boolean }>
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300">
-          <Icon className="h-4 w-4" />
-        </div>
-        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h4>
-      </div>
-
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {items.map((item) => (
-          <CompactInfoTile
-            key={item.label}
-            label={item.label}
-            value={item.value}
-            monospace={item.monospace}
-            highlight={item.highlight}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function CompactDatabaseSection({
-  title,
-  icon: Icon,
-  items,
-  children,
-}: {
-  title: string
-  icon: typeof Settings
-  items: Array<{ label: string; value: React.ReactNode; monospace?: boolean; highlight?: boolean }>
-  children: React.ReactNode
-}) {
-  return (
-    <div className="space-y-2.5">
-      <div className="flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300">
-          <Icon className="h-4 w-4" />
-        </div>
-        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h4>
-      </div>
-
-      <div className="space-y-2.5 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900/70">
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {items.map((item) => (
-            <CompactInfoTile
-              key={item.label}
-              label={item.label}
-              value={item.value}
-              monospace={item.monospace}
-              highlight={item.highlight}
-            />
-          ))}
-        </div>
-
-        <div className="border-t border-gray-200 pt-2.5 dark:border-gray-800">
-          <div className="mb-2 flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300">
-              <RefreshCw className="h-4 w-4" />
-            </div>
-            <div>
-              <h5 className="text-sm font-semibold text-gray-900 dark:text-white">Операции с базой</h5>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Обслуживание, очистка и сервисные действия без переключения в отдельные группы.</p>
-            </div>
-          </div>
-
-          <div className="grid gap-2 lg:grid-cols-2">{children}</div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function CompactInfoTile({
-  label,
-  value,
-  monospace = false,
-  highlight = false,
-}: {
-  label: string
-  value: React.ReactNode
-  monospace?: boolean
-  highlight?: boolean
-}) {
-  return (
-      <div className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 dark:border-gray-800 dark:bg-gray-800/40">
-      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</p>
-      <div
-        className={cn(
-          'mt-0.5 text-sm font-semibold text-gray-900 dark:text-white',
-          monospace && 'font-mono text-xs sm:text-sm',
-          highlight && 'text-base'
-        )}
-      >
-        {value}
-      </div>
-    </div>
-  )
-}
-
-function CompactToggleRow({
-  title,
-  description,
-  checked,
-  onChange,
-  disabled,
-}: {
-  title: string
-  description: string
-  checked: boolean
-  onChange: (checked: boolean) => void
-  disabled?: boolean
-}) {
-  return (
-    <div className="grid gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:border-gray-800 dark:bg-gray-900/70">
-      <div className="pr-2">
-        <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
-        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{description}</p>
-      </div>
-      <ToggleSwitch checked={checked} disabled={disabled} onChange={onChange} />
-    </div>
-  )
-}
-
-function CompactFieldRow({
-  label,
-  description,
-  control,
-}: {
-  label: string
-  description: string
-  control: React.ReactNode
-}) {
-  return (
-    <div className="grid gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:border-gray-800 dark:bg-gray-900/70">
-      <div className="pr-2">
-        <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
-        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{description}</p>
-      </div>
-      <div className="sm:flex sm:justify-end">
-        <div className="min-w-[136px] rounded-md bg-gray-50 p-0.5 dark:bg-gray-800">{control}</div>
-      </div>
-    </div>
-  )
-}
-
-function CompactActionRow({
-  title,
-  description,
-  actions,
-}: {
-  title: string
-  description: string
-  actions: React.ReactNode
-}) {
-  return (
-    <div className="grid gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:border-gray-800 dark:bg-gray-900/70">
-      <div className="pr-2">
-        <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
-        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{description}</p>
-      </div>
-      <div className="flex flex-wrap items-center gap-2 sm:justify-end">{actions}</div>
-    </div>
-  )
-}
-
-function CompactActionTile({
-  title,
-  description,
-  actions,
-}: {
-  title: string
-  description: string
-  actions: React.ReactNode
-}) {
-  return (
-    <div className="flex h-full flex-col justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 dark:border-gray-800 dark:bg-gray-800/40">
-      <div>
-        <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>
-        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{description}</p>
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2">{actions}</div>
-    </div>
-  )
-}
-
-function CompactSliderRow({
-  label,
-  description,
-  value,
-  min,
-  max,
-  onChange,
-}: {
-  label: string
-  description: string
-  value: number
-  min: number
-  max: number
-  onChange: (value: number) => void
-}) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-800 dark:bg-gray-900/70">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="pr-2">
-          <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
-          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{description}</p>
-        </div>
-        <div className="min-w-[210px] rounded-md bg-gray-50 p-1.5 dark:bg-gray-800">
-          <div className="mb-1 flex items-center justify-between text-xs font-medium text-gray-500 dark:text-gray-400">
-            <span>Ниже</span>
-            <span>{value}%</span>
-            <span>Выше</span>
-          </div>
-          <input
-            type="range"
-            min={min}
-            max={max}
-            value={value}
-            onChange={(e) => onChange(Number(e.target.value))}
-            className="w-full h-2 cursor-pointer appearance-none rounded-lg bg-gray-200 dark:bg-gray-700"
-          />
+            <Trash2 className="mr-2 h-4 w-4" />
+            {clearMutation.isPending ? 'Удаление...' : 'Удалить все'}
+          </Button>
         </div>
       </div>
     </div>
@@ -2632,90 +2307,6 @@ function CompactEmptyPanel({
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{description}</p>
       </div>
     </div>
-  )
-}
-
-function ToggleSwitch({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean
-  onChange: (checked: boolean) => void
-  disabled?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        'relative inline-flex h-6 w-11 items-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-        checked
-          ? 'border-primary-500 bg-primary-500 dark:border-primary-400 dark:bg-primary-400'
-          : 'border-gray-300 bg-gray-200 dark:border-gray-600 dark:bg-gray-700'
-      )}
-    >
-      <span
-        className={cn(
-          'inline-block h-4 w-4 rounded-full bg-white transition-transform',
-          checked ? 'translate-x-6' : 'translate-x-1'
-        )}
-      />
-    </button>
-  )
-}
-
-function CompactStatusBadge({
-  children,
-  tone,
-}: {
-  children: React.ReactNode
-  tone: 'success' | 'danger'
-}) {
-  return (
-    <span
-      className={cn(
-        'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
-        tone === 'success'
-          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-          : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-      )}
-    >
-      {children}
-    </span>
-  )
-}
-
-function IconActionButton({
-  title,
-  onClick,
-  icon,
-  tone = 'default',
-  disabled,
-}: {
-  title: string
-  onClick: () => void
-  icon: React.ReactNode
-  tone?: 'default' | 'danger'
-  disabled?: boolean
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      className={cn(
-        'rounded-lg border border-gray-200 p-2 text-gray-500 transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-400',
-        tone === 'danger'
-          ? 'hover:border-red-200 hover:text-red-500 dark:hover:border-red-900/70 dark:hover:text-red-400'
-          : 'hover:border-primary-200 hover:text-primary-500 dark:hover:border-primary-900/70 dark:hover:text-primary-400'
-      )}
-    >
-      {icon}
-    </button>
   )
 }
 

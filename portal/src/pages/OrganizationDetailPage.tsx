@@ -4,7 +4,6 @@ import toast from 'react-hot-toast'
 import { mutationToast } from '@/utils/apiError'
 import { formatDateOnly } from '@/utils/dateFormat'
 import {
-  ArrowLeft,
   Building2,
   Users,
   ClipboardList,
@@ -33,6 +32,7 @@ import type { OrgUser } from '@/api/organizations'
 import { getRoleLabel, isSuperadminRole, type UserRole } from '@/types/user'
 import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/Button'
+import PageHeader from '@/components/PageHeader'
 import Input from '@/components/Input'
 import Select from '@/components/Select'
 import Card from '@/components/Card'
@@ -250,44 +250,35 @@ export default function OrganizationDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <button
-            onClick={() => navigate('/admin/organizations')}
-            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-2xl font-bold text-gray-900 dark:text-white">
-                {org.name}
-              </h1>
-              <Badge variant={org.is_active ? 'success' : 'gray'}>
-                {org.is_active ? 'Активна' : 'Неактивна'}
-              </Badge>
-            </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-              {org.slug}
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => { refetchOrg(); refetchUsers() }}>
-            <RefreshCw className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={handleToggleActive}>
-            {org.is_active ?
-              <><PowerOff className="w-4 h-4 mr-1" />Деактивировать</> :
-              <><Power className="w-4 h-4 mr-1" />Активировать</>
-            }
-          </Button>
-          <Button size="sm" onClick={handleOpenEdit}>
-            <Edit className="w-4 h-4 mr-1" />
-            Редактировать
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        onBack={() => navigate('/admin/organizations')}
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="truncate">{org.name}</span>
+            <Badge variant={org.is_active ? 'success' : 'gray'}>
+              {org.is_active ? 'Активна' : 'Неактивна'}
+            </Badge>
+          </span>
+        }
+        description={org.slug}
+        actions={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => { refetchOrg(); refetchUsers() }}>
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleToggleActive}>
+              {org.is_active ?
+                <><PowerOff className="w-4 h-4 mr-1" />Деактивировать</> :
+                <><Power className="w-4 h-4 mr-1" />Активировать</>
+              }
+            </Button>
+            <Button size="sm" onClick={handleOpenEdit}>
+              <Edit className="w-4 h-4 mr-1" />
+              Редактировать
+            </Button>
+          </>
+        }
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

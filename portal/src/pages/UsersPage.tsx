@@ -29,6 +29,7 @@ import { mutationToast } from '@/utils/apiError'
 import { formatDateOnly as formatDate } from '@/utils/dateFormat'
 import Badge from '@/components/Badge'
 import Button from '@/components/Button'
+import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
 import Input from '@/components/Input'
 import Select from '@/components/Select'
@@ -292,29 +293,30 @@ export default function UsersPage() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Пользователи</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {users ? `Всего: ${users.length} • групп: ${groupedUsers.length || 1}` : 'Загрузка...'}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => void handleRefresh()}
-            disabled={isRefreshing}
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Обновить
-          </Button>
-          <Button size="sm" onClick={handleOpenCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Добавить
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        className="mb-6"
+        title="Пользователи"
+        description={
+          users ? `Всего: ${users.length} • групп: ${groupedUsers.length || 1}` : 'Загрузка...'
+        }
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleRefresh()}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Обновить
+            </Button>
+            <Button size="sm" onClick={handleOpenCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              Добавить
+            </Button>
+          </>
+        }
+      />
 
       {isLoading ? (
         <SkeletonTable rows={4} columns={5} />

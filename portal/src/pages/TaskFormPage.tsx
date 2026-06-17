@@ -7,6 +7,7 @@ import { usePortalInterfaceSettings } from '@/hooks/useSettings'
 import { useUsers } from '@/hooks/useUsers'
 import { addressesApi } from '@/api/addresses'
 import Button from '@/components/Button'
+import PageHeader from '@/components/PageHeader'
 import Input from '@/components/Input'
 import Textarea from '@/components/Textarea'
 import Select from '@/components/Select'
@@ -591,15 +592,14 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
           Назад
         </Button>
 
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {mode === 'create' ? 'Новая заявка' : 'Редактирование заявки'}
-        </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          {mode === 'create' 
-            ? 'Заполните информацию о новой заявке' 
-            : `Редактирование заявки ${task?.task_number || `#${taskId}`}`
+        <PageHeader
+          title={mode === 'create' ? 'Новая заявка' : 'Редактирование заявки'}
+          description={
+            mode === 'create'
+              ? 'Заполните информацию о новой заявке'
+              : `Редактирование заявки ${task?.task_number || `#${taskId}`}`
           }
-        </p>
+        />
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">

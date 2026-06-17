@@ -21,6 +21,7 @@ import {
   isStatusTransitionAllowed,
 } from '@/config/taskConstants'
 import Button from '@/components/Button'
+import PageHeader from '@/components/PageHeader'
 import MultiSelectFilter from '@/components/MultiSelectFilter'
 import Select from '@/components/Select'
 import { SkeletonTaskList } from '@/components/Skeleton'
@@ -1179,31 +1180,30 @@ export default function TasksPage() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Заявки</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {data ? `Всего: ${data.total}` : 'Загрузка...'}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 sm:justify-end">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              refetch().then(() => toast.success('Список обновлён'))
-            }}
-            disabled={isFetching}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
-            Обновить
-          </Button>
-          <Button size="sm" onClick={() => navigate('/tasks/new')}>
-            <Plus className="h-4 w-4 mr-2" />
-            Новая заявка
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        className="mb-6"
+        title="Заявки"
+        description={data ? `Всего: ${data.total}` : 'Загрузка...'}
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                refetch().then(() => toast.success('Список обновлён'))
+              }}
+              disabled={isFetching}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+              Обновить
+            </Button>
+            <Button size="sm" onClick={() => navigate('/tasks/new')}>
+              <Plus className="h-4 w-4 mr-2" />
+              Новая заявка
+            </Button>
+          </>
+        }
+      />
 
       {/* Filters */}
       <div className="mb-5 rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-colors dark:border-gray-700 dark:bg-gray-800">

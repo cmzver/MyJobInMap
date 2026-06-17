@@ -16,6 +16,7 @@ import {
 
 import Badge from '@/components/Badge'
 import Button from '@/components/Button'
+import PageHeader from '@/components/PageHeader'
 import Card from '@/components/Card'
 import EmptyState from '@/components/EmptyState'
 import Input from '@/components/Input'
@@ -130,22 +131,16 @@ export default function SupportPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Поддержка</h1>
-          <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-            Ошибки, улучшения и ответы поддержки собраны в одном списке. Новые события отмечаются прямо на
-            нужном тикете.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
+      <PageHeader
+        title="Поддержка"
+        description="Ошибки, улучшения и ответы поддержки собраны в одном списке. Новые события отмечаются прямо на нужном тикете."
+        actions={
           <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
             Обновить
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-1.5">
         <StatPill title="Всего" value={tickets.length} tone="primary" />
