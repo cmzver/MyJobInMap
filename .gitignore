@@ -122,3 +122,6 @@ chat_results.txt
 # Generated OpenAPI intermediate (types are committed, this dump is not)
 server/openapi.json
 portal/openapi.json
+
+# Loose screenshots dropped at repo root (ad-hoc, not committed)
+/*.png
