@@ -77,7 +77,13 @@ logs/
 # Temporary files
 *.tmp
 *.bak
+*.bak_*
 .temp/
+
+# Local DB backups / snapshots (not committed)
+backups/
+*.db.bak*
+*.sqlite.gz
 chat_test_out.txt
 test_chat_results.txt
 
