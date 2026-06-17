@@ -17,8 +17,6 @@ export { default as StatusBadge } from './StatusBadge'
 export { default as PriorityBadge } from './PriorityBadge'
 
 // Form components
-export { default as Autocomplete } from './Autocomplete'
-export { default as AddressAutocomplete } from './AddressAutocomplete'
 export { default as AddressForm } from './AddressForm'
 export { default as DefectTypeSelector } from './DefectTypeSelector'
 export { default as SystemSelector } from './SystemSelector'
@@ -30,5 +28,5 @@ export * from './AddressCardForms'
 export { default as ErrorBoundary } from './ErrorBoundary'
 
 // Loading states
-export { Skeleton, SkeletonText, SkeletonCard, SkeletonTable, SkeletonTableRow, SkeletonTaskList, SkeletonStats } from './Skeleton'
+export { Skeleton, SkeletonText, SkeletonTable, SkeletonTableRow, SkeletonTaskList, SkeletonStats } from './Skeleton'
 export { default as QueryError } from './QueryError'
