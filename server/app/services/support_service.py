@@ -128,6 +128,7 @@ class SupportService:
         author: UserModel,
         old_status: str,
         new_status: str,
+        body: Optional[str] = None,
     ) -> None:
         self.db.add(
             SupportTicketCommentModel(
@@ -136,6 +137,7 @@ class SupportService:
                 comment_type=SupportTicketCommentType.STATUS_CHANGE.value,
                 old_status=old_status,
                 new_status=new_status,
+                body=body,
             )
         )
 
@@ -272,6 +274,11 @@ class SupportService:
     ) -> SupportTicketCommentResponse:
         ticket = self._get_ticket_or_404(current_user, ticket_id)
 
+        if ticket.status == SupportTicketStatus.CLOSED.value:
+            raise SupportServiceError(
+                "Нельзя добавить комментарий в закрытый тикет", 409
+            )
+
         ticket.updated_at = utcnow()
         self._add_text_comment(ticket=ticket, author=current_user, body=payload.body)
         self.db.commit()
@@ -343,9 +350,9 @@ class SupportService:
                 author=current_user,
                 old_status=old_status,
                 new_status=ticket.status,
+                body=ticket.admin_response if response_changed else None,
             )
-
-        if response_changed and ticket.admin_response:
+        elif response_changed and ticket.admin_response:
             self._add_text_comment(
                 ticket=ticket,
                 author=current_user,

@@ -136,10 +136,10 @@ def test_superadmin_can_view_all_update_status_and_comment(
     assert [item["comment_type"] for item in detail["comments"]] == [
         "status_change",
         "comment",
-        "comment",
     ]
     assert detail["comments"][0]["old_status"] == "new"
     assert detail["comments"][0]["new_status"] == "resolved"
+    assert detail["comments"][0]["body"] == "Fix will be included in the next release."
     assert detail["comments"][-1]["body"] == "Temporary workaround has been added."
 
     worker_notifications = (
