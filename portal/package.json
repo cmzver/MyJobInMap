@@ -16,9 +16,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.14.2",
-    "@tanstack/react-virtual": "^3.13.18",
     "axios": "^1.6.2",
-    "clsx": "^2.0.0",
     "date-fns": "^3.0.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.300.0",

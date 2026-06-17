@@ -166,29 +166,6 @@ export function usePortalInterfaceSettings() {
   })
 }
 
-export function useAddDefectType() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: ({ name, description }: { name: string; description?: string }) =>
-      settingsApi.addDefectType(name, description),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.defectTypes })
-    },
-  })
-}
-
-export function useDeleteDefectType() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: (id: string) => settingsApi.deleteDefectType(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.defectTypes })
-    },
-  })
-}
-
 // ============================================
 // Telegram Bot Settings
 // ============================================

@@ -185,37 +185,3 @@ export function getStatusCommentCopy(status: TaskStatus | null, options?: { plur
     error: 'Комментарий обязателен',
   }
 }
-
-/**
- * Парсинг приоритета из CSV/импорта
- */
-export function parsePriorityFromImport(value: string): TaskPriority | undefined {
-  const normalized = value.trim().toLowerCase()
-  if (!normalized) return undefined
-  
-  // Числовые значения
-  if (['1', '2', '3', '4'].includes(normalized)) {
-    return PRIORITY_FROM_NUMBER[Number(normalized)]
-  }
-  
-  // Английские названия
-  const englishMap: Record<string, TaskPriority> = {
-    planned: 'PLANNED',
-    current: 'CURRENT',
-    urgent: 'URGENT',
-    emergency: 'EMERGENCY',
-  }
-  if (englishMap[normalized]) return englishMap[normalized]
-  
-  // Русские названия
-  const russianMap: Record<string, TaskPriority> = {
-    'плановая': 'PLANNED',
-    'текущая': 'CURRENT',
-    'срочная': 'URGENT',
-    'аварийная': 'EMERGENCY',
-    'авария': 'EMERGENCY',
-  }
-  if (russianMap[normalized]) return russianMap[normalized]
-  
-  return undefined
-}
