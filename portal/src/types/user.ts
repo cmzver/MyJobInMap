@@ -27,11 +27,6 @@ export function isSuperadminRole(role?: string | null, organizationId?: number |
   return role === 'superadmin' || (role === 'admin' && organizationId == null)
 }
 
-export function canManageTasksRole(role?: string | null): boolean {
-  const normalizedRole = normalizeRoleForAccess(role)
-  return normalizedRole === 'admin' || normalizedRole === 'dispatcher'
-}
-
 export function isAssignableRole(role?: string | null): boolean {
   const normalizedRole = normalizeRoleForAccess(role)
   return normalizedRole === 'worker' || normalizedRole === 'dispatcher'

@@ -219,5 +219,3 @@ export function Autocomplete({
     </div>
   );
 }
-
-export default Autocomplete;

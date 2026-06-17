@@ -212,13 +212,3 @@ export function getHomePathForRole(role: UserRole): string {
       return '/my-tasks'
   }
 }
-
-export function canAccessPath(path: string, role: UserRole, organizationId?: number | null): boolean {
-  const normalizedRole = normalizeRoleForAccess(role)
-  const allItems = menuConfig.flatMap((section) => section.items)
-  const item = allItems.find((menuItem) => path.startsWith(menuItem.path))
-  if (!item) return false
-  if (!item.roles.includes(normalizedRole)) return false
-  if (isOrgAdmin(role, organizationId) && HIDDEN_FOR_ORG_ADMIN.has(item.id)) return false
-  return true
-}

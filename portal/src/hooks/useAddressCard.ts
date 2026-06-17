@@ -3,12 +3,11 @@
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { addressesApi, CreateSystemData, UpdateSystemData, CreateEquipmentData, UpdateEquipmentData, CreateContactData, UpdateContactData } from '@/api/addresses'
-import type { AddressFull, AddressSystem, AddressEquipment, AddressDocument, AddressContact, AddressHistory } from '@/types/address'
-import type { Task } from '@/types/task'
+import type { AddressFull } from '@/types/address'
 import { useAuthStore } from '@/store/authStore'
 
 // Query Keys
-export const addressCardKeys = {
+const addressCardKeys = {
   all: (organizationId: number | null | undefined) => ['addressCard', organizationId ?? 'no-org'] as const,
   full: (organizationId: number | null | undefined, id: number) => [...addressCardKeys.all(organizationId), 'full', id] as const,
   systems: (organizationId: number | null | undefined, id: number) => [...addressCardKeys.all(organizationId), 'systems', id] as const,
@@ -16,7 +15,6 @@ export const addressCardKeys = {
   documents: (organizationId: number | null | undefined, id: number) => [...addressCardKeys.all(organizationId), 'documents', id] as const,
   contacts: (organizationId: number | null | undefined, id: number) => [...addressCardKeys.all(organizationId), 'contacts', id] as const,
   history: (organizationId: number | null | undefined, id: number) => [...addressCardKeys.all(organizationId), 'history', id] as const,
-  tasks: (organizationId: number | null | undefined, id: number) => [...addressCardKeys.all(organizationId), 'tasks', id] as const,
 }
 
 // ============================================
@@ -38,16 +36,6 @@ export function useAddressFull(addressId: number, enabled = true) {
 // ============================================
 // Системы
 // ============================================
-
-export function useAddressSystems(addressId: number) {
-  const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
-
-  return useQuery<AddressSystem[]>({
-    queryKey: addressCardKeys.systems(organizationId, addressId),
-    queryFn: () => addressesApi.getSystems(addressId),
-    enabled: addressId > 0,
-  })
-}
 
 export function useCreateSystem(addressId: number) {
   const queryClient = useQueryClient()
@@ -96,16 +84,6 @@ export function useDeleteSystem(addressId: number) {
 // Оборудование
 // ============================================
 
-export function useAddressEquipment(addressId: number, systemId?: number) {
-  const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
-
-  return useQuery<AddressEquipment[]>({
-    queryKey: addressCardKeys.equipment(organizationId, addressId, systemId),
-    queryFn: () => addressesApi.getEquipment(addressId, systemId),
-    enabled: addressId > 0,
-  })
-}
-
 export function useCreateEquipment(addressId: number) {
   const queryClient = useQueryClient()
   const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
@@ -153,16 +131,6 @@ export function useDeleteEquipment(addressId: number) {
 // Документы
 // ============================================
 
-export function useAddressDocuments(addressId: number) {
-  const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
-
-  return useQuery<AddressDocument[]>({
-    queryKey: addressCardKeys.documents(organizationId, addressId),
-    queryFn: () => addressesApi.getDocuments(addressId),
-    enabled: addressId > 0,
-  })
-}
-
 export function useUploadDocument(addressId: number) {
   const queryClient = useQueryClient()
   const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
@@ -201,16 +169,6 @@ export function useDeleteDocument(addressId: number) {
 // ============================================
 // Контакты
 // ============================================
-
-export function useAddressContacts(addressId: number) {
-  const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
-
-  return useQuery<AddressContact[]>({
-    queryKey: addressCardKeys.contacts(organizationId, addressId),
-    queryFn: () => addressesApi.getContacts(addressId),
-    enabled: addressId > 0,
-  })
-}
 
 export function useCreateContact(addressId: number) {
   const queryClient = useQueryClient()
@@ -252,33 +210,5 @@ export function useDeleteContact(addressId: number) {
       queryClient.invalidateQueries({ queryKey: addressCardKeys.full(organizationId, addressId) })
       queryClient.invalidateQueries({ queryKey: addressCardKeys.history(organizationId, addressId) })
     },
-  })
-}
-
-// ============================================
-// История
-// ============================================
-
-export function useAddressHistory(addressId: number, limit?: number) {
-  const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
-
-  return useQuery<AddressHistory[]>({
-    queryKey: addressCardKeys.history(organizationId, addressId),
-    queryFn: () => addressesApi.getHistory(addressId, limit),
-    enabled: addressId > 0,
-  })
-}
-
-// ============================================
-// Заявки
-// ============================================
-
-export function useAddressTasks(addressId: number, status?: string, limit?: number) {
-  const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
-
-  return useQuery<Task[]>({
-    queryKey: [...addressCardKeys.tasks(organizationId, addressId), status, limit],
-    queryFn: () => addressesApi.getAddressTasks(addressId, status, limit),
-    enabled: addressId > 0,
   })
 }
