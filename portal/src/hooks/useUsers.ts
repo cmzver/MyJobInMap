@@ -19,15 +19,6 @@ export function useUsers() {
   })
 }
 
-// Get single user
-export function useUser(id: number) {
-  return useQuery({
-    queryKey: userKeys.detail(id),
-    queryFn: () => usersApi.getUser(id),
-    enabled: !!id,
-  })
-}
-
 // Create user mutation
 export function useCreateUser() {
   const queryClient = useQueryClient()
