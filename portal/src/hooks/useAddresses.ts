@@ -25,18 +25,6 @@ export function useAddresses(filters?: AddressFilters) {
   })
 }
 
-// Поиск адресов для автокомплита
-export function useAddressSearch(query: string, enabled = true) {
-  const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
-
-  return useQuery({
-    queryKey: addressKeys.search(organizationId, query),
-    queryFn: () => addressesApi.searchAddresses(query),
-    enabled: enabled && query.length >= 2,
-    staleTime: 0,
-  })
-}
-
 // Создать адрес
 export function useCreateAddress() {
   const queryClient = useQueryClient()

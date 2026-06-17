@@ -1,0 +1,6 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignoreExportsUsedInFile": true,
+  "ignoreBinaries": ["python"],
+  "ignore": ["src/types/api.generated.ts"]
+}
