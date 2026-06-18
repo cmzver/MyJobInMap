@@ -1,0 +1,145 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Заявки создаются (rate по приоритету)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (priority) (rate(fieldworker_tasks_created_total[5m]))",
+          "legendFormat": "{{priority}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Переходы статусов заявок (rate)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (from_status, to_status) (rate(fieldworker_task_status_transitions_total[5m]))",
+          "legendFormat": "{{from_status}} → {{to_status}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Создано заявок (24ч)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(increase(fieldworker_tasks_created_total[24h]))",
+          "legendFormat": "Всего"
+        }
+      ]
+    },
+    {
+      "title": "Активные WebSocket",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(fieldworker_websocket_connections)",
+          "legendFormat": "Соединения"
+        }
+      ]
+    },
+    {
+      "title": "Push: доля ошибок (%)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(fieldworker_push_sent_total{result=~\"failed|error\"}[15m])) / clamp_min(sum(rate(fieldworker_push_sent_total[15m])), 1) * 100",
+          "legendFormat": "Ошибки %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 20 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Push отправлено (24ч)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(increase(fieldworker_push_sent_total{result=\"success\"}[24h]))",
+          "legendFormat": "Доставлено"
+        }
+      ]
+    },
+    {
+      "title": "Push: результаты отправки (rate)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(fieldworker_push_sent_total[5m]))",
+          "legendFormat": "{{result}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Очередь: постановка задач (arq vs inline)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        {
+          "expr": "sum by (job, mode) (rate(fieldworker_queue_jobs_enqueued_total[5m]))",
+          "legendFormat": "{{job}} [{{mode}}]"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Очередь: обработка задач (success/error)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        {
+          "expr": "sum by (job, result) (rate(fieldworker_queue_jobs_processed_total[5m]))",
+          "legendFormat": "{{job}} [{{result}}]"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Создано заявок по приоритету (1ч)",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        {
+          "expr": "sum by (priority) (increase(fieldworker_tasks_created_total[1h]))",
+          "legendFormat": "{{priority}}"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["fieldworker", "business"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "title": "FieldWorker Business Metrics",
+  "uid": "fieldworker-business"
+}

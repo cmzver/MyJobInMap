@@ -6,10 +6,10 @@ Push Notification Service
 
 import logging
 import os
-import threading
 from typing import List, Optional
 
 from app.config import settings
+from app.services import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,7 @@ def _send_push_sync(
     """Синхронная отправка push-уведомлений"""
     if firebase_app is None:
         logger.warning("Push: Firebase not configured")
+        metrics.record_push_result("not_configured")
         return {"success": False, "message": "Firebase not configured"}
 
     from firebase_admin import messaging
@@ -86,6 +87,7 @@ def _send_push_sync(
 
         if not devices:
             logger.warning("Push: No devices found")
+            metrics.record_push_result("no_devices")
             return {"success": False, "message": "No devices"}
 
         logger.info(f"Push: Sending to {len(devices)} device(s):")
@@ -150,6 +152,11 @@ def _send_push_sync(
                         db.delete(device)
                         db.commit()
 
+        if response.success_count:
+            metrics.record_push_result("success", response.success_count)
+        if response.failure_count:
+            metrics.record_push_result("failed", response.failure_count)
+
         return {
             "success": True,
             "sent": response.success_count,
@@ -158,6 +165,7 @@ def _send_push_sync(
 
     except Exception as e:
         logger.error(f"Push error: {e}")
+        metrics.record_push_result("error")
         return {"success": False, "message": str(e)}
     finally:
         db.close()
@@ -172,21 +180,24 @@ def send_push_background(
     organization_id: Optional[int] = None,
     extra_data: Optional[dict] = None,
 ):
-    """Отправка push в фоновом потоке (не блокирует)"""
-    thread = threading.Thread(
-        target=_send_push_sync,
-        args=(
-            title,
-            body,
-            notification_type,
-            task_id,
-            user_ids,
-            organization_id,
-            extra_data,
-        ),
-        daemon=True,
+    """Поставить отправку push в фоновую очередь (не блокирует запрос).
+
+    Делегирует task_queue: в режиме очереди уходит в ARQ/Redis (ретраи,
+    видимость), иначе выполняется в daemon-потоке — прежнее поведение.
+    """
+    # Локальный импорт во избежание цикла (task_queue лениво грузит push).
+    from app.services import task_queue
+
+    task_queue.enqueue(
+        "push_send",
+        title=title,
+        body=body,
+        notification_type=notification_type,
+        task_id=task_id,
+        user_ids=user_ids,
+        organization_id=organization_id,
+        extra_data=extra_data,
     )
-    thread.start()
     logger.info(f"Push queued in background: {title}")
 
 
