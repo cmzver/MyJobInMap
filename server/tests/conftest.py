@@ -5,7 +5,7 @@ import sys
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -19,7 +19,10 @@ from app.services.ip_guard import ip_guard
 from app.services.rate_limiter import login_rate_limiter
 from main import app
 
-TEST_SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+# По умолчанию — быстрый in-memory SQLite. CI/локально можно прогнать тот же
+# набор тестов против PostgreSQL, задав TEST_DATABASE_URL (проверка
+# диалект-совместимости перед миграцией прода, см. ADR-0002).
+TEST_SQLALCHEMY_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "sqlite:///:memory:")
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -43,17 +46,48 @@ def reset_security_state(monkeypatch):
     login_rate_limiter.clear_all()
 
 
-@pytest.fixture(scope="function")
-def db_engine():
-    """Create test engine (function-scoped for isolation)."""
-    engine = create_engine(
-        TEST_SQLALCHEMY_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+@pytest.fixture(scope="session")
+def _shared_db_engine():
+    """Сессионный engine для не-SQLite БД (схема создаётся один раз).
+
+    Для PostgreSQL пересоздание всех таблиц на каждый тест неприемлемо медленно,
+    поэтому схему строим один раз, а изоляцию между тестами обеспечиваем быстрым
+    TRUNCATE (см. db_engine).
+    """
+    engine = create_engine(TEST_SQLALCHEMY_DATABASE_URL)
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield engine
     Base.metadata.drop_all(bind=engine)
+    engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def db_engine(request):
+    """Engine для теста с изоляцией данных.
+
+    SQLite (in-memory) — пересоздаётся на каждый тест через StaticPool. Для
+    PostgreSQL и прочих БД переиспользуется сессионный engine, а данные между
+    тестами очищаются TRUNCATE ... RESTART IDENTITY CASCADE.
+    """
+    if TEST_SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+        engine = create_engine(
+            TEST_SQLALCHEMY_DATABASE_URL,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Base.metadata.create_all(bind=engine)
+        yield engine
+        Base.metadata.drop_all(bind=engine)
+        engine.dispose()
+        return
+
+    engine = request.getfixturevalue("_shared_db_engine")
+    tables = ", ".join(f'"{table.name}"' for table in Base.metadata.sorted_tables)
+    if tables:
+        with engine.begin() as conn:
+            conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
+    yield engine
 
 
 @pytest.fixture(scope="function")

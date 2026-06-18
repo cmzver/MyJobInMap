@@ -179,10 +179,12 @@ class MessageModel(Base):
         Integer, ForeignKey("messages.id"), nullable=True
     )
 
-    # Прикреплённая заявка (для type=task). Превью собирается живым при сериализации.
-    task_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("tasks.id"), nullable=True
-    )
+    # Прикреплённая заявка (для type=task). Превью собирается живым при
+    # сериализации. Это МЯГКАЯ ссылка без FK-констрейнта: заявку можно удалить,
+    # оставив «висячий» task_id, по которому превью покажет accessible=false.
+    # С настоящим FK PostgreSQL запретил бы удаление заявки (на SQLite FK не
+    # enforce'ятся, отсюда исходный дизайн на dangling-ссылке).
+    task_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     is_edited: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
     edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -204,8 +206,13 @@ class MessageModel(Base):
     )
     # Одно-направленная ссылка на заявку (уникальную связь чат↔заявка держит
     # ConversationModel.task_id; здесь связь не уникальна и без back_populates).
+    # viewonly + явный primaryjoin: FK на колонке нет (мягкая ссылка), поэтому
+    # условие соединения задаём вручную, а ORM не управляет этой связью.
     task: Mapped[Optional["TaskModel"]] = relationship(
-        "TaskModel", foreign_keys=[task_id]
+        "TaskModel",
+        foreign_keys=[task_id],
+        primaryjoin="MessageModel.task_id == TaskModel.id",
+        viewonly=True,
     )
     attachments: Mapped[List["MessageAttachmentModel"]] = relationship(
         "MessageAttachmentModel",

@@ -281,8 +281,13 @@ class DatabaseService:
             raise DatabaseServiceError(str(e), 500)
 
     def check_integrity(self) -> dict:
-        """Проверка целостности БД (PRAGMA integrity_check, только SQLite)."""
-        if not settings.is_sqlite:
+        """Проверка целостности БД (PRAGMA integrity_check, только SQLite).
+
+        Диалект определяем по реальному соединению, а не по settings: так
+        проверка корректна, даже если конфиг и фактическая БД расходятся
+        (напр. в тестах с подменённой сессией).
+        """
+        if self.db.get_bind().dialect.name != "sqlite":
             raise DatabaseServiceError("Integrity check only supported for SQLite", 400)
 
         try:

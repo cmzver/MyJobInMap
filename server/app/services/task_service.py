@@ -680,7 +680,14 @@ class TaskService:
         return task
 
     def delete(self, task_id: int) -> None:
-        """Удалить заявку"""
+        """Удалить заявку.
+
+        Сообщение-карточка чата держит мягкую ссылку ``messages.task_id`` БЕЗ
+        FK-констрейнта (см. MessageModel): после удаления заявки ссылка остаётся
+        «висячей», а превью в чате резолвится как ``accessible=false``. Потомки с
+        FK (comments/photos — каскад, conversation/notifications — SET NULL по
+        ORM) обрабатываются автоматически.
+        """
         task = self.get_by_id(task_id)
         self.db.delete(task)
         self.db.commit()

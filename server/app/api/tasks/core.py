@@ -154,7 +154,11 @@ async def get_tasks(
                 normalized_priority = None
             if normalized_priority:
                 rank = get_priority_rank(normalized_priority)
-                priority_values.extend([normalized_priority, str(rank), rank])
+                # priority — VARCHAR (после миграции priority→string). Сравниваем
+                # только со строками: имя ("CURRENT") и числовой ранг как строка
+                # ("2") для legacy-строк. Голый int сломал бы Postgres
+                # (varchar = integer) и на строковой колонке бесполезен.
+                priority_values.extend([normalized_priority, str(rank)])
         if priority_values:
             query = query.filter(TaskModel.priority.in_(priority_values))
 
