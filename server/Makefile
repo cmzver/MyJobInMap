@@ -38,9 +38,9 @@ lint:
 
 format:
 	@echo "Running black..."
-	python -m black app/ tests/ --line-length=100
+	python -m black app/ tests/
 	@echo "Running isort..."
-	python -m isort app/ tests/ --profile black
+	python -m isort app/ tests/
 
 run-server:
 	@echo "Starting FastAPI server on http://localhost:8001"
