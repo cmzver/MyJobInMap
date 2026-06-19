@@ -30,42 +30,53 @@ def get_database_url() -> str:
     return url
 
 
+def _register_unicode_case_functions(dbapi_connection, _connection_record):
+    """Перегрузить lower/upper в SQLite для корректной свёртки Unicode.
+
+    Встроенные lower/upper в SQLite не работают с не-ASCII (напр. кириллицей),
+    из-за чего ILIKE по русскому тексту находит подстроки только в той же
+    раскладке. На PostgreSQL это не нужно — там lower/upper Unicode-aware.
+    """
+    dbapi_connection.create_function(
+        "lower", 1, lambda v: v.lower() if isinstance(v, str) else v
+    )
+    dbapi_connection.create_function(
+        "upper", 1, lambda v: v.upper() if isinstance(v, str) else v
+    )
+
+
+def create_db_engine(url: str):
+    """Построить engine под диалект URL — единая точка переключения режима БД.
+
+    * **SQLite** — общий in-memory-safe pool (StaticPool) + Unicode lower/upper.
+    * **PostgreSQL** — пул соединений с pre-ping и ротацией (несколько
+      процессов: web + worker).
+    * прочее — engine с настройками по умолчанию.
+    """
+    if url.startswith("sqlite"):
+        eng = create_engine(
+            url,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+            echo=False,
+        )
+        event.listen(eng, "connect", _register_unicode_case_functions)
+        return eng
+    if url.startswith("postgresql") or url.startswith("postgres"):
+        return create_engine(
+            url,
+            pool_pre_ping=True,
+            pool_size=10,
+            max_overflow=20,
+            pool_recycle=300,
+            pool_timeout=30,
+            echo=False,
+        )
+    return create_engine(url, echo=False)
+
+
 SQLALCHEMY_DATABASE_URL = get_database_url()
-
-# Настройки engine в зависимости от БД
-if settings.is_sqlite:
-    engine = create_engine(
-        SQLALCHEMY_DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-        echo=False,
-    )
-
-    # Встроенные lower/upper в SQLite не работают с не-ASCII символами
-    # (например, кириллицей), из-за чего ILIKE по русскому тексту находит
-    # подстроки только в той же раскладке. Перегружаем их Python-функциями,
-    # которые корректно сворачивают регистр Unicode.
-    @event.listens_for(engine, "connect")
-    def _register_unicode_case_functions(dbapi_connection, _connection_record):
-        dbapi_connection.create_function(
-            "lower", 1, lambda value: value.lower() if isinstance(value, str) else value
-        )
-        dbapi_connection.create_function(
-            "upper", 1, lambda value: value.upper() if isinstance(value, str) else value
-        )
-
-elif settings.is_postgres:
-    engine = create_engine(
-        SQLALCHEMY_DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
-        pool_recycle=300,
-        pool_timeout=30,
-        echo=False,
-    )
-else:
-    engine = create_engine(SQLALCHEMY_DATABASE_URL, echo=False)
+engine = create_db_engine(SQLALCHEMY_DATABASE_URL)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
