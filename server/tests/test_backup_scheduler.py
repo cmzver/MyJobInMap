@@ -179,32 +179,37 @@ class TestBackupScheduler:
         assert deleted == 1
         assert not dump.exists()
 
+    @patch("app.services.backup_scheduler.db_backup")
     @patch("app.services.backup_scheduler.settings")
-    def test_run_backup_creates_file(self, mock_settings, tmp_path):
-        """_run_backup should create a gzipped backup file."""
+    def test_run_backup_creates_file(self, mock_settings, mock_db_backup, tmp_path):
+        """_run_backup делегирует снятие дампа в db_backup и возвращает имя."""
         from app.services.backup_scheduler import _run_backup
 
-        # Create a fake SQLite DB
-        db_file = tmp_path / "tasks.db"
-        db_file.write_bytes(b"SQLite format 3\x00" + b"\x00" * 100)
-
-        mock_settings.DATABASE_URL = f"sqlite:///{db_file}"
         mock_settings.BASE_DIR = tmp_path
         mock_settings.BACKUP_RETENTION_DAYS = 30
 
-        filename = _run_backup()
-        assert filename is not None
-        assert filename.endswith(".sqlite.gz")
-        assert (tmp_path / "backups" / filename).exists()
+        def fake_create_dump(dest_dir, prefix="tasks_db"):
+            os.makedirs(dest_dir, exist_ok=True)
+            name = "tasks_db_20240101_030000.dump"
+            (Path(dest_dir) / name).write_bytes(b"dump")
+            return name
 
+        mock_db_backup.create_dump.side_effect = fake_create_dump
+
+        filename = _run_backup()
+        assert filename == "tasks_db_20240101_030000.dump"
+        assert (tmp_path / "backups" / filename).exists()
+        mock_db_backup.create_dump.assert_called_once()
+
+    @patch("app.services.backup_scheduler.db_backup")
     @patch("app.services.backup_scheduler.settings")
-    def test_run_backup_non_sqlite_returns_none(self, mock_settings):
-        """_run_backup should return None for non-SQLite DB."""
+    def test_run_backup_returns_none_on_error(self, mock_settings, mock_db_backup):
+        """_run_backup возвращает None, если снятие дампа упало."""
         from app.services.backup_scheduler import _run_backup
 
-        mock_settings.DATABASE_URL = "postgresql://u:p@host/db"
         mock_settings.BASE_DIR = Path(tempfile.mkdtemp())
         mock_settings.BACKUP_RETENTION_DAYS = 30
+        mock_db_backup.create_dump.side_effect = RuntimeError("dump failed")
 
         result = _run_backup()
         assert result is None
@@ -217,16 +222,33 @@ class TestBackupScheduler:
         assert result is False
 
     @patch("app.services.backup_scheduler.settings")
-    def test_start_scheduler_non_sqlite(self, mock_settings):
-        """start_scheduler returns False for PostgreSQL."""
+    def test_start_scheduler_unsupported_db(self, mock_settings):
+        """start_scheduler returns False для неподдерживаемого бэкенда БД."""
         mock_settings.BACKUP_SCHEDULER_ENABLED = True
         mock_settings.is_sqlite = False
-        mock_settings.is_postgres = True
+        mock_settings.is_postgres = False
 
         from app.services.backup_scheduler import start_scheduler
 
         result = start_scheduler()
         assert result is False
+
+    @patch("app.services.backup_scheduler.settings")
+    def test_start_scheduler_postgres_allowed(self, mock_settings):
+        """start_scheduler теперь запускается и для PostgreSQL."""
+        mock_settings.BACKUP_SCHEDULER_ENABLED = True
+        mock_settings.is_sqlite = False
+        mock_settings.is_postgres = True
+        mock_settings.BACKUP_SCHEDULE_HOUR = 3
+        mock_settings.BACKUP_SCHEDULE_MINUTE = 0
+        mock_settings.BACKUP_RETENTION_DAYS = 30
+
+        from app.services.backup_scheduler import start_scheduler, stop_scheduler
+
+        try:
+            assert start_scheduler() is True
+        finally:
+            stop_scheduler()
 
     @patch("app.services.backup_scheduler.settings")
     def test_start_scheduler_success(self, mock_settings):

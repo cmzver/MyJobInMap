@@ -83,7 +83,10 @@ async def download_backup(
         file_path = service.resolve_backup_path(filename)
     except BackupServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
-    return FileResponse(file_path, media_type="application/gzip", filename=filename)
+    # octet-stream подходит для обоих форматов (.sqlite.gz и .dump pg_dump)
+    return FileResponse(
+        file_path, media_type="application/octet-stream", filename=filename
+    )
 
 
 @router.delete("/backups/{filename}")

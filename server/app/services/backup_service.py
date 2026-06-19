@@ -8,11 +8,8 @@ Backup Service
 автоматические бэкапы независимо; общий низкоуровневый код пока не объединён.
 """
 
-import gzip
 import logging
 import os
-import shutil
-import sqlite3
 from datetime import datetime
 from typing import List
 
@@ -22,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import UserModel, get_db, get_setting, set_setting
 from app.schemas import BackupFile, BackupSettingsResponse, BackupSettingsSchema
+from app.services import db_backup
 from app.services.audit_log import (
     audit_backup_created,
     audit_backup_deleted,
@@ -66,7 +64,7 @@ def validate_backup_filename(filename: str) -> None:
     """Валидация имени файла бэкапа (защита от path traversal)."""
     if ".." in filename or "/" in filename or "\\" in filename:
         raise BackupServiceError("Invalid filename", 400)
-    if not filename.endswith(".sqlite.gz"):
+    if not db_backup.is_valid_backup_name(filename):
         raise BackupServiceError("Invalid backup file", 400)
 
 
@@ -80,7 +78,7 @@ class BackupService:
         backups: List[BackupFile] = []
         if os.path.exists(BACKUP_DIR):
             for f in os.listdir(BACKUP_DIR):
-                if f.endswith(".sqlite.gz"):
+                if db_backup.is_valid_backup_name(f):
                     path = os.path.join(BACKUP_DIR, f)
                     stat = os.stat(path)
                     backups.append(
@@ -94,19 +92,11 @@ class BackupService:
         return backups
 
     def create_backup(self, actor: UserModel) -> str:
-        """Создать бэкап БД (только SQLite). Возвращает имя файла."""
-        db_path = resolve_sqlite_db_path()
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"tasks_db_{timestamp}.sqlite.gz"
-        dest_path = os.path.join(BACKUP_DIR, filename)
-
+        """Создать бэкап БД (SQLite gzip / PostgreSQL pg_dump). Имя файла."""
         try:
-            with open(db_path, "rb") as f_in:
-                with gzip.open(dest_path, "wb") as f_out:
-                    shutil.copyfileobj(f_in, f_out)
-        except Exception as e:
-            raise BackupServiceError(str(e), 500)
+            filename = db_backup.create_dump(BACKUP_DIR)
+        except db_backup.DBBackupError as e:
+            raise BackupServiceError(e.message, e.status_code)
 
         audit_backup_created(actor.id, actor.username, filename)
         return filename
@@ -130,68 +120,28 @@ class BackupService:
     def restore_backup(self, filename: str, actor: UserModel) -> dict:
         """Восстановить БД из бэкапа.
 
-        1. Бэкап текущего состояния (pre_restore_*)
-        2. Распаковка во временный файл + валидация SQLite
-        3. Замена текущей БД
+        1. Бэкап текущего состояния (pre_restore_*) — на случай отката.
+        2. Восстановление (SQLite: распаковка+валидация+замена файла;
+           PostgreSQL: pg_restore --clean).
         """
         backup_path = self.resolve_backup_path(filename)
-        db_path = resolve_sqlite_db_path()
-
         try:
-            # 1. Бэкап текущего состояния
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            pre_restore_filename = f"pre_restore_{timestamp}.sqlite.gz"
-            pre_restore_path = os.path.join(BACKUP_DIR, pre_restore_filename)
-
-            with open(db_path, "rb") as f_in:
-                with gzip.open(pre_restore_path, "wb") as f_out:
-                    shutil.copyfileobj(f_in, f_out)
-
-            # 2. Распаковка во временный файл
-            temp_db_path = db_path + ".restore_temp"
-            with gzip.open(backup_path, "rb") as f_in:
-                with open(temp_db_path, "wb") as f_out:
-                    shutil.copyfileobj(f_in, f_out)
-
-            # 3. Валидация SQLite файла
-            try:
-                conn = sqlite3.connect(temp_db_path)
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' LIMIT 1"
-                )
-                cursor.close()
-                conn.close()
-            except sqlite3.Error as e:
-                os.remove(temp_db_path)
-                raise BackupServiceError(f"Invalid SQLite file: {str(e)}", 400)
-
-            # 4. Замена текущей БД
-            old_db_path = db_path + ".old"
-            if os.path.exists(old_db_path):
-                os.remove(old_db_path)
-
-            os.rename(db_path, old_db_path)
-            os.rename(temp_db_path, db_path)
-
-            if os.path.exists(old_db_path):
-                os.remove(old_db_path)
-
-            audit_backup_restored(actor.id, actor.username, filename)
-
-            return {
-                "status": "ok",
-                "message": f"Database restored from {filename}",
-                "pre_restore_backup": pre_restore_filename,
-                "warning": "Рекомендуется перезапустить сервер для применения изменений",
-            }
-        except BackupServiceError:
-            raise
+            pre_restore_filename = db_backup.create_dump(
+                BACKUP_DIR, prefix="pre_restore"
+            )
+            db_backup.restore_dump(backup_path)
+        except db_backup.DBBackupError as e:
+            raise BackupServiceError(e.message, e.status_code)
         except Exception as e:
-            temp_db_path = db_path + ".restore_temp"
-            if os.path.exists(temp_db_path):
-                os.remove(temp_db_path)
             raise BackupServiceError(f"Restore failed: {str(e)}", 500)
+
+        audit_backup_restored(actor.id, actor.username, filename)
+        return {
+            "status": "ok",
+            "message": f"Database restored from {filename}",
+            "pre_restore_backup": pre_restore_filename,
+            "warning": "Рекомендуется перезапустить сервер для применения изменений",
+        }
 
     def get_settings(self) -> BackupSettingsResponse:
         # get_setting() возвращает уже типизированное значение, поэтому
