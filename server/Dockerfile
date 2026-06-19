@@ -3,8 +3,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install curl for healthcheck
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+# curl — для healthcheck; postgresql-client — для pg_dump/pg_restore
+# (бэкап/восстановление БД при работе на PostgreSQL, см. services/db_backup.py)
+RUN apt-get update && apt-get install -y --no-install-recommends curl postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies

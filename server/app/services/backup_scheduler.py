@@ -13,35 +13,18 @@ Backup Scheduler Service
 и выполняет ежедневный бэкап + ротацию старых файлов.
 """
 
-import gzip
 import logging
-import os
-import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
 from app.config import settings
+from app.services import db_backup
 
 logger = logging.getLogger(__name__)
 
 # APScheduler instance (инициализируется лениво)
 _scheduler = None
-
-
-def _resolve_sqlite_db_path() -> str:
-    """Извлечь реальный путь к файлу SQLite из DATABASE_URL."""
-    db_url = settings.DATABASE_URL
-    if not db_url.startswith("sqlite"):
-        raise RuntimeError(
-            "Scheduled backup поддерживает только SQLite. "
-            "Для PostgreSQL используйте pg_dump cron."
-        )
-
-    db_path = db_url.replace("sqlite:///", "")
-    if db_path.startswith("./"):
-        db_path = str(settings.BASE_DIR / db_path[2:])
-    return db_path
 
 
 def _run_backup() -> Optional[str]:
@@ -53,17 +36,8 @@ def _run_backup() -> Optional[str]:
     backup_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        db_path = _resolve_sqlite_db_path()
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"tasks_db_{timestamp}.sqlite.gz"
-        dest_path = backup_dir / filename
-
-        with open(db_path, "rb") as f_in:
-            with gzip.open(str(dest_path), "wb", compresslevel=6) as f_out:
-                shutil.copyfileobj(f_in, f_out)
-
-        size_kb = dest_path.stat().st_size / 1024
+        filename = db_backup.create_dump(str(backup_dir))
+        size_kb = (backup_dir / filename).stat().st_size / 1024
         logger.info("✅ Scheduled backup created: %s (%.1f KB)", filename, size_kb)
 
         # Ротация старых бэкапов
@@ -107,11 +81,8 @@ def start_scheduler() -> bool:
         logger.info("Backup scheduler disabled (BACKUP_SCHEDULER_ENABLED=false)")
         return False
 
-    if not settings.is_sqlite:
-        logger.warning(
-            "📦 Backup scheduler не поддерживает %s — используйте pg_dump cron",
-            "PostgreSQL" if settings.is_postgres else "unknown DB",
-        )
+    if not (settings.is_sqlite or settings.is_postgres):
+        logger.warning("📦 Backup scheduler не поддерживает текущую БД")
         return False
 
     try:
