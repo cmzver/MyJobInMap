@@ -166,7 +166,9 @@ async def get_dashboard_activity(
         tenant.apply(db.query(TaskModel), TaskModel)
         .options(joinedload(TaskModel.assigned_user))
         .filter(
-            TaskModel.priority.in_(["EMERGENCY", "URGENT", "4", "3", 4, 3]),
+            # priority — VARCHAR: только строки (имя + строковый ранг). Голый int
+            # ломает Postgres (varchar = integer).
+            TaskModel.priority.in_(["EMERGENCY", "URGENT", "4", "3"]),
             TaskModel.status.in_(["NEW", "IN_PROGRESS"]),
         )
         .order_by(priority_rank_expr(TaskModel.priority).desc(), TaskModel.created_at)

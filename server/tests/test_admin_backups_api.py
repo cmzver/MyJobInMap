@@ -233,9 +233,14 @@ class TestDbIntegrity:
 
     def test_db_integrity(self, client: TestClient, auth_headers: dict):
         response = client.get("/api/admin/db/integrity", headers=auth_headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert "status" in data or "result" in data or "integrity" in data
+        # integrity_check (PRAGMA) поддерживается только на SQLite; на других
+        # бэкендах эндпоинт корректно отвечает 400 (см. check_integrity).
+        if os.environ.get("TEST_DATABASE_URL", "sqlite").startswith("sqlite"):
+            assert response.status_code == 200
+            data = response.json()
+            assert "status" in data or "result" in data or "integrity" in data
+        else:
+            assert response.status_code == 400
 
 
 class TestDbCleanup:

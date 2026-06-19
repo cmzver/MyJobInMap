@@ -153,21 +153,23 @@ def get_priority_rank(priority: object, default_rank: int = 2) -> int:
 def priority_rank_expr(column) -> object:
     """SQL expression for ordering priorities."""
 
+    # priority — VARCHAR: сравниваем только со строками (имя + числовой ранг как
+    # строка для legacy-значений). Голый int ломает Postgres (varchar = integer).
     return case(
         (
-            column.in_([TaskPriority.EMERGENCY.value, "4", 4]),
+            column.in_([TaskPriority.EMERGENCY.value, "4"]),
             PRIORITY_RANKS[TaskPriority.EMERGENCY.value],
         ),
         (
-            column.in_([TaskPriority.URGENT.value, "3", 3]),
+            column.in_([TaskPriority.URGENT.value, "3"]),
             PRIORITY_RANKS[TaskPriority.URGENT.value],
         ),
         (
-            column.in_([TaskPriority.CURRENT.value, "2", 2]),
+            column.in_([TaskPriority.CURRENT.value, "2"]),
             PRIORITY_RANKS[TaskPriority.CURRENT.value],
         ),
         (
-            column.in_([TaskPriority.PLANNED.value, "1", 1]),
+            column.in_([TaskPriority.PLANNED.value, "1"]),
             PRIORITY_RANKS[TaskPriority.PLANNED.value],
         ),
         else_=PRIORITY_RANKS[TaskPriority.CURRENT.value],
