@@ -20,6 +20,8 @@ from typing import Dict, Optional, Set, TypedDict
 
 from fastapi import WebSocket
 
+from app.services import metrics
+
 logger = logging.getLogger(__name__)
 
 
@@ -79,6 +81,7 @@ class ConnectionManager:
                 "is_superadmin": is_superadmin,
             }
 
+        metrics.set_websocket_connections(self.active_connections_count)
         logger.info(
             "WebSocket connected: user_id=%d, total_connections=%d, unique_users=%d",
             user_id,
@@ -96,6 +99,7 @@ class ConnectionManager:
                 if not self._connections[user_id]:
                     del self._connections[user_id]
 
+        metrics.set_websocket_connections(self.active_connections_count)
         if user_id is not None:
             logger.info(
                 "WebSocket disconnected: user_id=%d, total_connections=%d",

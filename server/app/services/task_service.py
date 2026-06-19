@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.models import CommentModel, TaskModel, TaskStatus, UserModel, UserRole, get_db
 from app.models.address import AddressModel
 from app.schemas import TaskCreate, TaskStatusUpdate, TaskUpdate
+from app.services import metrics
 from app.services.address_parser import parse_address
 from app.services.geocoding import geocoding_service
 from app.services.notification_service import (
@@ -378,6 +379,7 @@ class TaskService:
         self.db.refresh(task)
 
         logger.info(f"✅ Заявка №{task.task_number} создана")
+        metrics.record_task_created(priority)
 
         return task
 
@@ -552,6 +554,7 @@ class TaskService:
         self.db.add(comment)
         self.db.commit()
         self.db.refresh(task)
+        metrics.record_status_transition(old_status, new_status)
 
         # Push уведомление исполнителю
         self._notify_status_change(task, new_status, user)

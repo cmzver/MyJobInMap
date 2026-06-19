@@ -124,6 +124,20 @@ class Settings(BaseSettings):
         default=30, ge=1, description="Срок хранения бэкапов (дней)"
     )
 
+    # === Фоновая очередь задач (ARQ + Redis) ===
+    # Когда включено и доступен Redis, fire-and-forget задачи (push и т.п.)
+    # кладутся в ARQ и выполняются отдельным worker-процессом (ретраи,
+    # видимость). Когда выключено — задачи выполняются в daemon-потоке прямо в
+    # процессе приложения (прежнее поведение, без зависимости от Redis).
+    TASK_QUEUE_ENABLED: bool = Field(
+        default=False,
+        description="Класть фоновые задачи в ARQ/Redis вместо daemon-потока",
+    )
+    REDIS_URL: str = Field(
+        default="redis://localhost:6379/0",
+        description="URL брокера Redis для очереди задач ARQ",
+    )
+
     # === Сервер ===
     HOST: str = Field(default="0.0.0.0", description="Хост для запуска сервера")
     PORT: int = Field(

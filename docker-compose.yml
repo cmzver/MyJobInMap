@@ -22,17 +22,63 @@ services:
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DATABASE_URL=sqlite:///./tasks.db
+      # Фоновая очередь (ARQ). Включается опционально: при true задачи (push)
+      # уходят в Redis/worker, при false — выполняются inline в процессе api.
+      - TASK_QUEUE_ENABLED=${TASK_QUEUE_ENABLED:-false}
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - ./server:/app
       - ./portal/dist:/portal/dist:ro
     ports:
       - "${PORT:-8001}:8001"
+    depends_on:
+      - redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  # ==========================================================================
+  # Redis — брокер фоновой очереди задач (ARQ)
+  # ==========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: fieldworker-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ==========================================================================
+  # ARQ Worker — фоновый обработчик очереди (push и т.п.)
+  # Примечание: с SQLite worker делит файл tasks.db с api через том ./server.
+  # Для масштабирования воркеров — миграция на PostgreSQL (см. docs/adr).
+  # ==========================================================================
+  worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: fieldworker-worker
+    restart: unless-stopped
+    command: ["arq", "app.worker.WorkerSettings"]
+    env_file:
+      - ./server/.env
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DATABASE_URL=sqlite:///./tasks.db
+      - TASK_QUEUE_ENABLED=true
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./server:/app
+    depends_on:
+      - redis
 
 
   # ==========================================================================
@@ -50,3 +96,6 @@ services:
       - API_BASE_URL=http://api:8001
     depends_on:
       - api
+
+volumes:
+  redis-data:
