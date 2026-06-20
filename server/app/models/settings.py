@@ -105,7 +105,13 @@ class SystemSettingModel(Base):
     def set_typed_value(self, value):
         """Установить значение с конвертацией в строку"""
         if self.value_type == "bool":
-            self.value = "true" if value else "false"
+            # Строки вроде "false"/"0" сами по себе truthy в Python, поэтому
+            # парсим их так же, как get_typed_value, а не через bool(value).
+            if isinstance(value, str):
+                truthy = value.strip().lower() in ("true", "1", "yes", "on")
+            else:
+                truthy = bool(value)
+            self.value = "true" if truthy else "false"
         elif self.value_type == "json":
             import json
 
@@ -560,10 +566,10 @@ def init_default_settings(db: Session):
             "label": "Приоритет по умолчанию",
             "description": "Приоритет для новых заявок",
             "options": [
-                {"value": "1", "label": "Плановая"},
-                {"value": "2", "label": "Текущая"},
-                {"value": "3", "label": "Срочная"},
-                {"value": "4", "label": "Аварийная"},
+                {"value": "PLANNED", "label": "Плановая"},
+                {"value": "CURRENT", "label": "Текущая"},
+                {"value": "URGENT", "label": "Срочная"},
+                {"value": "EMERGENCY", "label": "Аварийная"},
             ],
             "sort_order": 5,
         },

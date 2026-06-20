@@ -123,6 +123,29 @@ class TestSystemSettingModel:
 
         assert setting.value == "true"
 
+    @pytest.mark.parametrize(
+        "incoming, expected",
+        [
+            (True, "true"),
+            (False, "false"),
+            ("true", "true"),
+            ("false", "false"),
+            ("1", "true"),
+            ("0", "false"),
+            ("", "false"),
+        ],
+    )
+    def test_set_typed_value_bool_from_strings(
+        self, db_session: Session, incoming, expected
+    ):
+        """Строковые 'false'/'0'/'' не должны трактоваться как true."""
+        setting = SystemSettingModel(
+            key="set_bool_str", value_type="bool", label="Set Bool Str"
+        )
+        setting.set_typed_value(incoming)
+        assert setting.value == expected
+        assert setting.get_typed_value() is (expected == "true")
+
     def test_set_typed_value_json(self, db_session: Session):
         """Установка JSON значения."""
         setting = SystemSettingModel(

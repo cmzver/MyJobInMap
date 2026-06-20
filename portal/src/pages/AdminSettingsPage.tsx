@@ -793,10 +793,10 @@ function ImageSettingsTab() {
     return <div className="flex justify-center py-8"><Spinner /></div>
   }
 
-  const isEnabled = optimizationEnabled?.value === 'true'
+  const isEnabled = Boolean(optimizationEnabled?.value ?? true)
   const quality = Number(qualitySetting?.value ?? 85)
   const maxDimension = Number(maxDimensionSetting?.value ?? 1920)
-  const convertToWebp = convertWebpSetting?.value === 'true'
+  const convertToWebp = Boolean(convertWebpSetting?.value ?? false)
 
   return (
     <SettingsCard title="Изображения" icon={Puzzle}>
@@ -806,7 +806,7 @@ function ImageSettingsTab() {
           description="Автоматически сжимать и оптимизировать загружаемые фотографии."
           checked={isEnabled}
           onChange={(checked) =>
-            updateSetting.mutate({ key: 'image_optimization_enabled', value: String(checked) })
+            updateSetting.mutate({ key: 'image_optimization_enabled', value: checked })
           }
         />
         <SettingsField
@@ -845,7 +845,7 @@ function ImageSettingsTab() {
           description="Автоматически конвертировать загружаемые изображения в формат WebP."
           checked={convertToWebp}
           onChange={(checked) =>
-            updateSetting.mutate({ key: 'image_convert_to_webp', value: String(checked) })
+            updateSetting.mutate({ key: 'image_convert_to_webp', value: checked })
           }
         />
       </SettingsRows>
