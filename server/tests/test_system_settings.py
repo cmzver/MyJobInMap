@@ -422,6 +422,24 @@ class TestSystemSettingsApi:
         assert data["auto_refresh_interval"] == 30
         assert data["default_task_priority"] == "PLANNED"
 
+    def test_patch_single_setting_returns_group(
+        self, client: TestClient, auth_headers: dict[str, str]
+    ):
+        """PATCH одиночной настройки возвращает group — портал по нему решает,
+        какие связанные query инвалидировать."""
+        response = client.patch(
+            "/api/admin/settings/default_task_priority",
+            headers=auth_headers,
+            json={"value": "URGENT"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["key"] == "default_task_priority"
+        assert data["value"] == "URGENT"
+        assert data["group"] == "interface"
+
     def test_get_login_branding_public_uses_saved_settings(
         self, client: TestClient, auth_headers: dict[str, str]
     ):

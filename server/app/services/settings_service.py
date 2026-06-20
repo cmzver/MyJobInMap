@@ -175,7 +175,12 @@ class SettingsService:
         setting.set_typed_value(value)
         setting.updated_by = updated_by
         self.db.commit()
-        return {"status": "ok", "key": key, "value": setting.get_typed_value()}
+        return {
+            "status": "ok",
+            "key": key,
+            "value": setting.get_typed_value(),
+            "group": setting.group,
+        }
 
     def update_settings_bulk(self, updates: Dict[str, Any], updated_by: str) -> dict:
         init_default_settings(self.db)

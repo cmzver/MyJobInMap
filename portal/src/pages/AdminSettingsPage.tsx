@@ -753,28 +753,35 @@ function PortalBrandingSettingsTab() {
 }
 
 function TaskDefaultsCard() {
+  const { data: prioritySetting, isLoading } = useSetting('default_task_priority')
+  const updateSetting = useUpdateSetting()
+  const priority = String(prioritySetting?.value ?? 'PLANNED')
+
   return (
     <SettingsCard title="Параметры по умолчанию" icon={Puzzle}>
-      <SettingsRows>
-        <SettingsField
-          label="Приоритет новых заявок"
-          help="Базовый приоритет для новых заявок до ручной корректировки диспетчером."
-          className="sm:max-w-xs"
+      <SettingsField
+        label="Приоритет новых заявок"
+        help="Базовый приоритет для новых заявок до ручной корректировки диспетчером."
+        className="sm:max-w-xs"
+      >
+        <SettingsSelect
+          value={priority}
+          disabled={isLoading || updateSetting.isPending}
+          onChange={(e) =>
+            updateSetting.mutate({ key: 'default_task_priority', value: e.target.value })
+          }
         >
-          <SettingsSelect>
-            <option value="CURRENT">Текущая</option>
-            <option value="PLANNED">Плановая</option>
-            <option value="URGENT">Срочная</option>
-            <option value="EMERGENCY">Аварийная</option>
-          </SettingsSelect>
-        </SettingsField>
-        <SettingsToggle
-          title="Автогеокодинг"
-          description="Автоматически определять координаты по адресу при создании заявки."
-          checked
-          onChange={() => undefined}
-        />
-      </SettingsRows>
+          <option value="PLANNED">Плановая</option>
+          <option value="CURRENT">Текущая</option>
+          <option value="URGENT">Срочная</option>
+          <option value="EMERGENCY">Аварийная</option>
+        </SettingsSelect>
+      </SettingsField>
+      <div className="mt-3">
+        <CompactNotice>
+          Координаты заявки определяются автоматически по адресу при создании — отдельного переключателя не требуется.
+        </CompactNotice>
+      </div>
     </SettingsCard>
   )
 }
