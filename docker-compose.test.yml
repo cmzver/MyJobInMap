@@ -1,0 +1,53 @@
+# FieldWorker — прогон тестов в Docker (как в проде: тот же образ + PostgreSQL)
+# ===========================================================================
+# Запуск:
+#   docker compose -f docker-compose.test.yml up --build \
+#       --abort-on-container-exit --exit-code-from tests
+# Либо просто: docker-test.cmd
+#
+# Поднимает эфемерный PostgreSQL (данные в tmpfs) и гоняет весь набор pytest
+# внутри образа сервера (python:3.11-slim + postgresql-client) против этого PG.
+# Прод-образ не содержит tests/ (см. server/.dockerignore), поэтому исходники
+# с тестами монтируются bind-mount'ом — зависимости берутся из образа.
+
+services:
+  db-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: fieldworker_test
+    tmpfs:
+      - /var/lib/postgresql/data  # БД в RAM — быстро и без следов на диске
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  tests:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    user: root  # чтобы доустановить pytest в образ
+    depends_on:
+      db-test:
+        condition: service_healthy
+    # Монтируем исходники под /code, а НЕ /app: в server/ есть __init__.py, и
+    # каталог монтирования с именем "app" сам стал бы пакетом app, перекрывая
+    # внутренний пакет app (/app/app). Имя "code" такой коллизии не даёт.
+    working_dir: /code
+    environment:
+      # settings.DATABASE_URL = sqlite (как в CI); тестовая сессия — PostgreSQL.
+      - DATABASE_URL=sqlite:///./tasks.db
+      - TEST_DATABASE_URL=postgresql+psycopg2://test:test@db-test:5432/fieldworker_test
+      - BACKUP_PG_DOCKER_CONTAINER=
+      - PYTHONDONTWRITEBYTECODE=1
+    volumes:
+      - ./server:/code  # исходники + tests/ (зависимости — из образа)
+    command:
+      - sh
+      - -c
+      - |
+        pip install --no-cache-dir --quiet pytest pytest-cov
+        python -m pytest tests/ -q -W ignore::ResourceWarning
