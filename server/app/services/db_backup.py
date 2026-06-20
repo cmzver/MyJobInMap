@@ -127,13 +127,36 @@ def _pg_env(password: str) -> dict:
     return env
 
 
-def _run(cmd: list, env: dict, what: str) -> None:
+def _pg_command(tool: str, args: list) -> tuple:
+    """Собрать (argv, env) для pg-утилиты: нативно или через ``docker exec``.
+
+    Дамп идёт в stdout, restore читает stdin — поэтому путь к файлу здесь не
+    участвует, и docker-режим работает одинаково (файл всегда на хосте).
+    """
+    p = _pg_params()
+    container = (settings.BACKUP_PG_DOCKER_CONTAINER or "").strip()
+    if container:
+        # Внутри контейнера: подключение к локальному Postgres, пароль пробрасываем
+        # через -e PGPASSWORD (env хоста в контейнер не попадает). -i — для stdin.
+        cmd = ["docker", "exec", "-i", "-e", f"PGPASSWORD={p['password']}", container]
+        cmd += [tool, "-h", "127.0.0.1", "-U", p["user"], "-d", p["dbname"], *args]
+        return cmd, os.environ.copy()
+    cmd = [tool, "-h", p["host"], "-p", p["port"], "-U", p["user"], "-d", p["dbname"]]
+    cmd += args
+    return cmd, _pg_env(p["password"])
+
+
+def _run_pg(cmd: list, env: dict, what: str, *, stdout=None, stdin=None) -> None:
     logger.info("%s: %s", what, " ".join(c for c in cmd if not c.startswith("--")))
     try:
-        subprocess.run(cmd, check=True, env=env, capture_output=True)
+        subprocess.run(
+            cmd, check=True, env=env, stdout=stdout, stdin=stdin, stderr=subprocess.PIPE
+        )
     except FileNotFoundError as e:
         raise DBBackupError(
-            f"{cmd[0]} не найден — установите postgresql-client", 500
+            f"{cmd[0]} не найден — установите postgresql-client "
+            f"или задайте BACKUP_PG_DOCKER_CONTAINER для запуска через Docker",
+            500,
         ) from e
     except subprocess.CalledProcessError as e:
         detail = (e.stderr or b"").decode(errors="replace")[-500:]
@@ -141,43 +164,24 @@ def _run(cmd: list, env: dict, what: str) -> None:
 
 
 def _pg_dump(dest_path: str) -> None:
-    p = _pg_params()
-    cmd = [
-        os.environ.get("PG_DUMP_BIN", "pg_dump"),
-        "-Fc",  # custom format (сжат), пригоден для pg_restore --clean
-        "--no-owner",
-        "-h",
-        p["host"],
-        "-p",
-        p["port"],
-        "-U",
-        p["user"],
-        "-d",
-        p["dbname"],
-        "-f",
-        dest_path,
-    ]
-    _run(cmd, _pg_env(p["password"]), "pg_dump")
+    # -Fc — custom format (сжат), пригоден для pg_restore --clean; дамп в stdout
+    cmd, env = _pg_command(settings.PG_DUMP_BIN, ["-Fc", "--no-owner"])
+    try:
+        with open(dest_path, "wb") as out:
+            _run_pg(cmd, env, "pg_dump", stdout=out)
+    except DBBackupError:
+        if os.path.exists(dest_path):
+            os.remove(dest_path)
+        raise
 
 
 def _pg_restore(backup_path: str) -> None:
-    p = _pg_params()
-    cmd = [
-        os.environ.get("PG_RESTORE_BIN", "pg_restore"),
-        "--clean",
-        "--if-exists",
-        "--no-owner",
-        "-h",
-        p["host"],
-        "-p",
-        p["port"],
-        "-U",
-        p["user"],
-        "-d",
-        p["dbname"],
-        backup_path,
-    ]
-    _run(cmd, _pg_env(p["password"]), "pg_restore")
+    # pg_restore без файлового аргумента читает архив из stdin
+    cmd, env = _pg_command(
+        settings.PG_RESTORE_BIN, ["--clean", "--if-exists", "--no-owner"]
+    )
+    with open(backup_path, "rb") as src:
+        _run_pg(cmd, env, "pg_restore", stdin=src)
 
 
 # ----------------------------------------------------------------- public API

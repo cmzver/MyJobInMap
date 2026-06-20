@@ -123,6 +123,16 @@ class Settings(BaseSettings):
     BACKUP_RETENTION_DAYS: int = Field(
         default=30, ge=1, description="Срок хранения бэкапов (дней)"
     )
+    # Бэкап PostgreSQL: бинарники клиента (pg_dump/pg_restore). Если сервер
+    # работает на хосте без установленного postgresql-client, а Postgres крутится
+    # в Docker — задайте BACKUP_PG_DOCKER_CONTAINER, и дамп/restore будут
+    # выполняться через `docker exec` внутри контейнера (там клиент есть).
+    PG_DUMP_BIN: str = Field(default="pg_dump", description="Бинарник pg_dump")
+    PG_RESTORE_BIN: str = Field(default="pg_restore", description="Бинарник pg_restore")
+    BACKUP_PG_DOCKER_CONTAINER: str = Field(
+        default="",
+        description="Контейнер Postgres для запуска pg_dump/pg_restore через docker exec",
+    )
 
     # === Фоновая очередь задач (ARQ + Redis) ===
     # Когда включено и доступен Redis, fire-and-forget задачи (push и т.п.)

@@ -83,7 +83,7 @@ class TestPostgresCommands:
     def _capture_run(self, monkeypatch):
         captured = {}
 
-        def fake_run(cmd, check=True, env=None, capture_output=False):
+        def fake_run(cmd, check=True, env=None, stdout=None, stdin=None, stderr=None):
             captured["cmd"] = cmd
             captured["env"] = env or {}
             return None
@@ -93,6 +93,7 @@ class TestPostgresCommands:
 
     def test_pg_dump_argv_and_password(self, monkeypatch, tmp_path):
         monkeypatch.setattr(settings, "DATABASE_URL", PG_URL)
+        monkeypatch.setattr(settings, "BACKUP_PG_DOCKER_CONTAINER", "")
         captured = self._capture_run(monkeypatch)
 
         name = db_backup.create_dump(str(tmp_path))
@@ -107,9 +108,12 @@ class TestPostgresCommands:
 
     def test_pg_restore_argv_and_password(self, monkeypatch, tmp_path):
         monkeypatch.setattr(settings, "DATABASE_URL", PG_URL)
+        monkeypatch.setattr(settings, "BACKUP_PG_DOCKER_CONTAINER", "")
         captured = self._capture_run(monkeypatch)
 
-        db_backup.restore_dump(str(tmp_path / "snap.dump"))
+        snap = tmp_path / "snap.dump"  # restore читает файл как stdin → должен быть
+        snap.write_bytes(b"dump")
+        db_backup.restore_dump(str(snap))
 
         cmd = captured["cmd"]
         assert cmd[0] == "pg_restore"
@@ -117,10 +121,24 @@ class TestPostgresCommands:
         assert "mydb" in cmd
         assert captured["env"].get("PGPASSWORD") == "pw"
 
+    def test_docker_exec_mode(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(settings, "DATABASE_URL", PG_URL)
+        monkeypatch.setattr(settings, "BACKUP_PG_DOCKER_CONTAINER", "fw_pg")
+        captured = self._capture_run(monkeypatch)
+
+        db_backup.create_dump(str(tmp_path))
+
+        cmd = captured["cmd"]
+        # запуск через docker exec внутри контейнера, пароль — через -e
+        assert cmd[:3] == ["docker", "exec", "-i"]
+        assert "fw_pg" in cmd and "pg_dump" in cmd
+        assert "-e" in cmd and "PGPASSWORD=pw" in cmd
+
     def test_missing_binary_raises_clear_error(self, monkeypatch, tmp_path):
         monkeypatch.setattr(settings, "DATABASE_URL", PG_URL)
+        monkeypatch.setattr(settings, "BACKUP_PG_DOCKER_CONTAINER", "")
 
-        def boom(cmd, check=True, env=None, capture_output=False):
+        def boom(cmd, check=True, env=None, stdout=None, stdin=None, stderr=None):
             raise FileNotFoundError(cmd[0])
 
         monkeypatch.setattr(db_backup.subprocess, "run", boom)
