@@ -109,7 +109,6 @@ type SettingsPanelId =
   | 'task-defaults'
   | 'task-media'
   | 'task-fields'
-  | 'task-layout'
   | 'permissions-matrix'
   | 'telegram-bot'
 
@@ -125,7 +124,7 @@ type SettingsTab = {
 
 const SETTINGS_TABS: SettingsTab[] = [
   { id: 'system', label: 'Система', description: 'Состояние сервера, база данных и резервные копии.', icon: Server, panels: ['overview'] },
-  { id: 'tasks', label: 'Заявки', description: 'Параметры новых заявок, поля и отображение карточки.', icon: Puzzle, panels: ['task-defaults', 'task-media', 'task-fields', 'task-layout'] },
+  { id: 'tasks', label: 'Заявки', description: 'Параметры новых заявок и дополнительные поля.', icon: Puzzle, panels: ['task-defaults', 'task-media', 'task-fields'] },
   { id: 'notifications', label: 'Уведомления', description: 'Push-канал и зарегистрированные устройства.', icon: Bell, panels: ['mobile-notifications', 'mobile-devices'] },
   { id: 'security', label: 'Безопасность', description: 'Защита входа, IP-ограничения и права ролей.', icon: Shield, panels: ['security', 'permissions-matrix'] },
   { id: 'portal', label: 'Портал', description: 'Брендинг экрана входа и поведение интерфейса.', icon: Palette, panels: ['portal-branding', 'interface'] },
@@ -177,8 +176,6 @@ function renderPanel(
       return <ImageSettingsTab />
     case 'task-fields':
       return <CustomFieldsTab />
-    case 'task-layout':
-      return <CardBuilderTab />
     case 'telegram-bot':
       return <TelegramBotSettingsTab />
     default:
@@ -1643,86 +1640,6 @@ function CustomFieldModal({
             {isSaving ? 'Сохранение...' : 'Сохранить'}
           </Button>
         </div>
-      </div>
-    </div>
-  )
-}
-
-// ============= Card Builder Tab =============
-function CardBuilderTab() {
-  const zones = [
-    { id: 'header', label: 'Шапка карточки', fields: ['priority', 'task_number', 'status'] },
-    { id: 'main', label: 'Основной блок', fields: ['title', 'address', 'planned_date'] },
-    { id: 'details', label: 'Детали', fields: ['description', 'phone', 'customer_phone'] },
-    { id: 'footer', label: 'Нижний блок', fields: ['created_at', 'assignee'] },
-  ]
-
-  const availableFields = [
-    { id: 'priority', label: 'Приоритет' },
-    { id: 'task_number', label: 'Номер заявки' },
-    { id: 'status', label: 'Статус' },
-    { id: 'title', label: 'Название' },
-    { id: 'address', label: 'Адрес' },
-    { id: 'planned_date', label: 'Плановая дата' },
-    { id: 'description', label: 'Описание' },
-    { id: 'phone', label: 'Телефон' },
-    { id: 'created_at', label: 'Дата создания' },
-    { id: 'assignee', label: 'Исполнитель' },
-    { id: 'is_paid', label: 'Платная' },
-    { id: 'amount', label: 'Сумма' },
-  ]
-
-  return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-      <div>
-        <SettingsCard title="Доступные поля" icon={Puzzle}>
-          <div className="space-y-2">
-            {availableFields.map((field) => (
-              <div
-                key={field.id}
-                className="flex items-center justify-between rounded-xl border border-gray-200 bg-slate-50/80 p-3 transition-colors hover:bg-slate-100 dark:border-gray-800 dark:bg-gray-800/50 dark:hover:bg-gray-800"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">{field.label}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </SettingsCard>
-      </div>
-
-      <div className="lg:col-span-2">
-        <SettingsCard title="Предпросмотр карточки" icon={Puzzle}>
-          <CompactNotice tone="warning">
-            Макет карточки пока не сохраняется и не применяется в портале. Здесь только визуальный черновик компоновки.
-          </CompactNotice>
-          <div className="mt-3 min-h-[500px] space-y-3 rounded-xl bg-gray-100 p-3.5 dark:bg-gray-800">
-            {zones.map((zone) => (
-              <div key={zone.id} className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3">
-                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1">
-                  <ChevronRight className="h-3 w-3" />
-                  {zone.label}
-                </div>
-                <div className="bg-white dark:bg-gray-900 rounded-lg p-3 min-h-[60px]">
-                  <div className="flex flex-wrap gap-2">
-                    {zone.fields.map((fieldId) => {
-                      const field = availableFields.find(f => f.id === fieldId)
-                      return field ? (
-                        <span
-                          key={fieldId}
-                          className="px-2 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 text-xs rounded flex items-center gap-1"
-                        >
-                          {field.label}
-
-                        </span>
-                      ) : null
-                    })}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </SettingsCard>
       </div>
     </div>
   )
