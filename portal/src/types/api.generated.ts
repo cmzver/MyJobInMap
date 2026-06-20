@@ -38,26 +38,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/auth/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Me
-         * @description Получить текущего пользователя
-         */
-        get: operations["get_me_api_auth_me_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/auth/refresh": {
         parameters: {
             query?: never;
@@ -85,6 +65,26 @@ export interface paths {
          *         401 Unauthorized: Если refresh token невалидный или истёк
          */
         post: operations["refresh_token_api_auth_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Me
+         * @description Получить текущего пользователя
+         */
+        get: operations["get_me_api_auth_me_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -308,6 +308,26 @@ export interface paths {
         patch: operations["update_planned_date_api_tasks__task_id__planned_date_patch"];
         trace?: never;
     };
+    "/api/tasks/{task_id}/assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Assign Task
+         * @description Назначить заявку исполнителю.
+         */
+        patch: operations["assign_task_api_tasks__task_id__assign_patch"];
+        trace?: never;
+    };
     "/api/tasks/{task_id}/comments": {
         parameters: {
             query?: never;
@@ -330,26 +350,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
-        trace?: never;
-    };
-    "/api/tasks/{task_id}/assign": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Assign Task
-         * @description Назначить заявку исполнителю.
-         */
-        patch: operations["assign_task_api_tasks__task_id__assign_patch"];
         trace?: never;
     };
     "/api/tasks/parse": {
@@ -1081,10 +1081,8 @@ export interface paths {
          * Restore Backup
          * @description Восстановить БД из бэкапа.
          *
-         *     Процесс:
-         *     1. Создаётся автоматический бэкап текущего состояния (pre_restore_*)
-         *     2. Распаковывается выбранный бэкап
-         *     3. Заменяется текущая БД
+         *     Процесс: бэкап текущего состояния (pre_restore_*) → распаковка и валидация
+         *     выбранного бэкапа → замена текущей БД.
          *
          *     ВАЖНО: После восстановления рекомендуется перезапустить сервер!
          */
@@ -1135,26 +1133,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/db/integrity": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check Database Integrity
-         * @description Проверить целостность БД (PRAGMA integrity_check).
-         */
-        get: operations["check_database_integrity_api_admin_db_integrity_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/admin/db/cleanup": {
         parameters: {
             query?: never;
@@ -1173,46 +1151,6 @@ export interface paths {
          *     - include_cancelled: удалять отменённые заявки
          */
         post: operations["cleanup_old_data_api_admin_db_cleanup_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/db/vacuum": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Vacuum Database
-         * @description Оптимизировать БД (VACUUM). Использует прямое sqlite3-подключение.
-         */
-        post: operations["vacuum_database_api_admin_db_vacuum_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/db/optimize": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Optimize Database
-         * @description Оптимизировать индексы БД (ANALYZE + VACUUM).
-         */
-        post: operations["optimize_database_api_admin_db_optimize_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2524,8 +2462,7 @@ export interface paths {
          * Check Update
          * @description Проверить наличие обновления.
          *
-         *     Вызывается из Android-приложения.
-         *     Не требует авторизации.
+         *     Вызывается из Android-приложения. Не требует авторизации.
          *
          *     Args:
          *         version_code: Текущий version_code приложения
@@ -2573,9 +2510,7 @@ export interface paths {
         put?: never;
         /**
          * Upload Apk
-         * @description Загрузить новую версию APK.
-         *
-         *     Только для администраторов.
+         * @description Загрузить новую версию APK. Только для администраторов.
          */
         post: operations["upload_apk_api_updates_upload_post"];
         delete?: never;
@@ -2618,9 +2553,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Update
-         * @description Удалить версию обновления.
-         *
-         *     Только для администраторов.
+         * @description Удалить версию обновления. Только для администраторов.
          */
         delete: operations["delete_update_api_updates__version_code__delete"];
         options?: never;
@@ -2800,6 +2733,26 @@ export interface paths {
         patch: operations["archive_conversation_api_chat_conversations__conv_id__archive_patch"];
         trace?: never;
     };
+    "/api/chat/task/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Task Chat
+         * @description Получить/создать чат заявки.
+         */
+        get: operations["get_task_chat_api_chat_task__task_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/chat/conversations/{conv_id}/messages": {
         parameters: {
             query?: never;
@@ -2868,6 +2821,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/chat/messages/{message_id}/reactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Toggle Reaction
+         * @description Toggle реакцию на сообщение.
+         */
+        post: operations["toggle_reaction_api_chat_messages__message_id__reactions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chat/conversations/{conv_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark As Read
+         * @description Отметить сообщения как прочитанные.
+         */
+        post: operations["mark_as_read_api_chat_conversations__conv_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/chat/messages/{message_id}/attachments": {
         parameters: {
             query?: never;
@@ -2920,66 +2913,6 @@ export interface paths {
          * @description Скачать thumbnail вложения сообщения с проверкой доступа к чату.
          */
         get: operations["download_attachment_thumbnail_api_chat_attachments__attachment_id__thumbnail_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/chat/messages/{message_id}/reactions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Toggle Reaction
-         * @description Toggle реакцию на сообщение.
-         */
-        post: operations["toggle_reaction_api_chat_messages__message_id__reactions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/chat/conversations/{conv_id}/read": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Mark As Read
-         * @description Отметить сообщения как прочитанные.
-         */
-        post: operations["mark_as_read_api_chat_conversations__conv_id__read_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/chat/task/{task_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Task Chat
-         * @description Получить/создать чат заявки.
-         */
-        get: operations["get_task_chat_api_chat_task__task_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6625,26 +6558,6 @@ export interface operations {
             };
         };
     };
-    get_me_api_auth_me_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserResponse"];
-                };
-            };
-        };
-    };
     refresh_token_api_auth_refresh_post: {
         parameters: {
             query?: never;
@@ -6674,6 +6587,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_me_api_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserResponse"];
                 };
             };
         };
@@ -7085,6 +7018,41 @@ export interface operations {
             };
         };
     };
+    assign_task_api_tasks__task_id__assign_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskAssignRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_comments_api_tasks__task_id__comments_get: {
         parameters: {
             query?: never;
@@ -7138,41 +7106,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommentResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    assign_task_api_tasks__task_id__assign_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                task_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TaskAssignRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaskResponse"];
                 };
             };
             /** @description Validation Error */
@@ -8435,26 +8368,6 @@ export interface operations {
             };
         };
     };
-    check_database_integrity_api_admin_db_integrity_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
     cleanup_old_data_api_admin_db_cleanup_post: {
         parameters: {
             query?: {
@@ -8484,46 +8397,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    vacuum_database_api_admin_db_vacuum_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    optimize_database_api_admin_db_optimize_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
         };
@@ -11524,6 +11397,37 @@ export interface operations {
             };
         };
     };
+    get_task_chat_api_chat_task__task_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_messages_api_chat_conversations__conv_id__messages_get: {
         parameters: {
             query?: {
@@ -11695,6 +11599,76 @@ export interface operations {
             };
         };
     };
+    toggle_reaction_api_chat_messages__message_id__reactions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReactionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReactionInfo"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_as_read_api_chat_conversations__conv_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conv_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadReceiptRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upload_attachment_api_chat_messages__message_id__attachments_post: {
         parameters: {
             query?: never;
@@ -11779,107 +11753,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    toggle_reaction_api_chat_messages__message_id__reactions_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                message_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReactionCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReactionInfo"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    mark_as_read_api_chat_conversations__conv_id__read_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                conv_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReadReceiptRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_task_chat_api_chat_task__task_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                task_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConversationResponse"];
                 };
             };
             /** @description Validation Error */

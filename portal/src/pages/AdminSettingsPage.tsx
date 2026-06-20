@@ -326,37 +326,6 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
     },
   })
 
-  const vacuumMutation = useMutation({
-    mutationFn: () => apiClient.post('/admin/db/vacuum'),
-    onSuccess: () => {
-      showApiSuccess('БД оптимизирована (VACUUM)')
-      queryClient.invalidateQueries({ queryKey: ['db-stats'] })
-    },
-    onError: (err) => showApiError(err, 'Ошибка оптимизации'),
-  })
-
-  const optimizeMutation = useMutation({
-    mutationFn: () => apiClient.post('/admin/db/optimize'),
-    onSuccess: () => {
-      showApiSuccess('БД оптимизирована (ANALYZE + VACUUM)')
-      queryClient.invalidateQueries({ queryKey: ['db-stats'] })
-    },
-    onError: (err) => showApiError(err, 'Ошибка оптимизации'),
-  })
-
-  const integrityMutation = useMutation({
-    mutationFn: () => apiClient.get('/admin/db/integrity'),
-    onSuccess: (response) => {
-      const data = response.data as { status: string; message: string }
-      if (data.status === 'ok') {
-        toast.success(data.message)
-      } else {
-        toast.error(data.message)
-      }
-    },
-    onError: (err) => showApiError(err, 'Ошибка проверки целостности'),
-  })
-
   const [cleanupDays, setCleanupDays] = useState(90)
   const [showCleanupConfirm, setShowCleanupConfirm] = useState(false)
 
@@ -395,36 +364,6 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
   }
 
   const maintenanceOps = [
-    {
-      title: 'VACUUM',
-      desc: 'Освобождает неиспользуемое пространство и уменьшает размер SQLite-файла.',
-      button: (
-        <Button variant="secondary" size="sm" onClick={() => vacuumMutation.mutate()} disabled={vacuumMutation.isPending}>
-          <RefreshCw className="mr-1.5 h-4 w-4" />
-          {vacuumMutation.isPending ? '...' : 'Запустить'}
-        </Button>
-      ),
-    },
-    {
-      title: 'ANALYZE + VACUUM',
-      desc: 'Перестраивает статистику и оптимизирует таблицы после больших изменений данных.',
-      button: (
-        <Button variant="secondary" size="sm" onClick={() => optimizeMutation.mutate()} disabled={optimizeMutation.isPending}>
-          <RefreshCw className="mr-1.5 h-4 w-4" />
-          {optimizeMutation.isPending ? '...' : 'Оптимизировать'}
-        </Button>
-      ),
-    },
-    {
-      title: 'Проверка целостности',
-      desc: 'Запускает встроенную integrity_check-проверку текущей базы данных.',
-      button: (
-        <Button variant="secondary" size="sm" onClick={() => integrityMutation.mutate()} disabled={integrityMutation.isPending}>
-          <Shield className="mr-1.5 h-4 w-4" />
-          {integrityMutation.isPending ? '...' : 'Проверить'}
-        </Button>
-      ),
-    },
     {
       title: 'Тестовые данные',
       desc: 'Создаёт пользователей и примерные заявки для локальной проверки сценариев.',

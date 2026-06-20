@@ -45,26 +45,8 @@ def main():
         print(f"   ✗ Status: {r.status_code} - {r.text}")
     print()
 
-    # Test Vacuum
-    print("3. VACUUM (POST /api/admin/db/vacuum)...")
-    r = requests.post(f"{BASE}/api/admin/db/vacuum", headers=headers)
-    if r.status_code == 200:
-        print(f"   ✓ Status: {r.status_code}")
-    else:
-        print(f"   ✗ Status: {r.status_code} - {r.text}")
-    print()
-
-    # Test Optimize
-    print("4. OPTIMIZE (POST /api/admin/db/optimize)...")
-    r = requests.post(f"{BASE}/api/admin/db/optimize", headers=headers)
-    if r.status_code == 200:
-        print(f"   ✓ Status: {r.status_code}")
-    else:
-        print(f"   ✗ Status: {r.status_code} - {r.text}")
-    print()
-
     # Test Clear
-    print("5. Clear (DELETE /api/admin/tasks)...")
+    print("3. Clear (DELETE /api/admin/tasks)...")
     r = requests.delete(f"{BASE}/api/admin/tasks", headers=headers)
     if r.status_code == 200:
         print(f"   ✓ Status: {r.status_code}")
@@ -73,7 +55,7 @@ def main():
     print()
 
     # Test Seed
-    print("6. Seed (POST /api/admin/db/seed)...")
+    print("4. Seed (POST /api/admin/db/seed)...")
     r = requests.post(f"{BASE}/api/admin/db/seed", headers=headers)
     if r.status_code == 200:
         data = r.json()
