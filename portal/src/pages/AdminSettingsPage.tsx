@@ -29,6 +29,7 @@ import {
   Clock,
   RotateCcw,
   Bot,
+  Power,
 } from 'lucide-react'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
@@ -40,7 +41,20 @@ import { useDevices, useSendTestNotification, useDeleteDevice } from '@/hooks/us
 import { useUsers } from '@/hooks/useUsers'
 import { useSetting, useSettings, useUpdateSetting } from '@/hooks/useSettings'
 import { useTelegramBotSettings, useUpdateTelegramBotSettings } from '@/hooks/useSettings'
-import type { TelegramGroupMapping, TelegramKnownGroup } from '@/hooks/useSettings'
+import {
+  useCustomFields,
+  useCreateCustomField,
+  useUpdateCustomField,
+  useDeleteCustomField,
+  useToggleCustomField,
+} from '@/hooks/useSettings'
+import type {
+  TelegramGroupMapping,
+  TelegramKnownGroup,
+  CustomField,
+  CustomFieldCreateData,
+  CustomFieldUpdateData,
+} from '@/hooks/useSettings'
 import { formatDateTime as formatDate } from '@/utils/dateFormat'
 import { cn } from '@/utils/cn'
 import { UpdatesManagementSection } from '@/pages/UpdatesPage'
@@ -81,20 +95,6 @@ interface Backup {
   name: string
   size: number
   created: string
-}
-
-interface CustomField {
-  id: number
-  name: string
-  label: string
-  field_type: string
-  options?: string[]
-  placeholder?: string
-  default_value?: string
-  required: boolean
-  show_in_list: boolean
-  show_in_card: boolean
-  order: number
 }
 
 type SettingsPanelId =
@@ -1332,31 +1332,35 @@ function SecuritySettingsTab() {
 }
 
 // ============= Custom Fields Tab =============
+const FIELD_TYPE_LABELS: Record<string, string> = {
+  text: 'Текст',
+  textarea: 'Многострочный',
+  number: 'Число',
+  select: 'Список',
+  checkbox: 'Флажок',
+  date: 'Дата',
+}
+
 function CustomFieldsTab() {
   const [showModal, setShowModal] = useState(false)
   const [editingField, setEditingField] = useState<CustomField | null>(null)
 
-  const { data: fields, isLoading } = useQuery({
-    queryKey: ['custom-fields'],
-    queryFn: async () => {
-      // Mock data for now
-      return [
-        { id: 1, name: 'customer_phone', label: 'Телефон клиента', field_type: 'text', required: true, show_in_list: true, show_in_card: true, order: 1 },
-        { id: 2, name: 'equipment_type', label: 'Тип оборудования', field_type: 'select', options: ['Котёл', 'Колонка', 'Плита'], required: false, show_in_list: false, show_in_card: true, order: 2 },
-      ] as CustomField[]
-    },
-  })
+  const { data: fields, isLoading } = useCustomFields()
+  const deleteField = useDeleteCustomField()
+  const toggleField = useToggleCustomField()
 
-  const getFieldTypeLabel = (type: string) => {
-    const types: Record<string, string> = {
-      text: 'Текст',
-      textarea: 'Многострочный',
-      number: 'Число',
-      select: 'Список',
-      checkbox: 'Флажок',
-      date: 'Дата',
-    }
-    return types[type] || type
+  const handleDelete = (field: CustomField) => {
+    if (!confirm(`Удалить поле «${field.label}»?`)) return
+    deleteField.mutate(field.id, {
+      onSuccess: () => showApiSuccess('Поле удалено'),
+      onError: (error) => showApiError(error, 'Не удалось удалить поле'),
+    })
+  }
+
+  const handleToggle = (field: CustomField) => {
+    toggleField.mutate(field.id, {
+      onError: (error) => showApiError(error, 'Не удалось изменить статус поля'),
+    })
   }
 
   return (
@@ -1381,26 +1385,37 @@ function CustomFieldsTab() {
             {fields.map((field) => (
               <div
                 key={field.id}
-                className="flex items-center justify-between rounded-xl border border-gray-200 bg-slate-50/80 p-3 dark:border-gray-800 dark:bg-gray-800/50"
+                className={cn(
+                  'flex items-center justify-between rounded-xl border border-gray-200 bg-slate-50/80 p-3 dark:border-gray-800 dark:bg-gray-800/50',
+                  !field.is_active && 'opacity-60'
+                )}
               >
                 <div className="flex items-center gap-3">
                   <GripVertical className="h-4 w-4 text-gray-400 cursor-move" />
                   <div>
                     <p className="font-medium text-gray-900 dark:text-white">
                       {field.label}
-                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                      {field.is_required && <span className="text-red-500 ml-1">*</span>}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {field.name} • {getFieldTypeLabel(field.field_type)}
+                      {field.name} • {FIELD_TYPE_LABELS[field.field_type] || field.field_type}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex gap-1.5">
+                    {!field.is_active && <Badge variant="gray">Выключено</Badge>}
                     {field.show_in_list && <Badge variant="info">В списке</Badge>}
                     {field.show_in_card && <Badge variant="success">В карточке</Badge>}
                   </div>
                   <div className="flex items-center">
+                    <SettingsIconButton
+                      title={field.is_active ? 'Выключить поле' : 'Включить поле'}
+                      onClick={() => handleToggle(field)}
+                      disabled={toggleField.isPending}
+                    >
+                      <Power className={cn('h-3.5 w-3.5', field.is_active && 'text-green-500')} />
+                    </SettingsIconButton>
                     <SettingsIconButton
                       title="Редактировать"
                       onClick={() => {
@@ -1410,7 +1425,12 @@ function CustomFieldsTab() {
                     >
                       <Edit2 className="h-3.5 w-3.5" />
                     </SettingsIconButton>
-                    <SettingsIconButton title="Удалить" tone="danger" onClick={() => undefined}>
+                    <SettingsIconButton
+                      title="Удалить"
+                      tone="danger"
+                      onClick={() => handleDelete(field)}
+                      disabled={deleteField.isPending}
+                    >
                       <Trash2 className="h-3.5 w-3.5" />
                     </SettingsIconButton>
                   </div>
@@ -1425,25 +1445,24 @@ function CustomFieldsTab() {
         <CustomFieldModal
           field={editingField}
           onClose={() => setShowModal(false)}
-          onSave={() => {
-            setShowModal(false)
-            toast.success(editingField ? 'Поле обновлено' : 'Поле создано')
-          }}
         />
       )}
     </>
   )
 }
 
-function CustomFieldModal({ 
-  field, 
-  onClose, 
-  onSave 
-}: { 
+function CustomFieldModal({
+  field,
+  onClose,
+}: {
   field: CustomField | null
   onClose: () => void
-  onSave: () => void 
 }) {
+  const isEdit = field !== null
+  const createField = useCreateCustomField()
+  const updateField = useUpdateCustomField()
+  const isSaving = createField.isPending || updateField.isPending
+
   const [formData, setFormData] = useState({
     name: field?.name || '',
     label: field?.label || '',
@@ -1451,10 +1470,76 @@ function CustomFieldModal({
     options: field?.options?.join('\n') || '',
     placeholder: field?.placeholder || '',
     default_value: field?.default_value || '',
-    required: field?.required || false,
+    is_required: field?.is_required || false,
     show_in_list: field?.show_in_list || false,
     show_in_card: field?.show_in_card ?? true,
   })
+
+  const handleSave = () => {
+    const name = formData.name.trim()
+    const label = formData.label.trim()
+    if (!label) {
+      toast.error('Укажите отображаемое название')
+      return
+    }
+    if (!isEdit && !/^[a-z_][a-z0-9_]*$/.test(name)) {
+      toast.error('Системное имя: латиница в нижнем регистре, цифры и _, начиная с буквы или _')
+      return
+    }
+
+    const options =
+      formData.field_type === 'select'
+        ? formData.options
+            .split('\n')
+            .map((o) => o.trim())
+            .filter(Boolean)
+        : null
+    const placeholder = formData.placeholder.trim() || null
+    const default_value = formData.default_value.trim() || null
+
+    if (isEdit) {
+      const payload: CustomFieldUpdateData = {
+        label,
+        field_type: formData.field_type,
+        options,
+        placeholder,
+        default_value,
+        is_required: formData.is_required,
+        show_in_list: formData.show_in_list,
+        show_in_card: formData.show_in_card,
+      }
+      updateField.mutate(
+        { id: field.id, payload },
+        {
+          onSuccess: () => {
+            showApiSuccess('Поле обновлено')
+            onClose()
+          },
+          onError: (error) => showApiError(error, 'Не удалось сохранить поле'),
+        }
+      )
+      return
+    }
+
+    const payload: CustomFieldCreateData = {
+      name,
+      label,
+      field_type: formData.field_type,
+      options,
+      placeholder,
+      default_value,
+      is_required: formData.is_required,
+      show_in_list: formData.show_in_list,
+      show_in_card: formData.show_in_card,
+    }
+    createField.mutate(payload, {
+      onSuccess: () => {
+        showApiSuccess('Поле создано')
+        onClose()
+      },
+      onError: (error) => showApiError(error, 'Не удалось создать поле'),
+    })
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -1474,6 +1559,8 @@ function CustomFieldModal({
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="customer_phone"
+            disabled={isEdit}
+            className={isEdit ? 'opacity-60' : undefined}
           />
           <Input
             label="Отображаемое название"
@@ -1523,8 +1610,8 @@ function CustomFieldModal({
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
-                checked={formData.required}
-                onChange={(e) => setFormData({ ...formData, required: e.target.checked })}
+                checked={formData.is_required}
+                onChange={(e) => setFormData({ ...formData, is_required: e.target.checked })}
                 className="w-4 h-4 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
               />
               <span className="text-sm">Обязательное</span>
@@ -1551,8 +1638,10 @@ function CustomFieldModal({
         </div>
 
         <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-gray-700">
-          <Button variant="secondary" onClick={onClose}>Отмена</Button>
-          <Button onClick={onSave}>Сохранить</Button>
+          <Button variant="secondary" onClick={onClose} disabled={isSaving}>Отмена</Button>
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? 'Сохранение...' : 'Сохранить'}
+          </Button>
         </div>
       </div>
     </div>

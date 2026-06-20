@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import apiClient from '@/api/client'
 import type { TaskPriority } from '@/types/task'
+import type { components } from '@/types/api.generated'
 
 export interface DefectType {
   id: string
@@ -219,5 +220,83 @@ export function useUpdateTelegramBotSettings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: telegramBotKeys.settings })
     },
+  })
+}
+
+// ============================================
+// Custom Fields
+// ============================================
+
+export type CustomField = components['schemas']['CustomFieldResponse']
+export type CustomFieldCreateData = components['schemas']['CustomFieldCreate']
+export type CustomFieldUpdateData = components['schemas']['CustomFieldUpdate']
+
+export const customFieldsApi = {
+  async list(): Promise<CustomField[]> {
+    const { data } = await apiClient.get<CustomField[]>('/admin/custom-fields')
+    return data
+  },
+
+  async create(payload: CustomFieldCreateData): Promise<CustomField> {
+    const { data } = await apiClient.post<CustomField>('/admin/custom-fields', payload)
+    return data
+  },
+
+  async update(id: number, payload: CustomFieldUpdateData): Promise<CustomField> {
+    const { data } = await apiClient.patch<CustomField>(`/admin/custom-fields/${id}`, payload)
+    return data
+  },
+
+  async remove(id: number): Promise<void> {
+    await apiClient.delete(`/admin/custom-fields/${id}`)
+  },
+
+  async toggle(id: number): Promise<void> {
+    await apiClient.patch(`/admin/custom-fields/${id}/toggle`)
+  },
+}
+
+const customFieldKeys = {
+  all: ['custom-fields'] as const,
+}
+
+export function useCustomFields() {
+  return useQuery({
+    queryKey: customFieldKeys.all,
+    queryFn: () => customFieldsApi.list(),
+    staleTime: 300000,
+  })
+}
+
+export function useCreateCustomField() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CustomFieldCreateData) => customFieldsApi.create(payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: customFieldKeys.all }),
+  })
+}
+
+export function useUpdateCustomField() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: CustomFieldUpdateData }) =>
+      customFieldsApi.update(id, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: customFieldKeys.all }),
+  })
+}
+
+export function useDeleteCustomField() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => customFieldsApi.remove(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: customFieldKeys.all }),
+  })
+}
+
+export function useToggleCustomField() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => customFieldsApi.toggle(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: customFieldKeys.all }),
   })
 }
