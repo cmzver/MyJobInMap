@@ -6,7 +6,6 @@ Settings Models
 Этот модуль содержит все модели связанные с конфигурацией системы:
 - SystemSettingModel: Системные настройки (группы: images, backup, notifications, security, interface, branding, server)
 - CustomFieldModel: Динамические поля для заявок
-- CustomFieldValueModel: Значения кастомных полей
 - RolePermissionModel: Разрешения для ролей
 """
 
@@ -180,29 +179,6 @@ class CustomFieldModel(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=utcnow, nullable=True
     )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=utcnow, onupdate=utcnow, nullable=True
-    )
-
-
-class CustomFieldValueModel(Base):
-    """
-    Значения кастомных полей для конкретных заявок.
-    """
-
-    __tablename__ = "custom_field_values"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-
-    # Связь с заявкой
-    task_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-
-    # Связь с полем
-    field_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-
-    # Значение поля
-    value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=utcnow, onupdate=utcnow, nullable=True
     )
