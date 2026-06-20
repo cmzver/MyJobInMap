@@ -938,27 +938,12 @@ function BackupSettingsTab() {
 
   const handleDownload = async (filename: string) => {
     try {
-      // Получаем токен из того же места, что и apiClient
-      const authData = localStorage.getItem('fieldworker-auth')
-      let token = ''
-      if (authData) {
-        try {
-          const authState = JSON.parse(authData)
-          token = authState.state?.token || ''
-        } catch (e) {
-          // Ignore
-        }
-      }
-      
-      const response = await fetch(`/api/admin/backups/${filename}/download`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      // apiClient сам добавляет токен и обрабатывает 401 — не дублируем разбор localStorage.
+      const response = await apiClient.get(`/admin/backups/${filename}/download`, {
+        responseType: 'blob',
       })
-      if (!response.ok) throw new Error('Download failed')
-      
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
+
+      const url = window.URL.createObjectURL(response.data)
       const a = document.createElement('a')
       a.href = url
       a.download = filename
