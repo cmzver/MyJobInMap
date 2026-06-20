@@ -1,13 +1,17 @@
-# FieldWorker Docker Compose — PostgreSQL
-# =========================================
-# Запуск: docker-compose -f docker-compose.postgres.yml up -d
-# Логи:   docker-compose -f docker-compose.postgres.yml logs -f
+# FieldWorker — полный стек в Docker (PostgreSQL), как в проде
+# ===========================================================
+# Поднять всё:   docker compose -f docker-compose.postgres.yml up -d --build
+# Логи:          docker compose -f docker-compose.postgres.yml logs -f
+# Остановить:    docker compose -f docker-compose.postgres.yml down
 #
-# Конфигурация через .env файл или переменные окружения.
+# Состав: PostgreSQL + Redis + API (FastAPI) + ARQ worker. Образ api/worker
+# содержит postgresql-client, поэтому бэкапы (pg_dump) работают нативно внутри
+# контейнера — BACKUP_PG_DOCKER_CONTAINER здесь НЕ нужен (и явно гасится, чтобы
+# значение из server/.env, предназначенное для запуска на хосте, не протекло).
 
 services:
   # ==========================================================================
-  # PostgreSQL Database
+  # PostgreSQL
   # ==========================================================================
   db:
     image: postgres:15-alpine
@@ -28,10 +32,26 @@ services:
       retries: 5
 
   # ==========================================================================
-  # FieldWorker API Server (FastAPI + PostgreSQL)
+  # Redis — брокер фоновой очереди задач (ARQ)
+  # ==========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: fieldworker_redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ==========================================================================
+  # API Server (FastAPI + PostgreSQL)
   # ==========================================================================
   server:
-    build: 
+    build:
       context: ./server
       dockerfile: Dockerfile
     container_name: fieldworker_server
@@ -39,18 +59,22 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     env_file:
       - ./server/.env
     environment:
-      # DATABASE_URL собирается из POSTGRES_* (корневой .env) — здесь это
-      # оправдано, т.к. адрес БД зависит от compose-сети, а не от app-конфига.
+      # Адрес БД/Redis зависит от compose-сети → задаём здесь (перекрывает .env).
       - DATABASE_URL=postgresql://${POSTGRES_USER:-fieldworker}:${POSTGRES_PASSWORD:-fieldworker_secret}@db:5432/${POSTGRES_DB:-fieldworker_db}
-      # SECRET_KEY НЕ переопределяем здесь — он приходит из server/.env (env_file),
-      # как и в основном docker-compose.yml. Иначе слабый дефолт затёр бы рабочий ключ.
+      - REDIS_URL=redis://redis:6379/0
+      - TASK_QUEUE_ENABLED=true
+      # В контейнере pg_dump установлен — docker-exec режим не нужен; гасим
+      # возможное значение из server/.env (оно для запуска на хосте).
+      - BACKUP_PG_DOCKER_CONTAINER=
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - PORT=8001
       - LOG_FORMAT=json
-      - BACKUP_SCHEDULER_ENABLED=false
+      - BACKUP_SCHEDULER_ENABLED=${BACKUP_SCHEDULER_ENABLED:-false}
     ports:
       - "${PORT:-8001}:8001"
     volumes:
@@ -65,8 +89,40 @@ services:
       retries: 3
       start_period: 15s
 
+  # ==========================================================================
+  # ARQ Worker — фоновый обработчик очереди (push и т.п.)
+  # ==========================================================================
+  worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: fieldworker_worker
+    restart: always
+    command: ["arq", "app.worker.WorkerSettings"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./server/.env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-fieldworker}:${POSTGRES_PASSWORD:-fieldworker_secret}@db:5432/${POSTGRES_DB:-fieldworker_db}
+      - REDIS_URL=redis://redis:6379/0
+      - TASK_QUEUE_ENABLED=true
+      - BACKUP_PG_DOCKER_CONTAINER=
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+    # У образа есть HEALTHCHECK на curl :8001, но worker не поднимает веб-сервер,
+    # поэтому свой healthcheck отключаем (иначе контейнер был бы "unhealthy").
+    healthcheck:
+      disable: true
+    volumes:
+      - server_uploads:/app/uploads
+      - server_logs:/app/logs
+
 volumes:
   postgres_data:
+  redis_data:
   server_uploads:
   server_logs:
   server_backups:
