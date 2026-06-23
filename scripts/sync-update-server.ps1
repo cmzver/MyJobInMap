@@ -37,7 +37,14 @@ param(
     # for SQLite).
     [string]$ComposeFile = "docker-compose.postgres.yml",
     [string]$ApiService = "server",
-    [string]$ApiContainer = "fieldworker_server"
+    [string]$ApiContainer = "fieldworker_server",
+
+    # Bring up the monitoring stack (Prometheus + Grafana + node-exporter) on top
+    # of the main stack via docker-compose.monitoring.yml. Ports 9090/3000 are NOT
+    # opened in the firewall - reach them over an SSH tunnel or put them behind
+    # Caddy with auth. Safe to re-run (idempotent).
+    [switch]$Monitoring = $false,
+    [string]$MonitoringFile = "docker-compose.monitoring.yml"
 )
 
 $ErrorActionPreference = "Stop"
@@ -650,6 +657,19 @@ function Enable-CaddySSL {
     Write-Log "Caddy started for $DomainName (Let's Encrypt issues the certificate on first request)" "Success"
 }
 
+function Enable-Monitoring {
+    if (-not (Test-RemoteFileExists "$RemotePath/$MonitoringFile")) {
+        throw "$MonitoringFile not found at $RemotePath (the file sync step must run before monitoring setup)"
+    }
+
+    # Merge the monitoring compose with the main stack so Prometheus shares its
+    # network and can scrape the api service and node-exporter by name.
+    $composeUp = Format-ComposeCommand "-f $MonitoringFile up -d"
+    Invoke-RemoteCommand "cd $RemotePath && $composeUp" | Out-Null
+    Write-Log "Monitoring stack up (Prometheus :9090, Grafana :3000, node-exporter)" "Success"
+    Write-Log "Ports 9090/3000 are NOT opened in ufw - reach Grafana via SSH tunnel: ssh -p $SSHPort -L 3000:localhost:3000 $Server" "Warning"
+}
+
 if (-not (Test-Path $LocalPath)) {
     throw "Local path not found: $LocalPath"
 }
@@ -949,6 +969,11 @@ try {
         } else {
             Write-Log "Skipping Caddy/SSL setup (no -Domain supplied)" "Warning"
         }
+    }
+
+    if ($Monitoring -and -not $DryRun) {
+        Write-Log "Setting up monitoring stack (Prometheus + Grafana + node-exporter)" "Info"
+        Enable-Monitoring
     }
 
     $deployDuration = (Get-Date) - $deployStart

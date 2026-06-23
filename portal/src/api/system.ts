@@ -32,6 +32,7 @@ export interface SystemHealth {
   }
   websocket: { active_connections?: number; unique_users?: number }
   containers: { available: boolean; reason?: string; containers?: ContainerInfo[] }
+  monitoring?: { grafana_url: string | null }
 }
 
 export const systemApi = {

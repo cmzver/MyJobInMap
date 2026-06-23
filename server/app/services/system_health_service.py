@@ -31,6 +31,9 @@ logger = logging.getLogger(__name__)
 
 DOCKER_PROXY_URL = os.getenv("DOCKER_PROXY_URL", "").rstrip("/")
 REDIS_URL = os.getenv("REDIS_URL", "")
+# Публичный URL Grafana (если мониторинг-стек развёрнут и проксирован) — портал
+# покажет кнопку «Открыть Grafana» только когда он задан.
+GRAFANA_PUBLIC_URL = os.getenv("GRAFANA_PUBLIC_URL", "")
 
 # "Up 2 minutes (healthy)" / "Up 5 seconds (health: starting)" / "Up 3 hours"
 _HEALTH_RE = re.compile(
@@ -173,4 +176,5 @@ def collect_health(db: Session) -> dict:
         "backup_scheduler": get_scheduler_status(),
         "websocket": ws_manager.get_status(),
         "containers": containers,
+        "monitoring": {"grafana_url": GRAFANA_PUBLIC_URL or None},
     }

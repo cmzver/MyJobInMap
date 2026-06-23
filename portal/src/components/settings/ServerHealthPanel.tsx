@@ -1,4 +1,4 @@
-import { Activity, Cpu, HardDrive, MemoryStick, RefreshCw, Server } from 'lucide-react'
+import { Activity, Cpu, ExternalLink, HardDrive, MemoryStick, RefreshCw, Server } from 'lucide-react'
 import type { ContainerInfo, SystemHealth } from '@/api/system'
 import { useSystemHealth } from '@/hooks/useSystemHealth'
 import Badge from '@/components/Badge'
@@ -189,6 +189,17 @@ export default function ServerHealthPanel() {
       description="Ресурсы хоста, сервисы и контейнеры. Обновляется автоматически каждые 10 секунд."
       action={
         <span className="flex items-center gap-2">
+          {data?.monitoring?.grafana_url && (
+            <a
+              href={data.monitoring.grafana_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:underline dark:text-primary-400"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Grafana
+            </a>
+          )}
           {isFetching && <RefreshCw className="h-4 w-4 animate-spin text-gray-400" />}
           {statusBadge}
         </span>
