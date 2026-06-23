@@ -10,7 +10,6 @@ import {
   Shield,
   Palette,
   Puzzle,
-  UserCog,
   Save,
   RefreshCw,
   Trash2,
@@ -59,6 +58,7 @@ import { formatDateTime as formatDate } from '@/utils/dateFormat'
 import { cn } from '@/utils/cn'
 import { UpdatesManagementSection } from '@/pages/UpdatesPage'
 import IpProtectionPanel from '@/components/security/IpProtectionPanel'
+import GroupsManager from '@/components/GroupsManager'
 import type { LucideIcon } from 'lucide-react'
 import {
   SettingsCard,
@@ -159,7 +159,7 @@ function renderPanel(
     case 'security':
       return <SecuritySettingsTab />
     case 'permissions-matrix':
-      return <PermissionsTab />
+      return <GroupsManager showOrgSelector />
     case 'interface':
       return <InterfaceSettingsCard />
     case 'portal-branding':
@@ -1627,118 +1627,6 @@ function CustomFieldModal({
         </div>
       </div>
     </div>
-  )
-}
-
-// ============= Permissions Tab =============
-function PermissionsTab() {
-  const queryClient = useQueryClient()
-  const { data: permissions, isLoading } = useQuery({
-    queryKey: ['role-permissions'],
-    queryFn: async () => {
-      const response = await apiClient.get<Record<string, Record<string, boolean>>>('/admin/permissions')
-      return response.data
-    },
-  })
-  const updatePermissionsMutation = useMutation({
-    mutationFn: ({ role, permission, value }: { role: string; permission: string; value: boolean }) =>
-      apiClient.patch(`/admin/permissions/${role}`, { permissions: { [permission]: value } }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['role-permissions'] })
-      toast.success('Права обновлены')
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка обновления прав')
-    },
-  })
-
-  const rows = [
-    { id: 'view_dashboard', label: 'Дашборд' },
-    { id: 'view_tasks', label: 'Заявки' },
-    { id: 'create_tasks', label: 'Создавать заявки' },
-    { id: 'edit_tasks', label: 'Редактировать заявки' },
-    { id: 'delete_tasks', label: 'Удалять заявки' },
-    { id: 'change_task_status', label: 'Менять статусы' },
-    { id: 'assign_tasks', label: 'Назначать исполнителей' },
-    { id: 'view_comments', label: 'Комментарии (просмотр)' },
-    { id: 'add_comments', label: 'Комментарии (добавление)' },
-    { id: 'view_photos', label: 'Фото (просмотр)' },
-    { id: 'add_photos', label: 'Фото (добавление)' },
-    { id: 'delete_photos', label: 'Фото (удаление)' },
-    { id: 'view_users', label: 'Пользователи (просмотр)' },
-    { id: 'edit_users', label: 'Пользователи (ред.)' },
-    { id: 'view_finance', label: 'Финансы' },
-    { id: 'view_devices', label: 'Устройства' },
-    { id: 'view_settings', label: 'Настройки (просмотр)' },
-    { id: 'edit_settings', label: 'Настройки (ред.)' },
-    { id: 'view_addresses', label: 'Адреса (просмотр)' },
-    { id: 'edit_addresses', label: 'Адреса (ред.)' },
-  ]
-
-  const isDisabled = (role: string) => role === 'admin' || updatePermissionsMutation.isPending
-
-  return (
-    <SettingsCard
-      title="Права доступа по ролям"
-      icon={UserCog}
-      description="Отметьте доступные действия для каждой роли. У администратора включено всё."
-    >
-      {isLoading ? (
-        <div className="flex justify-center py-4">
-          <Spinner />
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-          <table className="w-full">
-            <thead className="bg-gray-50/80 dark:bg-gray-800/60">
-              <tr className="border-b border-gray-200 dark:border-gray-700">
-                <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Разрешение
-                </th>
-                <th className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Админ
-                </th>
-                <th className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Диспетчер
-                </th>
-                <th className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Исполнитель
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-b border-gray-100 transition-colors last:border-0 hover:bg-gray-50/80 dark:border-gray-800 dark:hover:bg-gray-800/40">
-                  <td className="px-4 py-1 text-sm text-gray-700 dark:text-gray-300">
-                    {row.label}
-                  </td>
-                  {(['admin', 'dispatcher', 'worker'] as const).map((role) => {
-                    const checked = permissions?.[role]?.[row.id] ?? (role === 'admin')
-                    return (
-                      <td key={role} className="px-4 py-1 text-center">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={isDisabled(role)}
-                          onChange={(event) =>
-                            updatePermissionsMutation.mutate({
-                              role,
-                              permission: row.id,
-                              value: event.target.checked,
-                            })
-                          }
-                          className="h-4 w-4 rounded border-gray-300 text-primary-500 disabled:opacity-50 dark:border-gray-600"
-                        />
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </SettingsCard>
   )
 }
 
