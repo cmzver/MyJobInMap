@@ -15,6 +15,11 @@ param(
     [switch]$DryRun = $false,
     [switch]$Force = $false,
 
+    # Unconditionally rebuild every Docker image and force-recreate every
+    # container, regardless of which files changed. Use for a clean "rebuild
+    # everything from scratch" deploy (see scripts/recreate-containers.ps1).
+    [switch]$ForceRebuild = $false,
+
     # Fresh-server bootstrap: install Docker, generate missing secrets, upload env
     # files and (optionally) bring up Caddy with automatic SSL. Safe to run against
     # an already-provisioned server too - every step is idempotent.
@@ -22,7 +27,17 @@ param(
     [string]$Domain = $null,
     [switch]$SkipDockerInstall = $false,
     [switch]$SkipCaddy = $false,
-    [switch]$SkipFirewall = $false
+    [switch]$SkipFirewall = $false,
+
+    # Compose stack used on the server. Defaults to the PostgreSQL stack
+    # (docker-compose.postgres.yml: db + redis + server + worker + telegram-bot),
+    # which is the production database. Pass docker-compose.yml for the legacy
+    # SQLite stack. $ApiService/$ApiContainer must match the chosen file's API
+    # service/container names (server/fieldworker_server for PG, api/fieldworker-api
+    # for SQLite).
+    [string]$ComposeFile = "docker-compose.postgres.yml",
+    [string]$ApiService = "server",
+    [string]$ApiContainer = "fieldworker_server"
 )
 
 $ErrorActionPreference = "Stop"
@@ -352,7 +367,7 @@ function Format-ComposeCommand {
     # NO embedded double quotes: a 'DC="docker compose"' style shell variable does
     # not survive the Windows ssh.exe -> remote bash quoting round-trip (the quotes
     # get mangled and the variable ends up empty).
-    return "if docker compose version >/dev/null 2>&1; then docker compose $ComposeArgs; else docker-compose $ComposeArgs; fi"
+    return "if docker compose version >/dev/null 2>&1; then docker compose -f $ComposeFile $ComposeArgs; else docker-compose -f $ComposeFile $ComposeArgs; fi"
 }
 
 function Wait-ContainerHealthy {
@@ -751,6 +766,7 @@ try {
             "server/uploads/chat/*"
             "server/uploads/address_documents/*"
             "server/logs"
+            "server/backups"
             ".DS_Store"
             "app/src"
             "portal/src"
@@ -849,7 +865,10 @@ try {
         $rebuildRequired = $false
         $apiCodeChanged = $false
 
-        if ($SkipSync -or $syncMode -ne "rsync") {
+        if ($ForceRebuild) {
+            # Explicit full rebuild requested - skip change detection entirely.
+            $rebuildRequired = $true
+        } elseif ($SkipSync -or $syncMode -ne "rsync") {
             # No reliable list of changed files - rebuild to stay safe.
             $rebuildRequired = $true
         } else {
@@ -872,10 +891,17 @@ try {
         # defined in docker-compose.caddy.yml) run from separate compose files. With
         # --remove-orphans they would be treated as orphans and destroyed.
         if ($rebuildRequired) {
-            # Build new images while the old containers keep running, then recreate
-            # only what changed.
-            Write-Log "Rebuilding and recreating containers" "Info"
-            Invoke-RemoteCommand "cd $RemotePath && $(Format-ComposeCommand 'up -d --build')" | Out-Null
+            # Build new images while the old containers keep running, then recreate.
+            # With -ForceRebuild we additionally --force-recreate so EVERY container
+            # is replaced even if its image/config did not change; otherwise compose
+            # only recreates services whose image was actually rebuilt.
+            if ($ForceRebuild) {
+                Write-Log "Force rebuilding images and recreating all containers" "Info"
+                Invoke-RemoteCommand "cd $RemotePath && $(Format-ComposeCommand 'up -d --build --force-recreate')" | Out-Null
+            } else {
+                Write-Log "Rebuilding and recreating containers" "Info"
+                Invoke-RemoteCommand "cd $RemotePath && $(Format-ComposeCommand 'up -d --build')" | Out-Null
+            }
         } else {
             # Fast path - no image rebuild. First ensure everything is up (this also
             # builds any missing image, e.g. on a first deploy), then force-recreate
@@ -885,7 +911,7 @@ try {
 
             $fastCommand = "cd $RemotePath && $(Format-ComposeCommand 'up -d')"
             if ($recreateApi) {
-                $fastCommand += " && $(Format-ComposeCommand 'up -d --force-recreate --no-build api')"
+                $fastCommand += " && $(Format-ComposeCommand "up -d --force-recreate --no-build $ApiService")"
             }
             if ($recreateBot) {
                 $fastCommand += " && $(Format-ComposeCommand 'up -d --force-recreate --no-build telegram-bot')"
@@ -902,10 +928,10 @@ try {
         # Gate the deploy on the API healthcheck so a broken start fails loudly
         # instead of reporting a green 'ps' over a dead container.
         Write-Log "Waiting for API healthcheck" "Info"
-        if (Wait-ContainerHealthy -Container "fieldworker-api" -TimeoutSeconds 120) {
+        if (Wait-ContainerHealthy -Container $ApiContainer -TimeoutSeconds 120) {
             Write-Log "API is healthy" "Success"
         } else {
-            throw "API did not become healthy within 120s. Check logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose logs --tail=100 api'"
+            throw "API did not become healthy within 120s. Check logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose -f $ComposeFile logs --tail=100 $ApiService'"
         }
 
         Write-Log "Container status" "Info"
@@ -932,8 +958,8 @@ try {
         Write-Log "Portal:  https://$Domain/portal/" "Success"
         Write-Log "API:     https://$Domain/api/health" "Success"
     }
-    Write-Log "Check status: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose ps'" "Info"
-    Write-Log "View logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose logs -f'" "Info"
+    Write-Log "Check status: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose -f $ComposeFile ps'" "Info"
+    Write-Log "View logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose -f $ComposeFile logs -f'" "Info"
 }
 finally {
     if ($portalBuildJob) {
