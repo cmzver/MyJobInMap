@@ -669,7 +669,11 @@ function Enable-Monitoring {
 
     # Merge the monitoring compose with the main stack so Prometheus shares its
     # network and can scrape the api service and node-exporter by name.
-    $composeUp = Format-ComposeCommand "-f $MonitoringFile up -d"
+    # --force-recreate: the archive sync deletes and re-extracts monitoring/ on
+    # every deploy, which leaves the running Grafana/Prometheus bind-mounts
+    # pointing at the old (removed) directory. Recreating re-binds the fresh dir
+    # so provisioned dashboards and prometheus.yml are always current.
+    $composeUp = Format-ComposeCommand "-f $MonitoringFile up -d --force-recreate"
     Invoke-RemoteCommand "cd $RemotePath && $composeUp" | Out-Null
     Write-Log "Monitoring stack up (Prometheus :9090, Grafana :3000, node-exporter)" "Success"
 
