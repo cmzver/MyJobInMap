@@ -107,7 +107,7 @@ export default function SettingsPage() {
               />
               <Input
                 label="Роль"
-                value={user?.role ? getRoleLabel(user.role) : ''}
+                value={user?.roleLabel || (user?.role ? getRoleLabel(user.role) : '')}
                 disabled
                 className="bg-gray-50 dark:bg-gray-900"
               />

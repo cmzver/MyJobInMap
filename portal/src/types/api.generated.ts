@@ -38,26 +38,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/auth/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Me
-         * @description Получить текущего пользователя
-         */
-        get: operations["get_me_api_auth_me_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/auth/refresh": {
         parameters: {
             query?: never;
@@ -85,6 +65,26 @@ export interface paths {
          *         401 Unauthorized: Если refresh token невалидный или истёк
          */
         post: operations["refresh_token_api_auth_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Me
+         * @description Получить текущего пользователя
+         */
+        get: operations["get_me_api_auth_me_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -308,6 +308,26 @@ export interface paths {
         patch: operations["update_planned_date_api_tasks__task_id__planned_date_patch"];
         trace?: never;
     };
+    "/api/tasks/{task_id}/assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Assign Task
+         * @description Назначить заявку исполнителю.
+         */
+        patch: operations["assign_task_api_tasks__task_id__assign_patch"];
+        trace?: never;
+    };
     "/api/tasks/{task_id}/comments": {
         parameters: {
             query?: never;
@@ -330,26 +350,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
-        trace?: never;
-    };
-    "/api/tasks/{task_id}/assign": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Assign Task
-         * @description Назначить заявку исполнителю.
-         */
-        patch: operations["assign_task_api_tasks__task_id__assign_patch"];
         trace?: never;
     };
     "/api/tasks/parse": {
@@ -861,7 +861,7 @@ export interface paths {
         };
         /**
          * Get Permissions
-         * @description Получить матрицу прав доступа
+         * @description Матрица прав по группам в скоупе организации (admin виртуально имеет всё).
          */
         get: operations["get_permissions_api_admin_permissions_get"];
         put?: never;
@@ -887,9 +887,57 @@ export interface paths {
         head?: never;
         /**
          * Update Role Permission
-         * @description Обновить права роли
+         * @description Обновить права группы (admin неизменен; встроенные — только суперадмин).
          */
         patch: operations["update_role_permission_api_admin_permissions__role__patch"];
+        trace?: never;
+    };
+    "/api/admin/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Groups
+         * @description Список групп в скоупе организации (встроенные + кастомные этой org).
+         */
+        get: operations["list_groups_api_admin_groups_get"];
+        put?: never;
+        /**
+         * Create Group
+         * @description Создать кастомную группу в организации (права засеваются как deny).
+         */
+        post: operations["create_group_api_admin_groups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/groups/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Group
+         * @description Удалить кастомную группу своей организации (если не системная и не используется).
+         */
+        delete: operations["delete_group_api_admin_groups__name__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Group
+         * @description Обновить группу своей организации (slug неизменен у встроенных).
+         */
+        patch: operations["update_group_api_admin_groups__name__patch"];
         trace?: never;
     };
     "/api/admin/users": {
@@ -1081,10 +1129,8 @@ export interface paths {
          * Restore Backup
          * @description Восстановить БД из бэкапа.
          *
-         *     Процесс:
-         *     1. Создаётся автоматический бэкап текущего состояния (pre_restore_*)
-         *     2. Распаковывается выбранный бэкап
-         *     3. Заменяется текущая БД
+         *     Процесс: бэкап текущего состояния (pre_restore_*) → распаковка и валидация
+         *     выбранного бэкапа → замена текущей БД.
          *
          *     ВАЖНО: После восстановления рекомендуется перезапустить сервер!
          */
@@ -2524,8 +2570,7 @@ export interface paths {
          * Check Update
          * @description Проверить наличие обновления.
          *
-         *     Вызывается из Android-приложения.
-         *     Не требует авторизации.
+         *     Вызывается из Android-приложения. Не требует авторизации.
          *
          *     Args:
          *         version_code: Текущий version_code приложения
@@ -2573,9 +2618,7 @@ export interface paths {
         put?: never;
         /**
          * Upload Apk
-         * @description Загрузить новую версию APK.
-         *
-         *     Только для администраторов.
+         * @description Загрузить новую версию APK. Только для администраторов.
          */
         post: operations["upload_apk_api_updates_upload_post"];
         delete?: never;
@@ -2618,9 +2661,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Update
-         * @description Удалить версию обновления.
-         *
-         *     Только для администраторов.
+         * @description Удалить версию обновления. Только для администраторов.
          */
         delete: operations["delete_update_api_updates__version_code__delete"];
         options?: never;
@@ -2800,6 +2841,26 @@ export interface paths {
         patch: operations["archive_conversation_api_chat_conversations__conv_id__archive_patch"];
         trace?: never;
     };
+    "/api/chat/task/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Task Chat
+         * @description Получить/создать чат заявки.
+         */
+        get: operations["get_task_chat_api_chat_task__task_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/chat/conversations/{conv_id}/messages": {
         parameters: {
             query?: never;
@@ -2868,6 +2929,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/chat/messages/{message_id}/reactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Toggle Reaction
+         * @description Toggle реакцию на сообщение.
+         */
+        post: operations["toggle_reaction_api_chat_messages__message_id__reactions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chat/conversations/{conv_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark As Read
+         * @description Отметить сообщения как прочитанные.
+         */
+        post: operations["mark_as_read_api_chat_conversations__conv_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/chat/messages/{message_id}/attachments": {
         parameters: {
             query?: never;
@@ -2920,66 +3021,6 @@ export interface paths {
          * @description Скачать thumbnail вложения сообщения с проверкой доступа к чату.
          */
         get: operations["download_attachment_thumbnail_api_chat_attachments__attachment_id__thumbnail_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/chat/messages/{message_id}/reactions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Toggle Reaction
-         * @description Toggle реакцию на сообщение.
-         */
-        post: operations["toggle_reaction_api_chat_messages__message_id__reactions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/chat/conversations/{conv_id}/read": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Mark As Read
-         * @description Отметить сообщения как прочитанные.
-         */
-        post: operations["mark_as_read_api_chat_conversations__conv_id__read_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/chat/task/{task_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Task Chat
-         * @description Получить/создать чат заявки.
-         */
-        get: operations["get_task_chat_api_chat_task__task_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5221,28 +5262,11 @@ export interface components {
         };
         /**
          * RolePermissionsResponse
-         * @description РЎР»РѕРІР°СЂСЊ {role: {permission: bool}}
+         * @description Словарь {role: {permission: bool}} по всем группам (включая кастомные).
+         * @default {}
          */
         RolePermissionsResponse: {
-            /**
-             * Admin
-             * @default {}
-             */
-            admin: {
-                [key: string]: boolean;
-            };
-            /**
-             * Dispatcher
-             * @default {}
-             */
-            dispatcher: {
-                [key: string]: boolean;
-            };
-            /**
-             * Worker
-             * @default {}
-             */
-            worker: {
+            [key: string]: {
                 [key: string]: boolean;
             };
         };
@@ -5481,7 +5505,8 @@ export interface components {
             username: string;
             /** Full Name */
             full_name: string;
-            role: components["schemas"]["UserRole"];
+            /** Role */
+            role: string;
             /** Organization Id */
             organization_id?: number | null;
         };
@@ -6294,7 +6319,18 @@ export interface components {
             user_id: number;
             /** Username */
             username: string;
-            role: components["schemas"]["UserRole"];
+            /** Role */
+            role: string;
+            /**
+             * Role Label
+             * @default
+             */
+            role_label: string;
+            /**
+             * Base Access
+             * @default worker
+             */
+            base_access: string;
             /** Full Name */
             full_name: string;
             /** Avatar Url */
@@ -6347,10 +6383,74 @@ export interface components {
             email?: string | null;
             /** Phone */
             phone?: string | null;
-            /** @default worker */
-            role: components["schemas"]["UserRole"];
+            /**
+             * Role
+             * @default worker
+             */
+            role: string;
             /** Organization Id */
             organization_id?: number | null;
+        };
+        /**
+         * UserGroupCreate
+         * @description Создание кастомной группы.
+         */
+        UserGroupCreate: {
+            /** Name */
+            name: string;
+            /** Label */
+            label: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Base Access
+             * @default worker
+             */
+            base_access: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /**
+         * UserGroupResponse
+         * @description Группа пользователей (роль) в реестре.
+         */
+        UserGroupResponse: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Label */
+            label: string;
+            /** Description */
+            description?: string | null;
+            /** Base Access */
+            base_access: string;
+            /** Is System */
+            is_system: boolean;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /**
+         * UserGroupUpdate
+         * @description Обновление группы. ``name`` — новый slug (только для кастомных групп).
+         */
+        UserGroupUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Label */
+            label?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Base Access */
+            base_access?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
         };
         /**
          * UserResponse
@@ -6369,7 +6469,18 @@ export interface components {
             phone: string | null;
             /** Avatar Url */
             avatar_url?: string | null;
-            role: components["schemas"]["UserRole"];
+            /** Role */
+            role: string;
+            /**
+             * Role Label
+             * @default
+             */
+            role_label: string;
+            /**
+             * Base Access
+             * @default worker
+             */
+            base_access: string;
             /** Is Active */
             is_active: boolean;
             /**
@@ -6388,12 +6499,6 @@ export interface components {
             organization_id?: number | null;
         };
         /**
-         * UserRole
-         * @description Роли пользователей
-         * @enum {string}
-         */
-        UserRole: "superadmin" | "admin" | "manager" | "dispatcher" | "worker";
-        /**
          * UserUpdate
          * @description Обновление пользователя
          */
@@ -6408,7 +6513,8 @@ export interface components {
             email?: string | null;
             /** Phone */
             phone?: string | null;
-            role?: components["schemas"]["UserRole"] | null;
+            /** Role */
+            role?: string | null;
             /** Is Active */
             is_active?: boolean | null;
         };
@@ -6625,26 +6731,6 @@ export interface operations {
             };
         };
     };
-    get_me_api_auth_me_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserResponse"];
-                };
-            };
-        };
-    };
     refresh_token_api_auth_refresh_post: {
         parameters: {
             query?: never;
@@ -6674,6 +6760,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_me_api_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserResponse"];
                 };
             };
         };
@@ -7085,6 +7191,41 @@ export interface operations {
             };
         };
     };
+    assign_task_api_tasks__task_id__assign_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskAssignRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_comments_api_tasks__task_id__comments_get: {
         parameters: {
             query?: never;
@@ -7138,41 +7279,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommentResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    assign_task_api_tasks__task_id__assign_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                task_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TaskAssignRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaskResponse"];
                 };
             };
             /** @description Validation Error */
@@ -7986,7 +8092,9 @@ export interface operations {
     };
     get_permissions_api_admin_permissions_get: {
         parameters: {
-            query?: never;
+            query?: {
+                organization_id?: number | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -8002,11 +8110,22 @@ export interface operations {
                     "application/json": components["schemas"]["RolePermissionsResponse"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     update_role_permission_api_admin_permissions__role__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                organization_id?: number | null;
+            };
             header?: never;
             path: {
                 role: string;
@@ -8026,6 +8145,142 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_groups_api_admin_groups_get: {
+        parameters: {
+            query?: {
+                organization_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserGroupResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_group_api_admin_groups_post: {
+        parameters: {
+            query?: {
+                organization_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserGroupCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserGroupResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_group_api_admin_groups__name__delete: {
+        parameters: {
+            query?: {
+                organization_id?: number | null;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_group_api_admin_groups__name__patch: {
+        parameters: {
+            query?: {
+                organization_id?: number | null;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserGroupUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserGroupResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11524,6 +11779,37 @@ export interface operations {
             };
         };
     };
+    get_task_chat_api_chat_task__task_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_messages_api_chat_conversations__conv_id__messages_get: {
         parameters: {
             query?: {
@@ -11695,6 +11981,76 @@ export interface operations {
             };
         };
     };
+    toggle_reaction_api_chat_messages__message_id__reactions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReactionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReactionInfo"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_as_read_api_chat_conversations__conv_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conv_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadReceiptRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upload_attachment_api_chat_messages__message_id__attachments_post: {
         parameters: {
             query?: never;
@@ -11779,107 +12135,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    toggle_reaction_api_chat_messages__message_id__reactions_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                message_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReactionCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReactionInfo"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    mark_as_read_api_chat_conversations__conv_id__read_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                conv_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReadReceiptRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_task_chat_api_chat_task__task_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                task_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConversationResponse"];
                 };
             };
             /** @description Validation Error */

@@ -18,7 +18,7 @@ from app.services import (
     get_current_dispatcher_or_admin,
     get_user_service,
 )
-from app.utils import user_to_response
+from app.utils import user_list_to_responses, user_to_response
 
 router = APIRouter(prefix="/api/admin", tags=["Admin - Users"])
 
@@ -29,7 +29,7 @@ async def get_users(
     service: UserService = Depends(get_user_service),
 ):
     """Получить список пользователей"""
-    return [user_to_response(u) for u in service.list_users(admin)]
+    return user_list_to_responses(service.list_users(admin))
 
 
 @router.get("/workers", response_model=List[UserResponse])
@@ -38,7 +38,7 @@ async def get_workers(
     service: UserService = Depends(get_user_service),
 ):
     """Получить список работников (для диспетчеров и админов)"""
-    return [user_to_response(u) for u in service.list_workers(user)]
+    return user_list_to_responses(service.list_workers(user))
 
 
 @router.get("/users/{user_id}/stats", response_model=UserStatsResponse)

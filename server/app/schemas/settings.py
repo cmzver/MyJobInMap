@@ -7,7 +7,7 @@ Settings Schemas
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 # --- System Settings ---
 
@@ -74,17 +74,53 @@ class CustomFieldResponse(CustomFieldCreate):
 # --- Permissions ---
 
 
-class RolePermissionsResponse(BaseModel):
-    """РЎР»РѕРІР°СЂСЊ {role: {permission: bool}}"""
+class RolePermissionsResponse(RootModel[Dict[str, Dict[str, bool]]]):
+    """Словарь {role: {permission: bool}} по всем группам (включая кастомные)."""
 
-    # Dynamic dict structure due to variable roles/perms
-    admin: Dict[str, bool] = {}
-    dispatcher: Dict[str, bool] = {}
-    worker: Dict[str, bool] = {}
+    root: Dict[str, Dict[str, bool]] = {}
 
 
 class UpdateRolePermissionRequest(BaseModel):
     permissions: Dict[str, bool]
+
+
+# --- User Groups (custom roles) ---
+
+
+class UserGroupResponse(BaseModel):
+    """Группа пользователей (роль) в реестре."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    label: str
+    description: Optional[str] = None
+    base_access: str
+    is_system: bool
+    sort_order: int = 0
+
+
+class UserGroupCreate(BaseModel):
+    """Создание кастомной группы."""
+
+    name: str = Field(min_length=2, max_length=20, pattern=r"^[a-z][a-z0-9_]*$")
+    label: str = Field(min_length=1, max_length=100)
+    description: Optional[str] = Field(default=None, max_length=500)
+    base_access: str = "worker"
+    sort_order: int = 0
+
+
+class UserGroupUpdate(BaseModel):
+    """Обновление группы. ``name`` — новый slug (только для кастомных групп)."""
+
+    name: Optional[str] = Field(
+        default=None, min_length=2, max_length=20, pattern=r"^[a-z][a-z0-9_]*$"
+    )
+    label: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    description: Optional[str] = Field(default=None, max_length=500)
+    base_access: Optional[str] = None
+    sort_order: Optional[int] = None
 
 
 # --- Backups ---

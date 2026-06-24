@@ -22,12 +22,13 @@ from app.services.audit_log import audit_login_failed, audit_login_success
 from app.services.ip_guard import ip_guard
 from app.services.rate_limiter import login_rate_limiter
 from app.services.role_utils import public_role_value
+from app.services.user_group_service import resolve_base_access, resolve_role_label
 from app.utils import build_user_avatar_url
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 
-def _build_token_response(user: UserModel) -> Token:
+def _build_token_response(user: UserModel, db: Session) -> Token:
     """Собрать пару токенов и публичный профиль пользователя."""
     token_data = {"sub": user.username, "user_id": user.id, "role": user.role}
     org_id = user.organization_id
@@ -39,6 +40,8 @@ def _build_token_response(user: UserModel) -> Token:
         user_id=user.id,
         username=user.username,
         role=public_role_value(user.role, user.organization_id),
+        role_label=resolve_role_label(db, user.role, user.organization_id),
+        base_access=resolve_base_access(db, user.role, user.organization_id),
         full_name=user.full_name or user.username,
         avatar_url=build_user_avatar_url(user),
         organization_id=org_id,
@@ -100,7 +103,7 @@ async def login(
     user.last_login = datetime.now(timezone.utc)
     db.commit()
 
-    return _build_token_response(user)
+    return _build_token_response(user, db)
 
 
 @router.post("/refresh", response_model=Token)
@@ -160,4 +163,4 @@ async def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
         )
 
     # Создаём новую пару токенов (ротация)
-    return _build_token_response(user)
+    return _build_token_response(user, db)

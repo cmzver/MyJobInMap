@@ -13,7 +13,17 @@ import logging
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from app.config import settings as app_settings
@@ -198,6 +208,16 @@ class RolePermissionModel(Base):
     """
 
     __tablename__ = "role_permissions"
+    __table_args__ = (
+        # Скоуп прав по организации: NULL — встроенные роли (общие),
+        # иначе — права кастомной группы конкретной организации.
+        Index(
+            "ix_role_permissions_lookup",
+            "role",
+            "permission",
+            "organization_id",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
 
@@ -209,6 +229,69 @@ class RolePermissionModel(Base):
 
     # Разрешено или запрещено
     is_allowed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=True)
+
+    # Организация-владелец прав кастомной группы (NULL — встроенная роль).
+    organization_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("organizations.id"), nullable=True, index=True
+    )
+
+
+# ============================================
+# User Groups (custom roles)
+# ============================================
+
+
+class UserGroupModel(Base):
+    """
+    Группа пользователей (кастомная роль).
+
+    Реестр всех ролей системы — и встроенных (is_system=True), и созданных
+    администратором. ``name`` — это slug, который пишется в ``users.role`` и
+    служит ключом в таблице ``role_permissions``. ``base_access`` задаёт грубый
+    уровень доступа (admin/dispatcher/worker) для навигации портала и
+    coarse-проверок на сервере.
+    """
+
+    __tablename__ = "user_groups"
+    __table_args__ = (
+        # Имя уникально В РАМКАХ организации: org A и org B могут иметь
+        # одноимённые группы; встроенные (organization_id=NULL) — общие.
+        UniqueConstraint("organization_id", "name", name="uq_user_groups_org_name"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    # Slug группы (= значение users.role). Ограничен 20 символами под колонку role.
+    name: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+
+    # Организация-владелец (NULL — встроенная общая группа admin/dispatcher/worker).
+    organization_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("organizations.id"), nullable=True, index=True
+    )
+
+    # Отображаемое название
+    label: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    # Описание
+    description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    # Базовый уровень доступа: admin, dispatcher, worker
+    base_access: Mapped[str] = mapped_column(
+        String(20), default="worker", nullable=False
+    )
+
+    # Встроенная группа (нельзя удалять/переименовывать)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Порядок отображения
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
+    )
 
 
 # ============================================
@@ -761,6 +844,34 @@ def init_default_settings(db: Session):
                 role=role, permission=permission, is_allowed=is_allowed
             )
             db.add(perm)
+
+    # Встроенные группы пользователей (реестр ролей)
+    default_groups = [
+        ("admin", "Администратор", "admin", "Полный доступ ко всем функциям", 1),
+        (
+            "dispatcher",
+            "Диспетчер",
+            "dispatcher",
+            "Управление заявками и исполнителями",
+            2,
+        ),
+        ("worker", "Работник", "worker", "Исполнение назначенных заявок", 3),
+    ]
+    for name, label, base_access, description, sort_order in default_groups:
+        existing_group = (
+            db.query(UserGroupModel).filter(UserGroupModel.name == name).first()
+        )
+        if not existing_group:
+            db.add(
+                UserGroupModel(
+                    name=name,
+                    label=label,
+                    base_access=base_access,
+                    description=description,
+                    is_system=True,
+                    sort_order=sort_order,
+                )
+            )
 
     migration_setting = (
         db.query(SystemSettingModel)

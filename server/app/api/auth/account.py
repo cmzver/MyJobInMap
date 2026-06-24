@@ -192,12 +192,21 @@ async def get_my_permissions(
     user: UserModel = Depends(get_current_user_required), db: Session = Depends(get_db)
 ):
     """Получить разрешения текущего пользователя"""
-    init_default_settings(db)
-    perms = (
-        db.query(RolePermissionModel)
-        .filter(RolePermissionModel.role == canonical_role_value(user.role))
-        .all()
+    from app.services.user_group_service import BASE_ACCESS_LEVELS
+
+    canonical = canonical_role_value(user.role)
+    # Встроенные роли — глобальные права (NULL), кастомные — в скоупе организации.
+    org_scope = None if canonical in BASE_ACCESS_LEVELS else user.organization_id
+    perms_query = db.query(RolePermissionModel).filter(
+        RolePermissionModel.role == canonical,
+        RolePermissionModel.organization_id == org_scope,
     )
+    perms = perms_query.all()
+    # Самозалечивание только при «холодной» БД — не на каждый запрос
+    # (init_default_settings делает десятки SELECT по настройкам/правам/группам).
+    if not perms:
+        init_default_settings(db)
+        perms = perms_query.all()
     permissions = {perm.permission: perm.is_allowed for perm in perms}
     return PermissionsResponse(
         role=public_role_value(user.role, user.organization_id),

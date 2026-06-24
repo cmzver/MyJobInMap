@@ -120,7 +120,7 @@ fun UserResponse.toDomain(): User = User(
     fullName = fullName,
     email = email,
     phone = phone,
-    role = UserRole.fromString(role.value),
+    role = UserRole.fromString(role),
     isActive = isActive
 )
 
@@ -136,7 +136,7 @@ fun Token.toUser(): User = User(
     id = userId,
     username = username,
     fullName = fullName,
-    role = UserRole.fromString(role.value),
+    role = UserRole.fromString(role),
     isActive = true
 )
 

@@ -23,7 +23,6 @@
 
 package com.fieldworker.data.remote.generated
 
-import com.fieldworker.data.remote.generated.UserRole
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
@@ -42,6 +41,8 @@ import kotlinx.serialization.Contextual
  * @param createdAt 
  * @param lastLogin 
  * @param avatarUrl 
+ * @param roleLabel 
+ * @param baseAccess 
  * @param assignedTasksCount 
  * @param organizationId 
  */
@@ -64,8 +65,8 @@ data class UserResponse (
     @SerialName(value = "phone")
     val phone: kotlin.String?,
 
-    @Contextual @SerialName(value = "role")
-    val role: UserRole,
+    @SerialName(value = "role")
+    val role: kotlin.String,
 
     @SerialName(value = "is_active")
     val isActive: kotlin.Boolean,
@@ -78,6 +79,12 @@ data class UserResponse (
 
     @SerialName(value = "avatar_url")
     val avatarUrl: kotlin.String? = null,
+
+    @SerialName(value = "role_label")
+    val roleLabel: kotlin.String? = "",
+
+    @SerialName(value = "base_access")
+    val baseAccess: kotlin.String? = "worker",
 
     @SerialName(value = "assigned_tasks_count")
     val assignedTasksCount: kotlin.Long? = 0,

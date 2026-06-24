@@ -24,6 +24,7 @@ from app.services.audit_log import (
 from app.services.auth import get_password_hash
 from app.services.role_utils import canonical_role_value
 from app.services.tenant_filter import TenantFilter
+from app.services.user_group_service import is_valid_role
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +50,16 @@ class UserService:
         return tenant.apply(self.db.query(UserModel), UserModel).all()
 
     def list_workers(self, actor: UserModel) -> List[UserModel]:
-        """Активные работники и диспетчеры (для назначения)."""
+        """Активные пользователи, доступные для назначения.
+
+        Это все активные не-админы: встроенные worker/dispatcher и кастомные
+        группы (их base_access ограничен dispatcher/worker, т.е. они назначаемы).
+        """
         tenant = TenantFilter(actor)
         return (
             tenant.apply(self.db.query(UserModel), UserModel)
             .filter(
-                UserModel.role.in_([UserRole.WORKER.value, UserRole.DISPATCHER.value]),
+                UserModel.role != UserRole.ADMIN.value,
                 UserModel.is_active == True,
             )
             .all()
@@ -159,6 +164,15 @@ class UserService:
             raise UserServiceError("Username already exists", 400)
 
         tenant = TenantFilter(actor)
+        # Целевая организация пользователя (для валидации кастомной роли в скоупе).
+        if tenant.is_superadmin:
+            target_org_id = (
+                None if data.role == UserRole.SUPERADMIN else data.organization_id
+            )
+        else:
+            target_org_id = actor.organization_id
+        if not is_valid_role(self.db, data.role, target_org_id):
+            raise UserServiceError("Несуществующая группа (роль)", 400)
         requested_role = canonical_role_value(data.role)
 
         if not tenant.is_superadmin:
@@ -207,6 +221,10 @@ class UserService:
         user = self._get_or_404(user_id)
 
         tenant = TenantFilter(actor)
+        if data.role is not None and not is_valid_role(
+            self.db, data.role, user.organization_id
+        ):
+            raise UserServiceError("Несуществующая группа (роль)", 400)
         requested_role = (
             canonical_role_value(data.role) if data.role is not None else None
         )

@@ -45,9 +45,9 @@ export default function DefectTypeSelector({
   if (!systemType) {
     return (
       <Card title="Тип неисправности">
-        <div className="flex items-center gap-2 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-          <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
-          <p className="text-sm text-yellow-700 dark:text-yellow-300">
+        <div className="flex items-center gap-2.5 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
+          <AlertCircle className="h-5 w-5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+          <p className="text-sm text-gray-600 dark:text-gray-300">
             Тип неисправности выбирается после системы обслуживания. Если система не указана, это поле можно оставить пустым.
           </p>
         </div>
@@ -64,22 +64,22 @@ export default function DefectTypeSelector({
 
         {/* Показываем сохранённый тип, если он не в текущем списке */}
         {savedDefectType && (
-          <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <p className="text-sm text-blue-700 dark:text-blue-300">
+          <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/60">
+            <p className="text-sm text-gray-700 dark:text-gray-200">
               Текущий тип: <strong>{savedDefectType.name || value}</strong>
             </p>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Этот тип не относится к выбранной системе. Вы можете выбрать другой из списка ниже.
             </p>
           </div>
         )}
         {/* Если значение не найдено вообще (например, введено вручную или удалено) */}
         {!savedValueInList && value && !savedDefectType && (
-          <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <p className="text-sm text-blue-700 dark:text-blue-300">
+          <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/60">
+            <p className="text-sm text-gray-700 dark:text-gray-200">
               Текущий тип: <strong>{value}</strong>
             </p>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Вы можете выбрать другой тип из списка ниже.
             </p>
           </div>

@@ -11,11 +11,13 @@ Utils Package
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import case
+from sqlalchemy import case, func
+from sqlalchemy.orm import object_session
 
 from app.models import TaskModel, TaskPriority, UserModel
 from app.schemas import CommentResponse, TaskListResponse, TaskResponse, UserResponse
 from app.services.role_utils import public_role_value
+from app.services.user_group_service import resolve_base_access, resolve_role_label
 
 # ============================================
 
@@ -258,8 +260,29 @@ def task_to_list_response(task: TaskModel) -> TaskListResponse:
     return TaskListResponse(**data)
 
 
-def user_to_response(user: UserModel) -> UserResponse:
-    """Конвертация User в Response - устраняет дублирование в API"""
+def user_to_response(
+    user: UserModel, assigned_tasks_count: Optional[int] = None
+) -> UserResponse:
+    """Конвертация User в Response - устраняет дублирование в API.
+
+    ``assigned_tasks_count`` можно передать заранее (для списков — чтобы не
+    тянуть ленивую связь user.assigned_tasks на каждого пользователя, см.
+    user_list_to_responses). Если не передан — считается лениво (1 пользователь).
+    """
+
+    session = object_session(user)
+    base_access = (
+        resolve_base_access(session, user.role, user.organization_id)
+        if session is not None
+        else "worker"
+    )
+    role_label = (
+        resolve_role_label(session, user.role, user.organization_id)
+        if session is not None
+        else ""
+    )
+    if assigned_tasks_count is None:
+        assigned_tasks_count = len(user.assigned_tasks) if user.assigned_tasks else 0
 
     return UserResponse(
         id=user.id,
@@ -269,12 +292,38 @@ def user_to_response(user: UserModel) -> UserResponse:
         phone=user.phone,
         avatar_url=build_user_avatar_url(user),
         role=public_role_value(user.role, user.organization_id),
+        role_label=role_label,
+        base_access=base_access,
         is_active=user.is_active,
         created_at=user.created_at,
         last_login=user.last_login,
-        assigned_tasks_count=len(user.assigned_tasks) if user.assigned_tasks else 0,
+        assigned_tasks_count=assigned_tasks_count,
         organization_id=user.organization_id,
     )
+
+
+def user_list_to_responses(users: List[UserModel]) -> List[UserResponse]:
+    """Сериализовать список пользователей без N+1.
+
+    Счётчики назначенных заявок берём одним GROUP BY вместо ленивой загрузки
+    user.assigned_tasks на каждого пользователя.
+    """
+    if not users:
+        return []
+    session = object_session(users[0])
+    if session is None:
+        return [user_to_response(u) for u in users]
+
+    user_ids = [u.id for u in users]
+    counts = dict(
+        session.query(TaskModel.assigned_user_id, func.count(TaskModel.id))
+        .filter(TaskModel.assigned_user_id.in_(user_ids))
+        .group_by(TaskModel.assigned_user_id)
+        .all()
+    )
+    return [
+        user_to_response(u, assigned_tasks_count=counts.get(u.id, 0)) for u in users
+    ]
 
 
 def build_user_avatar_url(user: UserModel) -> Optional[str]:

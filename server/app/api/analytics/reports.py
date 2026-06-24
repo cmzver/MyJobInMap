@@ -165,7 +165,7 @@ async def get_reports(
             tenant.apply(db.query(UserModel), UserModel)
             .filter(
                 UserModel.id == worker_id,
-                UserModel.role.in_([UserRole.WORKER.value, UserRole.DISPATCHER.value]),
+                UserModel.role != UserRole.ADMIN.value,
                 UserModel.is_active == True,
             )
             .first()
@@ -283,7 +283,7 @@ async def get_reports(
 
     # === By Worker ===
     workers_query = tenant.apply(db.query(UserModel), UserModel).filter(
-        UserModel.role.in_([UserRole.WORKER.value, UserRole.DISPATCHER.value]),
+        UserModel.role != UserRole.ADMIN.value,
         UserModel.is_active == True,
     )
     if worker_id is not None:

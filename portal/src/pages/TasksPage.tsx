@@ -1209,17 +1209,6 @@ export default function TasksPage() {
       <div className="mb-5 rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-colors dark:border-gray-700 dark:bg-gray-800">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
           <div className="xl:w-[320px]">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Search className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  Поиск
-                </span>
-              </div>
-              <span className="text-xs text-gray-400 dark:text-gray-500">
-                {hasActiveFilters ? `Активно: ${activeFilters.length}` : 'Все заявки'}
-              </span>
-            </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
               <input
@@ -1332,8 +1321,8 @@ export default function TasksPage() {
       )}
 
         {data && (
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-200 pt-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-            <span className="font-medium text-gray-900 dark:text-white">Сводка</span>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-100 pt-3 text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
+            <span className="eyebrow">Сводка</span>
             <span>
               Без исполнителя <span className="font-semibold text-gray-900 dark:text-white">{summary.unassigned}</span>
             </span>

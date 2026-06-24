@@ -35,7 +35,7 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
 
-  const isWorker = normalizeRoleForAccess(user?.role) === 'worker'
+  const isWorker = normalizeRoleForAccess(user?.role, user?.baseAccess) === 'worker'
 
   const { data, isLoading } = useQuery({
     queryKey: ['calendar-tasks', format(currentDate, 'yyyy-MM'), isWorker ? user?.id : null],

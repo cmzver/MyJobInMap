@@ -120,7 +120,7 @@ export default function TaskDetailPage() {
   
   // Filter only workers and dispatchers for assignment
   const assignableUsers = users.filter((u) => u.is_active && isAssignableRole(u.role))
-  const backToListPath = normalizeRoleForAccess(user?.role) === 'worker' ? '/my-tasks' : '/tasks'
+  const backToListPath = normalizeRoleForAccess(user?.role, user?.baseAccess) === 'worker' ? '/my-tasks' : '/tasks'
 
   // Mutations
   const updateStatusMutation = useUpdateTaskStatus()
@@ -328,8 +328,8 @@ export default function TaskDetailPage() {
 
   const availableTransitions = getAvailableStatusTransitions(task.status)
   const sla = getSla(task.planned_date, task.status)
-  const canEdit = permissions?.permissions?.edit_tasks ?? normalizeRoleForAccess(user?.role) === 'admin'
-  const canDelete = permissions?.permissions?.delete_tasks ?? normalizeRoleForAccess(user?.role) === 'admin'
+  const canEdit = permissions?.permissions?.edit_tasks ?? normalizeRoleForAccess(user?.role, user?.baseAccess) === 'admin'
+  const canDelete = permissions?.permissions?.delete_tasks ?? normalizeRoleForAccess(user?.role, user?.baseAccess) === 'admin'
   const historyEvents = [
     {
       id: `created-${task.id}`,
@@ -381,21 +381,49 @@ export default function TaskDetailPage() {
         </Button>
 
         <Card compact className="overflow-hidden">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          {/* Шапка: идентификатор + статусы слева, действия справа */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 flex-1">
-              <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                <span className="text-sm font-semibold text-gray-900 dark:text-white">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span className="font-mono text-xs text-gray-500 dark:text-gray-400">
                   {task.task_number || `#${task.id}`}
                 </span>
-                <span className="h-1 w-1 rounded-full bg-gray-300 dark:bg-gray-600" />
-                <PriorityBadge
-                  priority={task.priority}
-                  className="rounded-md border border-gray-200 bg-transparent px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-600 dark:border-gray-700 dark:bg-transparent dark:text-gray-300"
-                />
+                <StatusBadge status={task.status} />
+                <PriorityBadge priority={task.priority} />
               </div>
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-white break-words">
+              <h1 className="text-xl font-semibold leading-snug text-gray-900 dark:text-white break-words">
                 {task.title}
               </h1>
+              <div className="mt-2 flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300">
+                <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                <div className="min-w-0">
+                  <span className="break-words">{task.raw_address || 'Адрес не указан'}</span>
+                  {(task.customer_name || task.customer_phone || hasCoordinates(task)) && (
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                      {task.customer_name && <span>{task.customer_name}</span>}
+                      {task.customer_phone && (
+                        <a
+                          className="inline-flex items-center gap-1 hover:text-primary-600 dark:hover:text-primary-400"
+                          href={`tel:${task.customer_phone}`}
+                        >
+                          <Phone className="h-3.5 w-3.5" />
+                          {task.customer_phone}
+                        </a>
+                      )}
+                      {hasCoordinates(task) && (
+                        <button
+                          type="button"
+                          onClick={() => window.open(`https://yandex.ru/maps/?pt=${task.lon},${task.lat}&z=17`, '_blank', 'noopener,noreferrer')}
+                          className="inline-flex items-center gap-1 hover:text-primary-600 dark:hover:text-primary-400"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          На карте
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -418,52 +446,10 @@ export default function TaskDetailPage() {
             </div>
           </div>
 
-          <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50/40 p-3.5 dark:border-gray-700 dark:bg-gray-900/20">
-            <div className="flex items-start gap-3">
-              <div className="pt-0.5 text-gray-400 dark:text-gray-500">
-                <MapPin className="h-4 w-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
-                  Адрес заявки
-                </p>
-                <p className="mt-1 text-[15px] font-semibold text-gray-900 dark:text-white break-words leading-5">
-                  {task.raw_address || 'Не указан'}
-                </p>
-                {(task.customer_name || task.customer_phone || hasCoordinates(task)) && (
-                  <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-gray-600 dark:text-gray-300">
-                    {task.customer_name && <span>{task.customer_name}</span>}
-                    {task.customer_phone && (
-                      <a
-                        className="inline-flex items-center gap-1 hover:text-primary-600 dark:hover:text-primary-400"
-                        href={`tel:${task.customer_phone}`}
-                      >
-                        <Phone className="h-3.5 w-3.5" />
-                        {task.customer_phone}
-                      </a>
-                    )}
-                    {hasCoordinates(task) && (
-                      <button
-                        type="button"
-                        onClick={() => window.open(`https://yandex.ru/maps/?pt=${task.lon},${task.lat}&z=17`, '_blank', 'noopener,noreferrer')}
-                        className="inline-flex items-center gap-1 hover:text-primary-600 dark:hover:text-primary-400"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        Открыть на карте
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 border-t border-gray-200 pt-3 dark:border-gray-800">
-            <div className="grid gap-x-8 gap-y-4 lg:grid-cols-2">
+          {/* Факты: ровная сетка без внутренних линий */}
+          <div className="mt-5 grid gap-x-8 gap-y-5 border-t border-gray-100 pt-5 dark:border-gray-800 sm:grid-cols-2 lg:grid-cols-4">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
-                Исполнитель
-              </p>
+              <p className="eyebrow">Исполнитель</p>
               <div className="mt-1.5 text-sm font-medium text-gray-900 dark:text-white">
                 {isEditingAssignee ? (
                   <select
@@ -505,66 +491,66 @@ export default function TaskDetailPage() {
             </div>
 
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
-                Статус и срок
-              </p>
-              <div className="mt-1.5 space-y-2 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatusBadge
-                    status={task.status}
-                    className="rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.06em]"
-                  />
-                  <span className="text-gray-900 dark:text-white">{formatDateTime(task.planned_date)}</span>
-                  <span className={cn('text-sm font-medium', sla.tone)}>{sla.label}</span>
-                </div>
-                {availableTransitions.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {availableTransitions.map((status) => (
-                      <Button
-                        key={status}
-                        variant="outline"
-                        size="sm"
-                        className={cn(
-                          'h-auto min-h-10 rounded-md px-3 py-2 text-xs font-medium',
-                          status === 'CANCELLED'
-                            ? 'border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/30'
-                            : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
-                        )}
-                        onClick={() => handleStatusChange(status)}
-                        isLoading={updateStatusMutation.isPending}
-                      >
-                        {statusLabels[status]}
-                      </Button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <p className="eyebrow">Срок</p>
+              {task.planned_date ? (
+                <>
+                  <p className="mt-1.5 text-sm font-medium text-gray-900 dark:text-white">
+                    {formatDateTime(task.planned_date)}
+                  </p>
+                  {sla.label && (
+                    <p className={cn('mt-0.5 text-sm font-medium', sla.tone)}>{sla.label}</p>
+                  )}
+                </>
+              ) : (
+                <p className="mt-1.5 text-sm font-medium text-gray-500 dark:text-gray-400">
+                  Нет срока
+                </p>
+              )}
             </div>
 
-            <div className="min-w-0 border-t border-gray-200 pt-3 dark:border-gray-800 lg:pt-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
-                Неисправность
-              </p>
+            <div className="min-w-0">
+              <p className="eyebrow">Неисправность</p>
               <p className="mt-1.5 text-sm font-medium text-gray-900 dark:text-white break-words">
                 {task.defect_type || 'Не указана'}
               </p>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 break-words">
+              <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400 break-words">
                 {task.system_type ? systemTypeLabels[task.system_type] || task.system_type : 'Система не указана'}
               </p>
             </div>
 
-            <div className="min-w-0 border-t border-gray-200 pt-3 dark:border-gray-800 lg:pt-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
-                Оплата
-              </p>
+            <div className="min-w-0">
+              <p className="eyebrow">Оплата</p>
               <p className="mt-1.5 text-sm font-medium text-gray-900 dark:text-white break-words">
                 {task.is_paid ? (task.payment_amount ? `${task.payment_amount} ₽` : 'Платная') : 'Не указана'}
               </p>
             </div>
-            </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+          {/* Смена статуса — действия, отделены от фактов */}
+          {availableTransitions.length > 0 && (
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <span className="eyebrow mr-1">Сменить статус</span>
+              {availableTransitions.map((status) => (
+                <Button
+                  key={status}
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    status === 'CANCELLED'
+                      ? 'border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/30'
+                      : ''
+                  )}
+                  onClick={() => handleStatusChange(status)}
+                  isLoading={updateStatusMutation.isPending}
+                >
+                  {statusLabels[status]}
+                </Button>
+              ))}
+            </div>
+          )}
+
+          {/* Тайм-штампы — тихий футер без линии */}
+          <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-400 dark:text-gray-500">
             <span>Создана {formatDateTime(task.created_at)}</span>
             <span className="hidden h-1 w-1 rounded-full bg-gray-300 dark:bg-gray-600 sm:block" />
             <span>Обновлена {formatDateTime(task.updated_at)}</span>
@@ -746,20 +732,16 @@ export default function TaskDetailPage() {
                     const isSystemComment = isStatusChange || isAssigneeChange
                     
                     return (
-                      <div 
-                        key={c.id} 
+                      <div
+                        key={c.id}
                         className={`rounded-lg p-3 ${
-                          isSystemComment 
-                            ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800' 
+                          isSystemComment
+                            ? 'border-l-2 border-primary-300 bg-gray-50 dark:border-primary-500/60 dark:bg-gray-700/40'
                             : 'bg-gray-50 dark:bg-gray-700/50'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className={`font-medium text-sm ${
-                            isSystemComment 
-                              ? 'text-blue-700 dark:text-blue-300' 
-                              : 'text-gray-900 dark:text-white'
-                          }`}>
+                          <span className="font-medium text-sm text-gray-900 dark:text-white">
                             {c.author || 'Система'}
                           </span>
                           <span className="text-xs text-gray-500 dark:text-gray-400">
