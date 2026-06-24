@@ -17,6 +17,7 @@ import {
   BarChart3
 } from 'lucide-react'
 import Card from '@/components/Card'
+import MetricCard from '@/components/MetricCard'
 import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
 import Input from '@/components/Input'
@@ -168,7 +169,7 @@ export default function ProfilePage() {
       <PageHeader title="Профиль" description="Управление вашим аккаунтом" />
 
       {/* User Card */}
-      <Card className="p-6">
+      <Card>
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <div className="relative">
@@ -265,7 +266,7 @@ export default function ProfilePage() {
 
       {/* Profile Form */}
       {activeTab === 'profile' && (
-        <Card className="p-6">
+        <Card>
           <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
             <Input
               label="Полное имя"
@@ -301,7 +302,7 @@ export default function ProfilePage() {
       {activeTab === 'stats' && (
         <div className="space-y-6">
           {statsLoading ? (
-            <Card className="p-6">
+            <Card>
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
               </div>
@@ -310,57 +311,14 @@ export default function ProfilePage() {
             <>
               {/* Stats Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="p-4">
-                  <div className="flex items-center">
-                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                      <Target size={20} className="text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total_tasks}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Всего заявок</p>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-4">
-                  <div className="flex items-center">
-                    <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                      <CheckCircle size={20} className="text-green-600 dark:text-green-400" />
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.completed_tasks}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Выполнено</p>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-4">
-                  <div className="flex items-center">
-                    <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                      <Clock size={20} className="text-orange-600 dark:text-orange-400" />
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.in_progress_tasks}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">В работе</p>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-4">
-                  <div className="flex items-center">
-                    <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                      <TrendingUp size={20} className="text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <div className="ml-3">
-                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.completion_rate}%</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">% выполнения</p>
-                    </div>
-                  </div>
-                </Card>
+                <MetricCard icon={Target} label="Всего заявок" value={stats.total_tasks} />
+                <MetricCard icon={CheckCircle} label="Выполнено" value={stats.completed_tasks} />
+                <MetricCard icon={Clock} label="В работе" value={stats.in_progress_tasks} />
+                <MetricCard icon={TrendingUp} label="% выполнения" value={`${stats.completion_rate}%`} />
               </div>
 
               {/* Progress Bar */}
-              <Card className="p-6">
+              <Card>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Прогресс выполнения</h3>
                 <div className="space-y-4">
                   <div>
@@ -380,7 +338,7 @@ export default function ProfilePage() {
 
               {/* Additional Stats */}
               <div className="grid md:grid-cols-2 gap-6">
-                <Card className="p-6">
+                <Card>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                     <BarChart3 size={20} className="mr-2 text-primary-500" />
                     Активность
@@ -388,21 +346,21 @@ export default function ProfilePage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                       <div className="flex items-center">
-                        <Calendar size={18} className="text-blue-500 mr-3" />
+                        <Calendar size={18} className="text-gray-400 dark:text-gray-500 mr-3" />
                         <span className="text-gray-600 dark:text-gray-400">За эту неделю</span>
                       </div>
                       <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.tasks_this_week}</span>
                     </div>
                     <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                       <div className="flex items-center">
-                        <Calendar size={18} className="text-purple-500 mr-3" />
+                        <Calendar size={18} className="text-gray-400 dark:text-gray-500 mr-3" />
                         <span className="text-gray-600 dark:text-gray-400">За этот месяц</span>
                       </div>
                       <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.tasks_this_month}</span>
                     </div>
                     <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                       <div className="flex items-center">
-                        <Clock size={18} className="text-orange-500 mr-3" />
+                        <Clock size={18} className="text-gray-400 dark:text-gray-500 mr-3" />
                         <span className="text-gray-600 dark:text-gray-400">Среднее время</span>
                       </div>
                       <span className="text-xl font-bold text-gray-900 dark:text-white">{formatHours(stats.avg_completion_hours)}</span>
@@ -410,7 +368,7 @@ export default function ProfilePage() {
                   </div>
                 </Card>
 
-                <Card className="p-6">
+                <Card>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                     <Award size={20} className="mr-2 text-yellow-500" />
                     Достижения
@@ -438,7 +396,7 @@ export default function ProfilePage() {
                         <span className={`text-2xl ${stats.completion_rate >= 90 ? '' : 'grayscale opacity-50'}`}>🏆</span>
                         <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">90%+</p>
                       </div>
-                      <div className={`p-3 text-center rounded-lg ${stats.completed_tasks >= 50 ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                      <div className={`p-3 text-center rounded-lg ${stats.completed_tasks >= 50 ? 'bg-primary-100 dark:bg-primary-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
                         <span className={`text-2xl ${stats.completed_tasks >= 50 ? '' : 'grayscale opacity-50'}`}>⭐</span>
                         <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">50+ дел</p>
                       </div>
@@ -452,7 +410,7 @@ export default function ProfilePage() {
               </div>
             </>
           ) : (
-            <Card className="p-6">
+            <Card>
               <p className="text-center text-gray-500 dark:text-gray-400">Нет данных о статистике</p>
             </Card>
           )}
@@ -461,7 +419,7 @@ export default function ProfilePage() {
 
       {/* Password Form */}
       {activeTab === 'password' && (
-        <Card className="p-6">
+        <Card>
           <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
             <Input
               label="Текущий пароль"

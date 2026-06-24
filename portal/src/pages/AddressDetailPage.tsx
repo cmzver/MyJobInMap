@@ -58,6 +58,7 @@ import { addressesApi } from '@/api/addresses'
 import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
 import Card from '@/components/Card'
+import MetricCard from '@/components/MetricCard'
 import Spinner from '@/components/Spinner'
 import Modal from '@/components/Modal'
 import { SystemForm, EquipmentForm, DocumentForm, ContactForm, AddressForm } from '@/components/AddressCardForms'
@@ -192,36 +193,6 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
       <p className="eyebrow">{label}</p>
       <div className="mt-1 text-sm font-medium text-gray-900 dark:text-white break-words">
         {isEmpty ? <span className="text-gray-400 dark:text-gray-500">—</span> : value}
-      </div>
-    </div>
-  )
-}
-
-// Нейтральная карточка-метрика: один акцент, без «радуги» цветных иконок
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
-  note,
-  noteTone = 'text-gray-400 dark:text-gray-500',
-}: {
-  icon: typeof Wrench
-  label: string
-  value: string | number
-  note?: string
-  noteTone?: string
-}) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 transition-colors dark:border-gray-700 dark:bg-gray-800">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="eyebrow">{label}</p>
-          <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">{value}</p>
-          {note && <p className={`mt-0.5 text-xs ${noteTone}`}>{note}</p>}
-        </div>
-        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-700/60 dark:text-gray-300">
-          <Icon className="h-5 w-5" />
-        </span>
       </div>
     </div>
   )
@@ -615,7 +586,7 @@ export default function AddressDetailPage() {
                   const statusConfig = systemStatusConfig[system.status]
                   
                   return (
-                    <Card key={system.id} className="p-4">
+                    <Card key={system.id} compact>
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="flex min-w-0 items-start gap-4">
                           <div className={`p-3 rounded-lg ${statusConfig.bg}`}>
@@ -868,7 +839,7 @@ export default function AddressDetailPage() {
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
                 {contacts.map((contact) => (
-                  <Card key={contact.id} className="p-4">
+                  <Card key={contact.id} compact>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex min-w-0 items-start gap-3">
                         <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full">
@@ -966,7 +937,7 @@ export default function AddressDetailPage() {
             </div>
 
             {/* Ссылка на все заявки */}
-            <Card className="p-4">
+            <Card compact>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-gray-600 dark:text-gray-300">
                   Для просмотра всех заявок по этому адресу перейдите в раздел заявок с фильтром
