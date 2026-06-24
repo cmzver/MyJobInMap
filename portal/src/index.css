@@ -81,6 +81,14 @@ code {
   background: #555;
 }
 
+/* Shared design tokens */
+@layer components {
+  /* Мелкий приглушённый лейбл-надзаголовок над значением */
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400;
+  }
+}
+
 /* Custom utilities */
 @layer utilities {
   .animate-skeleton {
