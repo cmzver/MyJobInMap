@@ -23,7 +23,6 @@
 
 package com.fieldworker.data.remote.generated
 
-import com.fieldworker.data.remote.generated.UserRole
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
@@ -51,8 +50,8 @@ data class SupportTicketReporter (
     @SerialName(value = "full_name")
     val fullName: kotlin.String,
 
-    @Contextual @SerialName(value = "role")
-    val role: UserRole,
+    @SerialName(value = "role")
+    val role: kotlin.String,
 
     @SerialName(value = "organization_id")
     val organizationId: kotlin.Long? = null

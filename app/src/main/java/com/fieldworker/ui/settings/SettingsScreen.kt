@@ -79,7 +79,10 @@ fun SettingsScreen(
     val appVersion = appVersionInfo.first
     val appVersionCode = appVersionInfo.second
     val userName = preferences.getUserFullName() ?: preferences.getUsername() ?: "Пользователь"
-    val userRole = roleLabel(preferences.getUserRole())
+    // Предпочитаем серверный role_label (поддерживает кастомные группы),
+    // иначе — маппинг встроенных ролей.
+    val userRole = preferences.getUserRoleLabel()?.takeIf { it.isNotBlank() }
+        ?: roleLabel(preferences.getUserRole())
     
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,

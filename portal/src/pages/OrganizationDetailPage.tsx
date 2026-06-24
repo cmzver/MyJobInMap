@@ -431,7 +431,7 @@ export default function OrganizationDetailPage() {
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={u.role === 'manager' || u.role === 'dispatcher' ? 'warning' : u.role === 'worker' ? 'gray' : 'info'}>
-                          {getRoleLabel(u.role)}
+                          {u.role_label || getRoleLabel(u.role)}
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-center text-sm text-gray-700 dark:text-gray-300">

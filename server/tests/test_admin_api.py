@@ -30,6 +30,23 @@ class TestAdminUsers:
         response = client.get("/api/admin/users")
         assert response.status_code == 401
 
+    def test_users_list_assigned_tasks_count(
+        self,
+        client: TestClient,
+        auth_headers: dict,
+        worker_user,
+        sample_tasks_for_reports,
+    ):
+        """Счётчик назначенных заявок считается батчем (GROUP BY) корректно."""
+        response = client.get("/api/admin/users", headers=auth_headers)
+        assert response.status_code == 200
+        worker = next(
+            (u for u in response.json() if u["username"] == worker_user.username), None
+        )
+        assert worker is not None
+        # sample_tasks_for_reports создаёт 4 заявки на worker_user
+        assert worker["assigned_tasks_count"] == 4
+
     def test_create_user_success(self, client: TestClient, auth_headers: dict):
         """Test creating a new user."""
         new_user = {

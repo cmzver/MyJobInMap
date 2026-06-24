@@ -29,40 +29,40 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Contextual
 
 /**
- * Создание пользователя
+ * Группа пользователей (роль) в реестре.
  *
- * @param username 
- * @param password 
- * @param fullName 
- * @param email 
- * @param phone 
- * @param role 
- * @param organizationId 
+ * @param id 
+ * @param name 
+ * @param label 
+ * @param baseAccess 
+ * @param isSystem 
+ * @param description 
+ * @param sortOrder 
  */
 @Serializable
 
-data class UserCreate (
+data class UserGroupResponse (
 
-    @SerialName(value = "username")
-    val username: kotlin.String,
+    @SerialName(value = "id")
+    val id: kotlin.Long,
 
-    @SerialName(value = "password")
-    val password: kotlin.String,
+    @SerialName(value = "name")
+    val name: kotlin.String,
 
-    @SerialName(value = "full_name")
-    val fullName: kotlin.String? = "",
+    @SerialName(value = "label")
+    val label: kotlin.String,
 
-    @SerialName(value = "email")
-    val email: kotlin.String? = null,
+    @SerialName(value = "base_access")
+    val baseAccess: kotlin.String,
 
-    @SerialName(value = "phone")
-    val phone: kotlin.String? = null,
+    @SerialName(value = "is_system")
+    val isSystem: kotlin.Boolean,
 
-    @SerialName(value = "role")
-    val role: kotlin.String? = "worker",
+    @SerialName(value = "description")
+    val description: kotlin.String? = null,
 
-    @SerialName(value = "organization_id")
-    val organizationId: kotlin.Long? = null
+    @SerialName(value = "sort_order")
+    val sortOrder: kotlin.Long? = 0
 
 ) {
 

@@ -15,6 +15,7 @@ export interface OrgUser {
   email: string | null
   phone: string | null
   role: string
+  role_label?: string
   is_active: boolean
   created_at: string
   last_login: string | null

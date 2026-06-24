@@ -202,7 +202,7 @@ export default function ProfilePage() {
                 JPG, PNG, WEBP или GIF до 5 МБ
               </p>
               <span className="inline-block mt-2 px-3 py-1 text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded-full">
-                {getRoleLabel(user?.role)}
+                {user?.roleLabel || getRoleLabel(user?.role)}
               </span>
             </div>
           </div>

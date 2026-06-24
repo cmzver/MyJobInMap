@@ -297,6 +297,6 @@ async def get_organization_users(
         .all()
     )
 
-    from app.utils import user_to_response
+    from app.utils import user_list_to_responses
 
-    return [user_to_response(u) for u in users]
+    return user_list_to_responses(users)

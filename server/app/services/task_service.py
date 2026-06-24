@@ -26,6 +26,7 @@ from app.services.notification_service import (
     create_task_status_notification,
 )
 from app.services.push import send_push_notification
+from app.services.role_utils import is_worker_user
 from app.services.task_state_machine import TaskStatusMachine
 from app.services.tenant_filter import TenantFilter
 from app.utils import (
@@ -243,7 +244,7 @@ class TaskService:
         tenant = TenantFilter(user)
         query = tenant.apply(self.db.query(TaskModel), TaskModel)
 
-        if user.role == UserRole.WORKER.value:
+        if is_worker_user(user):
             query = query.filter(TaskModel.assigned_user_id == user.id)
         elif assignee_id is not None:
             query = query.filter(TaskModel.assigned_user_id == assignee_id)
@@ -705,7 +706,7 @@ class TaskService:
         if not tenant.check_access(task):
             return False
 
-        if user.role == UserRole.WORKER.value:
+        if is_worker_user(user):
             return task.assigned_user_id == user.id
         return True
 

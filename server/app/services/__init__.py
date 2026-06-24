@@ -72,6 +72,7 @@ from app.services.task_service import (
     get_task_service,
 )
 from app.services.task_state_machine import TaskStatusMachine
+from app.services.user_group_service import UserGroupServiceError
 from app.services.user_service import UserService, UserServiceError, get_user_service
 
 __all__ = [
@@ -114,6 +115,7 @@ __all__ = [
     "UserService",
     "UserServiceError",
     "get_user_service",
+    "UserGroupServiceError",
     # Backup Service
     "BackupService",
     "BackupServiceError",

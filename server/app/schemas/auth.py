@@ -20,7 +20,9 @@ class Token(BaseModel):
     token_type: str
     user_id: int
     username: str = Field(min_length=3, max_length=50, pattern=r"^[A-Za-z0-9._-]+$")
-    role: UserRole
+    role: str
+    role_label: str = ""
+    base_access: str = "worker"
     full_name: str
     avatar_url: Optional[str] = None
     organization_id: Optional[int] = None
@@ -54,7 +56,7 @@ class UserCreate(BaseModel):
     full_name: str = ""
     email: Optional[str] = None
     phone: Optional[str] = None
-    role: UserRole = UserRole.WORKER
+    role: str = UserRole.WORKER.value
     organization_id: Optional[int] = None
 
 
@@ -71,7 +73,7 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
-    role: Optional[UserRole] = None
+    role: Optional[str] = None
     is_active: Optional[bool] = None
 
 
@@ -86,7 +88,9 @@ class UserResponse(BaseModel):
     email: Optional[str]
     phone: Optional[str]
     avatar_url: Optional[str] = None
-    role: UserRole
+    role: str
+    role_label: str = ""
+    base_access: str = "worker"
     is_active: bool
     created_at: datetime
     last_login: Optional[datetime]

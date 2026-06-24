@@ -29,40 +29,32 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Contextual
 
 /**
- * Создание пользователя
+ * Обновление группы. ``name`` — новый slug (только для кастомных групп).
  *
- * @param username 
- * @param password 
- * @param fullName 
- * @param email 
- * @param phone 
- * @param role 
- * @param organizationId 
+ * @param name 
+ * @param label 
+ * @param description 
+ * @param baseAccess 
+ * @param sortOrder 
  */
 @Serializable
 
-data class UserCreate (
+data class UserGroupUpdate (
 
-    @SerialName(value = "username")
-    val username: kotlin.String,
+    @SerialName(value = "name")
+    val name: kotlin.String? = null,
 
-    @SerialName(value = "password")
-    val password: kotlin.String,
+    @SerialName(value = "label")
+    val label: kotlin.String? = null,
 
-    @SerialName(value = "full_name")
-    val fullName: kotlin.String? = "",
+    @SerialName(value = "description")
+    val description: kotlin.String? = null,
 
-    @SerialName(value = "email")
-    val email: kotlin.String? = null,
+    @SerialName(value = "base_access")
+    val baseAccess: kotlin.String? = null,
 
-    @SerialName(value = "phone")
-    val phone: kotlin.String? = null,
-
-    @SerialName(value = "role")
-    val role: kotlin.String? = "worker",
-
-    @SerialName(value = "organization_id")
-    val organizationId: kotlin.Long? = null
+    @SerialName(value = "sort_order")
+    val sortOrder: kotlin.Long? = null
 
 ) {
 

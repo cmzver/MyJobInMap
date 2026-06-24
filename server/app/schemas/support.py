@@ -11,7 +11,6 @@ from app.models import (
     SupportTicketCategory,
     SupportTicketCommentType,
     SupportTicketStatus,
-    UserRole,
 )
 
 
@@ -21,7 +20,8 @@ class SupportTicketReporter(BaseModel):
     id: int
     username: str
     full_name: str
-    role: UserRole
+    # Свободная строка: роль может быть кастомной группой, не только встроенным enum.
+    role: str
     organization_id: Optional[int] = None
 
 

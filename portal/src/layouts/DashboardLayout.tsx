@@ -83,7 +83,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   // Получаем меню для роли пользователя
-  const menuSections = user?.role ? getMenuForRole(user.role, user.organizationId) : []
+  const menuSections = user?.role ? getMenuForRole(user.role, user.organizationId, user.baseAccess) : []
 
   const themeOptions = [
     { value: 'light' as const, label: 'Светлая', icon: Sun },
@@ -194,7 +194,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
               </button>
               <Link
-                to={normalizeRoleForAccess(user?.role) === 'worker' ? '/my-tasks' : '/dashboard'}
+                to={normalizeRoleForAccess(user?.role, user?.baseAccess) === 'worker' ? '/my-tasks' : '/dashboard'}
                 className="ml-2 flex min-w-0 items-center lg:ml-0"
               >
                 <div className="w-9 h-9 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/30">
@@ -275,7 +275,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   />
                   <div className="hidden sm:block ml-3 text-left">
                     <p className="text-sm font-medium text-gray-900 dark:text-white">{user?.fullName}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{user?.role && getRoleLabel(user.role)}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{user?.roleLabel || (user?.role && getRoleLabel(user.role))}</p>
                   </div>
                   <ChevronDown size={16} className="ml-2 hidden sm:block" />
                 </button>
@@ -297,7 +297,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                           />
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{user?.fullName}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{user?.role && getRoleLabel(user.role)}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{user?.roleLabel || (user?.role && getRoleLabel(user.role))}</p>
                             {user?.organizationName && (
                               <p className="mt-0.5 truncate text-xs text-primary-600 dark:text-primary-400">{user.organizationName}</p>
                             )}

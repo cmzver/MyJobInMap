@@ -21,6 +21,7 @@ from app.services.role_utils import (
     is_admin_user,
     is_dispatcher_or_admin_user,
     is_superadmin_user,
+    is_worker_user,
 )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
@@ -185,17 +186,26 @@ def check_permission(db: Session, user: UserModel, permission: str) -> bool:
         True если право разрешено, False иначе
     """
     from app.models import RolePermissionModel
+    from app.services.user_group_service import BASE_ACCESS_LEVELS
 
     # Админ имеет все права
     if is_admin_user(user):
         return True
 
-    # Проверяем в таблице прав
+    # Скоуп прав: встроенные роли — глобальные (NULL), кастомные группы —
+    # в рамках организации пользователя.
+    canonical = canonical_role_value(user.role)
+    org_scope = (
+        None
+        if canonical in BASE_ACCESS_LEVELS
+        else getattr(user, "organization_id", None)
+    )
     perm = (
         db.query(RolePermissionModel)
         .filter(
-            RolePermissionModel.role == canonical_role_value(user.role),
+            RolePermissionModel.role == canonical,
             RolePermissionModel.permission == permission,
+            RolePermissionModel.organization_id == org_scope,
         )
         .first()
     )
@@ -255,7 +265,7 @@ def enforce_worker_task_access(
     tenant = TenantFilter(user)
     tenant.enforce_access(task, detail=detail)
 
-    if getattr(user, "role", None) == UserRole.WORKER.value and getattr(
-        task, "assigned_user_id", None
-    ) != getattr(user, "id", None):
+    if is_worker_user(user) and getattr(task, "assigned_user_id", None) != getattr(
+        user, "id", None
+    ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
