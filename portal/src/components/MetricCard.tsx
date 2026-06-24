@@ -26,7 +26,7 @@ function MetricCard({
     <div className="rounded-xl border border-gray-200 bg-white p-4 transition-colors dark:border-gray-700 dark:bg-gray-800">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="eyebrow">{label}</p>
+          <p className="eyebrow break-words">{label}</p>
           <p className="mt-1 truncate text-2xl font-semibold text-gray-900 dark:text-white">{value}</p>
           {note && <p className={`mt-0.5 text-xs ${noteTone}`}>{note}</p>}
         </div>
