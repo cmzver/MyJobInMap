@@ -29,24 +29,32 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Contextual
 
 /**
- * РЎР»РѕРІР°СЂСЊ {role: {permission: bool}}
+ * Создание кастомной группы.
  *
- * @param admin 
- * @param dispatcher 
- * @param worker 
+ * @param name 
+ * @param label 
+ * @param description 
+ * @param baseAccess 
+ * @param sortOrder 
  */
 @Serializable
 
-data class RolePermissionsResponse (
+data class UserGroupCreate (
 
-    @SerialName(value = "admin")
-    val admin: kotlin.collections.Map<kotlin.String, kotlin.Boolean>? = null,
+    @SerialName(value = "name")
+    val name: kotlin.String,
 
-    @SerialName(value = "dispatcher")
-    val dispatcher: kotlin.collections.Map<kotlin.String, kotlin.Boolean>? = null,
+    @SerialName(value = "label")
+    val label: kotlin.String,
 
-    @SerialName(value = "worker")
-    val worker: kotlin.collections.Map<kotlin.String, kotlin.Boolean>? = null
+    @SerialName(value = "description")
+    val description: kotlin.String? = null,
+
+    @SerialName(value = "base_access")
+    val baseAccess: kotlin.String? = "worker",
+
+    @SerialName(value = "sort_order")
+    val sortOrder: kotlin.Long? = 0
 
 ) {
 

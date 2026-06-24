@@ -277,7 +277,7 @@ export default function MapPage() {
     { value: 'DONE', label: 'Выполненные', color: markerColors.DONE },
     { value: 'CANCELLED', label: 'Отменённые', color: markerColors.CANCELLED },
   ] as const
-  const isWorker = normalizeRoleForAccess(user?.role) === 'worker'
+  const isWorker = normalizeRoleForAccess(user?.role, user?.baseAccess) === 'worker'
   const { data: users = [] } = useUsers()
   const assignableUsers = useMemo(
     () => users.filter((candidate) => candidate.is_active && isAssignableRole(candidate.role)),

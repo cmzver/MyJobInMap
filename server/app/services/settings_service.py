@@ -99,6 +99,15 @@ class SettingsService:
     def __init__(self, db: Session):
         self.db = db
 
+    def _ensure_settings_seeded(self) -> None:
+        """Дешёвый self-heal для read-путей: полный init только на холодной БД.
+
+        Полный дозасев новых дефолтов остаётся за get_grouped_settings
+        (страница настроек). Здесь же — лишь LIMIT 1 вместо десятков SELECT.
+        """
+        if self.db.query(SystemSettingModel).first() is None:
+            init_default_settings(self.db)
+
     # -- System settings ----------------------------------------------------
 
     def get_grouped_settings(self) -> List[dict]:
@@ -124,7 +133,7 @@ class SettingsService:
 
     def get_interface_settings(self) -> dict:
         """Публичные настройки интерфейса."""
-        init_default_settings(self.db)
+        self._ensure_settings_seeded()
         enable_resizable_columns = get_setting(self.db, "enable_resizable_columns")
         compact_table_view = get_setting(self.db, "compact_table_view")
         tasks_per_page = _get_int_setting(
@@ -150,7 +159,7 @@ class SettingsService:
         }
 
     def get_single_setting(self, key: str) -> dict:
-        init_default_settings(self.db)
+        self._ensure_settings_seeded()
         setting = (
             self.db.query(SystemSettingModel)
             .filter(SystemSettingModel.key == key)
@@ -175,7 +184,12 @@ class SettingsService:
         setting.set_typed_value(value)
         setting.updated_by = updated_by
         self.db.commit()
-        return {"status": "ok", "key": key, "value": setting.get_typed_value()}
+        return {
+            "status": "ok",
+            "key": key,
+            "value": setting.get_typed_value(),
+            "group": setting.group,
+        }
 
     def update_settings_bulk(self, updates: Dict[str, Any], updated_by: str) -> dict:
         init_default_settings(self.db)
@@ -205,7 +219,7 @@ class SettingsService:
     # -- Defect types -------------------------------------------------------
 
     def list_defect_types(self) -> List[dict]:
-        init_default_settings(self.db)
+        self._ensure_settings_seeded()
         types_data = get_setting(self.db, "defect_types")
         if not types_data:
             return []

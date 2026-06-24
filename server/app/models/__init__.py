@@ -50,9 +50,9 @@ from app.models.security import (
 )
 from app.models.settings import (
     CustomFieldModel,
-    CustomFieldValueModel,
     RolePermissionModel,
     SystemSettingModel,
+    UserGroupModel,
     get_all_settings,
     get_setting,
     get_settings_by_group,
@@ -129,8 +129,8 @@ __all__ = [
     # Settings Models
     "SystemSettingModel",
     "CustomFieldModel",
-    "CustomFieldValueModel",
     "RolePermissionModel",
+    "UserGroupModel",
     # Settings Functions
     "get_setting",
     "set_setting",

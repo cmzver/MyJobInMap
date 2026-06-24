@@ -164,7 +164,7 @@ export function Autocomplete({
           disabled={disabled}
           autoComplete="off"
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
-                     focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                     focus:ring-2 focus:ring-primary-500 focus:border-primary-500
                      bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
                      disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
         />
@@ -207,7 +207,7 @@ export function Autocomplete({
               className={`px-3 py-2 cursor-pointer text-gray-900 dark:text-gray-100
                          ${
                            index === highlightedIndex
-                             ? 'bg-blue-100 dark:bg-blue-900'
+                             ? 'bg-primary-100 dark:bg-primary-900/40'
                              : 'hover:bg-gray-100 dark:hover:bg-gray-600'
                          }`}
             >

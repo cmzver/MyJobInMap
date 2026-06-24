@@ -112,7 +112,10 @@ def _clean_optional_string(value: Any) -> Optional[str]:
 
 
 def _build_login_branding_response(db: Session) -> LoginBrandingResponse:
-    init_default_settings(db)
+    # Публичный эндпоинт на каждый показ логина — не гоняем полный init каждый
+    # раз. Сеем дефолты лишь когда настройки ещё не созданы (холодная БД).
+    if get_setting(db, "login_app_name") is None:
+        init_default_settings(db)
 
     return LoginBrandingResponse(
         appName=str(

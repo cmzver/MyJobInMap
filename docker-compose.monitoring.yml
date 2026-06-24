@@ -1,10 +1,13 @@
 # FieldWorker Docker Compose — Monitoring Stack
 # ================================================
-# Использование (вместе с основным compose):
-#   docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+# Поднимается ПОВЕРХ основного PG-стека (общая compose-сеть, чтобы Prometheus
+# резолвил server/node-exporter по имени):
+#   docker compose -f docker-compose.postgres.yml -f docker-compose.monitoring.yml up -d
+# Скрипт деплоя делает это автоматически по флагу -Monitoring.
 #
 # Prometheus: http://localhost:9090
-# Grafana:    http://localhost:3000 (admin/admin)
+# Grafana:    http://localhost:3000 (admin/admin — поменяйте GRAFANA_PASSWORD)
+# node-exporter отдаёт метрики хоста на :9100 (наружу не публикуется).
 
 services:
   # ==========================================================================
@@ -24,7 +27,25 @@ services:
       - '--storage.tsdb.retention.time=30d'
       - '--web.enable-lifecycle'
     depends_on:
-      - api
+      - server
+
+  # ==========================================================================
+  # node-exporter — метрики хоста (CPU/RAM/диск/сеть)
+  # ==========================================================================
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: fieldworker-node-exporter
+    restart: unless-stopped
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    pid: host
 
   # ==========================================================================
   # Grafana — визуализация метрик

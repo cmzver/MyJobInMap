@@ -36,6 +36,7 @@ import PageHeader from '@/components/PageHeader'
 import Input from '@/components/Input'
 import Select from '@/components/Select'
 import Card from '@/components/Card'
+import MetricCard from '@/components/MetricCard'
 import Badge from '@/components/Badge'
 import Modal from '@/components/Modal'
 import { SkeletonTable } from '@/components/Skeleton'
@@ -282,49 +283,30 @@ export default function OrganizationDetailPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="!p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Пользователи</p>
-              <p className="text-xl font-bold text-gray-900 dark:text-white">
-                {org.user_count} <span className="text-sm font-normal text-gray-400">/ {org.max_users}</span>
-              </p>
-            </div>
-          </div>
-        </Card>
-        <Card className="!p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-              <ClipboardList className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Заявки</p>
-              <p className="text-xl font-bold text-gray-900 dark:text-white">
-                {org.task_count} <span className="text-sm font-normal text-gray-400">/ {org.max_tasks}</span>
-              </p>
-            </div>
-          </div>
-        </Card>
-        <Card className="!p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <MapPin className="w-5 h-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Адреса</p>
-              <p className="text-xl font-bold text-gray-900 dark:text-white">{org.address_count}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="!p-4">
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            <p>Создана: {org.created_at ? formatDateOnly(org.created_at) : '—'}</p>
-            {org.updated_at && <p>Обновлена: {formatDateOnly(org.updated_at)}</p>}
-          </div>
-        </Card>
+        <MetricCard
+          icon={Users}
+          label="Пользователи"
+          value={org.user_count}
+          note={`из ${org.max_users}`}
+        />
+        <MetricCard
+          icon={ClipboardList}
+          label="Заявки"
+          value={org.task_count}
+          note={`из ${org.max_tasks}`}
+        />
+        <MetricCard icon={MapPin} label="Адреса" value={org.address_count} />
+        <div className="rounded-xl border border-gray-200 bg-white p-4 transition-colors dark:border-gray-700 dark:bg-gray-800">
+          <p className="eyebrow">Период</p>
+          <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
+            Создана {org.created_at ? formatDateOnly(org.created_at) : '—'}
+          </p>
+          {org.updated_at && (
+            <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+              Обновлена {formatDateOnly(org.updated_at)}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -338,7 +320,7 @@ export default function OrganizationDetailPage() {
                 onClick={() => setActiveTab(tab.key)}
                 className={`flex items-center gap-2 whitespace-nowrap px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === tab.key
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    ? 'border-primary-500 text-primary-600 dark:text-primary-400'
                     : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
                 }`}
               >
@@ -449,7 +431,7 @@ export default function OrganizationDetailPage() {
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={u.role === 'manager' || u.role === 'dispatcher' ? 'warning' : u.role === 'worker' ? 'gray' : 'info'}>
-                          {getRoleLabel(u.role)}
+                          {u.role_label || getRoleLabel(u.role)}
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-center text-sm text-gray-700 dark:text-gray-300">
@@ -572,7 +554,7 @@ export default function OrganizationDetailPage() {
             type="button"
             className={`whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               addUserMode === 'create'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
             }`}
             onClick={() => setAddUserMode('create')}
@@ -583,7 +565,7 @@ export default function OrganizationDetailPage() {
             type="button"
             className={`whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               addUserMode === 'assign'
-                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
             }`}
             onClick={() => setAddUserMode('assign')}

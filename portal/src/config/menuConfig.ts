@@ -185,8 +185,12 @@ export function isOrgAdmin(role: UserRole, organizationId?: number | null): bool
   return normalizeRoleForAccess(role) === 'admin' && organizationId != null && role !== 'superadmin'
 }
 
-export function getMenuForRole(role: UserRole, organizationId?: number | null): MenuSection[] {
-  const normalizedRole = normalizeRoleForAccess(role)
+export function getMenuForRole(
+  role: UserRole,
+  organizationId?: number | null,
+  baseAccess?: string | null,
+): MenuSection[] {
+  const normalizedRole = normalizeRoleForAccess(role, baseAccess)
   const orgAdmin = isOrgAdmin(role, organizationId)
 
   return menuConfig
@@ -201,8 +205,8 @@ export function getMenuForRole(role: UserRole, organizationId?: number | null): 
     .filter((section) => section.items.length > 0)
 }
 
-export function getHomePathForRole(role: UserRole): string {
-  switch (normalizeRoleForAccess(role)) {
+export function getHomePathForRole(role: UserRole, baseAccess?: string | null): string {
+  switch (normalizeRoleForAccess(role, baseAccess)) {
     case 'admin':
     case 'dispatcher':
       return '/dashboard'

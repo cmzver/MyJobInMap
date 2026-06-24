@@ -62,12 +62,12 @@ function ProtectedRoute({
     return <Navigate to="/login" replace />
   }
   
-  if (allowedRoles && user?.role && !allowedRoles.includes(normalizeRoleForAccess(user.role))) {
-    return <Navigate to={getHomePathForRole(user.role)} replace />
+  if (allowedRoles && user?.role && !allowedRoles.includes(normalizeRoleForAccess(user.role, user.baseAccess))) {
+    return <Navigate to={getHomePathForRole(user.role, user.baseAccess)} replace />
   }
 
   if (requireSuperadmin && user?.role && isOrgAdmin(user.role, user.organizationId)) {
-    return <Navigate to={getHomePathForRole(user.role)} replace />
+    return <Navigate to={getHomePathForRole(user.role, user.baseAccess)} replace />
   }
   
   return <>{children}</>
@@ -76,8 +76,17 @@ function ProtectedRoute({
 function App() {
   const queryClient = useQueryClient()
   const { isAuthenticated, user } = useAuthStore()
-  const homePath = user?.role ? getHomePathForRole(user.role) : '/login'
+  const refreshUser = useAuthStore((state) => state.refreshUser)
+  const homePath = user?.role ? getHomePathForRole(user.role, user.baseAccess) : '/login'
   const authScopeRef = useRef<string | null>(null)
+
+  // На старте подтягиваем актуальную роль/права (мог измениться состав группы),
+  // чтобы навигация и лейбл роли соответствовали серверу без перелогина.
+  useEffect(() => {
+    if (isAuthenticated) {
+      void refreshUser()
+    }
+  }, [isAuthenticated, refreshUser])
 
   useEffect(() => {
     const authScope = isAuthenticated

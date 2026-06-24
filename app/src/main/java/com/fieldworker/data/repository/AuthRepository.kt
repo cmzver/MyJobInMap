@@ -59,7 +59,8 @@ class AuthRepository @Inject constructor(
                 prefs.setUserId(token.userId)
                 prefs.setUsername(token.username)
                 prefs.setUserFullName(token.fullName)
-                prefs.setUserRole(token.role.value)
+                prefs.setUserRole(token.role)
+                prefs.setUserRoleLabel(token.roleLabel)
                 prefs.setUserAvatarUrl(token.avatarUrl)
                 
                 Result.success(token)
@@ -100,8 +101,10 @@ class AuthRepository @Inject constructor(
                 if (prefs.getUserId() <= 0) prefs.setUserId(user.id)
                 if (prefs.getUsername().isNullOrBlank()) prefs.setUsername(user.username)
                 if (prefs.getUserFullName().isNullOrBlank()) prefs.setUserFullName(user.fullName)
-                if (prefs.getUserRole().isNullOrBlank()) prefs.setUserRole(user.role.value)
-                // avatar_url синхронизируем всегда — он может меняться без перелогина
+                if (prefs.getUserRole().isNullOrBlank()) prefs.setUserRole(user.role)
+                // role_label и avatar_url синхронизируем всегда — могут меняться
+                // без перелогина (переименование группы / смена аватара)
+                prefs.setUserRoleLabel(user.roleLabel)
                 prefs.setUserAvatarUrl(user.avatarUrl)
                 Result.success(user)
             } else {

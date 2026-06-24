@@ -613,8 +613,8 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
 
         {/* Подсказка, если адрес не найден в базе */}
         {showMissingAddressPrompt && (
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-2">
-            <p className="text-sm text-blue-700 dark:text-blue-300">
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2 dark:border-gray-700 dark:bg-gray-800/60">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
               Адрес не найден в базе адресов. Заявку можно создать и на сторонний адрес, а если хотите вести его в базе, добавьте адрес сейчас.
             </p>
             <div className="flex flex-wrap gap-2">
@@ -719,7 +719,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         </Card>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 sticky bottom-4">
+        <div className="sticky bottom-0 -mx-1 flex justify-end gap-3 border-t border-gray-200 bg-white/85 px-1 py-3 backdrop-blur dark:border-gray-700 dark:bg-gray-900/80">
           <Button
             type="button"
             variant="secondary"

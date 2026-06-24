@@ -23,7 +23,6 @@
 
 package com.fieldworker.data.remote.generated
 
-import com.fieldworker.data.remote.generated.UserRole
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
@@ -59,8 +58,8 @@ data class UserUpdate (
     @SerialName(value = "phone")
     val phone: kotlin.String? = null,
 
-    @Contextual @SerialName(value = "role")
-    val role: UserRole? = null,
+    @SerialName(value = "role")
+    val role: kotlin.String? = null,
 
     @SerialName(value = "is_active")
     val isActive: kotlin.Boolean? = null

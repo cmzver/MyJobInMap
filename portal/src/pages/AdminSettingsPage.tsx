@@ -10,7 +10,6 @@ import {
   Shield,
   Palette,
   Puzzle,
-  UserCog,
   Save,
   RefreshCw,
   Trash2,
@@ -29,6 +28,7 @@ import {
   Clock,
   RotateCcw,
   Bot,
+  Power,
 } from 'lucide-react'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
@@ -40,11 +40,26 @@ import { useDevices, useSendTestNotification, useDeleteDevice } from '@/hooks/us
 import { useUsers } from '@/hooks/useUsers'
 import { useSetting, useSettings, useUpdateSetting } from '@/hooks/useSettings'
 import { useTelegramBotSettings, useUpdateTelegramBotSettings } from '@/hooks/useSettings'
-import type { TelegramGroupMapping, TelegramKnownGroup } from '@/hooks/useSettings'
+import {
+  useCustomFields,
+  useCreateCustomField,
+  useUpdateCustomField,
+  useDeleteCustomField,
+  useToggleCustomField,
+} from '@/hooks/useSettings'
+import type {
+  TelegramGroupMapping,
+  TelegramKnownGroup,
+  CustomField,
+  CustomFieldCreateData,
+  CustomFieldUpdateData,
+} from '@/hooks/useSettings'
 import { formatDateTime as formatDate } from '@/utils/dateFormat'
 import { cn } from '@/utils/cn'
 import { UpdatesManagementSection } from '@/pages/UpdatesPage'
 import IpProtectionPanel from '@/components/security/IpProtectionPanel'
+import GroupsManager from '@/components/GroupsManager'
+import ServerHealthPanel from '@/components/settings/ServerHealthPanel'
 import type { LucideIcon } from 'lucide-react'
 import {
   SettingsCard,
@@ -83,21 +98,8 @@ interface Backup {
   created: string
 }
 
-interface CustomField {
-  id: number
-  name: string
-  label: string
-  field_type: string
-  options?: string[]
-  placeholder?: string
-  default_value?: string
-  required: boolean
-  show_in_list: boolean
-  show_in_card: boolean
-  order: number
-}
-
 type SettingsPanelId =
+  | 'server-health'
   | 'overview'
   | 'backups'
   | 'security'
@@ -109,7 +111,6 @@ type SettingsPanelId =
   | 'task-defaults'
   | 'task-media'
   | 'task-fields'
-  | 'task-layout'
   | 'permissions-matrix'
   | 'telegram-bot'
 
@@ -124,8 +125,8 @@ type SettingsTab = {
 }
 
 const SETTINGS_TABS: SettingsTab[] = [
-  { id: 'system', label: 'Система', description: 'Состояние сервера, база данных и резервные копии.', icon: Server, panels: ['overview'] },
-  { id: 'tasks', label: 'Заявки', description: 'Параметры новых заявок, поля и отображение карточки.', icon: Puzzle, panels: ['task-defaults', 'task-media', 'task-fields', 'task-layout'] },
+  { id: 'system', label: 'Система', description: 'Состояние сервера, база данных и резервные копии.', icon: Server, panels: ['server-health', 'overview'] },
+  { id: 'tasks', label: 'Заявки', description: 'Параметры новых заявок и дополнительные поля.', icon: Puzzle, panels: ['task-defaults', 'task-media', 'task-fields'] },
   { id: 'notifications', label: 'Уведомления', description: 'Push-канал и зарегистрированные устройства.', icon: Bell, panels: ['mobile-notifications', 'mobile-devices'] },
   { id: 'security', label: 'Безопасность', description: 'Защита входа, IP-ограничения и права ролей.', icon: Shield, panels: ['security', 'permissions-matrix'] },
   { id: 'portal', label: 'Портал', description: 'Брендинг экрана входа и поведение интерфейса.', icon: Palette, panels: ['portal-branding', 'interface'] },
@@ -148,6 +149,8 @@ function renderPanel(
   ctx: { showClearConfirm: boolean; setShowClearConfirm: (show: boolean) => void }
 ) {
   switch (panelId) {
+    case 'server-health':
+      return <ServerHealthPanel />
     case 'overview':
       return (
         <GeneralSettingsTab
@@ -160,7 +163,7 @@ function renderPanel(
     case 'security':
       return <SecuritySettingsTab />
     case 'permissions-matrix':
-      return <PermissionsTab />
+      return <GroupsManager showOrgSelector />
     case 'interface':
       return <InterfaceSettingsCard />
     case 'portal-branding':
@@ -177,8 +180,6 @@ function renderPanel(
       return <ImageSettingsTab />
     case 'task-fields':
       return <CustomFieldsTab />
-    case 'task-layout':
-      return <CardBuilderTab />
     case 'telegram-bot':
       return <TelegramBotSettingsTab />
     default:
@@ -753,28 +754,35 @@ function PortalBrandingSettingsTab() {
 }
 
 function TaskDefaultsCard() {
+  const { data: prioritySetting, isLoading } = useSetting('default_task_priority')
+  const updateSetting = useUpdateSetting()
+  const priority = String(prioritySetting?.value ?? 'PLANNED')
+
   return (
     <SettingsCard title="Параметры по умолчанию" icon={Puzzle}>
-      <SettingsRows>
-        <SettingsField
-          label="Приоритет новых заявок"
-          help="Базовый приоритет для новых заявок до ручной корректировки диспетчером."
-          className="sm:max-w-xs"
+      <SettingsField
+        label="Приоритет новых заявок"
+        help="Базовый приоритет для новых заявок до ручной корректировки диспетчером."
+        className="sm:max-w-xs"
+      >
+        <SettingsSelect
+          value={priority}
+          disabled={isLoading || updateSetting.isPending}
+          onChange={(e) =>
+            updateSetting.mutate({ key: 'default_task_priority', value: e.target.value })
+          }
         >
-          <SettingsSelect>
-            <option value="CURRENT">Текущая</option>
-            <option value="PLANNED">Плановая</option>
-            <option value="URGENT">Срочная</option>
-            <option value="EMERGENCY">Аварийная</option>
-          </SettingsSelect>
-        </SettingsField>
-        <SettingsToggle
-          title="Автогеокодинг"
-          description="Автоматически определять координаты по адресу при создании заявки."
-          checked
-          onChange={() => undefined}
-        />
-      </SettingsRows>
+          <option value="PLANNED">Плановая</option>
+          <option value="CURRENT">Текущая</option>
+          <option value="URGENT">Срочная</option>
+          <option value="EMERGENCY">Аварийная</option>
+        </SettingsSelect>
+      </SettingsField>
+      <div className="mt-3">
+        <CompactNotice>
+          Координаты заявки определяются автоматически по адресу при создании — отдельного переключателя не требуется.
+        </CompactNotice>
+      </div>
     </SettingsCard>
   )
 }
@@ -793,10 +801,10 @@ function ImageSettingsTab() {
     return <div className="flex justify-center py-8"><Spinner /></div>
   }
 
-  const isEnabled = optimizationEnabled?.value === 'true'
+  const isEnabled = Boolean(optimizationEnabled?.value ?? true)
   const quality = Number(qualitySetting?.value ?? 85)
   const maxDimension = Number(maxDimensionSetting?.value ?? 1920)
-  const convertToWebp = convertWebpSetting?.value === 'true'
+  const convertToWebp = Boolean(convertWebpSetting?.value ?? false)
 
   return (
     <SettingsCard title="Изображения" icon={Puzzle}>
@@ -806,7 +814,7 @@ function ImageSettingsTab() {
           description="Автоматически сжимать и оптимизировать загружаемые фотографии."
           checked={isEnabled}
           onChange={(checked) =>
-            updateSetting.mutate({ key: 'image_optimization_enabled', value: String(checked) })
+            updateSetting.mutate({ key: 'image_optimization_enabled', value: checked })
           }
         />
         <SettingsField
@@ -845,7 +853,7 @@ function ImageSettingsTab() {
           description="Автоматически конвертировать загружаемые изображения в формат WebP."
           checked={convertToWebp}
           onChange={(checked) =>
-            updateSetting.mutate({ key: 'image_convert_to_webp', value: String(checked) })
+            updateSetting.mutate({ key: 'image_convert_to_webp', value: checked })
           }
         />
       </SettingsRows>
@@ -934,27 +942,12 @@ function BackupSettingsTab() {
 
   const handleDownload = async (filename: string) => {
     try {
-      // Получаем токен из того же места, что и apiClient
-      const authData = localStorage.getItem('fieldworker-auth')
-      let token = ''
-      if (authData) {
-        try {
-          const authState = JSON.parse(authData)
-          token = authState.state?.token || ''
-        } catch (e) {
-          // Ignore
-        }
-      }
-      
-      const response = await fetch(`/api/admin/backups/${filename}/download`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      // apiClient сам добавляет токен и обрабатывает 401 — не дублируем разбор localStorage.
+      const response = await apiClient.get(`/admin/backups/${filename}/download`, {
+        responseType: 'blob',
       })
-      if (!response.ok) throw new Error('Download failed')
-      
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
+
+      const url = window.URL.createObjectURL(response.data)
       const a = document.createElement('a')
       a.href = url
       a.download = filename
@@ -1325,31 +1318,35 @@ function SecuritySettingsTab() {
 }
 
 // ============= Custom Fields Tab =============
+const FIELD_TYPE_LABELS: Record<string, string> = {
+  text: 'Текст',
+  textarea: 'Многострочный',
+  number: 'Число',
+  select: 'Список',
+  checkbox: 'Флажок',
+  date: 'Дата',
+}
+
 function CustomFieldsTab() {
   const [showModal, setShowModal] = useState(false)
   const [editingField, setEditingField] = useState<CustomField | null>(null)
 
-  const { data: fields, isLoading } = useQuery({
-    queryKey: ['custom-fields'],
-    queryFn: async () => {
-      // Mock data for now
-      return [
-        { id: 1, name: 'customer_phone', label: 'Телефон клиента', field_type: 'text', required: true, show_in_list: true, show_in_card: true, order: 1 },
-        { id: 2, name: 'equipment_type', label: 'Тип оборудования', field_type: 'select', options: ['Котёл', 'Колонка', 'Плита'], required: false, show_in_list: false, show_in_card: true, order: 2 },
-      ] as CustomField[]
-    },
-  })
+  const { data: fields, isLoading } = useCustomFields()
+  const deleteField = useDeleteCustomField()
+  const toggleField = useToggleCustomField()
 
-  const getFieldTypeLabel = (type: string) => {
-    const types: Record<string, string> = {
-      text: 'Текст',
-      textarea: 'Многострочный',
-      number: 'Число',
-      select: 'Список',
-      checkbox: 'Флажок',
-      date: 'Дата',
-    }
-    return types[type] || type
+  const handleDelete = (field: CustomField) => {
+    if (!confirm(`Удалить поле «${field.label}»?`)) return
+    deleteField.mutate(field.id, {
+      onSuccess: () => showApiSuccess('Поле удалено'),
+      onError: (error) => showApiError(error, 'Не удалось удалить поле'),
+    })
+  }
+
+  const handleToggle = (field: CustomField) => {
+    toggleField.mutate(field.id, {
+      onError: (error) => showApiError(error, 'Не удалось изменить статус поля'),
+    })
   }
 
   return (
@@ -1374,26 +1371,37 @@ function CustomFieldsTab() {
             {fields.map((field) => (
               <div
                 key={field.id}
-                className="flex items-center justify-between rounded-xl border border-gray-200 bg-slate-50/80 p-3 dark:border-gray-800 dark:bg-gray-800/50"
+                className={cn(
+                  'flex items-center justify-between rounded-xl border border-gray-200 bg-slate-50/80 p-3 dark:border-gray-800 dark:bg-gray-800/50',
+                  !field.is_active && 'opacity-60'
+                )}
               >
                 <div className="flex items-center gap-3">
                   <GripVertical className="h-4 w-4 text-gray-400 cursor-move" />
                   <div>
                     <p className="font-medium text-gray-900 dark:text-white">
                       {field.label}
-                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                      {field.is_required && <span className="text-red-500 ml-1">*</span>}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {field.name} • {getFieldTypeLabel(field.field_type)}
+                      {field.name} • {FIELD_TYPE_LABELS[field.field_type] || field.field_type}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex gap-1.5">
+                    {!field.is_active && <Badge variant="gray">Выключено</Badge>}
                     {field.show_in_list && <Badge variant="info">В списке</Badge>}
                     {field.show_in_card && <Badge variant="success">В карточке</Badge>}
                   </div>
                   <div className="flex items-center">
+                    <SettingsIconButton
+                      title={field.is_active ? 'Выключить поле' : 'Включить поле'}
+                      onClick={() => handleToggle(field)}
+                      disabled={toggleField.isPending}
+                    >
+                      <Power className={cn('h-3.5 w-3.5', field.is_active && 'text-green-500')} />
+                    </SettingsIconButton>
                     <SettingsIconButton
                       title="Редактировать"
                       onClick={() => {
@@ -1403,7 +1411,12 @@ function CustomFieldsTab() {
                     >
                       <Edit2 className="h-3.5 w-3.5" />
                     </SettingsIconButton>
-                    <SettingsIconButton title="Удалить" tone="danger" onClick={() => undefined}>
+                    <SettingsIconButton
+                      title="Удалить"
+                      tone="danger"
+                      onClick={() => handleDelete(field)}
+                      disabled={deleteField.isPending}
+                    >
                       <Trash2 className="h-3.5 w-3.5" />
                     </SettingsIconButton>
                   </div>
@@ -1418,25 +1431,24 @@ function CustomFieldsTab() {
         <CustomFieldModal
           field={editingField}
           onClose={() => setShowModal(false)}
-          onSave={() => {
-            setShowModal(false)
-            toast.success(editingField ? 'Поле обновлено' : 'Поле создано')
-          }}
         />
       )}
     </>
   )
 }
 
-function CustomFieldModal({ 
-  field, 
-  onClose, 
-  onSave 
-}: { 
+function CustomFieldModal({
+  field,
+  onClose,
+}: {
   field: CustomField | null
   onClose: () => void
-  onSave: () => void 
 }) {
+  const isEdit = field !== null
+  const createField = useCreateCustomField()
+  const updateField = useUpdateCustomField()
+  const isSaving = createField.isPending || updateField.isPending
+
   const [formData, setFormData] = useState({
     name: field?.name || '',
     label: field?.label || '',
@@ -1444,10 +1456,76 @@ function CustomFieldModal({
     options: field?.options?.join('\n') || '',
     placeholder: field?.placeholder || '',
     default_value: field?.default_value || '',
-    required: field?.required || false,
+    is_required: field?.is_required || false,
     show_in_list: field?.show_in_list || false,
     show_in_card: field?.show_in_card ?? true,
   })
+
+  const handleSave = () => {
+    const name = formData.name.trim()
+    const label = formData.label.trim()
+    if (!label) {
+      toast.error('Укажите отображаемое название')
+      return
+    }
+    if (!isEdit && !/^[a-z_][a-z0-9_]*$/.test(name)) {
+      toast.error('Системное имя: латиница в нижнем регистре, цифры и _, начиная с буквы или _')
+      return
+    }
+
+    const options =
+      formData.field_type === 'select'
+        ? formData.options
+            .split('\n')
+            .map((o) => o.trim())
+            .filter(Boolean)
+        : null
+    const placeholder = formData.placeholder.trim() || null
+    const default_value = formData.default_value.trim() || null
+
+    if (isEdit) {
+      const payload: CustomFieldUpdateData = {
+        label,
+        field_type: formData.field_type,
+        options,
+        placeholder,
+        default_value,
+        is_required: formData.is_required,
+        show_in_list: formData.show_in_list,
+        show_in_card: formData.show_in_card,
+      }
+      updateField.mutate(
+        { id: field.id, payload },
+        {
+          onSuccess: () => {
+            showApiSuccess('Поле обновлено')
+            onClose()
+          },
+          onError: (error) => showApiError(error, 'Не удалось сохранить поле'),
+        }
+      )
+      return
+    }
+
+    const payload: CustomFieldCreateData = {
+      name,
+      label,
+      field_type: formData.field_type,
+      options,
+      placeholder,
+      default_value,
+      is_required: formData.is_required,
+      show_in_list: formData.show_in_list,
+      show_in_card: formData.show_in_card,
+    }
+    createField.mutate(payload, {
+      onSuccess: () => {
+        showApiSuccess('Поле создано')
+        onClose()
+      },
+      onError: (error) => showApiError(error, 'Не удалось создать поле'),
+    })
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -1467,6 +1545,8 @@ function CustomFieldModal({
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="customer_phone"
+            disabled={isEdit}
+            className={isEdit ? 'opacity-60' : undefined}
           />
           <Input
             label="Отображаемое название"
@@ -1516,8 +1596,8 @@ function CustomFieldModal({
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
-                checked={formData.required}
-                onChange={(e) => setFormData({ ...formData, required: e.target.checked })}
+                checked={formData.is_required}
+                onChange={(e) => setFormData({ ...formData, is_required: e.target.checked })}
                 className="w-4 h-4 text-primary-500 border-gray-300 dark:border-gray-600 rounded"
               />
               <span className="text-sm">Обязательное</span>
@@ -1544,203 +1624,13 @@ function CustomFieldModal({
         </div>
 
         <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-gray-700">
-          <Button variant="secondary" onClick={onClose}>Отмена</Button>
-          <Button onClick={onSave}>Сохранить</Button>
+          <Button variant="secondary" onClick={onClose} disabled={isSaving}>Отмена</Button>
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? 'Сохранение...' : 'Сохранить'}
+          </Button>
         </div>
       </div>
     </div>
-  )
-}
-
-// ============= Card Builder Tab =============
-function CardBuilderTab() {
-  const zones = [
-    { id: 'header', label: 'Шапка карточки', fields: ['priority', 'task_number', 'status'] },
-    { id: 'main', label: 'Основной блок', fields: ['title', 'address', 'planned_date'] },
-    { id: 'details', label: 'Детали', fields: ['description', 'phone', 'customer_phone'] },
-    { id: 'footer', label: 'Нижний блок', fields: ['created_at', 'assignee'] },
-  ]
-
-  const availableFields = [
-    { id: 'priority', label: 'Приоритет' },
-    { id: 'task_number', label: 'Номер заявки' },
-    { id: 'status', label: 'Статус' },
-    { id: 'title', label: 'Название' },
-    { id: 'address', label: 'Адрес' },
-    { id: 'planned_date', label: 'Плановая дата' },
-    { id: 'description', label: 'Описание' },
-    { id: 'phone', label: 'Телефон' },
-    { id: 'created_at', label: 'Дата создания' },
-    { id: 'assignee', label: 'Исполнитель' },
-    { id: 'is_paid', label: 'Платная' },
-    { id: 'amount', label: 'Сумма' },
-  ]
-
-  return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-      <div>
-        <SettingsCard title="Доступные поля" icon={Puzzle}>
-          <div className="space-y-2">
-            {availableFields.map((field) => (
-              <div
-                key={field.id}
-                className="flex items-center justify-between rounded-xl border border-gray-200 bg-slate-50/80 p-3 transition-colors hover:bg-slate-100 dark:border-gray-800 dark:bg-gray-800/50 dark:hover:bg-gray-800"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">{field.label}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </SettingsCard>
-      </div>
-
-      <div className="lg:col-span-2">
-        <SettingsCard title="Предпросмотр карточки" icon={Puzzle}>
-          <CompactNotice tone="warning">
-            Макет карточки пока не сохраняется и не применяется в портале. Здесь только визуальный черновик компоновки.
-          </CompactNotice>
-          <div className="mt-3 min-h-[500px] space-y-3 rounded-xl bg-gray-100 p-3.5 dark:bg-gray-800">
-            {zones.map((zone) => (
-              <div key={zone.id} className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3">
-                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1">
-                  <ChevronRight className="h-3 w-3" />
-                  {zone.label}
-                </div>
-                <div className="bg-white dark:bg-gray-900 rounded-lg p-3 min-h-[60px]">
-                  <div className="flex flex-wrap gap-2">
-                    {zone.fields.map((fieldId) => {
-                      const field = availableFields.find(f => f.id === fieldId)
-                      return field ? (
-                        <span
-                          key={fieldId}
-                          className="px-2 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 text-xs rounded flex items-center gap-1"
-                        >
-                          {field.label}
-
-                        </span>
-                      ) : null
-                    })}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </SettingsCard>
-      </div>
-    </div>
-  )
-}
-
-// ============= Permissions Tab =============
-function PermissionsTab() {
-  const queryClient = useQueryClient()
-  const { data: permissions, isLoading } = useQuery({
-    queryKey: ['role-permissions'],
-    queryFn: async () => {
-      const response = await apiClient.get<Record<string, Record<string, boolean>>>('/admin/permissions')
-      return response.data
-    },
-  })
-  const updatePermissionsMutation = useMutation({
-    mutationFn: ({ role, permission, value }: { role: string; permission: string; value: boolean }) =>
-      apiClient.patch(`/admin/permissions/${role}`, { permissions: { [permission]: value } }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['role-permissions'] })
-      toast.success('Права обновлены')
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка обновления прав')
-    },
-  })
-
-  const rows = [
-    { id: 'view_dashboard', label: 'Дашборд' },
-    { id: 'view_tasks', label: 'Заявки' },
-    { id: 'create_tasks', label: 'Создавать заявки' },
-    { id: 'edit_tasks', label: 'Редактировать заявки' },
-    { id: 'delete_tasks', label: 'Удалять заявки' },
-    { id: 'change_task_status', label: 'Менять статусы' },
-    { id: 'assign_tasks', label: 'Назначать исполнителей' },
-    { id: 'view_comments', label: 'Комментарии (просмотр)' },
-    { id: 'add_comments', label: 'Комментарии (добавление)' },
-    { id: 'view_photos', label: 'Фото (просмотр)' },
-    { id: 'add_photos', label: 'Фото (добавление)' },
-    { id: 'delete_photos', label: 'Фото (удаление)' },
-    { id: 'view_users', label: 'Пользователи (просмотр)' },
-    { id: 'edit_users', label: 'Пользователи (ред.)' },
-    { id: 'view_finance', label: 'Финансы' },
-    { id: 'view_devices', label: 'Устройства' },
-    { id: 'view_settings', label: 'Настройки (просмотр)' },
-    { id: 'edit_settings', label: 'Настройки (ред.)' },
-    { id: 'view_addresses', label: 'Адреса (просмотр)' },
-    { id: 'edit_addresses', label: 'Адреса (ред.)' },
-  ]
-
-  const isDisabled = (role: string) => role === 'admin' || updatePermissionsMutation.isPending
-
-  return (
-    <SettingsCard
-      title="Права доступа по ролям"
-      icon={UserCog}
-      description="Отметьте доступные действия для каждой роли. У администратора включено всё."
-    >
-      {isLoading ? (
-        <div className="flex justify-center py-4">
-          <Spinner />
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-          <table className="w-full">
-            <thead className="bg-gray-50/80 dark:bg-gray-800/60">
-              <tr className="border-b border-gray-200 dark:border-gray-700">
-                <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Разрешение
-                </th>
-                <th className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Админ
-                </th>
-                <th className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Диспетчер
-                </th>
-                <th className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Исполнитель
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-b border-gray-100 transition-colors last:border-0 hover:bg-gray-50/80 dark:border-gray-800 dark:hover:bg-gray-800/40">
-                  <td className="px-4 py-1 text-sm text-gray-700 dark:text-gray-300">
-                    {row.label}
-                  </td>
-                  {(['admin', 'dispatcher', 'worker'] as const).map((role) => {
-                    const checked = permissions?.[role]?.[row.id] ?? (role === 'admin')
-                    return (
-                      <td key={role} className="px-4 py-1 text-center">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={isDisabled(role)}
-                          onChange={(event) =>
-                            updatePermissionsMutation.mutate({
-                              role,
-                              permission: row.id,
-                              value: event.target.checked,
-                            })
-                          }
-                          className="h-4 w-4 rounded border-gray-300 text-primary-500 disabled:opacity-50 dark:border-gray-600"
-                        />
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </SettingsCard>
   )
 }
 

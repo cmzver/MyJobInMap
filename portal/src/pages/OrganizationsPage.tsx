@@ -36,6 +36,7 @@ import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
 import Input from '@/components/Input'
 import Card from '@/components/Card'
+import MetricCard from '@/components/MetricCard'
 import Badge from '@/components/Badge'
 import { SkeletonTable } from '@/components/Skeleton'
 import EmptyState from '@/components/EmptyState'
@@ -439,45 +440,21 @@ export default function OrganizationsPage() {
       {/* Stats cards */}
       {organizations && organizations.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="!p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <Building2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Всего организаций</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">
-                  {organizations.filter(o => o.is_active).length}
-                </p>
-              </div>
-            </div>
-          </Card>
-          <Card className="!p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <Users className="w-5 h-5 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Всего пользователей</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">
-                  {organizations.reduce((sum, o) => sum + o.user_count, 0)}
-                </p>
-              </div>
-            </div>
-          </Card>
-          <Card className="!p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                <ClipboardList className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Всего заявок</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">
-                  {organizations.reduce((sum, o) => sum + o.task_count, 0)}
-                </p>
-              </div>
-            </div>
-          </Card>
+          <MetricCard
+            icon={Building2}
+            label="Всего организаций"
+            value={organizations.filter(o => o.is_active).length}
+          />
+          <MetricCard
+            icon={Users}
+            label="Всего пользователей"
+            value={organizations.reduce((sum, o) => sum + o.user_count, 0)}
+          />
+          <MetricCard
+            icon={ClipboardList}
+            label="Всего заявок"
+            value={organizations.reduce((sum, o) => sum + o.task_count, 0)}
+          />
         </div>
       )}
 
@@ -537,7 +514,7 @@ export default function OrganizationsPage() {
                       <div>
                         <button
                           onClick={() => navigate(`/admin/organizations/${org.id}`)}
-                          className="font-medium text-blue-600 dark:text-blue-400 hover:underline text-left"
+                          className="font-medium text-primary-600 dark:text-primary-400 hover:underline text-left"
                         >
                           {org.name}
                         </button>
@@ -574,7 +551,7 @@ export default function OrganizationsPage() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => handleOpenEdit(org)}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
                           title="Редактировать"
                         >
                           <Edit className="w-4 h-4" />

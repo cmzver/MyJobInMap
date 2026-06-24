@@ -15,6 +15,11 @@ param(
     [switch]$DryRun = $false,
     [switch]$Force = $false,
 
+    # Unconditionally rebuild every Docker image and force-recreate every
+    # container, regardless of which files changed. Use for a clean "rebuild
+    # everything from scratch" deploy (see scripts/recreate-containers.ps1).
+    [switch]$ForceRebuild = $false,
+
     # Fresh-server bootstrap: install Docker, generate missing secrets, upload env
     # files and (optionally) bring up Caddy with automatic SSL. Safe to run against
     # an already-provisioned server too - every step is idempotent.
@@ -22,7 +27,29 @@ param(
     [string]$Domain = $null,
     [switch]$SkipDockerInstall = $false,
     [switch]$SkipCaddy = $false,
-    [switch]$SkipFirewall = $false
+    [switch]$SkipFirewall = $false,
+
+    # Compose stack used on the server. Defaults to the PostgreSQL stack
+    # (docker-compose.postgres.yml: db + redis + server + worker + telegram-bot),
+    # which is the production database. Pass docker-compose.yml for the legacy
+    # SQLite stack. $ApiService/$ApiContainer must match the chosen file's API
+    # service/container names (server/fieldworker_server for PG, api/fieldworker-api
+    # for SQLite).
+    [string]$ComposeFile = "docker-compose.postgres.yml",
+    [string]$ApiService = "server",
+    [string]$ApiContainer = "fieldworker_server",
+
+    # Bring up the monitoring stack (Prometheus + Grafana + node-exporter) on top
+    # of the main stack via docker-compose.monitoring.yml. Ports 9090/3000 are NOT
+    # opened in the firewall - reach them over an SSH tunnel or put them behind
+    # Caddy with auth. Safe to re-run (idempotent).
+    [switch]$Monitoring = $false,
+    [string]$MonitoringFile = "docker-compose.monitoring.yml",
+
+    # Open Grafana (3000) and Prometheus (9090) in ufw for direct/test access.
+    # Off by default - production should reach Grafana over Caddy with auth, not a
+    # raw open port with the default admin password.
+    [switch]$OpenMonitoringPorts = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -352,7 +379,7 @@ function Format-ComposeCommand {
     # NO embedded double quotes: a 'DC="docker compose"' style shell variable does
     # not survive the Windows ssh.exe -> remote bash quoting round-trip (the quotes
     # get mangled and the variable ends up empty).
-    return "if docker compose version >/dev/null 2>&1; then docker compose $ComposeArgs; else docker-compose $ComposeArgs; fi"
+    return "if docker compose version >/dev/null 2>&1; then docker compose -f $ComposeFile $ComposeArgs; else docker-compose -f $ComposeFile $ComposeArgs; fi"
 }
 
 function Wait-ContainerHealthy {
@@ -635,6 +662,30 @@ function Enable-CaddySSL {
     Write-Log "Caddy started for $DomainName (Let's Encrypt issues the certificate on first request)" "Success"
 }
 
+function Enable-Monitoring {
+    if (-not (Test-RemoteFileExists "$RemotePath/$MonitoringFile")) {
+        throw "$MonitoringFile not found at $RemotePath (the file sync step must run before monitoring setup)"
+    }
+
+    # Merge the monitoring compose with the main stack so Prometheus shares its
+    # network and can scrape the api service and node-exporter by name.
+    # --force-recreate: the archive sync deletes and re-extracts monitoring/ on
+    # every deploy, which leaves the running Grafana/Prometheus bind-mounts
+    # pointing at the old (removed) directory. Recreating re-binds the fresh dir
+    # so provisioned dashboards and prometheus.yml are always current.
+    $composeUp = Format-ComposeCommand "-f $MonitoringFile up -d --force-recreate"
+    Invoke-RemoteCommand "cd $RemotePath && $composeUp" | Out-Null
+    Write-Log "Monitoring stack up (Prometheus :9090, Grafana :3000, node-exporter)" "Success"
+
+    if ($OpenMonitoringPorts) {
+        Invoke-RemoteCommand "command -v ufw >/dev/null 2>&1 && ufw allow 3000/tcp && ufw allow 9090/tcp || true" | Out-Null
+        Write-Log "Opened ufw 3000 (Grafana) and 9090 (Prometheus) for direct access" "Warning"
+        Write-Log "Grafana login is admin/admin by default - change GRAFANA_PASSWORD before exposing publicly" "Warning"
+    } else {
+        Write-Log "Ports 9090/3000 are NOT opened in ufw - reach Grafana via SSH tunnel: ssh -p $SSHPort -L 3000:localhost:3000 $Server" "Warning"
+    }
+}
+
 if (-not (Test-Path $LocalPath)) {
     throw "Local path not found: $LocalPath"
 }
@@ -751,6 +802,7 @@ try {
             "server/uploads/chat/*"
             "server/uploads/address_documents/*"
             "server/logs"
+            "server/backups"
             ".DS_Store"
             "app/src"
             "portal/src"
@@ -849,7 +901,10 @@ try {
         $rebuildRequired = $false
         $apiCodeChanged = $false
 
-        if ($SkipSync -or $syncMode -ne "rsync") {
+        if ($ForceRebuild) {
+            # Explicit full rebuild requested - skip change detection entirely.
+            $rebuildRequired = $true
+        } elseif ($SkipSync -or $syncMode -ne "rsync") {
             # No reliable list of changed files - rebuild to stay safe.
             $rebuildRequired = $true
         } else {
@@ -872,10 +927,17 @@ try {
         # defined in docker-compose.caddy.yml) run from separate compose files. With
         # --remove-orphans they would be treated as orphans and destroyed.
         if ($rebuildRequired) {
-            # Build new images while the old containers keep running, then recreate
-            # only what changed.
-            Write-Log "Rebuilding and recreating containers" "Info"
-            Invoke-RemoteCommand "cd $RemotePath && $(Format-ComposeCommand 'up -d --build')" | Out-Null
+            # Build new images while the old containers keep running, then recreate.
+            # With -ForceRebuild we additionally --force-recreate so EVERY container
+            # is replaced even if its image/config did not change; otherwise compose
+            # only recreates services whose image was actually rebuilt.
+            if ($ForceRebuild) {
+                Write-Log "Force rebuilding images and recreating all containers" "Info"
+                Invoke-RemoteCommand "cd $RemotePath && $(Format-ComposeCommand 'up -d --build --force-recreate')" | Out-Null
+            } else {
+                Write-Log "Rebuilding and recreating containers" "Info"
+                Invoke-RemoteCommand "cd $RemotePath && $(Format-ComposeCommand 'up -d --build')" | Out-Null
+            }
         } else {
             # Fast path - no image rebuild. First ensure everything is up (this also
             # builds any missing image, e.g. on a first deploy), then force-recreate
@@ -885,7 +947,7 @@ try {
 
             $fastCommand = "cd $RemotePath && $(Format-ComposeCommand 'up -d')"
             if ($recreateApi) {
-                $fastCommand += " && $(Format-ComposeCommand 'up -d --force-recreate --no-build api')"
+                $fastCommand += " && $(Format-ComposeCommand "up -d --force-recreate --no-build $ApiService")"
             }
             if ($recreateBot) {
                 $fastCommand += " && $(Format-ComposeCommand 'up -d --force-recreate --no-build telegram-bot')"
@@ -902,10 +964,10 @@ try {
         # Gate the deploy on the API healthcheck so a broken start fails loudly
         # instead of reporting a green 'ps' over a dead container.
         Write-Log "Waiting for API healthcheck" "Info"
-        if (Wait-ContainerHealthy -Container "fieldworker-api" -TimeoutSeconds 120) {
+        if (Wait-ContainerHealthy -Container $ApiContainer -TimeoutSeconds 120) {
             Write-Log "API is healthy" "Success"
         } else {
-            throw "API did not become healthy within 120s. Check logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose logs --tail=100 api'"
+            throw "API did not become healthy within 120s. Check logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose -f $ComposeFile logs --tail=100 $ApiService'"
         }
 
         Write-Log "Container status" "Info"
@@ -925,6 +987,11 @@ try {
         }
     }
 
+    if ($Monitoring -and -not $DryRun) {
+        Write-Log "Setting up monitoring stack (Prometheus + Grafana + node-exporter)" "Info"
+        Enable-Monitoring
+    }
+
     $deployDuration = (Get-Date) - $deployStart
     $durationStr = "{0:mm\:ss}" -f $deployDuration
     Write-Log "Deployment completed in $durationStr" "Success"
@@ -932,8 +999,8 @@ try {
         Write-Log "Portal:  https://$Domain/portal/" "Success"
         Write-Log "API:     https://$Domain/api/health" "Success"
     }
-    Write-Log "Check status: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose ps'" "Info"
-    Write-Log "View logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose logs -f'" "Info"
+    Write-Log "Check status: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose -f $ComposeFile ps'" "Info"
+    Write-Log "View logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose -f $ComposeFile logs -f'" "Info"
 }
 finally {
     if ($portalBuildJob) {

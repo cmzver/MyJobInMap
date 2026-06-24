@@ -20,7 +20,6 @@ from app.models import (
     TaskModel,
     TaskStatus,
     UserModel,
-    UserRole,
     get_db,
 )
 from app.models.address import AddressModel
@@ -41,6 +40,7 @@ from app.services import (
     get_task_service,
     require_permission,
 )
+from app.services.role_utils import is_dispatcher_or_admin_user, is_worker_user
 from app.services.tenant_filter import TenantFilter
 from app.services.websocket_manager import (
     broadcast_task_assigned,
@@ -188,7 +188,7 @@ async def get_tasks(
 
     # Workers see only their tasks
     # Dispatchers and Admins can see all (optionally filter by assignee_id)
-    if user.role == UserRole.WORKER.value:
+    if is_worker_user(user):
         query = query.filter(TaskModel.assigned_user_id == user.id)
     elif assignee_id:
         query = query.filter(TaskModel.assigned_user_id.in_(assignee_id))
@@ -208,10 +208,7 @@ async def get_tasks(
     else:
         # Дефолтная (без явного sort) «умная» сортировка: заявки с
         # непрочитанными уведомлениями и более высоким приоритетом — наверх.
-        prioritize_unread_notifications = user.role in {
-            UserRole.ADMIN.value,
-            UserRole.DISPATCHER.value,
-        }
+        prioritize_unread_notifications = is_dispatcher_or_admin_user(user)
         has_unread_task_notification = (
             db.query(NotificationModel.id)
             .filter(

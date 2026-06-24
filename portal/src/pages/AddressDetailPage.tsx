@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { formatDateOnly as formatDate } from '@/utils/dateFormat'
 import toast from 'react-hot-toast'
@@ -57,6 +58,7 @@ import { addressesApi } from '@/api/addresses'
 import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
 import Card from '@/components/Card'
+import MetricCard from '@/components/MetricCard'
 import Spinner from '@/components/Spinner'
 import Modal from '@/components/Modal'
 import { SystemForm, EquipmentForm, DocumentForm, ContactForm, AddressForm } from '@/components/AddressCardForms'
@@ -181,6 +183,19 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024) return bytes + ' Б'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ'
   return (bytes / (1024 * 1024)).toFixed(1) + ' МБ'
+}
+
+// Поле «лейбл сверху, значение под ним» — без растянутого justify-between
+function Field({ label, value }: { label: string; value: ReactNode }) {
+  const isEmpty = value === null || value === undefined || value === '' || value === 0
+  return (
+    <div className="min-w-0">
+      <p className="eyebrow">{label}</p>
+      <div className="mt-1 text-sm font-medium text-gray-900 dark:text-white break-words">
+        {isEmpty ? <span className="text-gray-400 dark:text-gray-500">—</span> : value}
+      </div>
+    </div>
+  )
 }
 
 export default function AddressDetailPage() {
@@ -430,62 +445,27 @@ export default function AddressDetailPage() {
 
       {/* Метрики */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Систем</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{systems.length}</p>
-            </div>
-            <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <Wrench className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Оборудование</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{equipment.length}</p>
-              {equipmentByStatus.faulty > 0 && (
-                <p className="text-xs text-red-500">{equipmentByStatus.faulty} неисправно</p>
-              )}
-            </div>
-            <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-              <Package className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Заявок всего</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{taskStats.total}</p>
-              {(taskStats.new + taskStats.in_progress) > 0 && (
-                <p className="text-xs text-orange-500">{taskStats.new + taskStats.in_progress} активных</p>
-              )}
-            </div>
-            <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <ClipboardList className="h-6 w-6 text-green-600 dark:text-green-400" />
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Абонплата</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {totalMonthlyCost.toLocaleString('ru-RU')} ₽
-              </p>
-              <p className="text-xs text-gray-400">в месяц</p>
-            </div>
-            <div className="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-              <DollarSign className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
-            </div>
-          </div>
-        </Card>
+        <MetricCard icon={Wrench} label="Систем" value={systems.length} />
+        <MetricCard
+          icon={Package}
+          label="Оборудование"
+          value={equipment.length}
+          note={equipmentByStatus.faulty > 0 ? `${equipmentByStatus.faulty} неисправно` : undefined}
+          noteTone="text-red-500"
+        />
+        <MetricCard
+          icon={ClipboardList}
+          label="Заявок всего"
+          value={taskStats.total}
+          note={(taskStats.new + taskStats.in_progress) > 0 ? `${taskStats.new + taskStats.in_progress} активных` : undefined}
+          noteTone="text-primary-600 dark:text-primary-400"
+        />
+        <MetricCard
+          icon={DollarSign}
+          label="Абонплата"
+          value={`${totalMonthlyCost.toLocaleString('ru-RU')} ₽`}
+          note="в месяц"
+        />
       </div>
 
       {/* Табы */}
@@ -498,7 +478,7 @@ export default function AddressDetailPage() {
               className={`
                 flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap
                 ${activeTab === id
-                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
                   : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
                 }
               `}
@@ -536,70 +516,45 @@ export default function AddressDetailPage() {
         {activeTab === 'info' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card title="Основная информация">
-              <dl className="space-y-4">
-                <div className="flex justify-between">
-                  <dt className="text-gray-500 dark:text-gray-400">Город</dt>
-                  <dd className="font-medium text-gray-900 dark:text-white">{address.city || '—'}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-gray-500 dark:text-gray-400">Улица</dt>
-                  <dd className="font-medium text-gray-900 dark:text-white">{address.street || '—'}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-gray-500 dark:text-gray-400">Дом</dt>
-                  <dd className="font-medium text-gray-900 dark:text-white">
-                    {address.building || '—'}
-                    {address.corpus && ` корп. ${address.corpus}`}
-                  </dd>
-                </div>
-              </dl>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                <Field label="Город" value={address.city} />
+                <Field label="Улица" value={address.street} />
+                <Field
+                  label="Дом"
+                  value={address.building
+                    ? `${address.building}${address.corpus ? ` корп. ${address.corpus}` : ''}`
+                    : null}
+                />
+              </div>
             </Card>
 
             <Card title="Информация о здании">
-              <dl className="space-y-4">
-                <div className="flex justify-between">
-                  <dt className="text-gray-500 dark:text-gray-400">Подъездов</dt>
-                  <dd className="font-medium text-gray-900 dark:text-white">{address.entrance_count || '—'}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-gray-500 dark:text-gray-400">Этажей</dt>
-                  <dd className="font-medium text-gray-900 dark:text-white">{address.floor_count || '—'}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-gray-500 dark:text-gray-400">Квартир</dt>
-                  <dd className="font-medium text-gray-900 dark:text-white">{address.apartment_count || '—'}</dd>
-                </div>
-              </dl>
-            </Card>
-
-            <Card title="Дополнительная информация">
-              <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                {/* TODO: Добавить поле extra_info в модель Address */}
-                Здесь можно указать любую дополнительную информацию об объекте: особенности доступа, время работы, контактные данные охраны и т.д.
-              </p>
+              <div className="grid grid-cols-3 gap-x-4 gap-y-4">
+                <Field label="Подъездов" value={address.entrance_count} />
+                <Field label="Этажей" value={address.floor_count} />
+                <Field label="Квартир" value={address.apartment_count} />
+              </div>
             </Card>
 
             <Card title="Управляющая компания">
-              <dl className="space-y-4">
-                <div className="flex justify-between">
-                  <dt className="text-gray-500 dark:text-gray-400">Название</dt>
-                  <dd className="font-medium text-gray-900 dark:text-white">{address.management_company || '—'}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-gray-500 dark:text-gray-400">Телефон</dt>
-                  <dd className="font-medium text-gray-900 dark:text-white">
-                    {address.management_phone ? (
-                      <a href={`tel:${address.management_phone}`} className="text-blue-500 hover:underline">
-                        {address.management_phone}
-                      </a>
-                    ) : '—'}
-                  </dd>
-                </div>
-              </dl>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                <Field label="Название" value={address.management_company} />
+                <Field
+                  label="Телефон"
+                  value={address.management_phone ? (
+                    <a
+                      href={`tel:${address.management_phone}`}
+                      className="text-primary-600 hover:underline dark:text-primary-400"
+                    >
+                      {address.management_phone}
+                    </a>
+                  ) : null}
+                />
+              </div>
             </Card>
 
             <Card title="Заметки">
-              <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+              <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                 {address.notes || 'Нет заметок'}
               </p>
             </Card>
@@ -631,7 +586,7 @@ export default function AddressDetailPage() {
                   const statusConfig = systemStatusConfig[system.status]
                   
                   return (
-                    <Card key={system.id} className="p-4">
+                    <Card key={system.id} compact>
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="flex min-w-0 items-start gap-4">
                           <div className={`p-3 rounded-lg ${statusConfig.bg}`}>
@@ -814,7 +769,7 @@ export default function AddressDetailPage() {
                       <tr key={doc.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-blue-500" />
+                            <FileText className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                             <span className="font-medium text-gray-900 dark:text-white" title={doc.name}>
                               {doc.name}
                             </span>
@@ -884,7 +839,7 @@ export default function AddressDetailPage() {
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
                 {contacts.map((contact) => (
-                  <Card key={contact.id} className="p-4">
+                  <Card key={contact.id} compact>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex min-w-0 items-start gap-3">
                         <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full">
@@ -896,7 +851,7 @@ export default function AddressDetailPage() {
                               {contact.name}
                             </h4>
                             {contact.is_primary && (
-                              <span className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
+                              <span className="px-2 py-0.5 text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded">
                                 Основной
                               </span>
                             )}
@@ -906,18 +861,18 @@ export default function AddressDetailPage() {
                           </p>
                           <div className="mt-2 space-y-1">
                             {contact.phone && (
-                              <a 
+                              <a
                                 href={`tel:${contact.phone}`}
-                                className="flex items-center gap-2 text-sm text-blue-500 hover:underline"
+                                className="flex items-center gap-2 text-sm text-primary-600 hover:underline dark:text-primary-400"
                               >
                                 <Phone className="h-3 w-3" />
                                 {contact.phone}
                               </a>
                             )}
                             {contact.email && (
-                              <a 
+                              <a
                                 href={`mailto:${contact.email}`}
-                                className="flex items-center gap-2 text-sm text-blue-500 hover:underline"
+                                className="flex items-center gap-2 text-sm text-primary-600 hover:underline dark:text-primary-400"
                               >
                                 <Mail className="h-3 w-3" />
                                 {contact.email}
@@ -964,30 +919,25 @@ export default function AddressDetailPage() {
             
             {/* Статистика заявок */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              <Card className="p-3 text-center">
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{taskStats.total}</p>
-                <p className="text-xs text-gray-500">Всего</p>
-              </Card>
-              <Card className="p-3 text-center border-l-4 border-red-500">
-                <p className="text-2xl font-bold text-red-600">{taskStats.new}</p>
-                <p className="text-xs text-gray-500">Новых</p>
-              </Card>
-              <Card className="p-3 text-center border-l-4 border-orange-500">
-                <p className="text-2xl font-bold text-orange-600">{taskStats.in_progress}</p>
-                <p className="text-xs text-gray-500">В работе</p>
-              </Card>
-              <Card className="p-3 text-center border-l-4 border-green-500">
-                <p className="text-2xl font-bold text-green-600">{taskStats.done}</p>
-                <p className="text-xs text-gray-500">Выполнено</p>
-              </Card>
-              <Card className="p-3 text-center border-l-4 border-gray-500">
-                <p className="text-2xl font-bold text-gray-600">{taskStats.cancelled}</p>
-                <p className="text-xs text-gray-500">Отменено</p>
-              </Card>
+              {[
+                { value: taskStats.total, label: 'Всего', tone: 'text-gray-900 dark:text-white' },
+                { value: taskStats.new, label: 'Новых', tone: 'text-red-600 dark:text-red-400' },
+                { value: taskStats.in_progress, label: 'В работе', tone: 'text-orange-600 dark:text-orange-400' },
+                { value: taskStats.done, label: 'Выполнено', tone: 'text-green-600 dark:text-green-400' },
+                { value: taskStats.cancelled, label: 'Отменено', tone: 'text-gray-500 dark:text-gray-400' },
+              ].map((stat) => (
+                <div
+                  key={stat.label}
+                  className="rounded-xl border border-gray-200 bg-white p-3 text-center transition-colors dark:border-gray-700 dark:bg-gray-800"
+                >
+                  <p className={`text-2xl font-semibold ${stat.tone}`}>{stat.value}</p>
+                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{stat.label}</p>
+                </div>
+              ))}
             </div>
 
             {/* Ссылка на все заявки */}
-            <Card className="p-4">
+            <Card compact>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-gray-600 dark:text-gray-300">
                   Для просмотра всех заявок по этому адресу перейдите в раздел заявок с фильтром
