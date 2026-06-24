@@ -337,7 +337,7 @@ export default function ChatSettingsModal({
                           member.role === 'owner'
                             ? 'ring-2 ring-primary-200 dark:ring-primary-800/60'
                             : member.role === 'admin'
-                              ? 'ring-2 ring-sky-200 dark:ring-sky-800/60'
+                              ? 'ring-2 ring-gray-300 dark:ring-gray-600'
                               : 'ring-1 ring-gray-200 dark:ring-gray-700',
                         )}
                       />
