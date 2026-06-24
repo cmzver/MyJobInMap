@@ -44,7 +44,12 @@ param(
     # opened in the firewall - reach them over an SSH tunnel or put them behind
     # Caddy with auth. Safe to re-run (idempotent).
     [switch]$Monitoring = $false,
-    [string]$MonitoringFile = "docker-compose.monitoring.yml"
+    [string]$MonitoringFile = "docker-compose.monitoring.yml",
+
+    # Open Grafana (3000) and Prometheus (9090) in ufw for direct/test access.
+    # Off by default - production should reach Grafana over Caddy with auth, not a
+    # raw open port with the default admin password.
+    [switch]$OpenMonitoringPorts = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -667,7 +672,14 @@ function Enable-Monitoring {
     $composeUp = Format-ComposeCommand "-f $MonitoringFile up -d"
     Invoke-RemoteCommand "cd $RemotePath && $composeUp" | Out-Null
     Write-Log "Monitoring stack up (Prometheus :9090, Grafana :3000, node-exporter)" "Success"
-    Write-Log "Ports 9090/3000 are NOT opened in ufw - reach Grafana via SSH tunnel: ssh -p $SSHPort -L 3000:localhost:3000 $Server" "Warning"
+
+    if ($OpenMonitoringPorts) {
+        Invoke-RemoteCommand "command -v ufw >/dev/null 2>&1 && ufw allow 3000/tcp && ufw allow 9090/tcp || true" | Out-Null
+        Write-Log "Opened ufw 3000 (Grafana) and 9090 (Prometheus) for direct access" "Warning"
+        Write-Log "Grafana login is admin/admin by default - change GRAFANA_PASSWORD before exposing publicly" "Warning"
+    } else {
+        Write-Log "Ports 9090/3000 are NOT opened in ufw - reach Grafana via SSH tunnel: ssh -p $SSHPort -L 3000:localhost:3000 $Server" "Warning"
+    }
 }
 
 if (-not (Test-Path $LocalPath)) {

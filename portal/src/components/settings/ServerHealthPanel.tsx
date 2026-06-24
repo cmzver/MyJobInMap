@@ -1,6 +1,17 @@
-import { Activity, Cpu, ExternalLink, HardDrive, MemoryStick, RefreshCw, Server } from 'lucide-react'
+import { useState } from 'react'
+import {
+  Activity,
+  Cpu,
+  ExternalLink,
+  HardDrive,
+  MemoryStick,
+  RefreshCw,
+  ScrollText,
+  Server,
+  X,
+} from 'lucide-react'
 import type { ContainerInfo, SystemHealth } from '@/api/system'
-import { useSystemHealth } from '@/hooks/useSystemHealth'
+import { useContainerLogs, useSystemHealth } from '@/hooks/useSystemHealth'
 import Badge from '@/components/Badge'
 import Spinner from '@/components/Spinner'
 import { SettingsCard } from '@/components/settings/SettingsSection'
@@ -59,7 +70,7 @@ const STATE_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'gray'> =
   created: 'gray',
 }
 
-function ContainerRow({ c }: { c: ContainerInfo }) {
+function ContainerRow({ c, onShowLogs }: { c: ContainerInfo; onShowLogs: (name: string) => void }) {
   const healthBadge =
     c.health === 'healthy' ? (
       <Badge variant="success">healthy</Badge>
@@ -76,7 +87,82 @@ function ContainerRow({ c }: { c: ContainerInfo }) {
       </td>
       <td className="px-3 py-1.5">{healthBadge ?? <span className="text-gray-400">—</span>}</td>
       <td className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">{c.status}</td>
+      <td className="px-3 py-1.5 text-right">
+        <button
+          type="button"
+          onClick={() => onShowLogs(c.name)}
+          className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+        >
+          <ScrollText className="h-3.5 w-3.5" />
+          Логи
+        </button>
+      </td>
     </tr>
+  )
+}
+
+const TAIL_OPTIONS = [200, 500, 1000]
+
+function LogsModal({ name, onClose }: { name: string; onClose: () => void }) {
+  const [tail, setTail] = useState(200)
+  const { data, isLoading, isFetching, refetch } = useContainerLogs(name, tail)
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="flex h-[80vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-xl dark:bg-gray-800">
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+            <ScrollText className="h-4 w-4" />
+            Логи: {name}
+          </h3>
+          <div className="flex items-center gap-2">
+            <select
+              value={tail}
+              onChange={(e) => setTail(Number(e.target.value))}
+              className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            >
+              {TAIL_OPTIONS.map((t) => (
+                <option key={t} value={t}>
+                  {t} строк
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              title="Обновить"
+            >
+              <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              title="Закрыть"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto bg-gray-950 p-3">
+          {isLoading ? (
+            <div className="flex justify-center py-6">
+              <Spinner />
+            </div>
+          ) : data?.available ? (
+            <pre className="whitespace-pre-wrap break-all font-mono text-xs leading-relaxed text-gray-200">
+              {data.logs?.trim() || 'Логи пусты'}
+            </pre>
+          ) : (
+            <p className="text-sm text-red-400">
+              Не удалось получить логи{data?.reason ? `: ${data.reason}` : ''}
+            </p>
+          )}
+        </div>
+        <div className="border-t border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          Автообновление каждые 5 секунд
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -94,7 +180,13 @@ function ServiceRow({ label, status, detail }: { label: string; status: 'ok' | '
   )
 }
 
-function HealthBody({ data }: { data: SystemHealth }) {
+function HealthBody({
+  data,
+  onShowLogs,
+}: {
+  data: SystemHealth
+  onShowLogs: (name: string) => void
+}) {
   const { system, database, redis, backup_scheduler, websocket, containers } = data
   return (
     <div className="space-y-4">
@@ -157,11 +249,12 @@ function HealthBody({ data }: { data: SystemHealth }) {
                   <th className="px-3 py-2 font-medium">Состояние</th>
                   <th className="px-3 py-2 font-medium">Health</th>
                   <th className="px-3 py-2 font-medium">Статус</th>
+                  <th className="px-3 py-2" />
                 </tr>
               </thead>
               <tbody>
                 {(containers.containers ?? []).map((c) => (
-                  <ContainerRow key={c.name} c={c} />
+                  <ContainerRow key={c.name} c={c} onShowLogs={onShowLogs} />
                 ))}
               </tbody>
             </table>
@@ -172,8 +265,20 @@ function HealthBody({ data }: { data: SystemHealth }) {
   )
 }
 
+// URL Grafana: явный GRAFANA_PUBLIC_URL (напр. за Caddy) приоритетнее; иначе,
+// если контейнер Grafana запущен — собираем из текущего хоста и порта 3000
+// (работает, когда порт открыт для теста).
+function grafanaUrl(data?: SystemHealth): string | null {
+  if (data?.monitoring?.grafana_url) return data.monitoring.grafana_url
+  if (data?.monitoring?.grafana_running) {
+    return `${window.location.protocol}//${window.location.hostname}:3000`
+  }
+  return null
+}
+
 export default function ServerHealthPanel() {
   const { data, isLoading, isError, error, isFetching } = useSystemHealth()
+  const [logsContainer, setLogsContainer] = useState<string | null>(null)
 
   const overall = data?.status
   const statusBadge = overall ? (
@@ -181,6 +286,7 @@ export default function ServerHealthPanel() {
       {overall === 'ok' ? 'Всё в норме' : 'Есть проблемы'}
     </Badge>
   ) : null
+  const grafana = grafanaUrl(data)
 
   return (
     <SettingsCard
@@ -189,9 +295,9 @@ export default function ServerHealthPanel() {
       description="Ресурсы хоста, сервисы и контейнеры. Обновляется автоматически каждые 10 секунд."
       action={
         <span className="flex items-center gap-2">
-          {data?.monitoring?.grafana_url && (
+          {grafana && (
             <a
-              href={data.monitoring.grafana_url}
+              href={grafana}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:underline dark:text-primary-400"
@@ -214,8 +320,10 @@ export default function ServerHealthPanel() {
           Не удалось загрузить состояние сервера: {(error as Error)?.message ?? 'ошибка'}
         </p>
       ) : data ? (
-        <HealthBody data={data} />
+        <HealthBody data={data} onShowLogs={setLogsContainer} />
       ) : null}
+
+      {logsContainer && <LogsModal name={logsContainer} onClose={() => setLogsContainer(null)} />}
     </SettingsCard>
   )
 }

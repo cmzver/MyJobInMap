@@ -11,3 +11,13 @@ export function useSystemHealth(enabled = true) {
     refetchOnWindowFocus: true,
   })
 }
+
+// Логи выбранного контейнера. Включается только когда контейнер выбран.
+export function useContainerLogs(name: string | null, tail = 200) {
+  return useQuery({
+    queryKey: ['container-logs', name, tail],
+    queryFn: () => systemApi.getContainerLogs(name as string, tail),
+    enabled: !!name,
+    refetchInterval: 5_000,
+  })
+}

@@ -6,13 +6,13 @@ backup-scheduler, WebSocket и статус контейнеров (через d
 Логика — в system_health_service; здесь тонкий контроллер.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from app.models import UserModel, get_db
 from app.services import get_current_superadmin
-from app.services.system_health_service import collect_health
+from app.services.system_health_service import collect_health, container_logs
 
 router = APIRouter(prefix="/api/admin", tags=["Admin - System"])
 
@@ -28,3 +28,13 @@ async def system_health(
     threadpool, чтобы не держать event loop.
     """
     return await run_in_threadpool(collect_health, db)
+
+
+@router.get("/system/containers/{name}/logs")
+async def system_container_logs(
+    name: str,
+    tail: int = Query(200, ge=1, le=2000),
+    admin: UserModel = Depends(get_current_superadmin),
+):
+    """Последние `tail` строк логов контейнера (только супер-админ, read-only)."""
+    return await run_in_threadpool(container_logs, name, tail)

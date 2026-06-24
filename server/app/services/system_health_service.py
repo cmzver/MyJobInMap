@@ -160,10 +160,13 @@ def collect_health(db: Session) -> dict:
         "not_configured",
     ):
         overall = "degraded"
+    grafana_running = False
     if containers.get("available"):
         for c in containers["containers"]:
             if c["state"] not in ("running",) or c["health"] == "unhealthy":
                 overall = "degraded"
+            if "grafana" in c["name"] and c["state"] == "running":
+                grafana_running = True
 
     return {
         "status": overall,
@@ -176,5 +179,69 @@ def collect_health(db: Session) -> dict:
         "backup_scheduler": get_scheduler_status(),
         "websocket": ws_manager.get_status(),
         "containers": containers,
-        "monitoring": {"grafana_url": GRAFANA_PUBLIC_URL or None},
+        "monitoring": {
+            "grafana_url": GRAFANA_PUBLIC_URL or None,
+            "grafana_running": grafana_running,
+        },
     }
+
+
+def _demux_docker_stream(raw: bytes) -> str:
+    """Демультиплексирует stdout/stderr поток Docker logs (8-байтный заголовок
+    на фрейм). У контейнеров без tty логи приходят во фреймах; если поток не
+    похож на фреймовый (tty:true), возвращаем как есть."""
+    if not raw:
+        return ""
+    # tty-режим: первый байт не из {0,1,2} → это сырой текст.
+    if raw[0] not in (0, 1, 2):
+        return raw.decode("utf-8", errors="replace")
+    out = bytearray()
+    i, n = 0, len(raw)
+    while i + 8 <= n:
+        size = int.from_bytes(raw[i + 4 : i + 8], "big")
+        i += 8
+        out += raw[i : i + size]
+        i += size
+    return out.decode("utf-8", errors="replace")
+
+
+def _resolve_container_id(name: str) -> str | None:
+    """id контейнера нашего стека по имени (через docker-socket-proxy)."""
+    import httpx
+
+    resp = httpx.get(
+        f"{DOCKER_PROXY_URL}/containers/json", params={"all": "1"}, timeout=4
+    )
+    resp.raise_for_status()
+    for c in resp.json():
+        names = [n.lstrip("/") for n in (c.get("Names") or [])]
+        if name in names:
+            return c.get("Id")
+    return None
+
+
+def container_logs(name: str, tail: int = 200) -> dict:
+    """Последние `tail` строк логов контейнера (read-only, через прокси)."""
+    if not DOCKER_PROXY_URL:
+        return {"available": False, "reason": "docker proxy not configured"}
+    try:
+        import httpx
+
+        cid = _resolve_container_id(name)
+        if not cid:
+            return {"available": False, "reason": "container not found"}
+
+        resp = httpx.get(
+            f"{DOCKER_PROXY_URL}/containers/{cid}/logs",
+            params={"stdout": "1", "stderr": "1", "tail": str(tail), "timestamps": "1"},
+            timeout=8,
+        )
+        resp.raise_for_status()
+        return {
+            "available": True,
+            "name": name,
+            "logs": _demux_docker_stream(resp.content),
+        }
+    except Exception as exc:
+        logger.warning("Container logs fetch failed for %s: %s", name, exc)
+        return {"available": False, "reason": str(exc)}

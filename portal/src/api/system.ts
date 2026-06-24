@@ -32,12 +32,27 @@ export interface SystemHealth {
   }
   websocket: { active_connections?: number; unique_users?: number }
   containers: { available: boolean; reason?: string; containers?: ContainerInfo[] }
-  monitoring?: { grafana_url: string | null }
+  monitoring?: { grafana_url: string | null; grafana_running?: boolean }
+}
+
+export interface ContainerLogs {
+  available: boolean
+  name?: string
+  logs?: string
+  reason?: string
 }
 
 export const systemApi = {
   async getHealth(): Promise<SystemHealth> {
     const { data } = await apiClient.get<SystemHealth>('/admin/system/health')
+    return data
+  },
+
+  async getContainerLogs(name: string, tail = 200): Promise<ContainerLogs> {
+    const { data } = await apiClient.get<ContainerLogs>(
+      `/admin/system/containers/${encodeURIComponent(name)}/logs`,
+      { params: { tail } },
+    )
     return data
   },
 }
