@@ -346,7 +346,7 @@ export default function ChatSettingsModal({
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="truncate text-sm font-semibold text-gray-900 dark:text-white">{member.full_name}</div>
                           {member.user_id === currentUserId && (
-                            <span className="inline-flex rounded-md border border-emerald-200 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:border-emerald-900/40 dark:text-emerald-200">
+                            <span className="inline-flex rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold text-gray-600 dark:border-gray-600 dark:text-gray-300">
                               Вы
                             </span>
                           )}

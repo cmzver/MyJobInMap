@@ -128,3 +128,5 @@ portal/openapi.json
 
 # Claude Code local (per-developer) settings; shared .claude/ files stay tracked
 .claude/settings.local.json
+.claude/CLAUDE.md
+.mcp.json
