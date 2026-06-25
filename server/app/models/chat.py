@@ -155,6 +155,9 @@ class MessageModel(Base):
     __tablename__ = "messages"
     __table_args__ = (
         Index("ix_messages_conv_created", "conversation_id", "created_at"),
+        # Пагинация/агрегаты идут по id (cursor before_id, max(id) per-conv,
+        # unread-диапазоны id > last_read) — композит закрывает их index-only.
+        Index("ix_messages_conv_id", "conversation_id", "id"),
         Index("ix_messages_sender", "sender_id"),
         Index("ix_messages_task", "task_id"),
     )
