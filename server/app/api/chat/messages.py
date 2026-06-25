@@ -103,20 +103,15 @@ async def send_message(
             extra_data={"chat_id": str(conv_id)},
         )
 
+    # Полный MessageResponse в payload → клиент патчит кэш без рефетча истории.
+    # conversation_name — доп. поле для пуш-тостов (вне схемы; Android игнорирует лишнее).
     asyncio.ensure_future(
         broadcast_chat_message(
             member_user_ids=member_ids,
             conversation_id=conv_id,
             message_data={
-                "id": result.id,
-                "text": result.text,
-                "sender_id": current_user.id,
-                "sender_name": current_user.full_name or current_user.username,
+                **result.model_dump(mode="json"),
                 "conversation_name": conv.name if conv and conv.name else None,
-                "message_type": result.message_type,
-                "attached_task": (
-                    result.attached_task.model_dump() if result.attached_task else None
-                ),
             },
             sender_id=current_user.id,
         )

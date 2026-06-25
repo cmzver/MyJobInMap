@@ -95,6 +95,8 @@ async def upload_attachment(
     result = chat_service._build_message_response(db, msg)
 
     member_ids = chat_service.get_conversation_member_ids(db, msg.conversation_id)
+    # Полное сообщение в payload → получатель подхватывает вложение и тип
+    # без рефетча истории.
     asyncio.ensure_future(
         broadcast_chat_message_edited(
             member_user_ids=member_ids,
@@ -102,6 +104,7 @@ async def upload_attachment(
             message_id=msg.id,
             new_text=result.text or "",
             sender_id=current_user.id,
+            message=result.model_dump(mode="json"),
         )
     )
 

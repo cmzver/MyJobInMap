@@ -368,18 +368,23 @@ async def broadcast_chat_message_edited(
     message_id: int,
     new_text: str,
     sender_id: Optional[int] = None,
+    message: Optional[dict] = None,
 ) -> None:
-    """Broadcast: сообщение отредактировано."""
+    """Broadcast: сообщение отредактировано.
+
+    Если передан полный ``message`` (например, после загрузки вложения) —
+    клиент заменяет сообщение в кэше целиком; иначе патчит только текст.
+    """
+    payload: dict = {
+        "conversation_id": conversation_id,
+        "message_id": message_id,
+        "text": new_text,
+    }
+    if message is not None:
+        payload["message"] = message
     await ws_manager.send_to_conversation(
         member_user_ids,
-        _event(
-            "chat_message_edited",
-            {
-                "conversation_id": conversation_id,
-                "message_id": message_id,
-                "text": new_text,
-            },
-        ),
+        _event("chat_message_edited", payload),
         exclude_user_id=sender_id,
     )
 

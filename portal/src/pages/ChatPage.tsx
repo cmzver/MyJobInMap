@@ -30,7 +30,7 @@ import {
   useMuteConversation,
   useArchiveConversation,
 } from '@/hooks/useChat'
-import { sendWsMessage, onChatRead, onChatTyping } from '@/hooks/useWebSocket'
+import { sendWsMessage, onChatRead, onChatTyping, setActiveChatConversation } from '@/hooks/useWebSocket'
 import { chatApi } from '@/api/chat'
 import { buildChatTimelineItems } from '@/utils/chatTimeline'
 import type { MessageResponse, ConversationType, AttachmentResponse, ConversationMemberRole } from '@/types/chat'
@@ -225,6 +225,13 @@ export default function ChatPage() {
     setDebouncedMessageSearchQuery('')
     setSearchedMessages([])
     setReadReceipts(new Map())
+  }, [activeConversationId])
+
+  // Сообщаем WS-слою об открытом чате: его сообщения не считаем непрочитанными
+  // и не показываем по ним тосты.
+  useEffect(() => {
+    setActiveChatConversation(activeConversationId)
+    return () => setActiveChatConversation(null)
   }, [activeConversationId])
 
   const canOpenSettings = activeDetail?.type === 'group' || activeDetail?.type === 'org_general'

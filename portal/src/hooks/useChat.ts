@@ -16,7 +16,9 @@ export function useConversations(includeArchived = false) {
   return useQuery({
     queryKey: chatKeys.conversations(includeArchived),
     queryFn: () => chatApi.getConversations(includeArchived),
-    refetchInterval: 15_000,
+    // Realtime обновляет список через WS-патчи кэша; интервал — лишь редкий
+    // fallback на случай пропущенных событий (реконнект-sync — отдельная фаза).
+    refetchInterval: 60_000,
   })
 }
 
@@ -152,7 +154,9 @@ export function useMessages(conversationId: number | null) {
       return lastPage.items[0]?.id
     },
     enabled: conversationId != null,
-    refetchInterval: 10_000,
+    // История патчится WS-событиями; интервал — редкий fallback (catch-up при
+    // пропущенных сообщениях до внедрения reconnect-sync).
+    refetchInterval: 30_000,
   })
 }
 

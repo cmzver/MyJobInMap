@@ -16,6 +16,15 @@ import { useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import { myTaskKeys } from '@/hooks/useTasks'
+import { chatKeys } from '@/hooks/useChat'
+import {
+  appendMessageToCache,
+  bumpConversationListCache,
+  markMessageDeletedInCache,
+  patchMessageInCache,
+  replaceMessageInCache,
+} from '@/utils/chatCache'
+import type { MessageResponse } from '@/types/chat'
 import toast from 'react-hot-toast'
 
 export interface WsEvent {
@@ -35,11 +44,18 @@ const PING_INTERVAL_MS = 30000
 let globalWs: WebSocket | null = null
 let chatTypingListeners: ChatTypingHandler[] = []
 let chatReadListeners: ChatReadHandler[] = []
+// Открытый сейчас чат — чтобы не считать его непрочитанным и не спамить тостами.
+let activeChatConversationId: number | null = null
 
 export function sendWsMessage(message: Record<string, unknown>) {
   if (globalWs?.readyState === WebSocket.OPEN) {
     globalWs.send(JSON.stringify(message))
   }
+}
+
+/** Сообщить WS-слою, какой чат открыт (null — ни одного). */
+export function setActiveChatConversation(conversationId: number | null) {
+  activeChatConversationId = conversationId
 }
 
 export function onChatTyping(handler: ChatTypingHandler) {
@@ -57,7 +73,8 @@ export function onChatRead(handler: ChatReadHandler) {
 }
 
 export function useWebSocket() {
-  const { token, isAuthenticated } = useAuthStore()
+  const { token, isAuthenticated, user } = useAuthStore()
+  const currentUserId = user?.id ?? 0
   const queryClient = useQueryClient()
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -115,27 +132,57 @@ export function useWebSocket() {
             break
 
           // ===== Chat events =====
-          case 'chat_message':
-            queryClient.invalidateQueries({ queryKey: ['chat', 'messages', data.data.conversation_id] })
-            queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] })
-            toast('💬 Новое сообщение', { icon: '✉️', duration: 2000 })
+          // Событие несёт полный MessageResponse → патчим кэш на месте,
+          // без рефетча истории сообщений.
+          case 'chat_message': {
+            const message = data.data as unknown as MessageResponse
+            const convId = message.conversation_id
+            if (typeof convId !== 'number') break
+            const isActive = convId === activeChatConversationId
+            appendMessageToCache(queryClient, convId, message)
+            bumpConversationListCache(queryClient, message, {
+              incrementUnread: !isActive,
+              mentionsMe: (message.mentions ?? []).some((m) => m.user_id === currentUserId),
+            })
+            if (!isActive) {
+              toast('💬 Новое сообщение', { icon: '✉️', duration: 2000 })
+            }
             break
+          }
 
-          case 'chat_message_edited':
-            queryClient.invalidateQueries({ queryKey: ['chat', 'messages', data.data.conversation_id] })
+          case 'chat_message_edited': {
+            const convId = data.data.conversation_id as number | undefined
+            if (typeof convId !== 'number') break
+            if (data.data.message) {
+              // Полное сообщение (например, после загрузки вложения) — замена целиком.
+              replaceMessageInCache(queryClient, convId, data.data.message as unknown as MessageResponse)
+            } else if (typeof data.data.message_id === 'number') {
+              patchMessageInCache(queryClient, convId, data.data.message_id, {
+                text: (data.data.text as string | null) ?? null,
+                is_edited: true,
+              })
+            }
             break
+          }
 
-          case 'chat_message_deleted':
-            queryClient.invalidateQueries({ queryKey: ['chat', 'messages', data.data.conversation_id] })
-            queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] })
+          case 'chat_message_deleted': {
+            const convId = data.data.conversation_id as number | undefined
+            if (typeof convId === 'number' && typeof data.data.message_id === 'number') {
+              markMessageDeletedInCache(queryClient, convId, data.data.message_id)
+            }
+            // Превью чата могло смениться → лёгкая инвалидация списка (удаление редко).
+            queryClient.invalidateQueries({ queryKey: chatKeys.conversationsRoot() })
             break
+          }
 
           case 'chat_reaction':
-            queryClient.invalidateQueries({ queryKey: ['chat', 'messages', data.data.conversation_id] })
+            // Реакция несёт только emoji/user_id/action (без user_names) — патч
+            // невозможен без рефетча; реакции редки, поэтому invalidate допустим.
+            queryClient.invalidateQueries({ queryKey: chatKeys.messages(data.data.conversation_id as number) })
             break
 
           case 'chat_read':
-            queryClient.invalidateQueries({ queryKey: ['chat', 'conversations'] })
+            // Чужое прочтение не меняет мои счётчики — только read-receipts.
             if (
               typeof data.data.conversation_id === 'number' &&
               typeof data.data.user_id === 'number' &&
@@ -203,7 +250,7 @@ export function useWebSocket() {
         // ignore parse errors
       }
     },
-    [queryClient],
+    [queryClient, currentUserId],
   )
 
   const connect = useCallback(() => {
