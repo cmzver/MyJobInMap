@@ -112,7 +112,15 @@ websocket_manager.py, chat_service.py. Codegraph — основной инстр
 
 ---
 
-## ФАЗА 5 — Оптимистичная отправка + единый upload вложений
+## ФАЗА 5 — Оптимистичная отправка + единый upload вложений  ✅ ВНЕДРЕНО
+
+> Готово (5a, commit c7bf91d): оптимистичная отправка текста — мгновенная вставка
+> (temp id, статус «отправляется»), resolve подтверждённым (устойчив к рефетчу),
+> ошибка → индикатор + повтор. `useSendMessage` не трогает кэш — им рулит ChatPage.
+> Готово (5b): атомарный эндпоинт `POST /conversations/{id}/messages/with-attachment`
+> (сообщение+вложение за один запрос, без draft-сирот, один broadcast с готовым
+> вложением); клиент перешёл на него (`useUploadAttachment`→append в кэш). +4 pytest.
+> Не делалось: оптимистичный «uploading…» бабл для файла (follow-up).
 
 **Файлы:** [useChat.ts](../portal/src/hooks/useChat.ts), [ChatPage.tsx](../portal/src/pages/ChatPage.tsx), бэкенд attachments ([attachments.py](../server/app/api/chat/attachments.py)) — опционально единый multipart-эндпоинт.
 

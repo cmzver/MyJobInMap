@@ -10,18 +10,63 @@ import os
 import uuid
 from typing import Optional, cast
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import UserModel, get_db
-from app.models.chat import MessageAttachmentModel, MessageModel, MessageType
+from app.models.chat import (
+    ConversationModel,
+    MessageAttachmentModel,
+    MessageModel,
+    MessageType,
+)
 from app.schemas.chat import MessageResponse
 from app.services import chat_service, get_current_user_required
-from app.services.websocket_manager import broadcast_chat_message_edited
+from app.services.websocket_manager import (
+    broadcast_chat_message,
+    broadcast_chat_message_edited,
+)
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
+
+MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024  # 10 МБ
+
+
+def _persist_chat_file(
+    db: Session, file: UploadFile, content: bytes
+) -> tuple[str, Optional[str], str]:
+    """Сохранить файл вложения (+thumbnail для картинок) на диск.
+
+    Возвращает (относительный путь файла, путь thumbnail|None, mime).
+    """
+    raw_ext = os.path.splitext(file.filename or "file")[1]
+    safe_name = f"{uuid.uuid4().hex}{raw_ext[:10]}"
+    upload_dir = os.path.join(settings.UPLOADS_DIR, "chat")
+    os.makedirs(upload_dir, exist_ok=True)
+
+    with open(os.path.join(upload_dir, safe_name), "wb") as f:
+        f.write(content)
+
+    thumbnail_path: Optional[str] = None
+    mime = file.content_type or "application/octet-stream"
+    if mime.startswith("image/"):
+        try:
+            from app.services import image_optimizer
+
+            thumb_ext = os.path.splitext(safe_name)[1] or ".jpg"
+            optimized_bytes, new_ext, _ = image_optimizer.optimize(
+                content, thumb_ext, db
+            )
+            thumb_name = f"thumb_{uuid.uuid4().hex}{new_ext}"
+            with open(os.path.join(upload_dir, thumb_name), "wb") as tf:
+                tf.write(optimized_bytes)
+            thumbnail_path = f"chat/{thumb_name}"
+        except Exception:
+            pass  # Thumbnail необязателен
+
+    return f"chat/{safe_name}", thumbnail_path, mime
 
 
 @router.post("/messages/{message_id}/attachments", response_model=MessageResponse)
@@ -38,45 +83,16 @@ async def upload_attachment(
     if msg.sender_id != current_user.id:
         raise HTTPException(403, "Нельзя добавлять вложения к чужим сообщениям")
 
-    # Безопасное имя файла
-    _raw_ext: str = os.path.splitext(file.filename or "file")[1]
-    ext = _raw_ext[:10]
-    safe_name = f"{uuid.uuid4().hex}{ext}"
-    upload_dir = os.path.join(settings.UPLOADS_DIR, "chat")
-    os.makedirs(upload_dir, exist_ok=True)
-    file_path = os.path.join(upload_dir, safe_name)
-
     content: bytes = await file.read()
-    if len(content) > 10 * 1024 * 1024:  # 10MB limit
+    if len(content) > MAX_ATTACHMENT_BYTES:
         raise HTTPException(413, "Файл слишком большой (макс. 10 МБ)")
 
-    with open(file_path, "wb") as f:
-        f.write(content)
-
-    # Thumbnail для изображений
-    thumbnail_path = None
-    mime = file.content_type or "application/octet-stream"
-    if mime.startswith("image/"):
-        try:
-            from app.services import image_optimizer
-
-            thumb_ext = os.path.splitext(safe_name)[1] or ".jpg"
-            optimized_bytes, new_ext, _ = image_optimizer.optimize(
-                content, thumb_ext, db
-            )
-            # Сохраняем оптимизированную версию как thumbnail
-            thumb_name = f"thumb_{uuid.uuid4().hex}{new_ext}"
-            thumb_full_path = os.path.join(upload_dir, thumb_name)
-            with open(thumb_full_path, "wb") as tf:
-                tf.write(optimized_bytes)
-            thumbnail_path = f"chat/{thumb_name}"
-        except Exception:
-            pass  # Thumbnail необязателен
+    file_path_rel, thumbnail_path, mime = _persist_chat_file(db, file, content)
 
     attachment = MessageAttachmentModel(
         message_id=message_id,
-        file_path=f"chat/{safe_name}",
-        file_name=file.filename or safe_name,
+        file_path=file_path_rel,
+        file_name=file.filename or os.path.basename(file_path_rel),
         file_size=len(content),
         mime_type=mime,
         thumbnail_path=thumbnail_path,
@@ -105,6 +121,114 @@ async def upload_attachment(
             new_text=result.text or "",
             sender_id=current_user.id,
             message=result.model_dump(mode="json"),
+        )
+    )
+
+    return result
+
+
+@router.post(
+    "/conversations/{conv_id}/messages/with-attachment",
+    response_model=MessageResponse,
+)
+async def send_message_with_attachment(
+    conv_id: int,
+    file: UploadFile = File(...),
+    text: Optional[str] = Form(None),
+    reply_to_id: Optional[int] = Form(None),
+    current_user: UserModel = Depends(get_current_user_required),
+    db: Session = Depends(get_db),
+):
+    """Атомарно создать сообщение с вложением одним запросом.
+
+    Заменяет двухшаговый «draft → upload»: при сбое не остаётся пустого
+    сообщения-сироты, а получатель видит одно событие с готовым вложением.
+    """
+    chat_service._ensure_membership(db, conv_id, current_user.id)
+
+    content: bytes = await file.read()
+    if len(content) > MAX_ATTACHMENT_BYTES:
+        raise HTTPException(413, "Файл слишком большой (макс. 10 МБ)")
+
+    if reply_to_id:
+        reply = (
+            db.query(MessageModel)
+            .filter(
+                MessageModel.id == reply_to_id,
+                MessageModel.conversation_id == conv_id,
+            )
+            .first()
+        )
+        if not reply:
+            raise HTTPException(404, "Сообщение для ответа не найдено")
+
+    file_path_rel, thumbnail_path, mime = _persist_chat_file(db, file, content)
+    message_type = (
+        MessageType.IMAGE.value if mime.startswith("image/") else MessageType.FILE.value
+    )
+
+    msg = MessageModel(
+        conversation_id=conv_id,
+        sender_id=current_user.id,
+        text=text or None,
+        message_type=message_type,
+        reply_to_id=reply_to_id,
+    )
+    db.add(msg)
+    db.flush()
+
+    if text:
+        chat_service._parse_and_create_mentions(db, msg.id, conv_id, text)
+
+    db.add(
+        MessageAttachmentModel(
+            message_id=msg.id,
+            file_path=file_path_rel,
+            file_name=file.filename or os.path.basename(file_path_rel),
+            file_size=len(content),
+            mime_type=mime,
+            thumbnail_path=thumbnail_path,
+        )
+    )
+
+    conv = db.query(ConversationModel).filter(ConversationModel.id == conv_id).first()
+    if conv:
+        conv.last_message_at = msg.created_at
+
+    db.commit()
+    db.refresh(msg)
+
+    result = chat_service._build_message_response(db, msg)
+    member_ids = chat_service.get_conversation_member_ids(db, conv_id)
+
+    # Push-уведомления оффлайн-участникам
+    from app.services import send_push_notification
+
+    notify_user_ids = [uid for uid in member_ids if uid != current_user.id]
+    if notify_user_ids:
+        title = (
+            conv.name
+            if conv and conv.name
+            else (current_user.full_name or "Новое сообщение")
+        )
+        send_push_notification(
+            title=title,
+            body=text[:100] if text else "Вложение",
+            notification_type="chat_message",
+            task_id=conv.task_id if conv else None,
+            user_ids=notify_user_ids,
+            extra_data={"chat_id": str(conv_id)},
+        )
+
+    asyncio.ensure_future(
+        broadcast_chat_message(
+            member_user_ids=member_ids,
+            conversation_id=conv_id,
+            message_data={
+                **result.model_dump(mode="json"),
+                "conversation_name": conv.name if conv and conv.name else None,
+            },
+            sender_id=current_user.id,
         )
     )
 

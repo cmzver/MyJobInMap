@@ -445,13 +445,16 @@ export default function ChatPage() {
     uploadAttachment.mutate(
       { conversationId: activeConversationId, file, replyToId },
       {
-        onSuccess: () => {
+        onSuccess: (msg) => {
+          // Отправитель исключён из WS-броадкаста — кладём сообщение в кэш сами.
+          appendMessageToCache(qc, msg.conversation_id, msg)
+          bumpConversationListCache(qc, msg, { incrementUnread: false, mentionsMe: false })
           setReplyTo(null)
         },
         onError: () => toast.error('Ошибка загрузки файла'),
       },
     )
-  }, [activeConversationId, replyTo, uploadAttachment])
+  }, [activeConversationId, replyTo, uploadAttachment, qc])
 
   const handleDelete = useCallback((messageId: number) => {
     if (!activeConversationId) return

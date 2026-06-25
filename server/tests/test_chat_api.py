@@ -1255,3 +1255,71 @@ class TestTaskAttachment:
         assert resp.status_code == 200
         conv = next(c for c in resp.json() if c["id"] == conv_id)
         assert conv["last_message"]["text"].startswith("📋 Заявка")
+
+
+class TestSendMessageWithAttachment:
+    """Атомарная отправка сообщения с вложением (без draft-сирот)."""
+
+    def _create_direct(self, client, auth_headers, second_user):
+        resp = client.post(
+            "/api/chat/conversations",
+            json={"type": "direct", "member_user_ids": [second_user.id]},
+            headers=auth_headers,
+        )
+        return resp.json()["id"]
+
+    def test_image_attachment_with_caption(self, client, auth_headers, second_user):
+        """Картинка с подписью → message_type=image, одно вложение, текст сохранён."""
+        conv_id = self._create_direct(client, auth_headers, second_user)
+        resp = client.post(
+            f"/api/chat/conversations/{conv_id}/messages/with-attachment",
+            data={"text": "смотри"},
+            files={"file": ("pic.png", b"fake-image-bytes", "image/png")},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["message_type"] == "image"
+        assert data["text"] == "смотри"
+        assert len(data["attachments"]) == 1
+        assert data["attachments"][0]["file_name"] == "pic.png"
+
+    def test_file_attachment_without_text(self, client, auth_headers, second_user):
+        """Не-картинка без текста → message_type=file, текст None."""
+        conv_id = self._create_direct(client, auth_headers, second_user)
+        resp = client.post(
+            f"/api/chat/conversations/{conv_id}/messages/with-attachment",
+            files={"file": ("doc.bin", b"binary", "application/octet-stream")},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["message_type"] == "file"
+        assert data["text"] is None
+        assert len(data["attachments"]) == 1
+
+    def test_single_message_no_orphan(self, client, auth_headers, second_user):
+        """В чате ровно одно сообщение с вложением — никакого пустого draft."""
+        conv_id = self._create_direct(client, auth_headers, second_user)
+        client.post(
+            f"/api/chat/conversations/{conv_id}/messages/with-attachment",
+            files={"file": ("a.png", b"x", "image/png")},
+            headers=auth_headers,
+        )
+        resp = client.get(
+            f"/api/chat/conversations/{conv_id}/messages", headers=auth_headers
+        )
+        items = resp.json()["items"]
+        assert len(items) == 1
+        assert len(items[0]["attachments"]) == 1
+
+    def test_reply_to_foreign_message_404(self, client, auth_headers, second_user):
+        """reply_to_id из чужого чата → 404, сообщение не создаётся."""
+        conv_id = self._create_direct(client, auth_headers, second_user)
+        resp = client.post(
+            f"/api/chat/conversations/{conv_id}/messages/with-attachment",
+            data={"reply_to_id": "999999"},
+            files={"file": ("a.png", b"x", "image/png")},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 404

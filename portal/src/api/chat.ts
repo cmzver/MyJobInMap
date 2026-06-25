@@ -135,6 +135,24 @@ export const chatApi = {
     return data
   },
 
+  // Атомарно: сообщение + вложение одним запросом (без draft-сирот)
+  async sendMessageWithAttachment(
+    conversationId: number,
+    file: File,
+    opts: { text?: string | null; replyToId?: number } = {},
+  ): Promise<MessageResponse> {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (opts.text) formData.append('text', opts.text)
+    if (opts.replyToId != null) formData.append('reply_to_id', String(opts.replyToId))
+    const { data } = await apiClient.post<MessageResponse>(
+      `/chat/conversations/${conversationId}/messages/with-attachment`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    )
+    return data
+  },
+
   async downloadAttachment(attachmentId: number): Promise<Blob> {
     const { data } = await apiClient.get<Blob>(`/chat/attachments/${attachmentId}/download`, {
       responseType: 'blob',

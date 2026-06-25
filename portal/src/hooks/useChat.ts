@@ -182,25 +182,14 @@ export function useSendMessage() {
 }
 
 export function useUploadAttachment() {
-  const qc = useQueryClient()
+  // Атомарный эндпоинт: сообщение+вложение за один запрос (без draft-сирот).
+  // Кэшем управляет вызывающий код (ChatPage.handleUpload) — append + bump.
   return useMutation({
-    mutationFn: async ({ conversationId, file, replyToId }: {
+    mutationFn: ({ conversationId, file, replyToId }: {
       conversationId: number
       file: File
       replyToId?: number
-    }) => {
-      const draft = await chatApi.sendMessage(conversationId, {
-        text: null,
-        reply_to_id: replyToId,
-        message_type: file.type.startsWith('image/') ? 'image' : 'file',
-      })
-
-      return chatApi.uploadAttachment(draft.id, file)
-    },
-    onSuccess: (msg) => {
-      qc.invalidateQueries({ queryKey: chatKeys.messages(msg.conversation_id) })
-      qc.invalidateQueries({ queryKey: chatKeys.conversationsRoot() })
-    },
+    }) => chatApi.sendMessageWithAttachment(conversationId, file, { replyToId }),
   })
 }
 
