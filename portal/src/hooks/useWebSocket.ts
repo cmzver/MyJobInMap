@@ -20,6 +20,7 @@ import { chatKeys } from '@/hooks/useChat'
 import {
   appendMessageToCache,
   bumpConversationListCache,
+  isConversationMuted,
   markMessageDeletedInCache,
   patchMessageInCache,
   replaceMessageInCache,
@@ -139,13 +140,20 @@ export function useWebSocket() {
             const convId = message.conversation_id
             if (typeof convId !== 'number') break
             const isActive = convId === activeChatConversationId
+            const mentionsMe = (message.mentions ?? []).some((m) => m.user_id === currentUserId)
             appendMessageToCache(queryClient, convId, message)
             bumpConversationListCache(queryClient, message, {
               incrementUnread: !isActive,
-              mentionsMe: (message.mentions ?? []).some((m) => m.user_id === currentUserId),
+              mentionsMe,
             })
-            if (!isActive) {
-              toast('💬 Новое сообщение', { icon: '✉️', duration: 2000 })
+            // Тост — только для неоткрытого и незамьюченного чата.
+            // Личное упоминание показываем даже в mute-чате (важное событие).
+            if (!isActive && (mentionsMe || !isConversationMuted(queryClient, convId))) {
+              if (mentionsMe) {
+                toast(`💬 Вас упомянули: ${message.sender_name}`, { icon: '@', duration: 3000 })
+              } else {
+                toast('💬 Новое сообщение', { icon: '✉️', duration: 2000 })
+              }
             }
             break
           }

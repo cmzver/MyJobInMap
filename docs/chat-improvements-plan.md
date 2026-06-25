@@ -93,7 +93,13 @@ websocket_manager.py, chat_service.py. Codegraph — основной инстр
 
 ---
 
-## ФАЗА 4 — UX уведомлений: уважать mute/активный чат + бейдж непрочитанных
+## ФАЗА 4 — UX уведомлений: уважать mute/активный чат + бейдж непрочитанных  ✅ ВНЕДРЕНО
+
+> Готово: тост `chat_message` подавляется для активного И замьюченного чата
+> (`isConversationMuted` по кэшу); личное упоминание тостится даже в mute-чате и с
+> выделенным текстом. Бейдж непрочитанных и mention-бейдж в навигации уже были
+> (`DashboardLayout` суммирует `unread_count`/`unread_mention_count`) — теперь они
+> обновляются в реальном времени за счёт патча кэша из Фазы 1.
 
 **Файлы:** [useWebSocket.ts](../portal/src/hooks/useWebSocket.ts), навигация ([DashboardLayout.tsx](../portal/src/layouts/DashboardLayout.tsx)), [ChatPage.tsx](../portal/src/pages/ChatPage.tsx)
 

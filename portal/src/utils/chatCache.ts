@@ -91,6 +91,17 @@ export function markMessageDeletedInCache(
   patchMessageInCache(qc, conversationId, messageId, { is_deleted: true })
 }
 
+/** Замьючен ли чат (по данным кэша списка). Неизвестный чат → false. */
+export function isConversationMuted(qc: QueryClient, conversationId: number): boolean {
+  for (const [, list] of qc.getQueriesData<ConversationListItem[]>({
+    queryKey: chatKeys.conversationsRoot(),
+  })) {
+    const conversation = list?.find((c) => c.id === conversationId)
+    if (conversation) return conversation.is_muted
+  }
+  return false
+}
+
 function toPreview(message: MessageResponse): LastMessagePreview {
   let text = message.text ?? null
   if (!text && message.message_type === 'task') {
