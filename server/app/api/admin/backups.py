@@ -65,8 +65,17 @@ async def update_backup_settings(
     admin: UserModel = Depends(get_current_superadmin),
     service: BackupService = Depends(get_backup_service),
 ):
-    """Обновить настройки резервного копирования."""
-    return service.update_settings(settings_data)
+    """Обновить настройки резервного копирования.
+
+    После сохранения переконфигурируем работающий планировщик на лету
+    (частота/срок хранения/включение), чтобы изменения вступали в силу
+    без перезапуска сервера."""
+    result = service.update_settings(settings_data)
+
+    from app.services.backup_scheduler import apply_settings
+
+    apply_settings()
+    return result
 
 
 # -- Backup file operations --------------------------------------------------

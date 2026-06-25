@@ -274,13 +274,18 @@ class TestBackupScheduler:
 
         stop_scheduler()  # Should not raise
 
+    @patch("app.services.backup_scheduler._read_db_settings")
     @patch("app.services.backup_scheduler.settings")
-    def test_get_scheduler_status_enabled_not_running(self, mock_settings):
+    def test_get_scheduler_status_enabled_not_running(self, mock_settings, mock_read):
         """get_scheduler_status when enabled but scheduler not started."""
         mock_settings.BACKUP_SCHEDULER_ENABLED = True
         mock_settings.BACKUP_SCHEDULE_HOUR = 4
         mock_settings.BACKUP_SCHEDULE_MINUTE = 30
-        mock_settings.BACKUP_RETENTION_DAYS = 14
+        mock_read.return_value = {
+            "auto_backup": True,
+            "schedule": "daily",
+            "retention_days": 14,
+        }
 
         import app.services.backup_scheduler as bs
 
@@ -293,10 +298,73 @@ class TestBackupScheduler:
             status = get_scheduler_status()
             assert status["enabled"] is True
             assert status["running"] is False
-            assert status["schedule"] == "04:30"
+            assert status["schedule"] == "Ежедневно 04:30"
             assert status["retention_days"] == 14
         finally:
             bs._scheduler = old_scheduler
+
+    @patch("app.services.backup_scheduler._read_db_settings")
+    @patch("app.services.backup_scheduler.settings")
+    def test_status_manual_shows_vruchnuyu(self, mock_settings, mock_read):
+        """manual / выключенное автокопирование → расписание 'Вручную'."""
+        mock_settings.BACKUP_SCHEDULER_ENABLED = True
+        mock_settings.BACKUP_SCHEDULE_HOUR = 3
+        mock_settings.BACKUP_SCHEDULE_MINUTE = 0
+        mock_read.return_value = {
+            "auto_backup": False,
+            "schedule": "manual",
+            "retention_days": 7,
+        }
+
+        import app.services.backup_scheduler as bs
+
+        old_scheduler = bs._scheduler
+        bs._scheduler = None
+        try:
+            from app.services.backup_scheduler import get_scheduler_status
+
+            status = get_scheduler_status()
+            assert status["schedule"] == "Вручную"
+            assert status["auto_backup"] is False
+        finally:
+            bs._scheduler = old_scheduler
+
+    @patch("app.services.backup_scheduler._read_db_settings")
+    @patch("app.services.backup_scheduler.settings")
+    def test_apply_settings_toggles_job(self, mock_settings, mock_read):
+        """apply_settings ставит задачу для daily и снимает её для manual."""
+        mock_settings.BACKUP_SCHEDULER_ENABLED = True
+        mock_settings.is_sqlite = True
+        mock_settings.is_postgres = False
+        mock_settings.BACKUP_SCHEDULE_HOUR = 3
+        mock_settings.BACKUP_SCHEDULE_MINUTE = 0
+        mock_read.return_value = {
+            "auto_backup": True,
+            "schedule": "daily",
+            "retention_days": 30,
+        }
+
+        import app.services.backup_scheduler as bs
+        from app.services.backup_scheduler import (
+            apply_settings,
+            start_scheduler,
+            stop_scheduler,
+        )
+
+        try:
+            assert start_scheduler() is True
+            assert bs._scheduler.get_job("daily_backup") is not None
+
+            # Переключение на manual должно снять задачу на лету
+            mock_read.return_value = {
+                "auto_backup": False,
+                "schedule": "manual",
+                "retention_days": 30,
+            }
+            apply_settings()
+            assert bs._scheduler.get_job("daily_backup") is None
+        finally:
+            stop_scheduler()
 
 
 # ============================================================================
