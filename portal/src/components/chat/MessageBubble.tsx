@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/utils/cn'
-import { Reply, Pencil, Trash2, SmilePlus, Check, CheckCheck, Download, FileImage, FileText, ChevronLeft, ChevronRight, ClipboardList } from 'lucide-react'
+import { Reply, Pencil, Trash2, SmilePlus, Check, CheckCheck, Download, FileImage, FileText, ChevronLeft, ChevronRight, ClipboardList, Clock, AlertCircle, RotateCw } from 'lucide-react'
 import { formatDatePretty, formatDateTime } from '@/utils/dateFormat'
 import { getChatSystemEventMeta } from '@/utils/chatSystemEvents'
 import { chatApi } from '@/api/chat'
@@ -9,6 +9,7 @@ import Modal from '@/components/Modal'
 import UserAvatar from '@/components/UserAvatar'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
+import type { CachedMessage } from '@/utils/chatCache'
 import type { AttachmentResponse, MessageResponse } from '@/types/chat'
 import type { TaskStatus, TaskPriority } from '@/types/task'
 
@@ -29,6 +30,7 @@ interface Props {
   onEdit: (msg: MessageResponse) => void
   onDelete: (msgId: number) => void
   onReaction: (msgId: number, emoji: string) => void
+  onRetry?: (msgId: number) => void
   currentUserId: number
 }
 
@@ -573,6 +575,7 @@ function MessageBubble({
   onEdit,
   onDelete,
   onReaction,
+  onRetry,
   currentUserId,
 }: Props) {
   const [showActions, setShowActions] = useState(false)
@@ -580,6 +583,8 @@ function MessageBubble({
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<number | null>(null)
   const [lightboxAttachmentId, setLightboxAttachmentId] = useState<number | null>(null)
   const isRead = readCount > 0
+  const isPending = (message as CachedMessage)._optimistic === true
+  const isFailed = (message as CachedMessage)._failed === true
   const navigate = useNavigate()
 
   const handleAttachmentOpen = async (attachment: AttachmentResponse) => {
@@ -805,11 +810,23 @@ function MessageBubble({
           )}>
             {message.is_edited && <span>ред.</span>}
             <span>{formatDateTime(message.created_at)}</span>
-            {isOwn && (
+            {isOwn && !isPending && !isFailed && (
               <>
                 {isRead ? <CheckCheck className="h-3 w-3" /> : <Check className="h-3 w-3" />}
                 {isRead && recipientCount > 1 && <span>{readCount}</span>}
               </>
+            )}
+            {isOwn && isPending && <Clock className="h-3 w-3" aria-label="Отправляется" />}
+            {isOwn && isFailed && (
+              <button
+                type="button"
+                onClick={() => onRetry?.(message.id)}
+                className="flex items-center gap-0.5 text-red-200 hover:text-white"
+                title="Не отправлено — повторить"
+              >
+                <AlertCircle className="h-3 w-3" />
+                <RotateCw className="h-3 w-3" />
+              </button>
             )}
           </div>
         </div>

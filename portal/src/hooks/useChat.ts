@@ -163,7 +163,8 @@ export function useMessages(conversationId: number | null) {
 // ─── Message Actions ────────────────────────────────────────────
 
 export function useSendMessage() {
-  const qc = useQueryClient()
+  // Кэшем управляет вызывающий код (ChatPage): оптимистичная вставка и
+  // resolve/markFailed в onSuccess/onError. Здесь — только сетевой вызов.
   return useMutation({
     mutationFn: ({ conversationId, text, replyToId, messageType, taskId }: {
       conversationId: number
@@ -177,10 +178,6 @@ export function useSendMessage() {
       message_type: messageType ?? 'text',
       task_id: taskId,
     }),
-    onSuccess: (msg) => {
-      qc.invalidateQueries({ queryKey: chatKeys.messages(msg.conversation_id) })
-      qc.invalidateQueries({ queryKey: chatKeys.conversationsRoot() })
-    },
   })
 }
 

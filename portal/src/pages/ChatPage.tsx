@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { MessageSquare, Plus, Search, ArrowLeft, MoreVertical, VolumeX, Volume2, Archive, Inbox, Users } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { useAuthStore } from '@/store/authStore'
@@ -33,6 +34,14 @@ import {
 import { sendWsMessage, onChatRead, onChatTyping, setActiveChatConversation } from '@/hooks/useWebSocket'
 import { chatApi } from '@/api/chat'
 import { buildChatTimelineItems } from '@/utils/chatTimeline'
+import {
+  appendMessageToCache,
+  bumpConversationListCache,
+  insertOptimisticMessage,
+  resolveOptimisticMessage,
+  setOptimisticStatus,
+  type CachedMessage,
+} from '@/utils/chatCache'
 import type { MessageResponse, ConversationType, AttachmentResponse, ConversationMemberRole } from '@/types/chat'
 import toast from 'react-hot-toast'
 
@@ -66,7 +75,12 @@ export default function ChatPage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<number | null>(null)
   const typingTimeoutsRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
   const isTypingRef = useRef(false)
+  // Оптимистичная отправка: счётчик временных id (большие, чтобы сортировались
+  // в конец ленты) и payload'ы для повторной отправки по кнопке «повторить».
+  const optimisticIdRef = useRef(1_000_000_000_000_000)
+  const pendingPayloadsRef = useRef<Map<number, { text: string; replyToId?: number }>>(new Map())
 
+  const qc = useQueryClient()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
@@ -346,13 +360,75 @@ export default function ChatPage() {
     return `${names.slice(0, 2).join(', ')} печатают...`
   }, [typingUsers])
 
+  const dispatchOptimistic = useCallback((conversationId: number, tempId: number, text: string, replyToId?: number) => {
+    sendMessage.mutate(
+      { conversationId, text, replyToId },
+      {
+        onSuccess: (msg) => {
+          pendingPayloadsRef.current.delete(tempId)
+          resolveOptimisticMessage(qc, conversationId, tempId, msg)
+          bumpConversationListCache(qc, msg, { incrementUnread: false, mentionsMe: false })
+        },
+        onError: () => {
+          setOptimisticStatus(qc, conversationId, tempId, { _optimistic: false, _failed: true })
+          toast.error('Сообщение не отправлено')
+        },
+      },
+    )
+  }, [qc, sendMessage])
+
   const handleSend = useCallback((text: string, replyToId?: number, taskId?: number) => {
     if (!activeConversationId) return
-    sendMessage.mutate(
-      { conversationId: activeConversationId, text, replyToId, taskId },
-      { onError: () => toast.error('Ошибка отправки') },
-    )
-  }, [activeConversationId, sendMessage])
+
+    // Прикреплённая заявка — карточку строит сервер; ждём подтверждения, без оптимистики.
+    if (taskId) {
+      sendMessage.mutate(
+        { conversationId: activeConversationId, text, replyToId, taskId },
+        {
+          onSuccess: (msg) => {
+            appendMessageToCache(qc, msg.conversation_id, msg)
+            bumpConversationListCache(qc, msg, { incrementUnread: false, mentionsMe: false })
+          },
+          onError: () => toast.error('Ошибка отправки'),
+        },
+      )
+      return
+    }
+
+    const tempId = ++optimisticIdRef.current
+    const optimistic: CachedMessage = {
+      id: tempId,
+      conversation_id: activeConversationId,
+      sender_id: currentUserId,
+      sender_name: user?.fullName || user?.username || '',
+      sender_username: user?.username || '',
+      text,
+      message_type: 'text',
+      reply_to: replyTo
+        ? { id: replyTo.id, text: replyTo.text, sender_id: replyTo.sender_id, sender_name: replyTo.sender_name }
+        : null,
+      attached_task: null,
+      attachments: [],
+      reactions: [],
+      mentions: [],
+      is_edited: false,
+      is_deleted: false,
+      created_at: new Date().toISOString(),
+      edited_at: null,
+      _optimistic: true,
+    }
+    insertOptimisticMessage(qc, activeConversationId, optimistic)
+    pendingPayloadsRef.current.set(tempId, { text, replyToId })
+    dispatchOptimistic(activeConversationId, tempId, text, replyToId)
+  }, [activeConversationId, currentUserId, user, replyTo, qc, sendMessage, dispatchOptimistic])
+
+  const handleRetryMessage = useCallback((tempId: number) => {
+    if (!activeConversationId) return
+    const payload = pendingPayloadsRef.current.get(tempId)
+    if (!payload) return
+    setOptimisticStatus(qc, activeConversationId, tempId, { _optimistic: true, _failed: false })
+    dispatchOptimistic(activeConversationId, tempId, payload.text, payload.replyToId)
+  }, [activeConversationId, qc, dispatchOptimistic])
 
   const handleEdit = useCallback((messageId: number, text: string) => {
     if (!activeConversationId) return
@@ -872,6 +948,7 @@ export default function ChatPage() {
                       onEdit={setEditingMessage}
                       onDelete={handleDelete}
                       onReaction={handleReaction}
+                      onRetry={handleRetryMessage}
                       currentUserId={currentUserId}
                     />
                   )

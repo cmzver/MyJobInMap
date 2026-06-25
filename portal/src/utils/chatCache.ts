@@ -20,6 +20,16 @@ import type {
 
 type MessagesCache = InfiniteData<MessageListResponse>
 
+/**
+ * Сообщение в кэше с клиентскими флагами оптимистичной отправки.
+ * `_optimistic` — ждёт ответа сервера; `_failed` — отправка не удалась.
+ * Поля не уходят на сервер и игнорируются при обычной сериализации.
+ */
+export type CachedMessage = MessageResponse & {
+  _optimistic?: boolean
+  _failed?: boolean
+}
+
 function mapMessages(
   cache: MessagesCache,
   fn: (message: MessageResponse) => MessageResponse,
@@ -149,4 +159,59 @@ export function bumpConversationListCache(
       )
     },
   )
+}
+
+// ─── Оптимистичная отправка ──────────────────────────────────────
+
+/**
+ * Вставить оптимистичное сообщение. В отличие от appendMessageToCache,
+ * создаёт кэш-страницу, если истории ещё нет (первое сообщение в чате).
+ */
+export function insertOptimisticMessage(
+  qc: QueryClient,
+  conversationId: number,
+  message: CachedMessage,
+): void {
+  const key = chatKeys.messages(conversationId)
+  const cache = qc.getQueryData<MessagesCache>(key)
+  if (!cache || cache.pages.length === 0) {
+    qc.setQueryData<MessagesCache>(key, {
+      pages: [{ items: [message], has_more: false }],
+      pageParams: [undefined],
+    })
+    return
+  }
+  const pages = cache.pages.map((page, index) =>
+    index === 0 ? { ...page, items: [...page.items, message] } : page,
+  )
+  qc.setQueryData(key, { ...cache, pages })
+}
+
+/** Пометить оптимистичное сообщение статусом (sending/failed). */
+export function setOptimisticStatus(
+  qc: QueryClient,
+  conversationId: number,
+  tempId: number,
+  status: { _optimistic?: boolean; _failed?: boolean },
+): void {
+  patchMessageInCache(qc, conversationId, tempId, status as Partial<MessageResponse>)
+}
+
+/** Заменить оптимистичное сообщение (temp id) подтверждённым с сервера. */
+export function resolveOptimisticMessage(
+  qc: QueryClient,
+  conversationId: number,
+  tempId: number,
+  real: MessageResponse,
+): void {
+  const key = chatKeys.messages(conversationId)
+  const cache = qc.getQueryData<MessagesCache>(key)
+  if (!cache) return
+  // Фоновый рефетч мог стереть temp-сообщение между отправкой и ответом —
+  // тогда не теряем подтверждённое, а добавляем его (с дедупом).
+  if (!hasMessage(cache, tempId)) {
+    appendMessageToCache(qc, conversationId, real)
+    return
+  }
+  qc.setQueryData(key, mapMessages(cache, (m) => (m.id === tempId ? real : m)))
 }
