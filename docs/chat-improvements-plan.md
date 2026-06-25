@@ -32,7 +32,12 @@ websocket_manager.py, chat_service.py. Codegraph — основной инстр
 
 ---
 
-## ФАЗА 1 — Realtime: патч кэша вместо инвалидации + снять polling  ⭐ старт
+## ФАЗА 1 — Realtime: патч кэша вместо инвалидации + снять polling  ✅ ВНЕДРЕНО (commit 561e17d)
+
+> Готово: `chatCache.ts` + WS-патчи (message/edited/deleted), трекинг активного чата,
+> `chat_read` не инвалидирует список, polling ослаблен до fallback (msgs 30s / convs 60s).
+> Реакции оставлены на invalidate (payload без `user_names`) — follow-up.
+> Вложения: edited-broadcast несёт полное сообщение → получатель видит вложение без рефетча.
 
 **Проблема:** `useWebSocket` на каждое событие делает `invalidateQueries` → полный рефетч истории у всех участников; плюс `refetchInterval` дублирует WS.
 **Файлы:** [useWebSocket.ts](../portal/src/hooks/useWebSocket.ts), [useChat.ts](../portal/src/hooks/useChat.ts), [ChatPage.tsx](../portal/src/pages/ChatPage.tsx)
@@ -65,7 +70,10 @@ websocket_manager.py, chat_service.py. Codegraph — основной инстр
 
 ---
 
-## ФАЗА 3 — WS-хендлер: не блокировать event loop
+## ФАЗА 3 — WS-хендлер: не блокировать event loop  ✅ ВНЕДРЕНО (commit fed4a6e)
+
+> Готово: `chat_typing`/`chat_read` через `run_in_threadpool`; состав чата для typing
+> из TTL-кэша (30s) с проверкой членства по нему же.
 
 **Проблема:** в [websocket.py](../server/app/api/websocket.py) `chat_typing`/`chat_read` делают синхронный `db.query` прямо в async-цикле; typing прилетает почти на каждый keystroke.
 **Файлы:** [websocket.py](../server/app/api/websocket.py), возможно [chat_service.py](../server/app/services/chat_service.py)
