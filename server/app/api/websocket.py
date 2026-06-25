@@ -8,17 +8,45 @@ WebSocket API
 """
 
 import logging
+import time
 
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
+from fastapi.concurrency import run_in_threadpool
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import UserModel, UserRole
 from app.models.base import get_db
+from app.models.chat import ConversationMemberModel
+from app.services.chat_service import mark_as_read
 from app.services.websocket_manager import ws_manager
 
 router = APIRouter(tags=["WebSocket"])
+
+# Кэш состава чатов для typing-индикатора: conv_id -> (monotonic_ts, [user_id]).
+# Короткий TTL — typing не требует строгой свежести, зато не бьём в БД на каждый
+# keystroke и не блокируем event loop.
+_member_cache: dict[int, tuple[float, list[int]]] = {}
+_MEMBER_CACHE_TTL = 30.0
+
+
+def _get_conversation_member_ids_cached(db: Session, conv_id: int) -> list[int]:
+    """Список user_id участников чата с TTL-кэшем (sync, вызывать в threadpool)."""
+    now = time.monotonic()
+    cached = _member_cache.get(conv_id)
+    if cached is not None and now - cached[0] < _MEMBER_CACHE_TTL:
+        return cached[1]
+    member_ids = [
+        m[0]
+        for m in db.query(ConversationMemberModel.user_id)
+        .filter(ConversationMemberModel.conversation_id == conv_id)
+        .all()
+    ]
+    _member_cache[conv_id] = (now, member_ids)
+    return member_ids
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -96,22 +124,15 @@ async def websocket_endpoint(
             if msg_type == "ping":
                 await websocket.send_json({"type": "pong"})
             elif msg_type == "chat_typing":
-                # Рассылка typing indicator участникам чата
+                # Рассылка typing indicator участникам чата.
+                # Состав берём из TTL-кэша; членство проверяем по нему же.
                 conv_id = data.get("conversation_id")
                 if conv_id:
-                    from app.services.chat_service import _ensure_membership
-
-                    _ensure_membership(db, conv_id, user_id)
-                    from app.models.chat import ConversationMemberModel
-
-                    members = (
-                        db.query(ConversationMemberModel.user_id)
-                        .filter(
-                            ConversationMemberModel.conversation_id == conv_id,
-                        )
-                        .all()
+                    member_ids = await run_in_threadpool(
+                        _get_conversation_member_ids_cached, db, conv_id
                     )
-                    member_ids = [m[0] for m in members]
+                    if user_id not in member_ids:
+                        continue
                     await ws_manager.send_to_conversation(
                         member_ids,
                         {
@@ -125,13 +146,13 @@ async def websocket_endpoint(
                         exclude_user_id=user_id,
                     )
             elif msg_type == "chat_read":
-                # Mark as read через WebSocket
+                # Mark as read через WebSocket (sync DB → threadpool).
                 conv_id = data.get("conversation_id")
                 last_message_id = data.get("last_message_id")
                 if conv_id and last_message_id:
-                    from app.services.chat_service import mark_as_read
-
-                    mark_as_read(db, conv_id, user_id, last_message_id)
+                    await run_in_threadpool(
+                        mark_as_read, db, conv_id, user_id, last_message_id
+                    )
     except WebSocketDisconnect:
         pass
     except Exception as e:
