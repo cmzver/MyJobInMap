@@ -687,7 +687,7 @@ export default function ChatPage() {
 
   return (
     <div
-      className="flex h-[calc(100vh-64px)] h-[calc(100dvh-64px)] bg-white dark:bg-gray-900"
+      className="flex h-[calc(100vh-8rem)] h-[calc(100dvh-8rem)] bg-white dark:bg-gray-900"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className={cn(
