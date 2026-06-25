@@ -54,7 +54,13 @@ websocket_manager.py, chat_service.py. Codegraph — основной инстр
 
 ---
 
-## ФАЗА 2 — Backend: устранить N+1 в горячих запросах
+## ФАЗА 2 — Backend: устранить N+1 в горячих запросах  ✅ ВНЕДРЕНО
+
+> Готово: `_build_message_responses` (батч на всю страницу: reply/вложения/реакции/
+> упоминания/заявки/пользователи — по одному IN-запросу); `_build_message_response`
+> стал тонкой обёрткой. `get_user_conversations` переписан на агрегаты с `GROUP BY`
+> и батч-загрузку (last-message по `max(id)`, unread/mentions через `or_` per-conv
+> порогов, собеседники direct и их аватары — батчем). 87 chat-тестов зелёные.
 
 **Проблема:** `_build_message_response` — ~6 запросов на сообщение (стр.50 → 300+ SQL); `get_user_conversations` — ~5 запросов на чат в цикле.
 **Файлы:** [chat_service.py](../server/app/services/chat_service.py)

@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import UserModel
@@ -223,97 +223,145 @@ def get_user_conversations(
     )
 
     result: list[ConversationListItem] = []
+    if not conversations:
+        return result
+
+    ordered_conv_ids = [c.id for c in conversations]
+
+    # ── Последнее сообщение каждого чата (max id среди неудалённых) ──
+    last_id_rows = (
+        db.query(MessageModel.conversation_id, func.max(MessageModel.id))
+        .filter(
+            MessageModel.conversation_id.in_(ordered_conv_ids),
+            MessageModel.is_deleted == False,  # noqa: E712
+        )
+        .group_by(MessageModel.conversation_id)
+        .all()
+    )
+    last_msg_id_by_conv = {row[0]: row[1] for row in last_id_rows}
+    last_msg_by_conv: dict[int, MessageModel] = {}
+    if last_msg_id_by_conv:
+        for m in (
+            db.query(MessageModel)
+            .filter(MessageModel.id.in_(list(last_msg_id_by_conv.values())))
+            .all()
+        ):
+            last_msg_by_conv[m.conversation_id] = m
+
+    # ── Непрочитанные (с учётом персонального last_read_message_id) ──
+    unread_conditions = [
+        and_(
+            MessageModel.conversation_id == cid,
+            MessageModel.id > (member_map[cid].last_read_message_id or 0),
+        )
+        for cid in ordered_conv_ids
+    ]
+    unread_by_conv: dict[int, int] = {}
+    mention_by_conv: dict[int, int] = {}
+    if unread_conditions:
+        unread_filter = or_(*unread_conditions)
+        for cid, cnt in (
+            db.query(MessageModel.conversation_id, func.count(MessageModel.id))
+            .filter(
+                MessageModel.is_deleted == False,  # noqa: E712
+                MessageModel.sender_id != user_id,
+                unread_filter,
+            )
+            .group_by(MessageModel.conversation_id)
+            .all()
+        ):
+            unread_by_conv[cid] = cnt
+
+        for cid, cnt in (
+            db.query(MessageModel.conversation_id, func.count(MessageMentionModel.id))
+            .join(MessageModel, MessageModel.id == MessageMentionModel.message_id)
+            .filter(
+                MessageModel.is_deleted == False,  # noqa: E712
+                MessageModel.sender_id != user_id,
+                MessageMentionModel.user_id == user_id,
+                unread_filter,
+            )
+            .group_by(MessageModel.conversation_id)
+            .all()
+        ):
+            mention_by_conv[cid] = cnt
+
+    # ── Собеседники direct-чатов ──
+    direct_conv_ids = [
+        c.id for c in conversations if c.type == ConversationType.DIRECT.value
+    ]
+    other_user_by_conv: dict[int, int] = {}
+    if direct_conv_ids:
+        for cm in (
+            db.query(ConversationMemberModel)
+            .filter(
+                ConversationMemberModel.conversation_id.in_(direct_conv_ids),
+                ConversationMemberModel.user_id != user_id,
+            )
+            .all()
+        ):
+            other_user_by_conv.setdefault(cm.conversation_id, cm.user_id)
+
+    # ── Пользователи: отправители last-сообщений + собеседники direct ──
+    user_ids: set[int] = {m.sender_id for m in last_msg_by_conv.values()}
+    user_ids.update(other_user_by_conv.values())
+    users_by_id: dict[int, UserModel] = {}
+    if user_ids:
+        users_by_id = {
+            u.id: u
+            for u in db.query(UserModel).filter(UserModel.id.in_(user_ids)).all()
+        }
+
+    # ── Номера заявок для last_message типа task без текста ──
+    task_ids = {
+        m.task_id
+        for m in last_msg_by_conv.values()
+        if m.task_id and not m.text and m.message_type == MessageType.TASK.value
+    }
+    task_number_by_id: dict[int, str] = {}
+    if task_ids:
+        for tid, tnum in (
+            db.query(TaskModel.id, TaskModel.task_number)
+            .filter(TaskModel.id.in_(task_ids))
+            .all()
+        ):
+            task_number_by_id[tid] = tnum
+
     for conv in conversations:
         member = member_map[conv.id]
         conversation_avatar_url = conv.avatar_url
 
-        # Last message
-        last_msg = (
-            db.query(MessageModel)
-            .filter(
-                MessageModel.conversation_id == conv.id,
-                MessageModel.is_deleted == False,  # noqa: E712
-            )
-            .order_by(MessageModel.created_at.desc())
-            .first()
-        )
-
+        last_msg = last_msg_by_conv.get(conv.id)
         last_message_preview = None
         if last_msg:
-            sender = (
-                db.query(UserModel).filter(UserModel.id == last_msg.sender_id).first()
-            )
+            sender = users_by_id.get(last_msg.sender_id)
             text_preview = last_msg.text
             if text_preview and len(text_preview) > 100:
                 text_preview = text_preview[:100] + "…"
             # Заявка без подписи → понятный сниппет в списке чатов / теле пуша
             if not text_preview and last_msg.message_type == MessageType.TASK.value:
-                task_num = None
-                if last_msg.task_id:
-                    t = (
-                        db.query(TaskModel.task_number)
-                        .filter(TaskModel.id == last_msg.task_id)
-                        .first()
-                    )
-                    task_num = t[0] if t else None
+                task_num = (
+                    task_number_by_id.get(last_msg.task_id)
+                    if last_msg.task_id
+                    else None
+                )
                 text_preview = f"📋 Заявка №{task_num}" if task_num else "📋 Заявка"
             last_message_preview = LastMessagePreview(
                 id=last_msg.id,
-                text=text_preview if not last_msg.is_deleted else None,
-                sender_name=sender.full_name or sender.username if sender else "?",
+                text=text_preview,
+                sender_name=((sender.full_name or sender.username) if sender else "?"),
                 message_type=last_msg.message_type,
                 created_at=last_msg.created_at,
             )
 
-        # Unread count
-        unread_q = db.query(func.count(MessageModel.id)).filter(
-            MessageModel.conversation_id == conv.id,
-            MessageModel.is_deleted == False,  # noqa: E712
-            MessageModel.sender_id != user_id,
-        )
-        if member.last_read_message_id:
-            unread_q = unread_q.filter(MessageModel.id > member.last_read_message_id)
-        unread_count = unread_q.scalar() or 0
-
-        unread_mentions_q = (
-            db.query(func.count(MessageMentionModel.id))
-            .join(
-                MessageModel,
-                MessageModel.id == MessageMentionModel.message_id,
-            )
-            .filter(
-                MessageModel.conversation_id == conv.id,
-                MessageModel.is_deleted == False,  # noqa: E712
-                MessageModel.sender_id != user_id,
-                MessageMentionModel.user_id == user_id,
-            )
-        )
-        if member.last_read_message_id:
-            unread_mentions_q = unread_mentions_q.filter(
-                MessageModel.id > member.last_read_message_id
-            )
-        unread_mention_count = unread_mentions_q.scalar() or 0
-
         # Название для direct-чатов — имя собеседника
         display_name = conv.name
         if conv.type == ConversationType.DIRECT.value:
-            other_member = (
-                db.query(ConversationMemberModel)
-                .filter(
-                    ConversationMemberModel.conversation_id == conv.id,
-                    ConversationMemberModel.user_id != user_id,
-                )
-                .first()
-            )
-            if other_member:
-                other_user = (
-                    db.query(UserModel)
-                    .filter(UserModel.id == other_member.user_id)
-                    .first()
-                )
-                if other_user:
-                    display_name = other_user.full_name or other_user.username
-                    conversation_avatar_url = build_user_avatar_url(other_user)
+            other_user_id = other_user_by_conv.get(conv.id)
+            other_user = users_by_id.get(other_user_id) if other_user_id else None
+            if other_user:
+                display_name = other_user.full_name or other_user.username
+                conversation_avatar_url = build_user_avatar_url(other_user)
 
         result.append(
             ConversationListItem(
@@ -323,8 +371,8 @@ def get_user_conversations(
                 avatar_url=conversation_avatar_url,
                 task_id=conv.task_id,
                 last_message=last_message_preview,
-                unread_count=unread_count,
-                unread_mention_count=unread_mention_count,
+                unread_count=unread_by_conv.get(conv.id, 0),
+                unread_mention_count=mention_by_conv.get(conv.id, 0),
                 is_muted=member.is_muted,
                 is_archived=member.is_archived,
                 updated_at=conv.last_message_at or conv.created_at,
@@ -753,7 +801,7 @@ def get_messages(
     if has_more:
         messages = messages[:limit]
 
-    items = [_build_message_response(db, m) for m in reversed(messages)]
+    items = _build_message_responses(db, list(reversed(messages)))
 
     return MessageListResponse(items=items, has_more=has_more)
 
@@ -1068,114 +1116,186 @@ def _get_reactions(db: Session, message_id: int) -> list[ReactionInfo]:
     return list(grouped.values())
 
 
-def _build_message_response(db: Session, msg: MessageModel) -> MessageResponse:
-    """Построить MessageResponse из модели."""
-    sender = db.query(UserModel).filter(UserModel.id == msg.sender_id).first()
+def _build_message_responses(
+    db: Session, msgs: list[MessageModel]
+) -> list[MessageResponse]:
+    """Построить MessageResponse для списка сообщений батч-загрузкой (без N+1).
 
-    # Reply preview
-    reply_preview = None
-    if msg.reply_to_id and not msg.is_deleted:
-        reply_msg = (
-            db.query(MessageModel).filter(MessageModel.id == msg.reply_to_id).first()
-        )
-        if reply_msg:
-            reply_sender = (
-                db.query(UserModel).filter(UserModel.id == reply_msg.sender_id).first()
-            )
-            reply_text = reply_msg.text
-            if reply_text and len(reply_text) > 100:
-                reply_text = reply_text[:100] + "…"
-            reply_preview = ReplyPreview(
-                id=reply_msg.id,
-                text=reply_text if not reply_msg.is_deleted else None,
-                sender_id=reply_msg.sender_id,
-                sender_name=(
-                    reply_sender.full_name or reply_sender.username
-                    if reply_sender
-                    else "?"
-                ),
-            )
+    Делает фиксированное число запросов на всю страницу, а не ~6 на сообщение:
+    reply-сообщения, вложения, реакции, упоминания, заявки и пользователи —
+    каждое одним запросом по множеству id.
+    """
+    if not msgs:
+        return []
 
-    # Attachments
-    attachments = []
-    if not msg.is_deleted:
-        atts = (
-            db.query(MessageAttachmentModel)
-            .filter(
-                MessageAttachmentModel.message_id == msg.id,
-            )
-            .all()
-        )
-        attachments = [
-            AttachmentResponse(
-                id=a.id,
-                file_name=a.file_name,
-                file_path=a.file_path,
-                file_size=a.file_size,
-                mime_type=a.mime_type,
-                thumbnail_path=a.thumbnail_path,
-            )
-            for a in atts
-        ]
+    msg_ids = [m.id for m in msgs]
 
-    # Reactions
-    reactions = _get_reactions(db, msg.id) if not msg.is_deleted else []
+    # Reply-сообщения (для превью ответов)
+    reply_ids = {m.reply_to_id for m in msgs if m.reply_to_id and not m.is_deleted}
+    reply_by_id: dict[int, MessageModel] = {}
+    if reply_ids:
+        reply_by_id = {
+            r.id: r
+            for r in db.query(MessageModel).filter(MessageModel.id.in_(reply_ids)).all()
+        }
 
-    # Attached task (живое превью — статус подтягивается из заявки на момент чтения)
-    attached_task = None
-    if msg.task_id and not msg.is_deleted:
-        task = db.query(TaskModel).filter(TaskModel.id == msg.task_id).first()
-        if task:
-            attached_task = TaskPreview(
-                id=task.id,
-                task_number=task.task_number,
-                title=task.title,
-                status=task.status,
-                priority=task.priority,
-                raw_address=task.raw_address,
-                accessible=True,
-            )
-        else:
-            # Заявка удалена — карточка отображается неактивной
-            attached_task = TaskPreview(id=msg.task_id, accessible=False)
+    # Вложения
+    attachments_by_msg: dict[int, list[MessageAttachmentModel]] = {}
+    for a in (
+        db.query(MessageAttachmentModel)
+        .filter(MessageAttachmentModel.message_id.in_(msg_ids))
+        .all()
+    ):
+        attachments_by_msg.setdefault(a.message_id, []).append(a)
 
-    # Mentions
-    mentions = []
-    if not msg.is_deleted:
-        mention_models = (
-            db.query(MessageMentionModel)
-            .filter(
-                MessageMentionModel.message_id == msg.id,
-            )
-            .all()
-        )
-        for mm in mention_models:
-            user = db.query(UserModel).filter(UserModel.id == mm.user_id).first()
-            if user:
-                mentions.append(
-                    MentionInfo(
-                        user_id=user.id,
-                        username=user.username,
-                        offset=mm.offset,
-                        length=mm.length,
-                    )
+    # Реакции
+    reactions_by_msg: dict[int, list[MessageReactionModel]] = {}
+    for r in (
+        db.query(MessageReactionModel)
+        .filter(MessageReactionModel.message_id.in_(msg_ids))
+        .all()
+    ):
+        reactions_by_msg.setdefault(r.message_id, []).append(r)
+
+    # Упоминания
+    mentions_by_msg: dict[int, list[MessageMentionModel]] = {}
+    for mm in (
+        db.query(MessageMentionModel)
+        .filter(MessageMentionModel.message_id.in_(msg_ids))
+        .all()
+    ):
+        mentions_by_msg.setdefault(mm.message_id, []).append(mm)
+
+    # Прикреплённые заявки
+    task_ids = {m.task_id for m in msgs if m.task_id and not m.is_deleted}
+    task_by_id: dict[int, TaskModel] = {}
+    if task_ids:
+        task_by_id = {
+            t.id: t
+            for t in db.query(TaskModel).filter(TaskModel.id.in_(task_ids)).all()
+        }
+
+    # Пользователи: отправители + авторы reply + упомянутые + реагировавшие
+    user_ids: set[int] = {m.sender_id for m in msgs}
+    user_ids.update(r.sender_id for r in reply_by_id.values())
+    for mention_list in mentions_by_msg.values():
+        user_ids.update(mm.user_id for mm in mention_list)
+    for reaction_list in reactions_by_msg.values():
+        user_ids.update(r.user_id for r in reaction_list)
+    users_by_id: dict[int, UserModel] = {
+        u.id: u for u in db.query(UserModel).filter(UserModel.id.in_(user_ids)).all()
+    }
+
+    def _display(uid: int) -> str:
+        u = users_by_id.get(uid)
+        return (u.full_name or u.username) if u else "?"
+
+    result: list[MessageResponse] = []
+    for msg in msgs:
+        # Reply preview
+        reply_preview = None
+        if msg.reply_to_id and not msg.is_deleted:
+            reply_msg = reply_by_id.get(msg.reply_to_id)
+            if reply_msg:
+                reply_text = reply_msg.text
+                if reply_text and len(reply_text) > 100:
+                    reply_text = reply_text[:100] + "…"
+                reply_preview = ReplyPreview(
+                    id=reply_msg.id,
+                    text=reply_text if not reply_msg.is_deleted else None,
+                    sender_id=reply_msg.sender_id,
+                    sender_name=_display(reply_msg.sender_id),
                 )
 
-    return MessageResponse(
-        id=msg.id,
-        conversation_id=msg.conversation_id,
-        sender_id=msg.sender_id,
-        sender_name=sender.full_name or sender.username if sender else "?",
-        sender_username=sender.username if sender else "?",
-        text=msg.text if not msg.is_deleted else None,
-        message_type=msg.message_type,
-        reply_to=reply_preview,
-        attached_task=attached_task,
-        attachments=attachments,
-        reactions=reactions,
-        mentions=mentions,
-        is_edited=msg.is_edited,
-        is_deleted=msg.is_deleted,
-        created_at=msg.created_at,
-        edited_at=msg.edited_at,
-    )
+        # Attachments
+        attachments = []
+        if not msg.is_deleted:
+            attachments = [
+                AttachmentResponse(
+                    id=a.id,
+                    file_name=a.file_name,
+                    file_path=a.file_path,
+                    file_size=a.file_size,
+                    mime_type=a.mime_type,
+                    thumbnail_path=a.thumbnail_path,
+                )
+                for a in attachments_by_msg.get(msg.id, [])
+            ]
+
+        # Reactions (сгруппированные по emoji)
+        reactions: list[ReactionInfo] = []
+        if not msg.is_deleted:
+            grouped: dict[str, ReactionInfo] = {}
+            for r in reactions_by_msg.get(msg.id, []):
+                info = grouped.get(r.emoji)
+                if info is None:
+                    info = ReactionInfo(
+                        emoji=r.emoji, count=0, user_ids=[], user_names=[]
+                    )
+                    grouped[r.emoji] = info
+                info.count += 1
+                info.user_ids.append(r.user_id)
+                info.user_names.append(_display(r.user_id))
+            reactions = list(grouped.values())
+
+        # Attached task (живое превью — статус на момент чтения)
+        attached_task = None
+        if msg.task_id and not msg.is_deleted:
+            task = task_by_id.get(msg.task_id)
+            if task:
+                attached_task = TaskPreview(
+                    id=task.id,
+                    task_number=task.task_number,
+                    title=task.title,
+                    status=task.status,
+                    priority=task.priority,
+                    raw_address=task.raw_address,
+                    accessible=True,
+                )
+            else:
+                # Заявка удалена — карточка неактивна
+                attached_task = TaskPreview(id=msg.task_id, accessible=False)
+
+        # Mentions
+        mentions = []
+        if not msg.is_deleted:
+            for mm in mentions_by_msg.get(msg.id, []):
+                user = users_by_id.get(mm.user_id)
+                if user:
+                    mentions.append(
+                        MentionInfo(
+                            user_id=user.id,
+                            username=user.username,
+                            offset=mm.offset,
+                            length=mm.length,
+                        )
+                    )
+
+        sender = users_by_id.get(msg.sender_id)
+        result.append(
+            MessageResponse(
+                id=msg.id,
+                conversation_id=msg.conversation_id,
+                sender_id=msg.sender_id,
+                sender_name=sender.full_name or sender.username if sender else "?",
+                sender_username=sender.username if sender else "?",
+                text=msg.text if not msg.is_deleted else None,
+                message_type=msg.message_type,
+                reply_to=reply_preview,
+                attached_task=attached_task,
+                attachments=attachments,
+                reactions=reactions,
+                mentions=mentions,
+                is_edited=msg.is_edited,
+                is_deleted=msg.is_deleted,
+                created_at=msg.created_at,
+                edited_at=msg.edited_at,
+            )
+        )
+
+    return result
+
+
+def _build_message_response(db: Session, msg: MessageModel) -> MessageResponse:
+    """Построить MessageResponse из одной модели (обёртка над батч-версией)."""
+    return _build_message_responses(db, [msg])[0]
