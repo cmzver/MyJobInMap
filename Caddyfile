@@ -53,6 +53,11 @@
         header_up X-Forwarded-Proto {scheme}
     }
 
+    # Health-check — проксируется на корневой /health сервера (не под /api)
+    handle /health {
+        reverse_proxy localhost:8001
+    }
+
     # API — проксирование на FastAPI (работает на хосте)
     handle /api/* {
         reverse_proxy localhost:8001 {

@@ -94,9 +94,15 @@ $colors = @{
     Error = "Red"
 }
 
-$script:SSHArgs = @("-p", "$SSHPort")
-$script:SCPArgs = @("-P", "$SSHPort")
-$script:RsyncShellCommand = "ssh -p $SSHPort"
+# Keep-alive so a flaky network drops the connection in ~1 min instead of
+# hanging ssh.exe forever on a half-open socket (Windows OpenSSH has no
+# connection multiplexing to fall back on).
+$script:SSHKeepAlive = @("-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=4")
+$script:RsyncKeepAlive = "-o ServerAliveInterval=15 -o ServerAliveCountMax=4"
+
+$script:SSHArgs = @("-p", "$SSHPort") + $script:SSHKeepAlive
+$script:SCPArgs = @("-P", "$SSHPort") + $script:SSHKeepAlive
+$script:RsyncShellCommand = "ssh -p $SSHPort $script:RsyncKeepAlive"
 $script:ControlPath = $null
 $script:UseConnectionSharing = $false
 
@@ -162,6 +168,15 @@ function Invoke-PortalBuild {
 }
 
 function Initialize-SSHTransport {
+    # Windows OpenSSH does not support ControlMaster/ControlPath multiplexing;
+    # enabling it only produces a "multiplexing is not supported" warning and a
+    # fallback on every command. With key auth there is no password to amortise,
+    # so just skip connection sharing on Windows entirely.
+    $isWindows = ($PSVersionTable.PSVersion.Major -lt 6) -or $IsWindows
+    if ($isWindows) {
+        return
+    }
+
     $safeServer = $Server -replace "[^a-zA-Z0-9._-]", "_"
     $script:ControlPath = Join-Path $env:TEMP "fieldworker-ssh-$safeServer-$SSHPort.sock"
     $connectionSharingArgs = @(
@@ -177,9 +192,9 @@ function Initialize-SSHTransport {
 }
 
 function Disable-SSHConnectionSharing {
-    $script:SSHArgs = @("-p", "$SSHPort")
-    $script:SCPArgs = @("-P", "$SSHPort")
-    $script:RsyncShellCommand = "ssh -p $SSHPort"
+    $script:SSHArgs = @("-p", "$SSHPort") + $script:SSHKeepAlive
+    $script:SCPArgs = @("-P", "$SSHPort") + $script:SSHKeepAlive
+    $script:RsyncShellCommand = "ssh -p $SSHPort $script:RsyncKeepAlive"
 
     if ($SshKeyPath) {
         $script:SSHArgs += @("-i", $SshKeyPath)
@@ -452,7 +467,7 @@ function Sync-WithArchive {
         } -ErrorMessage "Failed to upload deployment archive"
 
         Write-Log "Cleaning old files on remote" "Info"
-        $cleanCommand = "cd $RemotePath 2>/dev/null && find . -maxdepth 1 -mindepth 1 ! -name server ! -name bot -exec rm -rf {} + 2>/dev/null; find server -maxdepth 1 -mindepth 1 ! -name .env ! -name uploads ! -name backups ! -name logs ! -name '*.db' ! -name '*.db-journal' ! -name '*.db-wal' ! -name '*.db-shm' -exec rm -rf {} + 2>/dev/null; find bot -maxdepth 1 -mindepth 1 ! -name .env -exec rm -rf {} + 2>/dev/null; true"
+        $cleanCommand = "cd $RemotePath 2>/dev/null && find . -maxdepth 1 -mindepth 1 ! -name server ! -name bot ! -name .env -exec rm -rf {} + 2>/dev/null; find server -maxdepth 1 -mindepth 1 ! -name .env ! -name uploads ! -name backups ! -name logs ! -name '*.db' ! -name '*.db-journal' ! -name '*.db-wal' ! -name '*.db-shm' -exec rm -rf {} + 2>/dev/null; find bot -maxdepth 1 -mindepth 1 ! -name .env -exec rm -rf {} + 2>/dev/null; true"
         Invoke-RemoteCommand $cleanCommand | Out-Null
 
         Write-Log "Extracting on remote" "Info"
@@ -997,7 +1012,7 @@ try {
     Write-Log "Deployment completed in $durationStr" "Success"
     if ($Provision -and $Domain -and -not $SkipCaddy -and -not $DryRun) {
         Write-Log "Portal:  https://$Domain/portal/" "Success"
-        Write-Log "API:     https://$Domain/api/health" "Success"
+        Write-Log "Health:  https://$Domain/health" "Success"
     }
     Write-Log "Check status: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose -f $ComposeFile ps'" "Info"
     Write-Log "View logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose -f $ComposeFile logs -f'" "Info"
