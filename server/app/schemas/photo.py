@@ -4,10 +4,11 @@ Photo Schemas
 РЎС…РµРјС‹ РґР»СЏ С„РѕС‚РѕРіСЂР°С„РёР№.
 """
 
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
+
+from app.schemas.datetime_utc import UtcDateTime
 
 
 class PhotoResponse(BaseModel):
@@ -21,5 +22,5 @@ class PhotoResponse(BaseModel):
     mime_type: str
     photo_type: str
     url: str
-    created_at: datetime
+    created_at: UtcDateTime
     uploaded_by: Optional[str] = None

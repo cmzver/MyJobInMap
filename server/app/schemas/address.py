@@ -18,6 +18,7 @@ from app.models.address import (
     SystemStatus,
     SystemType,
 )
+from app.schemas.datetime_utc import UtcDateTime
 
 # ============================================
 # Enums (��� ���������)
@@ -184,8 +185,8 @@ class AddressResponse(BaseModel):
     extra_info: Optional[str] = None
     is_active: bool = True
 
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
 
 
 class AddressListResponse(BaseModel):
@@ -289,8 +290,8 @@ class AddressSystemResponse(AddressSystemBase):
 
     id: int
     address_id: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
 
 
 # ============================================
@@ -343,8 +344,8 @@ class AddressEquipmentResponse(AddressEquipmentBase):
 
     id: int
     address_id: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
 
 
 # ============================================
@@ -367,7 +368,7 @@ class AddressDocumentResponse(BaseModel):
     valid_from: Optional[datetime] = None
     valid_until: Optional[datetime] = None
     notes: Optional[str] = None
-    created_at: datetime
+    created_at: UtcDateTime
     created_by_id: Optional[int] = None
     created_by_name: Optional[str] = None  # ����������� � API
 
@@ -414,8 +415,8 @@ class AddressContactResponse(AddressContactBase):
 
     id: int
     address_id: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
 
 
 # ============================================
@@ -434,7 +435,7 @@ class AddressHistoryResponse(BaseModel):
     description: str
     user_id: Optional[int] = None
     user_name: Optional[str] = None  # ����������� � API
-    created_at: datetime
+    created_at: UtcDateTime
 
 
 # ============================================
@@ -478,8 +479,8 @@ class AddressFullResponse(BaseModel):
     notes: Optional[str] = None
     extra_info: Optional[str] = None
     is_active: bool = True
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
 
     # ��������� ������
     systems: List[AddressSystemResponse] = []

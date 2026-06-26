@@ -4,10 +4,11 @@ Settings Schemas
 РЎС…РµРјС‹ РґР»СЏ СЃРёСЃС‚РµРјРЅС‹С… РЅР°СЃС‚СЂРѕРµРє, РєР°СЃС‚РѕРјРЅС‹С… РїРѕР»РµР№ Рё РїСЂР°РІ РґРѕСЃС‚СѓРїР°.
 """
 
-from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel
+
+from app.schemas.datetime_utc import UtcDateTime
 
 # --- System Settings ---
 
@@ -68,7 +69,7 @@ class CustomFieldResponse(CustomFieldCreate):
 
     id: int
     is_active: bool
-    created_at: datetime
+    created_at: UtcDateTime
 
 
 # --- Permissions ---
@@ -129,7 +130,7 @@ class UserGroupUpdate(BaseModel):
 class BackupFile(BaseModel):
     name: str
     size: int
-    created: datetime
+    created: UtcDateTime
 
 
 class BackupListResponse(BaseModel):

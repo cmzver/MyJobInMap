@@ -4,12 +4,12 @@ Auth Schemas
 Схемы для аутентификации и пользователей.
 """
 
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import UserRole
+from app.schemas.datetime_utc import UtcDateTime
 
 
 class Token(BaseModel):
@@ -92,8 +92,8 @@ class UserResponse(BaseModel):
     role_label: str = ""
     base_access: str = "worker"
     is_active: bool
-    created_at: datetime
-    last_login: Optional[datetime]
+    created_at: UtcDateTime
+    last_login: Optional[UtcDateTime]
     assigned_tasks_count: int = 0
     organization_id: Optional[int] = None
 

@@ -2,7 +2,6 @@
 Support ticket schemas.
 """
 
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -12,6 +11,7 @@ from app.models import (
     SupportTicketCommentType,
     SupportTicketStatus,
 )
+from app.schemas.datetime_utc import UtcDateTime
 
 
 class SupportTicketReporter(BaseModel):
@@ -72,7 +72,7 @@ class SupportTicketCommentResponse(BaseModel):
     body: Optional[str] = None
     old_status: Optional[SupportTicketStatus] = None
     new_status: Optional[SupportTicketStatus] = None
-    created_at: datetime
+    created_at: UtcDateTime
     author: SupportTicketReporter
 
 
@@ -86,9 +86,9 @@ class SupportTicketResponse(BaseModel):
     status: SupportTicketStatus
     admin_response: Optional[str] = None
     organization_id: Optional[int] = None
-    created_at: datetime
-    updated_at: datetime
-    resolved_at: Optional[datetime] = None
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
+    resolved_at: Optional[UtcDateTime] = None
     created_by: SupportTicketReporter
 
 
