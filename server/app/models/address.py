@@ -513,3 +513,47 @@ class IntercomPanelModel(Base):
 
     def __repr__(self):
         return f"<IntercomPanel(id={self.id}, ip='{self.ip}', vendor='{self.vendor}')>"
+
+
+class IntercomActionModel(Base):
+    """Audit trail of device-touching actions on an intercom panel.
+
+    Records who did what on which panel and the result. Survives panel
+    deletion (panel_id -> SET NULL) so the trail is not lost. High-volume
+    reads (snapshot polling) are intentionally NOT recorded here.
+    """
+
+    __tablename__ = "intercom_actions"
+    __table_args__ = (
+        Index("ix_intercom_actions_panel_id", "panel_id"),
+        Index("ix_intercom_actions_created_at", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    panel_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("intercom_panels.id", ondelete="SET NULL"), nullable=True
+    )
+    address_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("addresses.id", ondelete="SET NULL"), nullable=True
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # open | close | lock_status | scan_code
+    action: Mapped[str] = mapped_column(String(30), nullable=False)
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    detail: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+
+    # Relationships
+    user: Mapped[Optional["UserModel"]] = relationship("UserModel")
+
+    def __repr__(self):
+        return (
+            f"<IntercomAction(id={self.id}, action='{self.action}', "
+            f"success={self.success})>"
+        )

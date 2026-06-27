@@ -399,6 +399,32 @@ class IntercomPanelResponse(IntercomPanelBase):
 
 
 # ============================================
+# Intercom Panel Action Schemas (live device I/O)
+# ============================================
+
+
+class PanelLockStatusResponse(BaseModel):
+    """Current lock state read from the device."""
+
+    is_open: bool = Field(..., description="True if the door is held open")
+
+
+class PanelDoorActionResponse(BaseModel):
+    """Result of an open/close command."""
+
+    ok: bool = True
+    action: str = Field(..., description="open | close")
+    is_open: bool = Field(..., description="Lock state after the command")
+
+
+class PanelMifareScanCodeResponse(BaseModel):
+    """Key-enrollment ('scan by code') value read from the device."""
+
+    code: Optional[str] = Field(None, description="Scan-by-code value")
+    active: bool = Field(False, description="Whether scan-by-code is enabled")
+
+
+# ============================================
 # Document Schemas
 # ============================================
 

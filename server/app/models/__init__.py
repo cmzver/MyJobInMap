@@ -25,6 +25,7 @@ from app.models.address import (
     DocumentType,
     EquipmentStatus,
     EquipmentType,
+    IntercomActionModel,
     IntercomPanelModel,
     SystemStatus,
     SystemType,
@@ -113,6 +114,7 @@ __all__ = [
     "AddressContactModel",
     "AddressHistoryModel",
     "IntercomPanelModel",
+    "IntercomActionModel",
     # Notification
     "NotificationModel",
     # Security

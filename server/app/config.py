@@ -193,6 +193,19 @@ class Settings(BaseSettings):
         description="Описание API",
     )
 
+    # === Beward intercom integration ===
+    # Учётные данные панелей (общий аккаунт). НЕ хранятся в БД — только здесь.
+    BEWARD_USER: str = Field(default="", description="Логин к веб-интерфейсу панелей")
+    BEWARD_PASSWORD: str = Field(
+        default="", description="Пароль к веб-интерфейсу панелей"
+    )
+    BEWARD_TIMEOUT: float = Field(
+        default=10.0, description="Таймаут запроса к панели, сек"
+    )
+    BEWARD_SNAPSHOT_CACHE_TTL: float = Field(
+        default=1.0, description="TTL кэша JPEG-кадра панели, сек (мягкий режим)"
+    )
+
     # === Вычисляемые пути (не из env) ===
     @computed_field
     @property
