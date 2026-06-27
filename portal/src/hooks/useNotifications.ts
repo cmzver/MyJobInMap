@@ -13,6 +13,7 @@ export interface Notification {
   created_at: string
   task_id?: number
   support_ticket_id?: number
+  conversation_id?: number
 }
 
 async function getUnreadNotifications() {

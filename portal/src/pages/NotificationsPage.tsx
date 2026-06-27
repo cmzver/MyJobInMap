@@ -191,6 +191,14 @@ export default function NotificationsPage() {
                           Открыть тикет #{notification.support_ticket_id}
                         </Link>
                       )}
+                      {notification.conversation_id && (
+                        <Link
+                          to={`/chat?conversation=${notification.conversation_id}`}
+                          className="mt-2 inline-flex text-xs font-medium text-primary-600 hover:text-primary-700"
+                        >
+                          Открыть чат
+                        </Link>
+                      )}
                     </div>
                     
                     <div className="flex items-center space-x-2 ml-4">

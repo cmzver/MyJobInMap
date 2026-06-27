@@ -772,6 +772,31 @@ class TestMessages:
         assert data["items"] == []
         assert data["has_more"] is False
 
+    def test_mention_creates_notification(
+        self, client, auth_headers, db_session, second_user
+    ):
+        """@упоминание создаёт уведомление в колокольчик со ссылкой на чат."""
+        from app.models import NotificationModel
+
+        conv_id = self._create_direct(client, auth_headers, second_user)
+        resp = client.post(
+            f"/api/chat/conversations/{conv_id}/messages",
+            json={"text": "@user2 глянь плиз"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+
+        notif = (
+            db_session.query(NotificationModel)
+            .filter(
+                NotificationModel.user_id == second_user.id,
+                NotificationModel.conversation_id == conv_id,
+            )
+            .first()
+        )
+        assert notif is not None
+        assert "Упоминание" in notif.title
+
     def test_task_status_change_posts_system_message(self, client, auth_headers):
         """Смена статуса заявки пишет системное сообщение в её чат."""
         task_id = client.post(

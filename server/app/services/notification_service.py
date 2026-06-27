@@ -35,6 +35,7 @@ def create_notification(
     notification_type: str = "system",
     task_id: Optional[int] = None,
     support_ticket_id: Optional[int] = None,
+    conversation_id: Optional[int] = None,
 ) -> NotificationModel:
     """
     Создать уведомление для пользователя
@@ -57,6 +58,7 @@ def create_notification(
         type=notification_type,
         task_id=task_id,
         support_ticket_id=support_ticket_id,
+        conversation_id=conversation_id,
         is_read=False,
         created_at=datetime.now(timezone.utc),
     )
@@ -83,6 +85,7 @@ def create_notification(
                         "message": notification.message,
                         "task_id": notification.task_id,
                         "support_ticket_id": notification.support_ticket_id,
+                        "conversation_id": notification.conversation_id,
                     },
                 ),
             )

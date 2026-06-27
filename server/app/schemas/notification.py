@@ -29,6 +29,7 @@ class NotificationBase(BaseModel):
     type: str = "system"  # task, system, alert, support
     task_id: Optional[int] = None
     support_ticket_id: Optional[int] = None
+    conversation_id: Optional[int] = None
 
 
 class NotificationCreate(NotificationBase):

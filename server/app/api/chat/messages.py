@@ -142,6 +142,24 @@ async def send_message(
                     extra_data={"chat_id": str(conv_id)},
                 )
 
+    # Упоминания → персистентные уведомления в колокольчик (не только toast).
+    if result.mentions:
+        from app.services.notification_service import create_notification
+
+        chat_label = conv.name if conv and conv.name else "чате"
+        snippet = (data.text or "")[:120]
+        for mention in result.mentions:
+            if mention.user_id == current_user.id:
+                continue
+            create_notification(
+                db,
+                user_id=mention.user_id,
+                title=f"💬 Упоминание в {chat_label}",
+                message=f"{current_user.full_name or current_user.username}: {snippet}",
+                notification_type="system",
+                conversation_id=conv_id,
+            )
+
     # Полный MessageResponse в payload → клиент патчит кэш без рефетча истории.
     # conversation_name — доп. поле для пуш-тостов (вне схемы; Android игнорирует лишнее).
     asyncio.ensure_future(
