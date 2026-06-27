@@ -60,6 +60,9 @@ export default function ChatPage() {
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null)
   const [showNewChat, setShowNewChat] = useState(false)
   const [conversationSearchQuery, setConversationSearchQuery] = useState('')
+  const [debouncedConvSearchQuery, setDebouncedConvSearchQuery] = useState('')
+  const [globalSearchResults, setGlobalSearchResults] = useState<MessageResponse[]>([])
+  const [isGlobalSearching, setIsGlobalSearching] = useState(false)
   const [isMessageSearchOpen, setIsMessageSearchOpen] = useState(false)
   const [messageSearchQuery, setMessageSearchQuery] = useState('')
   const [debouncedMessageSearchQuery, setDebouncedMessageSearchQuery] = useState('')
@@ -79,6 +82,8 @@ export default function ChatPage() {
   // в конец ленты) и payload'ы для повторной отправки по кнопке «повторить».
   const optimisticIdRef = useRef(1_000_000_000_000_000)
   const pendingPayloadsRef = useRef<Map<number, { text: string; replyToId?: number }>>(new Map())
+  // Переход к сообщению из глобального поиска после открытия нужного чата.
+  const pendingJumpRef = useRef<{ conversationId: number; messageId: number } | null>(null)
 
   const qc = useQueryClient()
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -240,6 +245,70 @@ export default function ChatPage() {
     setSearchedMessages([])
     setReadReceipts(new Map())
   }, [activeConversationId])
+
+  // Глобальный поиск по всем чатам: та же строка, что фильтрует список по имени,
+  // при ≥2 символах ищет ещё и по тексту сообщений во всех чатах пользователя.
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedConvSearchQuery(conversationSearchQuery.trim())
+    }, 300)
+    return () => window.clearTimeout(timeoutId)
+  }, [conversationSearchQuery])
+
+  useEffect(() => {
+    if (debouncedConvSearchQuery.length < 2) {
+      setIsGlobalSearching(false)
+      setGlobalSearchResults([])
+      return
+    }
+
+    let cancelled = false
+    setIsGlobalSearching(true)
+    chatApi.searchAllMessages(debouncedConvSearchQuery)
+      .then((messages) => {
+        if (!cancelled) setGlobalSearchResults(messages)
+      })
+      .catch(() => {
+        if (!cancelled) setGlobalSearchResults([])
+      })
+      .finally(() => {
+        if (!cancelled) setIsGlobalSearching(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [debouncedConvSearchQuery])
+
+  const conversationNameById = useMemo(() => {
+    const map = new Map<number, string>()
+    for (const conversation of conversations) {
+      map.set(conversation.id, conversation.name ?? `Чат #${conversation.id}`)
+    }
+    return map
+  }, [conversations])
+
+  const handleSelectGlobalResult = useCallback((message: MessageResponse) => {
+    setConversationSearchQuery('')
+    setDebouncedConvSearchQuery('')
+    setGlobalSearchResults([])
+    if (message.conversation_id === activeConversationId) {
+      handleJumpToMessage(message.id)
+    } else {
+      pendingJumpRef.current = { conversationId: message.conversation_id, messageId: message.id }
+      setActiveConversationId(message.conversation_id)
+    }
+  }, [activeConversationId, handleJumpToMessage])
+
+  // Когда целевой чат открылся и его сообщение подгрузилось — прыгаем к нему.
+  useEffect(() => {
+    const pending = pendingJumpRef.current
+    if (!pending || pending.conversationId !== activeConversationId) return
+    if (allMessages.some((m) => m.id === pending.messageId)) {
+      pendingJumpRef.current = null
+      handleJumpToMessage(pending.messageId)
+    }
+  }, [activeConversationId, allMessages, handleJumpToMessage])
 
   // Сообщаем WS-слою об открытом чате: его сообщения не считаем непрочитанными
   // и не показываем по ним тосты.
@@ -711,7 +780,7 @@ export default function ChatPage() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Поиск чатов..."
+              placeholder="Поиск чатов и сообщений..."
               value={conversationSearchQuery}
               onChange={(e) => setConversationSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -757,6 +826,43 @@ export default function ChatPage() {
               activeId={activeConversationId}
               onSelect={setActiveConversationId}
             />
+          )}
+
+          {debouncedConvSearchQuery.length >= 2 && (
+            <div className="border-t border-gray-200 px-2.5 pt-2 dark:border-gray-700">
+              <div className="flex items-center justify-between px-1.5 pb-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  Сообщения
+                </span>
+                {isGlobalSearching && <Spinner size="sm" />}
+              </div>
+
+              {!isGlobalSearching && globalSearchResults.length === 0 ? (
+                <p className="px-1.5 pb-3 text-xs text-gray-400 dark:text-gray-500">Ничего не найдено</p>
+              ) : (
+                <div className="flex flex-col gap-1 pb-2">
+                  {globalSearchResults.map((message) => (
+                    <button
+                      key={message.id}
+                      onClick={() => handleSelectGlobalResult(message)}
+                      className="flex flex-col gap-0.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-left transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/70"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-xs font-medium text-gray-700 dark:text-gray-300">
+                          {conversationNameById.get(message.conversation_id) ?? `Чат #${message.conversation_id}`}
+                        </span>
+                        <span className="flex-shrink-0 text-[11px] text-gray-400 dark:text-gray-500">
+                          {message.sender_name}
+                        </span>
+                      </div>
+                      <span className="truncate text-sm text-gray-600 dark:text-gray-400">
+                        {message.text ?? '—'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

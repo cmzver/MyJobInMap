@@ -118,6 +118,15 @@ export const chatApi = {
     return data
   },
 
+  // Глобальный поиск по всем чатам пользователя.
+  async searchAllMessages(query: string): Promise<MessageResponse[]> {
+    const { data } = await apiClient.post<MessageResponse[]>(
+      `/chat/messages/search`,
+      { query },
+    )
+    return data
+  },
+
   // Reactions
   async toggleReaction(messageId: number, emoji: string): Promise<ReactionInfo[]> {
     const { data } = await apiClient.post<ReactionInfo[]>(

@@ -147,17 +147,27 @@ websocket_manager.py, chat_service.py. Codegraph — основной инстр
 
 ---
 
-## ФАЗА 7 — Поиск: FTS5 + глобальный поиск
+## ФАЗА 7 — Поиск: полнотекст (Postgres) + глобальный поиск  ✅ ВНЕДРЕНО
 
-**Файлы:** миграция БД (FTS5 virtual table), [chat_service.py](../server/app/services/chat_service.py) `search_messages`, новый эндпоинт глобального поиска, портал — UI глобального поиска.
+> ⚠️ Изначально план был под FTS5 (SQLite), но боевая БД — **PostgreSQL**
+> (проект двух-СУБД: прод PG, локалка/тесты SQLite). Поэтому сделано
+> **диалект-зависимо**: PG → `to_tsvector('russian')`/`websearch_to_tsquery`
+> по GIN-индексу; SQLite → `ILIKE`. Диалект берётся из биндинга сессии
+> (`db.get_bind().dialect.name`), не из `settings`, иначе SQLite-тесты падали
+> бы под PG-конфигом. FTS5 виртуальная таблица/триггеры не понадобились —
+> хватило функционального GIN-индекса (выражение совпадает с фильтром).
 
-- [ ] FTS5-таблица по `messages.text`, синхронизация триггерами (insert/update/delete).
-- [ ] `search_messages` перевести на FTS-MATCH (с tenant/membership фильтром).
-- [ ] Новый эндпоинт «поиск по всем моим чатам» + UI на портале (результаты с переходом к сообщению).
+**Файлы:** миграция `20260627_0001` (GIN-индекс, PG-only), [chat_service.py](../server/app/services/chat_service.py) (`_message_text_match`, `search_messages`, `search_all_messages`), [messages.py](../server/app/api/chat/messages.py) (`POST /messages/search`), [chat.ts](../portal/src/api/chat.ts) (`searchAllMessages`), [ChatPage.tsx](../portal/src/pages/ChatPage.tsx) (UI в сайдбаре).
+
+- [x] Полнотекст по `messages.text` на PG (GIN-индекс `to_tsvector('russian', coalesce(text,''))`); SQLite-фолбэк ILIKE.
+- [x] `search_messages` переведён на диалект-зависимый matcher (с membership-фильтром); пустой запрос → `[]`; батч-сборка ответа.
+- [x] Эндпоинт «поиск по всем моим чатам» (`POST /api/chat/messages/search`, membership-фильтр через подзапрос). +2 pytest (находит во всех чатах, исключает чужие).
+- [x] UI: строка поиска в сайдбаре чатов при ≥2 символах ищет и по тексту сообщений во всех чатах; секция «Сообщения» с переходом к сообщению (открыть чат + подсветка через pending-jump).
 - [x] **Reconnect-sync + удаление polling** ✅ ВНЕДРЕНО. На `onopen` (только реконнект, не первый коннект) `reconnectSync`: инвалидация списка чатов + по каждому открытому чату `getMessagesAfter(maxCachedId)` с merge в кэш (дедуп), `has_more` → полный рефетч во избежание дыр. Бэк: `get_messages` принимает `after_id` (id > cursor, ASC, +1 для has_more), эндпоинт — query-параметр `after_id`. Polling (`refetchInterval` 30s/60s) полностью убран — нагрузку держит WS. +1 pytest (`test_messages_after_id_catchup`). Контракт: добавлен опциональный query-параметр (аддитивно, типы портала не ломаются; Android-regen — follow-up).
 
-**Проверка:** поиск быстрый на большом объёме; глобальный поиск находит по всем чатам; после реконнекта пропущенные сообщения подтягиваются.
-**Коммит:** `feat(chat): FTS5 search + global message search`
+**Проверка:** ✅ глобальный поиск находит по всем чатам, исключает чужие (pytest); UI: ввод в строку поиска показывает результаты, клик открывает чат и подсвечивает сообщение. Реконнект-sync проверен отдельно (см. выше).
+**Коммит:** `feat(server/chat): Postgres FTS search + global message search` (бэк) + `feat(portal/chat): global message search UI` (фронт).
+**Follow-up:** переход к старому сообщению (не в первой странице) только открывает чат без подсветки — нужна загрузка контекста вокруг сообщения; Android-regen OpenAPI.
 
 ---
 
