@@ -772,6 +772,48 @@ class TestMessages:
         assert data["items"] == []
         assert data["has_more"] is False
 
+    def test_task_status_change_posts_system_message(self, client, auth_headers):
+        """Смена статуса заявки пишет системное сообщение в её чат."""
+        task_id = client.post(
+            "/api/tasks",
+            json={"title": "Task", "address": "St, 1"},
+            headers=auth_headers,
+        ).json()["id"]
+
+        # Открываем (создаём) чат заявки.
+        conv_id = client.get(f"/api/chat/task/{task_id}", headers=auth_headers).json()[
+            "id"
+        ]
+
+        resp = client.patch(
+            f"/api/tasks/{task_id}/status",
+            json={"status": "IN_PROGRESS"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+
+        messages = client.get(
+            f"/api/chat/conversations/{conv_id}/messages", headers=auth_headers
+        ).json()["items"]
+        system = [m for m in messages if m["message_type"] == "system"]
+        assert len(system) == 1
+        assert "Статус изменён" in system[0]["text"]
+
+    def test_task_status_change_without_chat_ok(self, client, auth_headers):
+        """Смена статуса без существующего чата заявки не падает."""
+        task_id = client.post(
+            "/api/tasks",
+            json={"title": "Task", "address": "St, 2"},
+            headers=auth_headers,
+        ).json()["id"]
+
+        resp = client.patch(
+            f"/api/tasks/{task_id}/status",
+            json={"status": "IN_PROGRESS"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+
     def test_reply_to_message(self, client, auth_headers, second_user):
         """Ответ на сообщение."""
         conv_id = self._create_direct(client, auth_headers, second_user)

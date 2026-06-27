@@ -720,6 +720,49 @@ def get_or_create_task_conversation(
 # ============================================================================
 
 
+def post_task_system_message(
+    db: Session,
+    task_id: int,
+    sender_id: int,
+    text: str,
+) -> Optional[tuple[ConversationModel, MessageResponse, list[int]]]:
+    """Запостить системное сообщение в чат заявки, ЕСЛИ он уже существует.
+
+    Чат специально НЕ создаётся (не плодим чаты у заявок, которые никто не
+    открывал). Проверка членства не нужна — это системное событие; ``sender_id``
+    (актор смены статуса) служит лишь валидным FK, в UI системное сообщение
+    рендерится без отправителя.
+
+    Возвращает ``(conversation, MessageResponse, member_ids)`` или ``None``,
+    если чата у заявки нет.
+    """
+    conv = (
+        db.query(ConversationModel)
+        .filter(
+            ConversationModel.type == ConversationType.TASK.value,
+            ConversationModel.task_id == task_id,
+        )
+        .first()
+    )
+    if not conv:
+        return None
+
+    msg = MessageModel(
+        conversation_id=conv.id,
+        sender_id=sender_id,
+        text=text,
+        message_type=MessageType.SYSTEM.value,
+    )
+    db.add(msg)
+    db.flush()
+    conv.last_message_at = msg.created_at
+    db.commit()
+    db.refresh(msg)
+
+    member_ids = get_conversation_member_ids(db, conv.id)
+    return conv, _build_message_response(db, msg), member_ids
+
+
 def send_message(
     db: Session,
     conv_id: int,

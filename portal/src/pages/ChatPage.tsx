@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { MessageSquare, Plus, Search, ArrowLeft, MoreVertical, VolumeX, Volume2, Archive, Inbox, Users, Bell, BellOff } from 'lucide-react'
 import { cn } from '@/utils/cn'
@@ -12,6 +13,7 @@ import MessageInput from '@/components/chat/MessageInput'
 import NewChatModal from '@/components/chat/NewChatModal'
 import ChatSettingsModal from '@/components/chat/ChatSettingsModal'
 import {
+  chatKeys,
   useConversations,
   useConversation,
   useMessages,
@@ -91,6 +93,7 @@ export default function ChatPage() {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   const push = usePushNotifications()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const { data: conversations = [], isLoading: convLoading } = useConversations(true)
   const { data: activeDetail } = useConversation(activeConversationId)
@@ -319,6 +322,52 @@ export default function ChatPage() {
     setActiveChatConversation(activeConversationId)
     return () => setActiveChatConversation(null)
   }, [activeConversationId])
+
+  // Открытие чата по deep-link: ?conversation=<id> напрямую, ?task=<id> —
+  // получить/создать чат заявки. Параметр снимается после обработки.
+  useEffect(() => {
+    const convParam = searchParams.get('conversation')
+    const taskParam = searchParams.get('task')
+    if (!convParam && !taskParam) return
+
+    let cancelled = false
+    const clear = () => {
+      const next = new URLSearchParams(searchParams)
+      next.delete('conversation')
+      next.delete('task')
+      setSearchParams(next, { replace: true })
+    }
+
+    if (convParam) {
+      const id = Number(convParam)
+      if (Number.isFinite(id)) setActiveConversationId(id)
+      clear()
+      return
+    }
+
+    const taskId = Number(taskParam)
+    if (!Number.isFinite(taskId)) {
+      clear()
+      return
+    }
+    chatApi.getTaskChat(taskId)
+      .then((conv) => {
+        if (cancelled) return
+        // Чат заявки мог быть только что создан — освежим список.
+        qc.invalidateQueries({ queryKey: chatKeys.conversationsRoot() })
+        setActiveConversationId(conv.id)
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('Не удалось открыть чат заявки')
+      })
+      .finally(() => {
+        if (!cancelled) clear()
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [searchParams, setSearchParams, qc])
 
   const canOpenSettings = activeDetail?.type === 'group' || activeDetail?.type === 'org_general'
 

@@ -36,6 +36,7 @@ from app.schemas import (
 from app.services import (
     TaskService,
     TaskServiceError,
+    chat_service,
     check_permission,
     get_task_service,
     require_permission,
@@ -43,6 +44,7 @@ from app.services import (
 from app.services.role_utils import is_dispatcher_or_admin_user, is_worker_user
 from app.services.tenant_filter import TenantFilter
 from app.services.websocket_manager import (
+    broadcast_chat_message,
     broadcast_task_assigned,
     broadcast_task_created,
     broadcast_task_deleted,
@@ -50,6 +52,7 @@ from app.services.websocket_manager import (
 )
 from app.utils import (
     get_priority_rank,
+    get_status_display_name,
     normalize_priority_value,
     priority_rank_expr,
     task_to_list_response,
@@ -311,6 +314,25 @@ async def update_task_status(
             organization_id=updated_task.organization_id,
         )
     )
+
+    # Системное сообщение в чат заявки (если он существует) + realtime-доставка.
+    if old_status != status_update.status.value:
+        system_text = (
+            f"Статус изменён: {get_status_display_name(old_status)} → "
+            f"{get_status_display_name(status_update.status.value)}"
+        )
+        posted = chat_service.post_task_system_message(
+            task_service.db, task_id, access.user.id, system_text
+        )
+        if posted is not None:
+            conv, message_response, member_ids = posted
+            asyncio.ensure_future(
+                broadcast_chat_message(
+                    member_user_ids=member_ids,
+                    conversation_id=conv.id,
+                    message_data=message_response.model_dump(mode="json"),
+                )
+            )
 
     return task_to_response(updated_task)
 

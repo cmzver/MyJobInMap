@@ -427,6 +427,10 @@ export default function TaskDetailPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => navigate(`/chat?task=${taskId}`)}>
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Обсудить
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setShowSendToChat(true)}>
                 <Send className="h-4 w-4 mr-2" />
                 В чат
