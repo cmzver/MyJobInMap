@@ -909,6 +909,74 @@ class TestMessages:
         assert resp.status_code == 200
         assert len(resp.json()) == 2
 
+        # Пустой запрос → пусто, без ошибки.
+        resp = client.post(
+            f"/api/chat/conversations/{conv_id}/messages/search",
+            json={"query": "   "},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_global_search_across_chats(self, client, auth_headers, second_user):
+        """Глобальный поиск находит сообщения во всех чатах пользователя."""
+        conv_a = self._create_direct(client, auth_headers, second_user)
+        client.post(
+            f"/api/chat/conversations/{conv_a}/messages",
+            json={"text": "unicorn alpha"},
+            headers=auth_headers,
+        )
+        # Второй чат (групповой) с тем же словом.
+        group = client.post(
+            "/api/chat/conversations",
+            json={
+                "type": "group",
+                "name": "Team",
+                "member_user_ids": [second_user.id],
+            },
+            headers=auth_headers,
+        ).json()
+        client.post(
+            f"/api/chat/conversations/{group['id']}/messages",
+            json={"text": "unicorn beta"},
+            headers=auth_headers,
+        )
+
+        resp = client.post(
+            "/api/chat/messages/search",
+            json={"query": "unicorn"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        conv_ids = {m["conversation_id"] for m in resp.json()}
+        assert conv_ids == {conv_a, group["id"]}
+
+    def test_global_search_excludes_foreign_chats(
+        self, client, auth_headers, db_session, second_user, worker_user
+    ):
+        """Глобальный поиск не выдаёт сообщения из чужих чатов."""
+        from app.services import chat_service
+
+        # Чат между second_user и worker_user — текущий пользователь не участник.
+        conv = chat_service.create_conversation(
+            db_session,
+            conv_type="direct",
+            creator_id=second_user.id,
+            organization_id=None,
+            member_user_ids=[worker_user.id],
+        )
+        chat_service.send_message(
+            db_session, conv.id, second_user.id, text="secret zebra"
+        )
+
+        resp = client.post(
+            "/api/chat/messages/search",
+            json={"query": "zebra"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json() == []
+
     def test_non_member_cannot_send(
         self, client, auth_headers, second_user, worker_user
     ):

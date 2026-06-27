@@ -891,6 +891,25 @@ def delete_message(
     db.commit()
 
 
+def _message_text_match(db: Session, query_text: str):
+    """Диалект-зависимый текстовый фильтр сообщений.
+
+    PostgreSQL → полнотекстовый поиск (``websearch_to_tsquery`` по
+    GIN-индексу ``to_tsvector('russian', text)``), что масштабируется на
+    больших объёмах. SQLite/локалка/тесты → подстрочный ``ILIKE``.
+    Выражение ``to_tsvector`` совпадает с индексом из миграции, иначе он
+    не используется.
+
+    Диалект берём из реального биндинга сессии, а не из ``settings``: в тестах
+    приложение может быть сконфигурировано на Postgres, но сессия — SQLite.
+    """
+    if db.get_bind().dialect.name == "postgresql":
+        tsv = func.to_tsvector("russian", func.coalesce(MessageModel.text, ""))
+        tsq = func.websearch_to_tsquery("russian", query_text)
+        return tsv.op("@@")(tsq)
+    return MessageModel.text.ilike(f"%{query_text}%")
+
+
 def search_messages(
     db: Session,
     conv_id: int,
@@ -898,23 +917,56 @@ def search_messages(
     query_text: str,
     limit: int = 50,
 ) -> list[MessageResponse]:
-    """Поиск по тексту сообщений в чате."""
+    """Поиск по тексту сообщений в одном чате."""
     _ensure_membership(db, conv_id, user_id)
 
-    pattern = f"%{query_text}%"
+    query_text = (query_text or "").strip()
+    if not query_text:
+        return []
+
     messages = (
         db.query(MessageModel)
         .filter(
             MessageModel.conversation_id == conv_id,
             MessageModel.is_deleted == False,  # noqa: E712
-            MessageModel.text.ilike(pattern),
+            _message_text_match(db, query_text),
         )
         .order_by(MessageModel.created_at.desc())
         .limit(limit)
         .all()
     )
 
-    return [_build_message_response(db, m) for m in messages]
+    return _build_message_responses(db, messages)
+
+
+def search_all_messages(
+    db: Session,
+    user_id: int,
+    query_text: str,
+    limit: int = 50,
+) -> list[MessageResponse]:
+    """Глобальный поиск по всем чатам, где пользователь состоит участником."""
+    query_text = (query_text or "").strip()
+    if not query_text:
+        return []
+
+    member_conv_ids = db.query(ConversationMemberModel.conversation_id).filter(
+        ConversationMemberModel.user_id == user_id
+    )
+
+    messages = (
+        db.query(MessageModel)
+        .filter(
+            MessageModel.conversation_id.in_(member_conv_ids),
+            MessageModel.is_deleted == False,  # noqa: E712
+            _message_text_match(db, query_text),
+        )
+        .order_by(MessageModel.id.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return _build_message_responses(db, messages)
 
 
 # ============================================================================

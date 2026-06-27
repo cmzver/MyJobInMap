@@ -189,6 +189,16 @@ async def search_messages(
     return chat_service.search_messages(db, conv_id, current_user.id, data.query)
 
 
+@router.post("/messages/search", response_model=List[MessageResponse])
+async def search_all_messages(
+    data: MessageSearchRequest,
+    current_user: UserModel = Depends(get_current_user_required),
+    db: Session = Depends(get_db),
+):
+    """Глобальный поиск по всем чатам пользователя."""
+    return chat_service.search_all_messages(db, current_user.id, data.query)
+
+
 @router.post("/messages/{message_id}/reactions", response_model=List[ReactionInfo])
 async def toggle_reaction(
     message_id: int,
