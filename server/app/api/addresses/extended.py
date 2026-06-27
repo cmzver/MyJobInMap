@@ -25,6 +25,7 @@ from app.models import (
     AddressHistoryModel,
     AddressModel,
     AddressSystemModel,
+    IntercomPanelModel,
     TaskModel,
     TaskStatus,
     get_db,
@@ -43,6 +44,9 @@ from app.schemas.address import (
     AddressSystemCreate,
     AddressSystemResponse,
     AddressSystemUpdate,
+    IntercomPanelCreate,
+    IntercomPanelResponse,
+    IntercomPanelUpdate,
     TaskStats,
 )
 from app.services.auth import get_current_user_required
@@ -218,6 +222,7 @@ async def get_address_full(
         equipment=[
             AddressEquipmentResponse.model_validate(e) for e in address.equipment
         ],
+        panels=[IntercomPanelResponse.model_validate(p) for p in address.panels],
         documents=documents,
         contacts=[AddressContactResponse.model_validate(c) for c in address.contacts],
         task_stats=task_stats,
@@ -487,6 +492,130 @@ async def delete_address_equipment(
         address_id,
         AddressHistoryEventType.EQUIPMENT_UPDATED,
         f"Удалено оборудование: {equipment_name}",
+        user.id,
+    )
+
+    db.commit()
+
+
+# ============================================
+# Intercom Panels CRUD
+# ============================================
+
+
+@router.get("/{address_id}/panels", response_model=list[IntercomPanelResponse])
+async def get_address_panels(
+    address_id: int,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_current_user_required),
+):
+    """Получить сетевые панели объекта"""
+    get_address_or_404(address_id, db, user)
+    panels = (
+        db.query(IntercomPanelModel)
+        .filter(IntercomPanelModel.address_id == address_id)
+        .order_by(IntercomPanelModel.entrance, IntercomPanelModel.id)
+        .all()
+    )
+    return [IntercomPanelResponse.model_validate(p) for p in panels]
+
+
+@router.post(
+    "/{address_id}/panels", response_model=IntercomPanelResponse, status_code=201
+)
+async def create_address_panel(
+    address_id: int,
+    data: IntercomPanelCreate,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_current_user_required),
+):
+    """Добавить сетевую панель на объект"""
+    get_address_or_404(address_id, db, user)
+
+    panel = IntercomPanelModel(address_id=address_id, **data.model_dump())
+    db.add(panel)
+
+    add_history_event(
+        db,
+        address_id,
+        AddressHistoryEventType.PANEL_ADDED,
+        f"Добавлена панель: {data.label or data.ip}",
+        user.id,
+    )
+
+    db.commit()
+    db.refresh(panel)
+    return IntercomPanelResponse.model_validate(panel)
+
+
+@router.patch("/{address_id}/panels/{panel_id}", response_model=IntercomPanelResponse)
+async def update_address_panel(
+    address_id: int,
+    panel_id: int,
+    data: IntercomPanelUpdate,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_current_user_required),
+):
+    """Обновить сетевую панель"""
+    get_address_or_404(address_id, db, user)
+    panel = (
+        db.query(IntercomPanelModel)
+        .filter(
+            IntercomPanelModel.id == panel_id,
+            IntercomPanelModel.address_id == address_id,
+        )
+        .first()
+    )
+
+    if not panel:
+        raise HTTPException(status_code=404, detail="Панель не найдена")
+
+    update_data = data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(panel, key, value)
+
+    add_history_event(
+        db,
+        address_id,
+        AddressHistoryEventType.PANEL_UPDATED,
+        f"Обновлена панель: {panel.label or panel.ip}",
+        user.id,
+    )
+
+    db.commit()
+    db.refresh(panel)
+    return IntercomPanelResponse.model_validate(panel)
+
+
+@router.delete("/{address_id}/panels/{panel_id}", status_code=204)
+async def delete_address_panel(
+    address_id: int,
+    panel_id: int,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_current_user_required),
+):
+    """Удалить сетевую панель"""
+    get_address_or_404(address_id, db, user)
+    panel = (
+        db.query(IntercomPanelModel)
+        .filter(
+            IntercomPanelModel.id == panel_id,
+            IntercomPanelModel.address_id == address_id,
+        )
+        .first()
+    )
+
+    if not panel:
+        raise HTTPException(status_code=404, detail="Панель не найдена")
+
+    panel_name = panel.label or panel.ip
+    db.delete(panel)
+
+    add_history_event(
+        db,
+        address_id,
+        AddressHistoryEventType.PANEL_UPDATED,
+        f"Удалена панель: {panel_name}",
         user.id,
     )
 

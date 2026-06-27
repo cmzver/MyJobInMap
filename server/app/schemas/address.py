@@ -349,6 +349,56 @@ class AddressEquipmentResponse(AddressEquipmentBase):
 
 
 # ============================================
+# Intercom Panel Schemas
+# ============================================
+
+
+class IntercomPanelBase(BaseModel):
+    """Base fields of a network intercom / door panel."""
+
+    vendor: str = Field(default="beward", max_length=30, description="Driver/vendor")
+    model: Optional[str] = Field(None, max_length=100)
+    label: Optional[str] = Field(None, max_length=200)
+    ip: str = Field(..., min_length=1, max_length=64, description="Device IP address")
+    port: int = Field(default=80, ge=1, le=65535)
+    entrance: Optional[str] = Field(
+        None, max_length=10, description="Entrance the panel serves"
+    )
+    is_active: bool = Field(default=True)
+    notes: Optional[str] = None
+
+
+class IntercomPanelCreate(IntercomPanelBase):
+    """Create a panel."""
+
+    pass
+
+
+class IntercomPanelUpdate(BaseModel):
+    """Update a panel (all fields optional)."""
+
+    vendor: Optional[str] = Field(None, max_length=30)
+    model: Optional[str] = Field(None, max_length=100)
+    label: Optional[str] = Field(None, max_length=200)
+    ip: Optional[str] = Field(None, min_length=1, max_length=64)
+    port: Optional[int] = Field(None, ge=1, le=65535)
+    entrance: Optional[str] = Field(None, max_length=10)
+    is_active: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class IntercomPanelResponse(IntercomPanelBase):
+    """Panel response."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    address_id: int
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
+
+
+# ============================================
 # Document Schemas
 # ============================================
 
@@ -485,6 +535,7 @@ class AddressFullResponse(BaseModel):
     # ��������� ������
     systems: List[AddressSystemResponse] = []
     equipment: List[AddressEquipmentResponse] = []
+    panels: List[IntercomPanelResponse] = []
     documents: List[AddressDocumentResponse] = []
     contacts: List[AddressContactResponse] = []
     task_stats: TaskStats = TaskStats()
