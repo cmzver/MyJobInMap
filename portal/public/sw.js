@@ -28,7 +28,22 @@ self.addEventListener('push', (event) => {
     renotify: Boolean(payload.chat_id),
   }
 
-  event.waitUntil(self.registration.showNotification(title, options))
+  event.waitUntil(
+    (async () => {
+      // Если окно портала сейчас в фокусе — пользователь уже видит in-app тост,
+      // системное уведомление не дублируем. Иначе (свёрнуто/не в фокусе/закрыто)
+      // показываем системный пуш.
+      const clients = await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      })
+      const portalFocused = clients.some(
+        (c) => c.focused && c.url.includes('/portal'),
+      )
+      if (portalFocused) return
+      await self.registration.showNotification(title, options)
+    })(),
+  )
 })
 
 self.addEventListener('notificationclick', (event) => {

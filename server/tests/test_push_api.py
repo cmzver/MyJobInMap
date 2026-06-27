@@ -77,7 +77,7 @@ class TestPushSubscriptionApi:
 
 
 class TestWebPushTargeting:
-    def test_message_web_push_skips_online_and_muted(
+    def test_message_web_push_skips_sender_and_muted(
         self,
         client,
         auth_headers,
@@ -87,7 +87,11 @@ class TestWebPushTargeting:
         dispatcher_user,
         monkeypatch,
     ):
-        """Web push уходит только офлайн и не-замьютившим участникам."""
+        """Web push уходит всем не-замьютившим, кроме отправителя.
+
+        Онлайн-статус сервер не фильтрует (Вариант А): показывать или нет —
+        решает service worker (подавляет, если окно портала в фокусе).
+        """
         from app.models.chat import ConversationMemberModel
         from app.services import chat_service
 
@@ -104,8 +108,8 @@ class TestWebPushTargeting:
 
         monkeypatch.setattr("app.services.send_web_push", fake_send_web_push)
 
-        # Групповой чат: admin (отправитель), worker (офлайн, не мьют),
-        # dispatcher (замьютил).
+        # Групповой чат: admin (отправитель — исключён), worker (получит пуш),
+        # dispatcher (замьютил — исключён).
         conv = chat_service.create_conversation(
             db_session,
             conv_type="group",
@@ -127,5 +131,5 @@ class TestWebPushTargeting:
         )
         assert resp.status_code == 200
 
-        # Никто не онлайн (нет WS) → офлайн все; dispatcher замьютил, admin — автор.
+        # dispatcher замьютил, admin — автор → остаётся только worker.
         assert captured.get("user_ids") == [worker_user.id]

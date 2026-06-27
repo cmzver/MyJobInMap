@@ -108,17 +108,16 @@ async def send_message(
             extra_data={"chat_id": str(conv_id)},
         )
 
-        # Web push (браузер, закрытая вкладка): только тем, кто сейчас офлайн
-        # (нет активного WS) и не заглушил чат — онлайн-вкладка получит событие
-        # по WebSocket, а mute уважаем.
+        # Web push (браузер): шлём всем не-замьютившим участникам — и оффлайн,
+        # и онлайн. Решение «показывать ли уведомление» принимает service worker:
+        # он подавляет пуш, если окно портала сейчас в фокусе (там виден тост),
+        # и показывает, если портал свёрнут/не в фокусе/закрыт.
         from app.config import settings as _settings
 
         if _settings.web_push_enabled:
             from app.models.chat import ConversationMemberModel
             from app.services import send_web_push
-            from app.services.websocket_manager import ws_manager
 
-            online_ids = ws_manager.online_user_ids(notify_user_ids)
             muted_ids = {
                 row[0]
                 for row in db.query(ConversationMemberModel.user_id)
@@ -128,11 +127,7 @@ async def send_message(
                 )
                 .all()
             }
-            web_targets = [
-                uid
-                for uid in notify_user_ids
-                if uid not in online_ids and uid not in muted_ids
-            ]
+            web_targets = [uid for uid in notify_user_ids if uid not in muted_ids]
             if web_targets:
                 send_web_push(
                     title=title,
