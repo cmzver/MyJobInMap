@@ -74,6 +74,7 @@ from app.services.task_service import (
 from app.services.task_state_machine import TaskStatusMachine
 from app.services.user_group_service import UserGroupServiceError
 from app.services.user_service import UserService, UserServiceError, get_user_service
+from app.services.web_push import send_web_push
 
 __all__ = [
     # Geocoding
@@ -84,6 +85,7 @@ __all__ = [
     "send_push_notification",
     "send_push_background",
     "_send_push_sync",
+    "send_web_push",
     # Auth
     "verify_password",
     "get_password_hash",

@@ -67,7 +67,7 @@ from app.models.support import (
     SupportTicketStatus,
 )
 from app.models.task import CommentModel, TaskModel, TaskPhotoModel
-from app.models.user import DeviceModel, UserModel
+from app.models.user import DeviceModel, PushSubscriptionModel, UserModel
 
 __all__ = [
     # Base
@@ -97,6 +97,7 @@ __all__ = [
     # User Models
     "UserModel",
     "DeviceModel",
+    "PushSubscriptionModel",
     # Organization
     "OrganizationModel",
     # Task Models

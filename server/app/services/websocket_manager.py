@@ -61,6 +61,14 @@ class ConnectionManager:
         """Количество уникальных подключённых пользователей"""
         return len(self._connections)
 
+    def is_user_online(self, user_id: int) -> bool:
+        """Есть ли у пользователя хотя бы одно активное WS-соединение."""
+        return bool(self._connections.get(user_id))
+
+    def online_user_ids(self, user_ids: list[int]) -> set[int]:
+        """Подмножество user_ids, у кого есть активное WS-соединение."""
+        return {uid for uid in user_ids if self._connections.get(uid)}
+
     async def connect(
         self,
         websocket: WebSocket,

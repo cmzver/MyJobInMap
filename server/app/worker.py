@@ -39,6 +39,19 @@ async def push_send(ctx, **kwargs):
         raise  # пусть ARQ сделает retry
 
 
+async def web_push_send(ctx, **kwargs):
+    """Отправка web-push (см. web_push._send_web_push_sync)."""
+    from app.services.web_push import _send_web_push_sync
+
+    try:
+        result = await asyncio.to_thread(_send_web_push_sync, **kwargs)
+        metrics.record_queue_processed("web_push_send", "success")
+        return result
+    except Exception:
+        metrics.record_queue_processed("web_push_send", "error")
+        raise  # пусть ARQ сделает retry
+
+
 async def _startup(ctx) -> None:
     logger.info("ARQ worker запущен (Redis: %s)", settings.REDIS_URL)
 
@@ -50,7 +63,7 @@ async def _shutdown(ctx) -> None:
 class WorkerSettings:
     """Конфигурация ARQ-воркера (``arq app.worker.WorkerSettings``)."""
 
-    functions = [push_send]
+    functions = [push_send, web_push_send]
     on_startup = _startup
     on_shutdown = _shutdown
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)

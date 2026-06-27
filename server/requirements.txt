@@ -23,6 +23,9 @@ geopy==2.4.1
 # Firebase
 firebase-admin==7.1.0
 
+# Web Push (VAPID) — браузерные push при закрытой вкладке
+pywebpush==2.3.0
+
 # PostgreSQL support
 psycopg2-binary==2.9.11
 

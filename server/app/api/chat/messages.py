@@ -108,6 +108,40 @@ async def send_message(
             extra_data={"chat_id": str(conv_id)},
         )
 
+        # Web push (браузер, закрытая вкладка): только тем, кто сейчас офлайн
+        # (нет активного WS) и не заглушил чат — онлайн-вкладка получит событие
+        # по WebSocket, а mute уважаем.
+        from app.config import settings as _settings
+
+        if _settings.web_push_enabled:
+            from app.models.chat import ConversationMemberModel
+            from app.services import send_web_push
+            from app.services.websocket_manager import ws_manager
+
+            online_ids = ws_manager.online_user_ids(notify_user_ids)
+            muted_ids = {
+                row[0]
+                for row in db.query(ConversationMemberModel.user_id)
+                .filter(
+                    ConversationMemberModel.conversation_id == conv_id,
+                    ConversationMemberModel.is_muted.is_(True),
+                )
+                .all()
+            }
+            web_targets = [
+                uid
+                for uid in notify_user_ids
+                if uid not in online_ids and uid not in muted_ids
+            ]
+            if web_targets:
+                send_web_push(
+                    title=title,
+                    body=body,
+                    url="/chat",
+                    user_ids=web_targets,
+                    extra_data={"chat_id": str(conv_id)},
+                )
+
     # Полный MessageResponse в payload → клиент патчит кэш без рефетча истории.
     # conversation_name — доп. поле для пуш-тостов (вне схемы; Android игнорирует лишнее).
     asyncio.ensure_future(

@@ -7,7 +7,7 @@ User Models
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, utcnow
@@ -109,3 +109,28 @@ class DeviceModel(Base):
     )
 
     user: Mapped["UserModel"] = relationship("UserModel", back_populates="devices")
+
+
+class PushSubscriptionModel(Base):
+    """Web Push подписка браузера (Push API / VAPID).
+
+    Отдельно от ``DeviceModel`` (FCM/Android): здесь — браузерные подписки
+    портала. ``endpoint`` уникален; ``p256dh``/``auth`` — ключи шифрования
+    полезной нагрузки, выданные браузером при подписке.
+    """
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
+    endpoint: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    p256dh: Mapped[str] = mapped_column(String(255), nullable=False)
+    auth: Mapped[str] = mapped_column(String(255), nullable=False)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+
+    user: Mapped["UserModel"] = relationship("UserModel")

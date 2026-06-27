@@ -55,6 +55,24 @@ class Settings(BaseSettings):
         description="Путь к файлу сервисного аккаунта Firebase",
     )
 
+    # === Web Push (VAPID) ===
+    # Браузерные push-уведомления (доставка при закрытой вкладке). Пара VAPID-
+    # ключей генерируется один раз (`vapid --gen` / web-push generate-vapid-keys).
+    # По умолчанию пусто → web push выключен (как Firebase без креденшелов).
+    # Приватный ключ — секрет, только через env, не в репозиторий.
+    VAPID_PUBLIC_KEY: str = Field(
+        default="",
+        description="VAPID public key (base64url, applicationServerKey для браузера)",
+    )
+    VAPID_PRIVATE_KEY: str = Field(
+        default="",
+        description="VAPID private key (PEM PKCS8). Секрет — только через env.",
+    )
+    VAPID_SUBJECT: str = Field(
+        default="mailto:admin@example.com",
+        description="VAPID subject (mailto: или https: контакт отправителя)",
+    )
+
     # === Файлы ===
     MAX_FILE_SIZE: int = Field(
         default=5 * 1024 * 1024, description="Макс. размер файла (5 MB)"
@@ -226,6 +244,12 @@ class Settings(BaseSettings):
     def FIREBASE_CREDENTIALS_PATH(self) -> str:
         """Алиас для FIREBASE_CREDENTIALS (обратная совместимость)"""
         return self.FIREBASE_CREDENTIALS
+
+    @computed_field
+    @property
+    def web_push_enabled(self) -> bool:
+        """Сконфигурирован ли web push (оба VAPID-ключа заданы)."""
+        return bool(self.VAPID_PUBLIC_KEY and self.VAPID_PRIVATE_KEY)
 
     @model_validator(mode="after")
     def create_directories(self) -> "Settings":

@@ -44,8 +44,15 @@ def _load_push_send() -> Callable[..., Any]:
     return _send_push_sync
 
 
+def _load_web_push_send() -> Callable[..., Any]:
+    from app.services.web_push import _send_web_push_sync
+
+    return _send_web_push_sync
+
+
 _JOB_LOADERS: Dict[str, Callable[[], Callable[..., Any]]] = {
     "push_send": _load_push_send,
+    "web_push_send": _load_web_push_send,
 }
 
 
