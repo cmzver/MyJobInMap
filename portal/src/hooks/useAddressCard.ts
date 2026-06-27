@@ -3,7 +3,8 @@
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { addressesApi, CreateSystemData, UpdateSystemData, CreateEquipmentData, UpdateEquipmentData, CreateContactData, UpdateContactData } from '@/api/addresses'
-import type { AddressFull } from '@/types/address'
+import { intercomApi } from '@/api/intercom'
+import type { AddressFull, CreateIntercomPanelData, UpdateIntercomPanelData } from '@/types/address'
 import { useAuthStore } from '@/store/authStore'
 
 // Query Keys
@@ -15,6 +16,7 @@ const addressCardKeys = {
   documents: (organizationId: number | null | undefined, id: number) => [...addressCardKeys.all(organizationId), 'documents', id] as const,
   contacts: (organizationId: number | null | undefined, id: number) => [...addressCardKeys.all(organizationId), 'contacts', id] as const,
   history: (organizationId: number | null | undefined, id: number) => [...addressCardKeys.all(organizationId), 'history', id] as const,
+  panels: (organizationId: number | null | undefined, id: number) => [...addressCardKeys.all(organizationId), 'panels', id] as const,
 }
 
 // ============================================
@@ -202,11 +204,55 @@ export function useUpdateContact(addressId: number) {
 export function useDeleteContact(addressId: number) {
   const queryClient = useQueryClient()
   const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
-  
+
   return useMutation({
     mutationFn: (contactId: number) => addressesApi.deleteContact(addressId, contactId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: addressCardKeys.contacts(organizationId, addressId) })
+      queryClient.invalidateQueries({ queryKey: addressCardKeys.full(organizationId, addressId) })
+      queryClient.invalidateQueries({ queryKey: addressCardKeys.history(organizationId, addressId) })
+    },
+  })
+}
+
+// ============================================
+// Сетевые панели (CRUD; «живые» действия — в useIntercom.ts)
+// ============================================
+
+export function useCreatePanel(addressId: number) {
+  const queryClient = useQueryClient()
+  const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
+
+  return useMutation({
+    mutationFn: (data: CreateIntercomPanelData) => intercomApi.createPanel(addressId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: addressCardKeys.full(organizationId, addressId) })
+      queryClient.invalidateQueries({ queryKey: addressCardKeys.history(organizationId, addressId) })
+    },
+  })
+}
+
+export function useUpdatePanel(addressId: number) {
+  const queryClient = useQueryClient()
+  const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
+
+  return useMutation({
+    mutationFn: ({ panelId, data }: { panelId: number; data: UpdateIntercomPanelData }) =>
+      intercomApi.updatePanel(addressId, panelId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: addressCardKeys.full(organizationId, addressId) })
+      queryClient.invalidateQueries({ queryKey: addressCardKeys.history(organizationId, addressId) })
+    },
+  })
+}
+
+export function useDeletePanel(addressId: number) {
+  const queryClient = useQueryClient()
+  const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
+
+  return useMutation({
+    mutationFn: (panelId: number) => intercomApi.deletePanel(addressId, panelId),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: addressCardKeys.full(organizationId, addressId) })
       queryClient.invalidateQueries({ queryKey: addressCardKeys.history(organizationId, addressId) })
     },

@@ -61,6 +61,7 @@ import Card from '@/components/Card'
 import MetricCard from '@/components/MetricCard'
 import Spinner from '@/components/Spinner'
 import Modal from '@/components/Modal'
+import IntercomPanelsSection from '@/components/IntercomPanelsSection'
 import { SystemForm, EquipmentForm, DocumentForm, ContactForm, AddressForm } from '@/components/AddressCardForms'
 import type { 
   SystemFormData, 
@@ -166,12 +167,13 @@ const contactTypeLabels: Record<ContactType, string> = {
   other: 'Другое',
 }
 
-type TabType = 'info' | 'systems' | 'equipment' | 'documents' | 'contacts' | 'tasks' | 'history'
+type TabType = 'info' | 'systems' | 'equipment' | 'panels' | 'documents' | 'contacts' | 'tasks' | 'history'
 
 const tabs: { id: TabType; label: string; Icon: typeof Building2 }[] = [
   { id: 'info', label: 'Информация', Icon: Building2 },
   { id: 'systems', label: 'Системы', Icon: Wrench },
   { id: 'equipment', label: 'Оборудование', Icon: Package },
+  { id: 'panels', label: 'Панели', Icon: Server },
   { id: 'documents', label: 'Документы', Icon: FileText },
   { id: 'contacts', label: 'Контакты', Icon: Users },
   { id: 'tasks', label: 'Заявки', Icon: ClipboardList },
@@ -242,6 +244,7 @@ export default function AddressDetailPage() {
   const address = addressFull
   const systems = addressFull?.systems || []
   const equipment = addressFull?.equipment || []
+  const panels = addressFull?.panels || []
   const documents = addressFull?.documents || []
   const contacts = addressFull?.contacts || []
   const taskStats = addressFull?.task_stats || { total: 0, new: 0, in_progress: 0, done: 0, cancelled: 0 }
@@ -731,6 +734,11 @@ export default function AddressDetailPage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* Сетевые панели */}
+        {activeTab === 'panels' && (
+          <IntercomPanelsSection addressId={addressId} panels={panels} />
         )}
 
         {/* Документы */}

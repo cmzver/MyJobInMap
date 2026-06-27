@@ -564,6 +564,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/push/vapid-public-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Vapid Public Key
+         * @description Публичный VAPID-ключ для подписки браузера (applicationServerKey).
+         */
+        get: operations["get_vapid_public_key_api_push_vapid_public_key_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/push/subscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Subscribe
+         * @description Сохранить (или обновить) push-подписку текущего пользователя.
+         */
+        post: operations["subscribe_api_push_subscribe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/push/unsubscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unsubscribe
+         * @description Удалить push-подписку текущего пользователя по endpoint.
+         */
+        post: operations["unsubscribe_api_push_unsubscribe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/notifications": {
         parameters: {
             query?: never;
@@ -1072,6 +1132,10 @@ export interface paths {
         /**
          * Update Backup Settings
          * @description Обновить настройки резервного копирования.
+         *
+         *     После сохранения переконфигурируем работающий планировщик на лету
+         *     (частота/срок хранения/включение), чтобы изменения вступали в силу
+         *     без перезапуска сервера.
          */
         patch: operations["update_backup_settings_api_admin_backups_settings_patch"];
         trace?: never;
@@ -1681,6 +1745,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/system/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * System Health
+         * @description Полная health-сводка сервера (только супер-админ).
+         *
+         *     Блокирующие вызовы (psutil, redis ping, HTTP к docker-proxy) уносим в
+         *     threadpool, чтобы не держать event loop.
+         */
+        get: operations["system_health_api_admin_system_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/system/containers/{name}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * System Container Logs
+         * @description Последние `tail` строк логов контейнера (только супер-админ, read-only).
+         */
+        get: operations["system_container_logs_api_admin_system_containers__name__logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/public/login-branding": {
         parameters: {
             query?: never;
@@ -2133,6 +2240,54 @@ export interface paths {
         patch: operations["update_address_equipment_api_addresses__address_id__equipment__equipment_id__patch"];
         trace?: never;
     };
+    "/api/addresses/{address_id}/panels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Address Panels
+         * @description Получить сетевые панели объекта
+         */
+        get: operations["get_address_panels_api_addresses__address_id__panels_get"];
+        put?: never;
+        /**
+         * Create Address Panel
+         * @description Добавить сетевую панель на объект
+         */
+        post: operations["create_address_panel_api_addresses__address_id__panels_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/addresses/{address_id}/panels/{panel_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Address Panel
+         * @description Удалить сетевую панель
+         */
+        delete: operations["delete_address_panel_api_addresses__address_id__panels__panel_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Address Panel
+         * @description Обновить сетевую панель
+         */
+        patch: operations["update_address_panel_api_addresses__address_id__panels__panel_id__patch"];
+        trace?: never;
+    };
     "/api/addresses/{address_id}/documents": {
         parameters: {
             query?: never;
@@ -2277,6 +2432,106 @@ export interface paths {
          * @description Получить заявки по адресу
          */
         get: operations["get_address_tasks_api_addresses__address_id__tasks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/addresses/{address_id}/panels/{panel_id}/door/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open Panel Door
+         * @description Открыть дверь панели.
+         */
+        post: operations["open_panel_door_api_addresses__address_id__panels__panel_id__door_open_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/addresses/{address_id}/panels/{panel_id}/door/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close Panel Door
+         * @description Закрыть дверь панели.
+         */
+        post: operations["close_panel_door_api_addresses__address_id__panels__panel_id__door_close_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/addresses/{address_id}/panels/{panel_id}/lock-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Panel Lock Status
+         * @description Статус замка (открыт/закрыт). Read-only.
+         */
+        get: operations["get_panel_lock_status_api_addresses__address_id__panels__panel_id__lock_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/addresses/{address_id}/panels/{panel_id}/mifare-scan-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Panel Mifare Scan Code
+         * @description Код режима записи ключей ('Сканировать по коду') и флаг активности.
+         */
+        get: operations["get_panel_mifare_scan_code_api_addresses__address_id__panels__panel_id__mifare_scan_code_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/addresses/{address_id}/panels/{panel_id}/snapshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Panel Snapshot
+         * @description JPEG-кадр с камеры панели (короткий кэш). Read-only, не аудируется.
+         */
+        get: operations["get_panel_snapshot_api_addresses__address_id__panels__panel_id__snapshot_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2929,6 +3184,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/chat/messages/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Search All Messages
+         * @description Глобальный поиск по всем чатам пользователя.
+         */
+        post: operations["search_all_messages_api_chat_messages_search_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/chat/messages/{message_id}/reactions": {
         parameters: {
             query?: never;
@@ -2983,6 +3258,29 @@ export interface paths {
          * @description Загрузить вложение к сообщению.
          */
         post: operations["upload_attachment_api_chat_messages__message_id__attachments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chat/conversations/{conv_id}/messages/with-attachment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Message With Attachment
+         * @description Атомарно создать сообщение с вложением одним запросом.
+         *
+         *     Заменяет двухшаговый «draft → upload»: при сбое не остаётся пустого
+         *     сообщения-сироты, а получатель видит одно событие с готовым вложением.
+         */
+        post: operations["send_message_with_attachment_api_chat_conversations__conv_id__messages_with_attachment_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3239,15 +3537,9 @@ export interface components {
             id: number;
             /** Address Id */
             address_id: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
+            /** Updated At */
             updated_at: string;
         };
         /**
@@ -3393,10 +3685,7 @@ export interface components {
             valid_until?: string | null;
             /** Notes */
             notes?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
             /** Created By Id */
             created_by_id?: number | null;
@@ -3482,15 +3771,9 @@ export interface components {
             id: number;
             /** Address Id */
             address_id: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
+            /** Updated At */
             updated_at: string;
         };
         /**
@@ -3567,15 +3850,9 @@ export interface components {
              * @default true
              */
             is_active: boolean;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
+            /** Updated At */
             updated_at: string;
             /**
              * Systems
@@ -3587,6 +3864,11 @@ export interface components {
              * @default []
              */
             equipment: components["schemas"]["AddressEquipmentResponse"][];
+            /**
+             * Panels
+             * @default []
+             */
+            panels: components["schemas"]["IntercomPanelResponse"][];
             /**
              * Documents
              * @default []
@@ -3613,7 +3895,7 @@ export interface components {
          * @description ���� ������� � ������� �������
          * @enum {string}
          */
-        AddressHistoryEventType: "created" | "updated" | "document_added" | "document_removed" | "system_added" | "system_updated" | "equipment_added" | "equipment_updated" | "contact_added" | "contact_updated";
+        AddressHistoryEventType: "created" | "updated" | "document_added" | "document_removed" | "system_added" | "system_updated" | "equipment_added" | "equipment_updated" | "contact_added" | "contact_updated" | "panel_added" | "panel_updated";
         /**
          * AddressHistoryResponse
          * @description ����� � ������� �������
@@ -3630,10 +3912,7 @@ export interface components {
             user_id?: number | null;
             /** User Name */
             user_name?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
         };
         /**
@@ -3724,15 +4003,9 @@ export interface components {
              * @default true
              */
             is_active: boolean;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
+            /** Updated At */
             updated_at: string;
         };
         /**
@@ -3810,15 +4083,9 @@ export interface components {
             id: number;
             /** Address Id */
             address_id: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
+            /** Updated At */
             updated_at: string;
         };
         /**
@@ -3954,7 +4221,6 @@ export interface components {
             download_url: string;
             /**
              * Created At
-             * Format: date-time
              * @description Дата публикации
              */
             created_at: string;
@@ -3998,10 +4264,7 @@ export interface components {
             name: string;
             /** Size */
             size: number;
-            /**
-             * Created
-             * Format: date-time
-             */
+            /** Created */
             created: string;
         };
         /** BackupListResponse */
@@ -4088,6 +4351,18 @@ export interface components {
              * Format: password
              */
             client_secret?: string | null;
+        };
+        /** Body_send_message_with_attachment_api_chat_conversations__conv_id__messages_with_attachment_post */
+        Body_send_message_with_attachment_api_chat_conversations__conv_id__messages_with_attachment_post: {
+            /**
+             * File
+             * Format: binary
+             */
+            file: string;
+            /** Text */
+            text?: string | null;
+            /** Reply To Id */
+            reply_to_id?: number | null;
         };
         /** Body_upload_address_document_api_addresses__address_id__documents_post */
         Body_upload_address_document_api_addresses__address_id__documents_post: {
@@ -4209,10 +4484,7 @@ export interface components {
             old_assignee?: string | null;
             /** New Assignee */
             new_assignee?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
         };
         /**
@@ -4276,10 +4548,7 @@ export interface components {
             organization_id?: number | null;
             /** Created By */
             created_by: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
             /** Updated At */
             updated_at?: string | null;
@@ -4351,10 +4620,7 @@ export interface components {
             organization_id?: number | null;
             /** Created By */
             created_by: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
             /** Updated At */
             updated_at?: string | null;
@@ -4480,10 +4746,7 @@ export interface components {
             id: number;
             /** Is Active */
             is_active: boolean;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
         };
         /** CustomFieldUpdate */
@@ -4647,6 +4910,112 @@ export interface components {
             phone?: string | null;
         };
         /**
+         * IntercomPanelCreate
+         * @description Create a panel.
+         */
+        IntercomPanelCreate: {
+            /**
+             * Vendor
+             * @description Driver/vendor
+             * @default beward
+             */
+            vendor: string;
+            /** Model */
+            model?: string | null;
+            /** Label */
+            label?: string | null;
+            /**
+             * Ip
+             * @description Device IP address
+             */
+            ip: string;
+            /**
+             * Port
+             * @default 80
+             */
+            port: number;
+            /**
+             * Entrance
+             * @description Entrance the panel serves
+             */
+            entrance?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Notes */
+            notes?: string | null;
+        };
+        /**
+         * IntercomPanelResponse
+         * @description Panel response.
+         */
+        IntercomPanelResponse: {
+            /**
+             * Vendor
+             * @description Driver/vendor
+             * @default beward
+             */
+            vendor: string;
+            /** Model */
+            model?: string | null;
+            /** Label */
+            label?: string | null;
+            /**
+             * Ip
+             * @description Device IP address
+             */
+            ip: string;
+            /**
+             * Port
+             * @default 80
+             */
+            port: number;
+            /**
+             * Entrance
+             * @description Entrance the panel serves
+             */
+            entrance?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Notes */
+            notes?: string | null;
+            /** Id */
+            id: number;
+            /** Address Id */
+            address_id: number;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+        };
+        /**
+         * IntercomPanelUpdate
+         * @description Update a panel (all fields optional).
+         */
+        IntercomPanelUpdate: {
+            /** Vendor */
+            vendor?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Label */
+            label?: string | null;
+            /** Ip */
+            ip?: string | null;
+            /** Port */
+            port?: number | null;
+            /** Entrance */
+            entrance?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Notes */
+            notes?: string | null;
+        };
+        /**
          * InterfaceSettingsResponse
          * @description Публичные настройки интерфейса
          */
@@ -4675,10 +5044,7 @@ export interface components {
             sender_name: string;
             /** @default text */
             message_type: components["schemas"]["MessageType"];
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
         };
         /**
@@ -4745,10 +5111,7 @@ export interface components {
              * @default false
              */
             is_archived: boolean;
-            /**
-             * Joined At
-             * Format: date-time
-             */
+            /** Joined At */
             joined_at: string;
         };
         /**
@@ -4858,10 +5221,7 @@ export interface components {
              * @default false
              */
             is_deleted: boolean;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
             /** Edited At */
             edited_at?: string | null;
@@ -4914,14 +5274,13 @@ export interface components {
             task_id?: number | null;
             /** Support Ticket Id */
             support_ticket_id?: number | null;
+            /** Conversation Id */
+            conversation_id?: number | null;
             /** Id */
             id: number;
             /** Is Read */
             is_read: boolean;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
         };
         /** OrganizationCreate */
@@ -5036,6 +5395,55 @@ export interface components {
             pages: number;
         };
         /**
+         * PanelDoorActionResponse
+         * @description Result of an open/close command.
+         */
+        PanelDoorActionResponse: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Action
+             * @description open | close
+             */
+            action: string;
+            /**
+             * Is Open
+             * @description Lock state after the command
+             */
+            is_open: boolean;
+        };
+        /**
+         * PanelLockStatusResponse
+         * @description Current lock state read from the device.
+         */
+        PanelLockStatusResponse: {
+            /**
+             * Is Open
+             * @description True if the door is held open
+             */
+            is_open: boolean;
+        };
+        /**
+         * PanelMifareScanCodeResponse
+         * @description Key-enrollment ('scan by code') value read from the device.
+         */
+        PanelMifareScanCodeResponse: {
+            /**
+             * Code
+             * @description Scan-by-code value
+             */
+            code?: string | null;
+            /**
+             * Active
+             * @description Whether scan-by-code is enabled
+             * @default false
+             */
+            active: boolean;
+        };
+        /**
          * ParseTaskRequest
          * @description Запрос на парсинг сообщения диспетчерской
          */
@@ -5100,10 +5508,7 @@ export interface components {
             photo_type: string;
             /** Url */
             url: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
             /** Uploaded By */
             uploaded_by?: string | null;
@@ -5131,6 +5536,13 @@ export interface components {
             /** Phone */
             phone?: string | null;
         };
+        /** PushKeys */
+        PushKeys: {
+            /** P256Dh */
+            p256dh: string;
+            /** Auth */
+            auth: string;
+        };
         /**
          * PushNotificationRequest
          * @description Р—Р°РїСЂРѕСЃ РЅР° РѕС‚РїСЂР°РІРєСѓ push
@@ -5149,6 +5561,17 @@ export interface components {
             notification_type: string;
             /** User Ids */
             user_ids?: number[] | null;
+        };
+        /** PushSubscriptionPayload */
+        PushSubscriptionPayload: {
+            /** Endpoint */
+            endpoint: string;
+            keys: components["schemas"]["PushKeys"];
+        };
+        /** PushUnsubscribePayload */
+        PushUnsubscribePayload: {
+            /** Endpoint */
+            endpoint: string;
         };
         /**
          * ReactionCreate
@@ -5446,10 +5869,7 @@ export interface components {
             body?: string | null;
             old_status?: components["schemas"]["SupportTicketStatus"] | null;
             new_status?: components["schemas"]["SupportTicketStatus"] | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
             author: components["schemas"]["SupportTicketReporter"];
         };
@@ -5481,15 +5901,9 @@ export interface components {
             admin_response?: string | null;
             /** Organization Id */
             organization_id?: number | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
+            /** Updated At */
             updated_at: string;
             /** Resolved At */
             resolved_at?: string | null;
@@ -5524,15 +5938,9 @@ export interface components {
             admin_response?: string | null;
             /** Organization Id */
             organization_id?: number | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
+            /** Updated At */
             updated_at: string;
             /** Resolved At */
             resolved_at?: string | null;
@@ -5731,14 +6139,12 @@ export interface components {
             priority: components["schemas"]["TaskPriority"];
             /**
              * Created At
-             * Format: date-time
              * @description Дата создания (UTC)
              * @example 2025-12-09T23:00:00
              */
             created_at: string;
             /**
              * Updated At
-             * Format: date-time
              * @description Дата последнего обновления (UTC)
              * @example 2025-12-09T23:30:00
              */
@@ -5940,14 +6346,12 @@ export interface components {
             priority: components["schemas"]["TaskPriority"];
             /**
              * Created At
-             * Format: date-time
              * @description Дата создания (UTC)
              * @example 2025-12-09T23:00:00
              */
             created_at: string;
             /**
              * Updated At
-             * Format: date-time
              * @description Дата последнего обновления (UTC)
              * @example 2025-12-09T23:30:00
              */
@@ -6483,10 +6887,7 @@ export interface components {
             base_access: string;
             /** Is Active */
             is_active: boolean;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
             /** Last Login */
             last_login: string | null;
@@ -6678,15 +7079,9 @@ export interface components {
             fcm_token: string;
             /** Device Name */
             device_name?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
+            /** Created At */
             created_at: string;
-            /**
-             * Last Active
-             * Format: date-time
-             */
+            /** Last Active */
             last_active: string;
         };
     };
@@ -7621,6 +8016,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_vapid_public_key_api_push_vapid_public_key_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    subscribe_api_push_subscribe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushSubscriptionPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unsubscribe_api_push_unsubscribe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushUnsubscribePayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -9606,6 +10087,59 @@ export interface operations {
             };
         };
     };
+    system_health_api_admin_system_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    system_container_logs_api_admin_system_containers__name__logs_get: {
+        parameters: {
+            query?: {
+                tail?: number;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_login_branding_settings_api_public_login_branding_get: {
         parameters: {
             query?: never;
@@ -10528,6 +11062,138 @@ export interface operations {
             };
         };
     };
+    get_address_panels_api_addresses__address_id__panels_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntercomPanelResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_address_panel_api_addresses__address_id__panels_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntercomPanelCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntercomPanelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_address_panel_api_addresses__address_id__panels__panel_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: number;
+                panel_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_address_panel_api_addresses__address_id__panels__panel_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: number;
+                panel_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntercomPanelUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntercomPanelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_address_documents_api_addresses__address_id__documents_get: {
         parameters: {
             query?: {
@@ -10834,6 +11500,166 @@ export interface operations {
             header?: never;
             path: {
                 address_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_panel_door_api_addresses__address_id__panels__panel_id__door_open_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: number;
+                panel_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PanelDoorActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    close_panel_door_api_addresses__address_id__panels__panel_id__door_close_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: number;
+                panel_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PanelDoorActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_panel_lock_status_api_addresses__address_id__panels__panel_id__lock_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: number;
+                panel_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PanelLockStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_panel_mifare_scan_code_api_addresses__address_id__panels__panel_id__mifare_scan_code_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: number;
+                panel_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PanelMifareScanCodeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_panel_snapshot_api_addresses__address_id__panels__panel_id__snapshot_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: number;
+                panel_id: number;
             };
             cookie?: never;
         };
@@ -11815,6 +12641,8 @@ export interface operations {
             query?: {
                 /** @description Cursor: ID сообщения (загрузить старше) */
                 before_id?: number | null;
+                /** @description Cursor: ID сообщения (catch-up, загрузить новее) */
+                after_id?: number | null;
                 limit?: number;
             };
             header?: never;
@@ -11981,6 +12809,39 @@ export interface operations {
             };
         };
     };
+    search_all_messages_api_chat_messages_search_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageSearchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     toggle_reaction_api_chat_messages__message_id__reactions_post: {
         parameters: {
             query?: never;
@@ -12063,6 +12924,41 @@ export interface operations {
         requestBody: {
             content: {
                 "multipart/form-data": components["schemas"]["Body_upload_attachment_api_chat_messages__message_id__attachments_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_message_with_attachment_api_chat_conversations__conv_id__messages_with_attachment_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conv_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_send_message_with_attachment_api_chat_conversations__conv_id__messages_with_attachment_post"];
             };
         };
         responses: {
