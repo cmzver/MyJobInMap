@@ -80,6 +80,15 @@ export const chatApi = {
     return data
   },
 
+  // Catch-up для reconnect-sync: сообщения новее afterId (по возрастанию id).
+  async getMessagesAfter(conversationId: number, afterId: number, limit = 50): Promise<MessageListResponse> {
+    const { data } = await apiClient.get<MessageListResponse>(
+      `/chat/conversations/${conversationId}/messages`,
+      { params: { after_id: afterId, limit } },
+    )
+    return data
+  },
+
   async sendMessage(conversationId: number, payload: MessageCreate): Promise<MessageResponse> {
     const { data } = await apiClient.post<MessageResponse>(
       `/chat/conversations/${conversationId}/messages`,

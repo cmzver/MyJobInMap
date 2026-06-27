@@ -42,12 +42,17 @@ async def get_messages(
     before_id: Optional[int] = Query(
         None, description="Cursor: ID сообщения (загрузить старше)"
     ),
+    after_id: Optional[int] = Query(
+        None, description="Cursor: ID сообщения (catch-up, загрузить новее)"
+    ),
     limit: int = Query(50, ge=1, le=100),
     current_user: UserModel = Depends(get_current_user_required),
     db: Session = Depends(get_db),
 ):
     """Сообщения чата с cursor-пагинацией."""
-    return chat_service.get_messages(db, conv_id, current_user.id, before_id, limit)
+    return chat_service.get_messages(
+        db, conv_id, current_user.id, before_id, after_id, limit
+    )
 
 
 @router.post("/conversations/{conv_id}/messages", response_model=MessageResponse)

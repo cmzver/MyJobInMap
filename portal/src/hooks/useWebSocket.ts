@@ -14,18 +14,21 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import { myTaskKeys } from '@/hooks/useTasks'
+import { chatApi } from '@/api/chat'
 import { chatKeys } from '@/hooks/useChat'
 import {
   appendMessageToCache,
   bumpConversationListCache,
+  getMaxCachedMessageId,
   isConversationMuted,
   markMessageDeletedInCache,
   patchMessageInCache,
   replaceMessageInCache,
 } from '@/utils/chatCache'
-import type { MessageResponse } from '@/types/chat'
+import type { MessageListResponse, MessageResponse } from '@/types/chat'
 import toast from 'react-hot-toast'
 
 export interface WsEvent {
@@ -73,6 +76,38 @@ export function onChatRead(handler: ChatReadHandler) {
   }
 }
 
+/**
+ * Catch-up после реконнекта WS: пока соединение было разорвано, события не
+ * приходили. Авторитетный список чатов перезапрашиваем (превью/непрочитанные/
+ * новые чаты), а для каждого уже открытого чата дотягиваем сообщения новее
+ * последнего известного id. Если пропущено больше страницы — полный рефетч,
+ * чтобы не получить дыру в истории.
+ */
+async function reconnectSync(qc: QueryClient): Promise<void> {
+  void qc.invalidateQueries({ queryKey: chatKeys.conversationsRoot() })
+
+  const cached = qc.getQueriesData<InfiniteData<MessageListResponse>>({
+    queryKey: chatKeys.messagesRoot(),
+  })
+  for (const [key] of cached) {
+    const convId = key[key.length - 1]
+    if (typeof convId !== 'number') continue
+    const afterId = getMaxCachedMessageId(qc, convId)
+    if (afterId == null) continue
+    try {
+      const res = await chatApi.getMessagesAfter(convId, afterId)
+      if (res.has_more) {
+        void qc.invalidateQueries({ queryKey: chatKeys.messages(convId) })
+      } else {
+        for (const message of res.items) appendMessageToCache(qc, convId, message)
+      }
+    } catch {
+      // Сбой catch-up — безопасный фолбэк на полный рефетч истории чата.
+      void qc.invalidateQueries({ queryKey: chatKeys.messages(convId) })
+    }
+  }
+}
+
 export function useWebSocket() {
   const { token, isAuthenticated, user } = useAuthStore()
   const currentUserId = user?.id ?? 0
@@ -81,6 +116,8 @@ export function useWebSocket() {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const reconnectDelayRef = useRef(RECONNECT_DELAY_MS)
+  // false до первого успешного onopen; последующие open — это реконнект.
+  const hasConnectedRef = useRef(false)
 
   const handleMessage = useCallback(
     (event: MessageEvent) => {
@@ -276,6 +313,12 @@ export function useWebSocket() {
       ws.onopen = () => {
         reconnectDelayRef.current = RECONNECT_DELAY_MS // reset delay on success
 
+        // Реконнект (не первый коннект) → дотянуть пропущенное за время обрыва.
+        if (hasConnectedRef.current) {
+          void reconnectSync(queryClient)
+        }
+        hasConnectedRef.current = true
+
         // Запускаем ping/pong keepalive
         pingTimerRef.current = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
@@ -313,7 +356,7 @@ export function useWebSocket() {
       // Ошибка создания WebSocket — retry
       reconnectTimerRef.current = setTimeout(connect, reconnectDelayRef.current)
     }
-  }, [isAuthenticated, token, handleMessage])
+  }, [isAuthenticated, token, handleMessage, queryClient])
 
   useEffect(() => {
     connect()

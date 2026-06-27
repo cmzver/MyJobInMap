@@ -782,14 +782,34 @@ def get_messages(
     conv_id: int,
     user_id: int,
     before_id: Optional[int] = None,
+    after_id: Optional[int] = None,
     limit: int = 50,
 ) -> MessageListResponse:
-    """Получить сообщения чата с cursor-пагинацией."""
+    """Получить сообщения чата с cursor-пагинацией.
+
+    ``before_id`` — загрузить более старые сообщения (скролл истории вверх).
+    ``after_id`` — catch-up для reconnect-sync: вернуть сообщения новее курсора
+    по возрастанию id. ``has_more=True`` означает, что пропущено больше ``limit``
+    сообщений и клиенту стоит сделать полный рефетч во избежание дыр в истории.
+    """
     _ensure_membership(db, conv_id, user_id)
 
     query = db.query(MessageModel).filter(
         MessageModel.conversation_id == conv_id,
     )
+
+    if after_id:
+        messages = (
+            query.filter(MessageModel.id > after_id)
+            .order_by(MessageModel.id.asc())
+            .limit(limit + 1)
+            .all()
+        )
+        has_more = len(messages) > limit
+        if has_more:
+            messages = messages[:limit]
+        items = _build_message_responses(db, list(messages))
+        return MessageListResponse(items=items, has_more=has_more)
 
     if before_id:
         query = query.filter(MessageModel.id < before_id)

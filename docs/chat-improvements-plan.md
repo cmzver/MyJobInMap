@@ -154,7 +154,7 @@ websocket_manager.py, chat_service.py. Codegraph — основной инстр
 - [ ] FTS5-таблица по `messages.text`, синхронизация триггерами (insert/update/delete).
 - [ ] `search_messages` перевести на FTS-MATCH (с tenant/membership фильтром).
 - [ ] Новый эндпоинт «поиск по всем моим чатам» + UI на портале (результаты с переходом к сообщению).
-- [ ] Реконнект-sync (если в Фазе 1 убрали polling): на `onopen` — «отдай сообщения новее last_seen_id» по активному/всем чатам, чтобы не терять пропущенное. (Можно вынести в отдельный мини-PR перед удалением polling.)
+- [x] **Reconnect-sync + удаление polling** ✅ ВНЕДРЕНО. На `onopen` (только реконнект, не первый коннект) `reconnectSync`: инвалидация списка чатов + по каждому открытому чату `getMessagesAfter(maxCachedId)` с merge в кэш (дедуп), `has_more` → полный рефетч во избежание дыр. Бэк: `get_messages` принимает `after_id` (id > cursor, ASC, +1 для has_more), эндпоинт — query-параметр `after_id`. Polling (`refetchInterval` 30s/60s) полностью убран — нагрузку держит WS. +1 pytest (`test_messages_after_id_catchup`). Контракт: добавлен опциональный query-параметр (аддитивно, типы портала не ломаются; Android-regen — follow-up).
 
 **Проверка:** поиск быстрый на большом объёме; глобальный поиск находит по всем чатам; после реконнекта пропущенные сообщения подтягиваются.
 **Коммит:** `feat(chat): FTS5 search + global message search`
@@ -177,7 +177,7 @@ websocket_manager.py, chat_service.py. Codegraph — основной инстр
 2. **Фаза 2** — усиливает эффект Фазы 1 (рефетчей меньше И они дешевле).
 3. **Фаза 4** — быстрый UX-выигрыш.
 4. **Фаза 5** — заметность скорости.
-5. **Reconnect-sync** (из Фазы 7) — обязательно ДО окончательного удаления polling, если оно ещё было fallback'ом.
+5. **Reconnect-sync** (из Фазы 7) — ✅ сделано; polling удалён.
 6. **Фаза 6 / 7 / 8** — по приоритету продукта.
 
 ## Definition of Done (для каждой фазы)

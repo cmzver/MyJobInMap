@@ -7,6 +7,7 @@ export const chatKeys = {
   conversationsRoot: () => [...chatKeys.all, 'conversations'] as const,
   conversations: (includeArchived = false) => [...chatKeys.conversationsRoot(), includeArchived] as const,
   conversation: (id: number) => [...chatKeys.all, 'conversation', id] as const,
+  messagesRoot: () => [...chatKeys.all, 'messages'] as const,
   messages: (conversationId: number) => [...chatKeys.all, 'messages', conversationId] as const,
 }
 
@@ -16,9 +17,9 @@ export function useConversations(includeArchived = false) {
   return useQuery({
     queryKey: chatKeys.conversations(includeArchived),
     queryFn: () => chatApi.getConversations(includeArchived),
-    // Realtime обновляет список через WS-патчи кэша; интервал — лишь редкий
-    // fallback на случай пропущенных событий (реконнект-sync — отдельная фаза).
-    refetchInterval: 60_000,
+    // Realtime обновляет список через WS-патчи кэша; пропущенное за время
+    // обрыва соединения дотягивает reconnect-sync (useWebSocket.onopen).
+    // Поллинг убран — нагрузку держит WS.
   })
 }
 
@@ -154,9 +155,8 @@ export function useMessages(conversationId: number | null) {
       return lastPage.items[0]?.id
     },
     enabled: conversationId != null,
-    // История патчится WS-событиями; интервал — редкий fallback (catch-up при
-    // пропущенных сообщениях до внедрения reconnect-sync).
-    refetchInterval: 30_000,
+    // История патчится WS-событиями; пропущенное за время обрыва соединения
+    // дотягивает reconnect-sync (useWebSocket.onopen). Поллинг убран.
   })
 }
 

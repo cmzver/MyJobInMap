@@ -732,6 +732,46 @@ class TestMessages:
         assert len(data["items"]) == 2
         assert data["has_more"] is True
 
+    def test_messages_after_id_catchup(self, client, auth_headers, second_user):
+        """after_id: catch-up возвращает только сообщения новее курсора (по возр.)."""
+        conv_id = self._create_direct(client, auth_headers, second_user)
+
+        msg_ids = []
+        for i in range(5):
+            resp = client.post(
+                f"/api/chat/conversations/{conv_id}/messages",
+                json={"text": f"Message {i}"},
+                headers=auth_headers,
+            )
+            msg_ids.append(resp.json()["id"])
+
+        # Курсор — третье сообщение: ждём только два последних, по возрастанию.
+        resp = client.get(
+            f"/api/chat/conversations/{conv_id}/messages?after_id={msg_ids[2]}",
+            headers=auth_headers,
+        )
+        data = resp.json()
+        assert [m["id"] for m in data["items"]] == [msg_ids[3], msg_ids[4]]
+        assert data["has_more"] is False
+
+        # Пропущено больше limit → has_more=True (сигнал к полному рефетчу).
+        resp = client.get(
+            f"/api/chat/conversations/{conv_id}/messages?after_id={msg_ids[0]}&limit=2",
+            headers=auth_headers,
+        )
+        data = resp.json()
+        assert [m["id"] for m in data["items"]] == [msg_ids[1], msg_ids[2]]
+        assert data["has_more"] is True
+
+        # Курсор на последнем сообщении → пусто.
+        resp = client.get(
+            f"/api/chat/conversations/{conv_id}/messages?after_id={msg_ids[4]}",
+            headers=auth_headers,
+        )
+        data = resp.json()
+        assert data["items"] == []
+        assert data["has_more"] is False
+
     def test_reply_to_message(self, client, auth_headers, second_user):
         """Ответ на сообщение."""
         conv_id = self._create_direct(client, auth_headers, second_user)

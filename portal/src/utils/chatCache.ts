@@ -67,6 +67,25 @@ export function appendMessageToCache(
   qc.setQueryData(key, { ...cache, pages })
 }
 
+/**
+ * Наибольший реальный id сообщения в кэше чата — курсор для catch-up
+ * (reconnect-sync). Оптимистичные/проваленные сообщения имеют синтетический
+ * temp-id (~1e15) и клиентские флаги, поэтому исключаются. null — кэша нет.
+ */
+export function getMaxCachedMessageId(qc: QueryClient, conversationId: number): number | null {
+  const cache = qc.getQueryData<MessagesCache>(chatKeys.messages(conversationId))
+  if (!cache || cache.pages.length === 0) return null
+  let max = 0
+  for (const page of cache.pages) {
+    for (const m of page.items) {
+      const cm = m as CachedMessage
+      if (cm._optimistic || cm._failed) continue
+      if (m.id > max) max = m.id
+    }
+  }
+  return max > 0 ? max : null
+}
+
 /** Заменить сообщение целиком (например, после загрузки вложения). */
 export function replaceMessageInCache(
   qc: QueryClient,
