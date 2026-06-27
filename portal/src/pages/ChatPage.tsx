@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { MessageSquare, Plus, Search, ArrowLeft, MoreVertical, VolumeX, Volume2, Archive, Inbox, Users } from 'lucide-react'
+import { MessageSquare, Plus, Search, ArrowLeft, MoreVertical, VolumeX, Volume2, Archive, Inbox, Users, Bell, BellOff } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { useAuthStore } from '@/store/authStore'
 import Spinner from '@/components/Spinner'
@@ -32,6 +32,7 @@ import {
   useArchiveConversation,
 } from '@/hooks/useChat'
 import { sendWsMessage, onChatRead, onChatTyping, setActiveChatConversation } from '@/hooks/useWebSocket'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { chatApi } from '@/api/chat'
 import { buildChatTimelineItems } from '@/utils/chatTimeline'
 import {
@@ -88,6 +89,8 @@ export default function ChatPage() {
   const qc = useQueryClient()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+
+  const push = usePushNotifications()
 
   const { data: conversations = [], isLoading: convLoading } = useConversations(true)
   const { data: activeDetail } = useConversation(activeConversationId)
@@ -766,13 +769,34 @@ export default function ChatPage() {
       )}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
           <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Чаты</h1>
-          <button
-            onClick={() => setShowNewChat(true)}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-primary-500"
-            title="Новый чат"
-          >
-            <Plus className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            {push.supported && (
+              <button
+                onClick={push.toggle}
+                disabled={push.busy || push.denied}
+                className={cn(
+                  'p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50',
+                  push.subscribed ? 'text-primary-500' : 'text-gray-400',
+                )}
+                title={
+                  push.denied
+                    ? 'Уведомления заблокированы в браузере'
+                    : push.subscribed
+                      ? 'Push-уведомления включены — выключить'
+                      : 'Включить push-уведомления о сообщениях'
+                }
+              >
+                {push.subscribed ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5" />}
+              </button>
+            )}
+            <button
+              onClick={() => setShowNewChat(true)}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-primary-500"
+              title="Новый чат"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         <div className="px-4 py-2">
