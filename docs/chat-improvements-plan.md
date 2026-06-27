@@ -133,17 +133,24 @@ websocket_manager.py, chat_service.py. Codegraph — основной инстр
 
 ---
 
-## ФАЗА 6 — Web Push (доставка при закрытой вкладке)
+## ФАЗА 6 — Web Push (доставка при закрытой вкладке)  ✅ ВНЕДРЕНО
 
-**Файлы:** новый service worker в `portal/public/`, регистрация в portal, бэкенд — хранение подписок + отправка (VAPID), точка вызова — там же где `broadcast_chat_message`/`notification_service`.
+> Сделано как **самостоятельный Web Push (pywebpush + VAPID)**, независимо от
+> Firebase/FCM (тот остаётся для Android). Бэк коммит `e7c5338`, фронт `e61bc75`.
+> VAPID-ключи: пусто в конфиге → web push выключен (как FCM без креденшелов);
+> dev-пара лежит в gitignored `server/.env`, прод задаёт через env (private —
+> секрет). `requirements.txt`: `pywebpush==2.3.0`.
 
-- [ ] Service worker + регистрация Push API на портале (запрос разрешения в настройках чата, не навязчиво).
-- [ ] Бэкенд: таблица push-подписок (endpoint, ключи), эндпоинт subscribe/unsubscribe, VAPID-ключи в конфиге.
-- [ ] Отправка web-push на новое сообщение/упоминание для оффлайн-участников (у кого нет активного WS), уважая mute.
-- [ ] Дедуп с Android-push (не дублировать тому же юзеру на том же девайсе) — best-effort.
+**Файлы:** [sw.js](../portal/public/sw.js), [webPush.ts](../portal/src/utils/webPush.ts), [usePushNotifications.ts](../portal/src/hooks/usePushNotifications.ts), [push.ts](../portal/src/api/push.ts), кнопка-колокольчик в [ChatPage.tsx](../portal/src/pages/ChatPage.tsx); бэк: [web_push.py](../server/app/services/web_push.py), [push.py](../server/app/api/push.py), модель `PushSubscriptionModel`, миграция `20260627_0002`, конфиг VAPID, интеграция в [messages.py](../server/app/api/chat/messages.py).
 
-**Проверка:** закрытая вкладка → приходит системное уведомление; клик открывает нужный чат; mute уважается.
-**Коммит:** `feat(chat): web push notifications for offline delivery`
+- [x] Service worker (`push`+`notificationclick`) + opt-in колокольчик в шапке сайдбара чата (регистрация SW, запрос разрешения, подписка через PushManager, сохранение на сервере; выключение — отписка обеих сторон).
+- [x] Бэкенд: таблица `push_subscriptions` (endpoint уникален, p256dh/auth), эндпоинты `/api/push/subscribe|unsubscribe|vapid-public-key`, VAPID в конфиге.
+- [x] Отправка web-push на новое сообщение только **оффлайн** участникам (`ws_manager.online_user_ids`) и **не-замьютившим** (per-member `is_muted`); через task_queue/ARQ; протухшие подписки (404/410) удаляются.
+- [ ] Дедуп с Android-push — **не делалось** (разные каналы/девайсы; пользователь на телефоне с FCM и в браузере с web push получит оба). Best-effort follow-up.
+
+**Проверка:** ✅ 6 pytest (`test_push_api.py`): subscribe/unsubscribe/идемпотентность, таргетинг (онлайн и mute исключены). Фронт: tsc+eslint+`vite build` зелёные, `sw.js` в `dist/`. Ручная проверка системного уведомления требует HTTPS/боевых VAPID-ключей (прод).
+**Коммиты:** `feat(server/chat): web push backend (VAPID)` + `feat(portal/chat): web push subscription + service worker`.
+**Прод-настройка:** сгенерировать боевую VAPID-пару (`vapid --gen`), задать `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` в прод-env; смена ключей инвалидирует все подписки.
 
 ---
 
