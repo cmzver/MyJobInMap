@@ -257,7 +257,7 @@ function PanelCard({
   })()
 
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+    <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -297,7 +297,7 @@ function PanelCard({
 
       {/* Код записи ключей */}
       {scanQuery.data && (
-        <div className="mt-3 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-300">
+        <div className="mt-2 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-300">
           <KeyRound className="h-4 w-4 text-gray-400" />
           Код записи ключей:{' '}
           <span className="font-mono font-semibold">{scanQuery.data.code ?? '—'}</span>
@@ -308,7 +308,7 @@ function PanelCard({
       )}
 
       {/* Действия */}
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-2 flex flex-wrap gap-1.5">
         <Button
           variant="primary"
           size="sm"
@@ -427,6 +427,15 @@ export default function IntercomPanelsSection({
     }
   }
 
+  // Упорядочиваем по номеру подъезда (натурально: «1п, 2п, …»), затем по id.
+  const sortedPanels = [...panels].sort((a, b) => {
+    const num = (p: IntercomPanel) => {
+      const m = (p.entrance || p.label || '').match(/\d+/)
+      return m ? parseInt(m[0], 10) : Number.MAX_SAFE_INTEGER
+    }
+    return num(a) - num(b) || a.id - b.id
+  })
+
   return (
     <Card
       title="Сетевые панели"
@@ -441,8 +450,8 @@ export default function IntercomPanelsSection({
           На этом объекте пока нет сетевых панелей.
         </div>
       ) : (
-        <div className="space-y-3">
-          {panels.map((panel) => (
+        <div className="space-y-2">
+          {sortedPanels.map((panel) => (
             <PanelCard
               key={panel.id}
               addressId={addressId}
