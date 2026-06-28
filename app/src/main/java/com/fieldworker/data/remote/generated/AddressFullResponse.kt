@@ -27,6 +27,7 @@ import com.fieldworker.data.remote.generated.AddressContactResponse
 import com.fieldworker.data.remote.generated.AddressDocumentResponse
 import com.fieldworker.data.remote.generated.AddressEquipmentResponse
 import com.fieldworker.data.remote.generated.AddressSystemResponse
+import com.fieldworker.data.remote.generated.IntercomPanelResponse
 import com.fieldworker.data.remote.generated.TaskStats
 
 import kotlinx.serialization.Serializable
@@ -60,6 +61,7 @@ import kotlinx.serialization.Contextual
  * @param isActive 
  * @param systems 
  * @param equipment 
+ * @param panels 
  * @param documents 
  * @param contacts 
  * @param taskStats 
@@ -139,6 +141,9 @@ data class AddressFullResponse (
 
     @SerialName(value = "equipment")
     val equipment: kotlin.collections.List<AddressEquipmentResponse>? = null,
+
+    @SerialName(value = "panels")
+    val panels: kotlin.collections.List<IntercomPanelResponse>? = null,
 
     @SerialName(value = "documents")
     val documents: kotlin.collections.List<AddressDocumentResponse>? = null,

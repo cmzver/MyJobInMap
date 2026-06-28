@@ -31,7 +31,7 @@ import kotlinx.serialization.Serializable
 /**
  * ���� ������� � ������� �������
  *
- * Values: CREATED,UPDATED,DOCUMENT_ADDED,DOCUMENT_REMOVED,SYSTEM_ADDED,SYSTEM_UPDATED,EQUIPMENT_ADDED,EQUIPMENT_UPDATED,CONTACT_ADDED,CONTACT_UPDATED
+ * Values: CREATED,UPDATED,DOCUMENT_ADDED,DOCUMENT_REMOVED,SYSTEM_ADDED,SYSTEM_UPDATED,EQUIPMENT_ADDED,EQUIPMENT_UPDATED,CONTACT_ADDED,CONTACT_UPDATED,PANEL_ADDED,PANEL_UPDATED
  */
 @Serializable
 enum class AddressHistoryEventType(val value: kotlin.String) {
@@ -64,7 +64,13 @@ enum class AddressHistoryEventType(val value: kotlin.String) {
     CONTACT_ADDED("contact_added"),
 
     @SerialName(value = "contact_updated")
-    CONTACT_UPDATED("contact_updated");
+    CONTACT_UPDATED("contact_updated"),
+
+    @SerialName(value = "panel_added")
+    PANEL_ADDED("panel_added"),
+
+    @SerialName(value = "panel_updated")
+    PANEL_UPDATED("panel_updated");
 
     /**
      * Override [toString()] to avoid using the enum variable name as the value, and instead use
