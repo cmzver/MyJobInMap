@@ -21,12 +21,24 @@
    BEWARD_PASSWORD=...
    ```
 
-3. **Запуск с overlay:**
-   ```bash
-   docker compose -f docker-compose.yml -f docker-compose.wireguard.yml up -d
+3. **Деплой с WireGuard (прод, postgres-стек).** Передайте `-WireGuard`
+   деплой-скрипту — он сам подмешает overlay в каждую compose-команду, так
+   что туннель переживает редеплои:
+   ```powershell
+   scripts/sync-update-server.ps1 -Server root@balalayka.duckdns.org `
+     -SshKeyPath ~/.ssh/fieldworker_deploy -Force -WireGuard
    ```
-   Overlay включает `BEWARD_WG_ENABLED=true`, добавляет `NET_ADMIN`,
-   пробрасывает `/dev/net/tun` и монтирует конфиг.
+   (НЕ передавайте `-IncludeServiceEnvFiles`, если локальный `server/.env`
+   не идентичен боевому — иначе перезапишете прод-`SECRET_KEY` и разлогините всех.)
+
+   Вручную поднять только сервис `server` с overlay:
+   ```bash
+   docker compose -f docker-compose.postgres.yml \
+     -f docker-compose.wireguard.postgres.yml up -d server
+   ```
+   Overlay включает `BEWARD_WG_ENABLED=true`, `NET_ADMIN`, `/dev/net/tun`,
+   запускает контейнер как root и монтирует конфиг. Для legacy SQLite-стека
+   (`docker-compose.yml`, сервис `api`) есть аналог `docker-compose.wireguard.yml`.
 
 ## Важные моменты
 

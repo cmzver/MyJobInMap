@@ -49,7 +49,14 @@ param(
     # Open Grafana (3000) and Prometheus (9090) in ufw for direct/test access.
     # Off by default - production should reach Grafana over Caddy with auth, not a
     # raw open port with the default admin password.
-    [switch]$OpenMonitoringPorts = $false
+    [switch]$OpenMonitoringPorts = $false,
+
+    # Layer the on-demand WireGuard overlay (docker-compose.wireguard.postgres.yml)
+    # on top of the main stack so the API container can reach the intercom panel
+    # subnet. Threaded into every compose invocation so it survives redeploys.
+    # Requires deploy/wireguard/wg-intercom.conf to exist (see deploy/wireguard/README.md).
+    [switch]$WireGuard = $false,
+    [string]$WireGuardFile = "docker-compose.wireguard.postgres.yml"
 )
 
 $ErrorActionPreference = "Stop"
@@ -105,6 +112,18 @@ $script:SCPArgs = @("-P", "$SSHPort") + $script:SSHKeepAlive
 $script:RsyncShellCommand = "ssh -p $SSHPort $script:RsyncKeepAlive"
 $script:ControlPath = $null
 $script:UseConnectionSharing = $false
+
+# Compose file args threaded into every remote compose invocation. With
+# -WireGuard the on-demand WG overlay is layered on so it survives redeploys
+# (the deploy syncs both the overlay and the peer conf to the server).
+$script:ComposeFileArgs = "-f $ComposeFile"
+if ($WireGuard) {
+    $wgConf = Join-Path $LocalPath "deploy/wireguard/wg-intercom.conf"
+    if (-not (Test-Path $wgConf)) {
+        throw "WireGuard requested but $wgConf is missing. Create it (see deploy/wireguard/README.md) before deploying with -WireGuard."
+    }
+    $script:ComposeFileArgs += " -f $WireGuardFile"
+}
 
 if ($SshKeyPath) {
     if (-not (Test-Path $SshKeyPath)) {
@@ -394,7 +413,7 @@ function Format-ComposeCommand {
     # NO embedded double quotes: a 'DC="docker compose"' style shell variable does
     # not survive the Windows ssh.exe -> remote bash quoting round-trip (the quotes
     # get mangled and the variable ends up empty).
-    return "if docker compose version >/dev/null 2>&1; then docker compose -f $ComposeFile $ComposeArgs; else docker-compose -f $ComposeFile $ComposeArgs; fi"
+    return "if docker compose version >/dev/null 2>&1; then docker compose $script:ComposeFileArgs $ComposeArgs; else docker-compose $script:ComposeFileArgs $ComposeArgs; fi"
 }
 
 function Wait-ContainerHealthy {
