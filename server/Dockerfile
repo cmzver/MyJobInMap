@@ -5,7 +5,11 @@ WORKDIR /app
 
 # curl — для healthcheck; postgresql-client — для pg_dump/pg_restore
 # (бэкап/восстановление БД при работе на PostgreSQL, см. services/db_backup.py)
-RUN apt-get update && apt-get install -y --no-install-recommends curl postgresql-client \
+# wireguard-tools/iproute2/iptables — для on-demand WG-доступа к домофонным
+# панелям (используется только при BEWARD_WG_ENABLED=true; см.
+# deploy/wireguard/README.md). Сами пакеты безвредны, если фича выключена.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl postgresql-client wireguard-tools iproute2 iptables \
     && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies

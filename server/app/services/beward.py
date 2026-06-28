@@ -27,6 +27,7 @@ from typing import Dict, Optional, Tuple
 import httpx
 
 from app.config import settings
+from app.services import wireguard
 
 # Браузерный User-Agent — чтобы запросы были неотличимы от штатной веб-морды.
 _USER_AGENT = (
@@ -86,11 +87,18 @@ def _client() -> httpx.AsyncClient:
 
 
 async def _get(host: str, port: int, path: str) -> httpx.Response:
-    """GET по панели с обработкой сетевых ошибок и 401."""
+    """GET по панели с обработкой сетевых ошибок и 401.
+
+    Оборачивается в on-demand WireGuard-сессию: туннель поднимается на время
+    обращения (no-op, если WG отключён или уже поднят).
+    """
     url = _base_url(host, port) + path
     try:
-        async with _client() as client:
-            resp = await client.get(url)
+        async with wireguard.session():
+            async with _client() as client:
+                resp = await client.get(url)
+    except wireguard.WireGuardError as exc:
+        raise BewardUnreachable(f"WireGuard: {exc}") from exc
     except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout) as exc:
         raise BewardUnreachable(str(exc)) from exc
     except httpx.HTTPError as exc:

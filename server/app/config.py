@@ -205,6 +205,19 @@ class Settings(BaseSettings):
     BEWARD_SNAPSHOT_CACHE_TTL: float = Field(
         default=1.0, description="TTL кэша JPEG-кадра панели, сек (мягкий режим)"
     )
+    # On-demand WireGuard: туннель поднимается только на время обращения к панели.
+    BEWARD_WG_ENABLED: bool = Field(
+        default=False,
+        description="Поднимать WireGuard on-demand для доступа к панелям",
+    )
+    BEWARD_WG_CONF: str = Field(
+        default="wg-intercom",
+        description="Имя интерфейса или путь к .conf для wg-quick",
+    )
+    BEWARD_WG_LINGER: float = Field(
+        default=45.0,
+        description="Сколько держать туннель поднятым после последнего обращения, сек",
+    )
 
     # === Вычисляемые пути (не из env) ===
     @computed_field
