@@ -10,6 +10,7 @@ from sqlalchemy import distinct, func, or_
 from sqlalchemy.orm import Session
 
 from app.models import AddressModel, get_db
+from app.models.task import TaskModel
 from app.models.user import UserModel
 from app.schemas.address import (
     AddressComposeRequest,
@@ -281,10 +282,21 @@ async def update_address(
         update_data["lat"] = lat
         update_data["lon"] = lon
 
+    old_lat, old_lon = address.lat, address.lon
+
     for field, value in update_data.items():
         setattr(address, field, value)
 
     address.updated_at = datetime.now(timezone.utc)
+
+    # Если координаты адреса изменились (смена адреса → перегеокод, либо явная
+    # правка lat/lon) — подхватываем их в привязанных заявках.
+    if address.lat != old_lat or address.lon != old_lon:
+        db.query(TaskModel).filter(TaskModel.address_id == address.id).update(
+            {TaskModel.lat: address.lat, TaskModel.lon: address.lon},
+            synchronize_session=False,
+        )
+
     db.commit()
     db.refresh(address)
 
