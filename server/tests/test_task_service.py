@@ -164,6 +164,9 @@ class TestTaskServiceCreate:
 
         assert task.lat == pytest.approx(59.9386)
         assert task.lon == pytest.approx(30.3141)
+        # Заявка привязана к сматченному адресу — чтобы правка его координат
+        # подхватывалась автоматически.
+        assert task.address_id == known_address.id
 
 
 class TestTaskServiceUpdateStatus:
