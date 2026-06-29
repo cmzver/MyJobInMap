@@ -70,15 +70,15 @@ const columnMinWidths: Record<ColumnKey, number> = {
 }
 
 const columnMaxWidths: Record<ColumnKey, number> = {
-  select: 64,
-  number: 180,
-  title: 640,
-  address: 720,
-  status: 240,
-  priority: 240,
-  assignee: 320,
-  date: 240,
-  sla: 180,
+  select: 80,
+  number: 320,
+  title: 900,
+  address: 900,
+  status: 360,
+  priority: 360,
+  assignee: 520,
+  date: 360,
+  sla: 320,
 }
 
 const toggleableColumns: Array<{ key: ToggleableColumnKey; label: string }> = [
@@ -135,8 +135,19 @@ const distributeColumnWidths = (
   const totalAdjustable = adjustableColumns.reduce((total, column) => total + column.adjustable, 0)
   if (totalAdjustable <= 0) return widths
 
+  // Weight the share each column gives up / takes on by its current width, so every
+  // column changes by roughly the same percentage. Capped by each column's room
+  // (adjustable), with the largest-remainder pass below mopping up the leftover px.
+  const totalRoomWeight = adjustableColumns.reduce(
+    (total, column) => (column.adjustable > 0 ? total + column.currentWidth : total),
+    0
+  )
+
   const normalized = adjustableColumns.map((column) => {
-    const rawChange = delta * (column.adjustable / totalAdjustable)
+    const weight = column.adjustable > 0 && totalRoomWeight > 0
+      ? column.currentWidth / totalRoomWeight
+      : 0
+    const rawChange = delta * weight
     const change = Math.min(column.adjustable, Math.floor(rawChange))
     return {
       key: column.key,
@@ -308,19 +319,17 @@ export default function TasksPage() {
   const [visibleColumns, setVisibleColumns] = useState<Record<ToggleableColumnKey, boolean>>(loadVisibleColumns)
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false)
   const resizeState = useRef<{
-    leftKey: ColumnKey
-    rightKey: ColumnKey | null
+    key: ColumnKey
     startX: number
-    startLeftWidth: number
-    startRightWidth: number | null
-    currentLeftWidth: number
-    currentRightWidth: number | null
-    snapshotWidths: Record<ColumnKey, number>
+    startWidths: Record<ColumnKey, number>
+    latestWidths: Record<ColumnKey, number>
+    changed: boolean
     previousCursor: string
     previousUserSelect: string
   } | null>(null)
   const columnMenuRef = useRef<HTMLDivElement | null>(null)
   const tableContainerRef = useRef<HTMLDivElement | null>(null)
+  const resizeObserverRef = useRef<ResizeObserver | null>(null)
   const tableRef = useRef<HTMLTableElement | null>(null)
   const [tableContainerWidth, setTableContainerWidth] = useState(0)
   // Flag to prevent URL→state effect from firing when we just pushed state→URL
@@ -463,41 +472,46 @@ export default function TasksPage() {
   }, [applyColumnWidth])
 
   const handleResizeMove = useCallback((event: MouseEvent) => {
-    if (!resizeState.current) return
-    const { leftKey, rightKey, startX, startLeftWidth, startRightWidth } = resizeState.current
-    const delta = event.clientX - startX
+    const active = resizeState.current
+    if (!active) return
+    const { key, startX, startWidths } = active
+    // The handle sits on the column's right edge, so only the columns to the *right*
+    // absorb the change — columns to the left stay anchored in place.
+    const startIndex = visibleColumnOrder.indexOf(key)
+    const others = startIndex >= 0 ? visibleColumnOrder.slice(startIndex + 1) : []
+    if (others.length === 0) return
 
-    if (!rightKey || startRightWidth == null) {
-      const nextWidth = clampColumnWidth(leftKey, startLeftWidth + delta)
+    const startWidth = startWidths[key]
+    const desiredWidth = clampColumnWidth(key, startWidth + (event.clientX - startX))
+    const diff = desiredWidth - startWidth
+    if (diff === 0) return
 
-      if (resizeState.current.currentLeftWidth === nextWidth) return
+    // The dragged column changes; the difference is absorbed proportionally by the
+    // columns to its right so the table stays exactly the container width (no scroll).
+    // The column can only grow until *every* column to its right has hit its min width.
+    const sumOthers = (widths: Record<ColumnKey, number>) =>
+      others.reduce((total, columnKey) => total + widths[columnKey], 0)
 
-      resizeState.current.currentLeftWidth = nextWidth
-      applyColumnWidth(leftKey, nextWidth)
-      return
-    }
-
-    const minDelta = columnMinWidths[leftKey] - startLeftWidth
-    const maxDelta = Math.min(
-      startRightWidth - columnMinWidths[rightKey],
-      columnMaxWidths[leftKey] - startLeftWidth
+    const beforeOthers = sumOthers(startWidths)
+    const adjusted = distributeColumnWidths(
+      startWidths,
+      others,
+      Math.abs(diff),
+      diff > 0 ? 'shrink' : 'grow'
     )
-    const nextDelta = Math.min(maxDelta, Math.max(minDelta, delta))
-    const nextLeftWidth = clampColumnWidth(leftKey, startLeftWidth + nextDelta)
-    const nextRightWidth = clampColumnWidth(rightKey, startRightWidth - nextDelta)
+    const appliedToOthers = Math.abs(sumOthers(adjusted) - beforeOthers)
 
-    if (
-      resizeState.current.currentLeftWidth === nextLeftWidth
-      && resizeState.current.currentRightWidth === nextRightWidth
-    ) {
+    const next = { ...adjusted, [key]: startWidth + (diff > 0 ? appliedToOthers : -appliedToOthers) }
+
+    const prev = active.latestWidths
+    if ((Object.keys(next) as ColumnKey[]).every((columnKey) => prev[columnKey] === next[columnKey])) {
       return
     }
 
-    resizeState.current.currentLeftWidth = nextLeftWidth
-    resizeState.current.currentRightWidth = nextRightWidth
-    applyColumnWidth(leftKey, nextLeftWidth)
-    applyColumnWidth(rightKey, nextRightWidth)
-  }, [applyColumnWidth])
+    active.latestWidths = next
+    active.changed = true
+    applyColumnWidths(next)
+  }, [applyColumnWidths, visibleColumnOrder])
 
   const stopResize = useCallback(() => {
     document.removeEventListener('mousemove', handleResizeMove)
@@ -510,28 +524,9 @@ export default function TasksPage() {
     document.body.style.cursor = activeResize.previousCursor
     document.body.style.userSelect = activeResize.previousUserSelect
 
-    if (
-      activeResize.currentLeftWidth === activeResize.startLeftWidth
-      && activeResize.currentRightWidth === activeResize.startRightWidth
-    ) {
-      return
-    }
+    if (!activeResize.changed) return
 
-    setColumnWidths((prev) => {
-      const baseWidths = sanitizeColumnWidths(activeResize.snapshotWidths)
-      const leftUnchanged = baseWidths[activeResize.leftKey] === activeResize.currentLeftWidth
-      const rightUnchanged = activeResize.rightKey == null
-        || baseWidths[activeResize.rightKey] === activeResize.currentRightWidth
-      if (leftUnchanged && rightUnchanged) return prev
-
-      return {
-        ...baseWidths,
-        [activeResize.leftKey]: activeResize.currentLeftWidth,
-        ...(activeResize.rightKey && activeResize.currentRightWidth != null
-          ? { [activeResize.rightKey]: activeResize.currentRightWidth }
-          : {}),
-      }
-    })
+    setColumnWidths(sanitizeColumnWidths(activeResize.latestWidths))
   }, [handleResizeMove])
 
   const startResize = useCallback(
@@ -539,19 +534,12 @@ export default function TasksPage() {
       if (!isResizableEnabled) return
       event.preventDefault()
       event.stopPropagation()
-      const currentIndex = visibleColumnOrder.indexOf(key)
-      const rightKey = currentIndex >= 0 ? visibleColumnOrder[currentIndex + 1] ?? null : null
-      const startLeftWidth = effectiveColumnWidths[key]
-      const startRightWidth = rightKey ? effectiveColumnWidths[rightKey] : null
       resizeState.current = {
-        leftKey: key,
-        rightKey,
+        key,
         startX: event.clientX,
-        startLeftWidth,
-        startRightWidth,
-        currentLeftWidth: startLeftWidth,
-        currentRightWidth: startRightWidth,
-        snapshotWidths: effectiveColumnWidths,
+        startWidths: effectiveColumnWidths,
+        latestWidths: effectiveColumnWidths,
+        changed: false,
         previousCursor: document.body.style.cursor,
         previousUserSelect: document.body.style.userSelect,
       }
@@ -560,7 +548,7 @@ export default function TasksPage() {
       document.addEventListener('mousemove', handleResizeMove)
       document.addEventListener('mouseup', stopResize)
     },
-    [effectiveColumnWidths, handleResizeMove, isResizableEnabled, stopResize, visibleColumnOrder]
+    [effectiveColumnWidths, handleResizeMove, isResizableEnabled, stopResize]
   )
 
   useEffect(() => {
@@ -575,25 +563,22 @@ export default function TasksPage() {
     })
   }, [])
 
-  useEffect(() => {
-    const element = tableContainerRef.current
-    if (!element) return
+  // Callback ref so we measure the moment the table container actually mounts.
+  // It renders only after data loads (a skeleton shows while loading), so a plain
+  // mount effect would fire too early with a null ref and never re-run.
+  const measureTableContainer = useCallback((node: HTMLDivElement | null) => {
+    resizeObserverRef.current?.disconnect()
+    resizeObserverRef.current = null
+    tableContainerRef.current = node
+    if (!node) return
 
-    const updateWidth = () => {
-      setTableContainerWidth(Math.floor(element.clientWidth))
-    }
-
+    const updateWidth = () => setTableContainerWidth(Math.floor(node.clientWidth))
     updateWidth()
 
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', updateWidth)
-      return () => window.removeEventListener('resize', updateWidth)
-    }
-
-    const observer = new ResizeObserver(() => updateWidth())
-    observer.observe(element)
-
-    return () => observer.disconnect()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(updateWidth)
+    observer.observe(node)
+    resizeObserverRef.current = observer
   }, [])
 
   useEffect(() => {
@@ -632,7 +617,10 @@ export default function TasksPage() {
   }, [isColumnMenuOpen])
 
   const renderResizeHandle = (key: ColumnKey) => {
-    if (!isResizableEnabled) return null
+    // The last column has no right-hand neighbour to trade width with — its size is
+    // adjusted via the handle of the column to its left.
+    const isLastColumn = visibleColumnOrder[visibleColumnOrder.length - 1] === key
+    if (!isResizableEnabled || isLastColumn) return null
     return (
       <div
         role="separator"
@@ -1665,7 +1653,7 @@ export default function TasksPage() {
                 )}
               </div>
             </div>
-            <div ref={tableContainerRef} className="overflow-x-auto">
+            <div ref={measureTableContainer} className="overflow-x-auto">
               <table
                 ref={tableRef}
                 className={`divide-y divide-gray-200 dark:divide-gray-700 ${isResizableEnabled ? 'table-fixed' : 'min-w-full'}`}
