@@ -144,13 +144,6 @@ export const menuConfig: MenuSection[] = [
         icon: LifeBuoy,
         roles: ['admin', 'dispatcher', 'worker'],
       },
-      {
-        id: 'settings',
-        path: '/settings',
-        label: 'Настройки',
-        icon: Settings,
-        roles: ['admin', 'dispatcher', 'worker'],
-      },
     ],
   },
   {

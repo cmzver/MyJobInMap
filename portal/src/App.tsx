@@ -29,7 +29,6 @@ const ProfilePage = lazy(() => import('@/pages/ProfilePage'))
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'))
 const SupportPage = lazy(() => import('@/pages/SupportPage'))
 const SupportTicketDetailPage = lazy(() => import('@/pages/SupportTicketDetailPage'))
-const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
 const AdminSettingsPage = lazy(() => import('@/pages/AdminSettingsPage'))
 const OrganizationsPage = lazy(() => import('@/pages/OrganizationsPage'))
 const OrganizationDetailPage = lazy(() => import('@/pages/OrganizationDetailPage'))
@@ -238,10 +237,10 @@ function App() {
                         } 
                       />
                       
-                      {/* Devices - Redirect to Settings */}
-                      <Route 
-                        path="devices" 
-                        element={<Navigate to="/settings" replace />}
+                      {/* Devices - legacy redirect to Profile */}
+                      <Route
+                        path="devices"
+                        element={<Navigate to="/profile" replace />}
                       />
                       
                       {/* Analytics - Admin & Dispatcher */}
@@ -287,8 +286,8 @@ function App() {
                       <Route path="support" element={<SupportPage />} />
                       <Route path="support/:ticketId" element={<SupportTicketDetailPage />} />
                       
-                      {/* Personal Settings - All roles */}
-                      <Route path="settings" element={<SettingsPage />} />
+                      {/* Personal Settings merged into Profile — legacy redirect */}
+                      <Route path="settings" element={<Navigate to="/profile" replace />} />
                       
                       {/* Admin Settings - Admin only */}
                       <Route 
