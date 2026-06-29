@@ -43,7 +43,8 @@ fun SettingsScreen(
     onOpenUserSettings: () -> Unit = {},
     baseUrl: String? = null,
     authToken: String? = null,
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    onOpenMenu: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var serverUrl by remember { mutableStateOf(preferences.getServerUrl()) }
@@ -89,6 +90,13 @@ fun SettingsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Настройки") },
+                navigationIcon = {
+                    if (onOpenMenu != null) {
+                        IconButton(onClick = onOpenMenu) {
+                            Icon(Icons.Default.Menu, contentDescription = "Меню")
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 )

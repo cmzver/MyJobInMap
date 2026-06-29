@@ -37,7 +37,8 @@ import {
   Wifi,
   Lock,
   Settings,
-  Zap
+  Zap,
+  UserCheck
 } from 'lucide-react'
 import { 
   useAddressFull, 
@@ -62,6 +63,7 @@ import MetricCard from '@/components/MetricCard'
 import Spinner from '@/components/Spinner'
 import Modal from '@/components/Modal'
 import IntercomPanelsSection from '@/components/IntercomPanelsSection'
+import AddressAssigneesSection from '@/components/AddressAssigneesSection'
 import { SystemForm, EquipmentForm, DocumentForm, ContactForm, AddressForm } from '@/components/AddressCardForms'
 import type { 
   SystemFormData, 
@@ -167,13 +169,14 @@ const contactTypeLabels: Record<ContactType, string> = {
   other: 'Другое',
 }
 
-type TabType = 'info' | 'systems' | 'equipment' | 'panels' | 'documents' | 'contacts' | 'tasks' | 'history'
+type TabType = 'info' | 'systems' | 'equipment' | 'panels' | 'access' | 'documents' | 'contacts' | 'tasks' | 'history'
 
 const tabs: { id: TabType; label: string; Icon: typeof Building2 }[] = [
   { id: 'info', label: 'Информация', Icon: Building2 },
   { id: 'systems', label: 'Системы', Icon: Wrench },
   { id: 'equipment', label: 'Оборудование', Icon: Package },
   { id: 'panels', label: 'Панели', Icon: Server },
+  { id: 'access', label: 'Доступ', Icon: UserCheck },
   { id: 'documents', label: 'Документы', Icon: FileText },
   { id: 'contacts', label: 'Контакты', Icon: Users },
   { id: 'tasks', label: 'Заявки', Icon: ClipboardList },
@@ -739,6 +742,11 @@ export default function AddressDetailPage() {
         {/* Сетевые панели */}
         {activeTab === 'panels' && (
           <IntercomPanelsSection addressId={addressId} panels={panels} />
+        )}
+
+        {/* Доступ / ответственные */}
+        {activeTab === 'access' && (
+          <AddressAssigneesSection addressId={addressId} />
         )}
 
         {/* Документы */}

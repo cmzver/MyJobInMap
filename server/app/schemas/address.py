@@ -425,6 +425,32 @@ class PanelMifareScanCodeResponse(BaseModel):
 
 
 # ============================================
+# Address Assignee Schemas (per-user access)
+# ============================================
+
+
+class AddressAssigneeCreate(BaseModel):
+    """Назначить пользователя ответственным за адрес."""
+
+    user_id: int = Field(..., description="ID пользователя")
+
+
+class AddressAssigneeResponse(BaseModel):
+    """Запись о привязке адрес→пользователь."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    address_id: int
+    user_id: int
+    full_name: Optional[str] = None
+    username: Optional[str] = None
+    role_label: Optional[str] = None
+    created_at: UtcDateTime
+    created_by_name: Optional[str] = None
+
+
+# ============================================
 # Document Schemas
 # ============================================
 

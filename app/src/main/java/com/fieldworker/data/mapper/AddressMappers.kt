@@ -5,13 +5,17 @@ import com.fieldworker.data.remote.generated.AddressDocumentResponse
 import com.fieldworker.data.remote.generated.AddressEquipmentResponse
 import com.fieldworker.data.remote.generated.AddressFullResponse
 import com.fieldworker.data.remote.generated.AddressHistoryResponse
+import com.fieldworker.data.remote.generated.AddressResponse
 import com.fieldworker.data.remote.generated.AddressSystemResponse
+import com.fieldworker.data.remote.generated.IntercomPanelResponse
 import com.fieldworker.data.remote.generated.TaskStats
 import com.fieldworker.domain.model.AddressContact
 import com.fieldworker.domain.model.AddressDetails
 import com.fieldworker.domain.model.AddressDocument
 import com.fieldworker.domain.model.AddressEquipment
 import com.fieldworker.domain.model.AddressHistoryEntry
+import com.fieldworker.domain.model.AddressPanel
+import com.fieldworker.domain.model.AddressSummary
 import com.fieldworker.domain.model.AddressSystem
 import com.fieldworker.domain.model.AddressTaskStats
 
@@ -58,6 +62,25 @@ fun AddressContactResponse.toDomain(): AddressContact = AddressContact(
     isPrimary = isPrimary ?: false
 )
 
+fun IntercomPanelResponse.toDomain(): AddressPanel = AddressPanel(
+    id = id,
+    addressId = addressId,
+    label = label,
+    ip = ip,
+    entrance = entrance,
+    model = model,
+    isActive = isActive ?: true
+)
+
+fun AddressResponse.toSummary(): AddressSummary = AddressSummary(
+    id = id,
+    address = address,
+    city = city,
+    street = street,
+    building = building,
+    hasIntercom = hasIntercom
+)
+
 fun AddressHistoryResponse.toDomain(): AddressHistoryEntry = AddressHistoryEntry(
     id = id,
     eventType = eventType.value,
@@ -88,6 +111,7 @@ fun AddressFullResponse.toDomain(history: List<AddressHistoryEntry>): AddressDet
     equipment = equipment.orEmpty().map { it.toDomain() },
     documents = documents.orEmpty().map { it.toDomain() },
     contacts = contacts.orEmpty().map { it.toDomain() },
+    panels = panels.orEmpty().map { it.toDomain() },
     taskStats = taskStats?.toDomain() ?: AddressTaskStats(),
     history = history
 )

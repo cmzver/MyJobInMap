@@ -112,6 +112,8 @@ class AddressHistoryEventType(str, Enum):
     CONTACT_UPDATED = "contact_updated"
     PANEL_ADDED = "panel_added"
     PANEL_UPDATED = "panel_updated"
+    ASSIGNEE_ADDED = "assignee_added"
+    ASSIGNEE_REMOVED = "assignee_removed"
 
 
 # ============================================
@@ -214,6 +216,9 @@ class AddressModel(Base):
     )
     panels: Mapped[List["IntercomPanelModel"]] = relationship(
         "IntercomPanelModel", back_populates="address", cascade="all, delete-orphan"
+    )
+    assignees: Mapped[List["AddressAssigneeModel"]] = relationship(
+        "AddressAssigneeModel", back_populates="address", cascade="all, delete-orphan"
     )
     organization: Mapped[Optional["OrganizationModel"]] = relationship(
         "OrganizationModel", back_populates="addresses"
@@ -432,6 +437,55 @@ class AddressContactModel(Base):
 
     def __repr__(self):
         return f"<AddressContact(id={self.id}, name='{self.name}')>"
+
+
+class AddressAssigneeModel(Base):
+    """Привязка адреса к пользователю (персональный доступ «Мои адреса»).
+
+    Адрес виден сотруднику в мобильном разделе «Мои адреса», только если он
+    назначен на этот адрес (либо пользователь — менеджер/admin). Назначение
+    делают admin/dispatcher из веб-портала.
+    """
+
+    __tablename__ = "address_assignees"
+    __table_args__ = (
+        Index(
+            "ix_address_assignees_address_user",
+            "address_id",
+            "user_id",
+            unique=True,
+        ),
+        Index("ix_address_assignees_user_id", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    address_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("addresses.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+    created_by_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Relationships
+    address: Mapped["AddressModel"] = relationship(
+        "AddressModel", back_populates="assignees"
+    )
+    user: Mapped["UserModel"] = relationship("UserModel", foreign_keys=[user_id])
+    created_by: Mapped[Optional["UserModel"]] = relationship(
+        "UserModel", foreign_keys=[created_by_id]
+    )
+
+    def __repr__(self):
+        return (
+            f"<AddressAssignee(id={self.id}, address_id={self.address_id}, "
+            f"user_id={self.user_id})>"
+        )
 
 
 class AddressHistoryModel(Base):

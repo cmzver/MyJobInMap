@@ -11,18 +11,24 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
+import com.fieldworker.BuildConfig
+import com.fieldworker.ui.theme.AppColors
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
@@ -44,9 +50,9 @@ import com.fieldworker.ui.chat.ConversationListScreen
 import com.fieldworker.ui.list.TaskListScreen
 import com.fieldworker.ui.map.MapScreen
 import com.fieldworker.ui.map.MapViewModel
+import com.fieldworker.ui.addresses.MyAddressesScreen
 import com.fieldworker.ui.navigation.Screen
 import com.fieldworker.ui.objectcard.ObjectDetailsScreen
-import com.fieldworker.ui.settings.ConnectionStatus
 import com.fieldworker.ui.settings.DeveloperScreen
 import com.fieldworker.ui.settings.SettingsScreen
 import com.fieldworker.ui.settings.UserSettingsScreen
@@ -78,6 +84,8 @@ fun MainScreen(
     val chatViewModel: ChatViewModel = hiltViewModel()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val drawerScope = rememberCoroutineScope()
     
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showSendTaskToChat by remember { mutableStateOf(false) }
@@ -94,15 +102,13 @@ fun MainScreen(
         Screen.Settings.route -> Screen.Settings
         Screen.Developer.route -> Screen.Developer
         Screen.ObjectCard.route -> Screen.ObjectCard
+        Screen.MyAddresses.route -> Screen.MyAddresses
         else -> Screen.Map
     }
     val unreadChatCount = remember(chatListState.conversations) {
         chatListState.conversations.sumOf { it.unreadCount }
     }
     val topTitle = mainTitleFor(currentScreen)
-    val topSubtitle = remember(currentScreen, uiState.newTasksCount, connectionStatus) {
-        mainSubtitleFor(currentScreen, uiState.newTasksCount, connectionStatus)
-    }
     val isChatConversationOpen = remember(currentScreen, chatState.conversationId) {
         currentScreen == Screen.Chat && chatState.conversationId != null
     }
@@ -188,10 +194,22 @@ fun MainScreen(
         }
     }
     
-    val showMainTopBar = false
-    val showBottomBar = currentScreen != Screen.Developer &&
-        currentScreen != Screen.ObjectCard &&
-        !isChatConversationOpen
+    // Полностью боковая навигация: разделы живут в drawer, нижней панели нет.
+    val topLevelScreens = setOf(
+        Screen.Map, Screen.TaskList, Screen.Chat, Screen.Settings, Screen.MyAddresses
+    )
+    val isTopLevel = currentScreen in topLevelScreens && !isChatConversationOpen
+    // Единый верхний бар (бургер + заголовок) — только для экранов без своей шапки.
+    val showUnifiedTopBar = currentScreen == Screen.Map || currentScreen == Screen.TaskList
+    val openDrawer: () -> Unit = { drawerScope.launch { drawerState.open() } }
+    val navigateTab: (String) -> Unit = { route ->
+        drawerScope.launch { drawerState.close() }
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
 
     LaunchedEffect(notificationTaskId) {
         val taskId = notificationTaskId ?: return@LaunchedEffect
@@ -219,134 +237,55 @@ fun MainScreen(
         onNotificationChatHandled()
     }
     
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = isTopLevel || drawerState.isOpen,
+        drawerContent = {
+            AppDrawer(
+                userName = viewModel.preferences.getUserFullName()
+                    ?: viewModel.preferences.getUsername()
+                    ?: "Профиль",
+                roleLabel = viewModel.preferences.getUserRoleLabel(),
+                currentScreen = currentScreen,
+                newTasksCount = uiState.newTasksCount,
+                unreadChatCount = unreadChatCount,
+                onMap = { navigateTab(Screen.Map.route) },
+                onTaskList = { navigateTab(Screen.TaskList.route) },
+                onChat = { navigateTab(Screen.Chat.route) },
+                onMyAddresses = {
+                    drawerScope.launch { drawerState.close() }
+                    navController.navigate(Screen.MyAddresses.route) { launchSingleTop = true }
+                },
+                onSettings = { navigateTab(Screen.Settings.route) },
+                onProfile = {
+                    drawerScope.launch { drawerState.close() }
+                    navController.navigate(Screen.UserSettings.route) { launchSingleTop = true }
+                },
+            )
+        },
+    ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            if (showMainTopBar) {
-                Surface(
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
+            if (showUnifiedTopBar) {
+                TopAppBar(
+                    title = {
                         Text(
                             text = topTitle,
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.onBackground
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                         )
-                        Surface(
-                            shape = RoundedCornerShape(999.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                            tonalElevation = 1.dp,
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                MaterialTheme.colorScheme.outlineVariant
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = connectionStatusIcon(connectionStatus),
-                                    contentDescription = null,
-                                    tint = connectionStatusTint(connectionStatus),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = topSubtitle,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = openDrawer) {
+                            Icon(Icons.Default.Menu, contentDescription = "Меню")
                         }
-                    }
-                }
-            }
-        },
-        bottomBar = {
-            if (showBottomBar) {
-                Surface(
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    NavigationBar(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp, vertical = 10.dp)
-                            .navigationBarsPadding(),
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 0.dp
-                    ) {
-                        Screen.bottomNavItems.forEach { screen ->
-                            val onNavClick = remember(screen.route) {
-                                {
-                                    navController.navigate(screen.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }
-                            }
-                            NavigationBarItem(
-                                icon = {
-                                    if (screen == Screen.TaskList || screen == Screen.Chat) {
-                                        BadgedBox(
-                                            badge = {
-                                                val badgeCount = when (screen) {
-                                                    Screen.TaskList -> uiState.newTasksCount
-                                                    Screen.Chat -> unreadChatCount
-                                                    else -> 0
-                                                }
-
-                                                if (badgeCount > 0) {
-                                                    Badge(
-                                                        containerColor = MaterialTheme.colorScheme.error
-                                                    ) {
-                                                        Text(if (badgeCount > 99) "99+" else "$badgeCount")
-                                                    }
-                                                }
-                                            }
-                                        ) {
-                                            Icon(
-                                                screen.icon!!,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                        }
-                                    } else {
-                                        Icon(
-                                            screen.icon!!,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                },
-                                label = {
-                                    Text(
-                                        screen.label,
-                                        style = MaterialTheme.typography.labelSmall
-                                    )
-                                },
-                                selected = currentRoute == screen.route,
-                                onClick = onNavClick,
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            )
-                        }
-                    }
-                }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    )
+                )
             }
         }
     ) { paddingValues ->
@@ -551,6 +490,7 @@ fun MainScreen(
                             onCreateDirectConversation = { chatViewModel.createDirectConversation(it) },
                             onCreateGroupConversation = { name, userIds -> chatViewModel.createGroupConversation(name, userIds) },
                             onRefresh = { chatViewModel.loadConversations() },
+                            onOpenMenu = openDrawer,
                         )
                     }
                     }
@@ -571,7 +511,8 @@ fun MainScreen(
                         },
                         baseUrl = baseUrl,
                         authToken = authToken,
-                        onLogout = { showLogoutDialog = true }
+                        onLogout = { showLogoutDialog = true },
+                        onOpenMenu = openDrawer
                     )
                 }
 
@@ -600,6 +541,10 @@ fun MainScreen(
                         onSendToChat = { showSendTaskToChat = true },
                         comments = uiState.comments,
                     )
+                }
+
+                composable(Screen.MyAddresses.route) {
+                    MyAddressesScreen(onOpenDrawer = openDrawer)
                 }
             }
             } // Box(weight)
@@ -682,6 +627,7 @@ fun MainScreen(
             }
         }
     }
+    } // ModalNavigationDrawer
 }
 
 private fun mainTitleFor(screen: Screen): String {
@@ -693,43 +639,172 @@ private fun mainTitleFor(screen: Screen): String {
         Screen.Developer -> "Режим разработчика"
         Screen.ObjectCard -> "Карточка объекта"
         Screen.UserSettings -> "Профиль пользователя"
+        Screen.MyAddresses -> "Мои адреса"
     }
-}
-
-private fun mainSubtitleFor(
-    screen: Screen,
-    newTasksCount: Int,
-    connectionStatus: ConnectionStatus
-): String {
-    return when (screen) {
-        Screen.Map -> if (newTasksCount > 0) "$newTasksCount новых заявок ждут обработки" else connectionStatusLabel(connectionStatus)
-        Screen.TaskList -> if (newTasksCount > 0) "$newTasksCount новых заявок в очереди" else "Список синхронизирован и готов к работе"
-        Screen.Chat -> "Сообщения и обсуждения"
-        Screen.Settings -> "Сервер, уведомления, обновления и локальные настройки"
-        Screen.Developer -> "Диагностика и служебные параметры приложения"
-        Screen.ObjectCard -> "Сведения по адресу, оборудованию и истории объекта"
-        Screen.UserSettings -> "Имя, аватар, смена пароля"
-    }
-}
-
-private fun connectionStatusLabel(status: ConnectionStatus): String {
-    return when (status) {
-        ConnectionStatus.IDLE -> "Последняя синхронизация без ошибок"
-        ConnectionStatus.TESTING -> "Проверяем доступность сервера"
-        ConnectionStatus.SUCCESS -> "Сервер доступен"
-        is ConnectionStatus.ERROR -> status.message
-    }
-}
-
-private fun connectionStatusIcon(status: ConnectionStatus) = when (status) {
-    ConnectionStatus.IDLE, ConnectionStatus.SUCCESS -> Icons.Default.CheckCircle
-    ConnectionStatus.TESTING -> Icons.Default.Refresh
-    is ConnectionStatus.ERROR -> Icons.Default.Warning
 }
 
 @Composable
-private fun connectionStatusTint(status: ConnectionStatus) = when (status) {
-    ConnectionStatus.IDLE, ConnectionStatus.SUCCESS -> MaterialTheme.colorScheme.primary
-    ConnectionStatus.TESTING -> MaterialTheme.colorScheme.tertiary
-    is ConnectionStatus.ERROR -> MaterialTheme.colorScheme.error
+private fun AppDrawer(
+    userName: String,
+    roleLabel: String?,
+    currentScreen: Screen,
+    newTasksCount: Int,
+    unreadChatCount: Int,
+    onMap: () -> Unit,
+    onTaskList: () -> Unit,
+    onChat: () -> Unit,
+    onMyAddresses: () -> Unit,
+    onSettings: () -> Unit,
+    onProfile: () -> Unit,
+) {
+    ModalDrawerSheet(
+        modifier = Modifier.width(296.dp),
+        drawerContainerColor = MaterialTheme.colorScheme.surface,
+        drawerTonalElevation = 0.dp,
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Бренд + профиль (как шапка/лого портала)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .clickable(onClick = onProfile)
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    AppColors.PrimaryDark,
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = userName.trim().firstOrNull()?.uppercase() ?: "?",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color.White,
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = userName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                    )
+                    if (!roleLabel.isNullOrBlank()) {
+                        Text(
+                            text = roleLabel,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                DrawerSectionTitle("Основное")
+                PortalDrawerItem(Screen.Map, currentScreen == Screen.Map, 0, onMap)
+                PortalDrawerItem(Screen.TaskList, currentScreen == Screen.TaskList, newTasksCount, onTaskList)
+                PortalDrawerItem(Screen.Chat, currentScreen == Screen.Chat, unreadChatCount, onChat)
+
+                DrawerSectionTitle("Управление")
+                PortalDrawerItem(Screen.MyAddresses, currentScreen == Screen.MyAddresses, 0, onMyAddresses)
+
+                DrawerSectionTitle("Личное")
+                PortalDrawerItem(Screen.Settings, currentScreen == Screen.Settings, 0, onSettings)
+                PortalDrawerItem(Screen.UserSettings, currentScreen == Screen.UserSettings, 0, onProfile)
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Text(
+                text = "FieldWorker • v${BuildConfig.VERSION_NAME}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
+            )
+        }
+    }
 }
+
+@Composable
+private fun DrawerSectionTitle(title: String) {
+    Text(
+        text = title.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        letterSpacing = 0.8.sp,
+        modifier = Modifier.padding(start = 28.dp, end = 16.dp, top = 10.dp, bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun PortalDrawerItem(
+    screen: Screen,
+    selected: Boolean,
+    badge: Int,
+    onClick: () -> Unit,
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+    val contentColor = if (selected) accent else MaterialTheme.colorScheme.onSurface
+    val iconColor = if (selected) accent else MaterialTheme.colorScheme.onSurfaceVariant
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 1.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(bg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        screen.icon?.let {
+            Icon(it, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
+        }
+        Text(
+            text = screen.label,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+            color = contentColor,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 14.dp),
+        )
+        if (badge > 0) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(MaterialTheme.colorScheme.error)
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (badge > 99) "99+" else "$badge",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onError,
+                )
+            }
+        }
+    }
+}
+

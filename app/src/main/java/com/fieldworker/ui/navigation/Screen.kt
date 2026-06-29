@@ -3,6 +3,8 @@ package com.fieldworker.ui.navigation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -51,11 +53,22 @@ sealed class Screen(
     data object Developer : Screen(route = "developer")
 
     /** Настройки пользователя (имя, аватар, пароль) */
-    data object UserSettings : Screen(route = "user_settings")
+    data object UserSettings : Screen(
+        route = "user_settings",
+        label = "Профиль",
+        icon = Icons.Default.Person
+    )
 
     /** Полноэкранная карточка объекта */
     data object ObjectCard : Screen(route = "object_card")
-    
+
+    /** Раздел «Мои адреса» (открывается из бокового меню) */
+    data object MyAddresses : Screen(
+        route = "my_addresses",
+        label = "Мои адреса",
+        icon = Icons.Default.Home
+    )
+
     companion object {
         /** Tabs для нижней панели навигации */
         val bottomNavItems: List<Screen>

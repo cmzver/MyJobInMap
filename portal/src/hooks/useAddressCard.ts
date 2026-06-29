@@ -4,7 +4,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { addressesApi, CreateSystemData, UpdateSystemData, CreateEquipmentData, UpdateEquipmentData, CreateContactData, UpdateContactData } from '@/api/addresses'
 import { intercomApi } from '@/api/intercom'
-import type { AddressFull, CreateIntercomPanelData, UpdateIntercomPanelData } from '@/types/address'
+import type { AddressAssignee, AddressFull, CreateIntercomPanelData, UpdateIntercomPanelData } from '@/types/address'
 import { useAuthStore } from '@/store/authStore'
 
 // Query Keys
@@ -17,6 +17,7 @@ const addressCardKeys = {
   contacts: (organizationId: number | null | undefined, id: number) => [...addressCardKeys.all(organizationId), 'contacts', id] as const,
   history: (organizationId: number | null | undefined, id: number) => [...addressCardKeys.all(organizationId), 'history', id] as const,
   panels: (organizationId: number | null | undefined, id: number) => [...addressCardKeys.all(organizationId), 'panels', id] as const,
+  assignees: (organizationId: number | null | undefined, id: number) => [...addressCardKeys.all(organizationId), 'assignees', id] as const,
 }
 
 // ============================================
@@ -255,6 +256,44 @@ export function useDeletePanel(addressId: number) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: addressCardKeys.full(organizationId, addressId) })
       queryClient.invalidateQueries({ queryKey: addressCardKeys.history(organizationId, addressId) })
+    },
+  })
+}
+
+// ============================================
+// Ответственные (персональный доступ «Мои адреса»)
+// ============================================
+
+export function useAssignees(addressId: number, enabled = true) {
+  const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
+
+  return useQuery<AddressAssignee[]>({
+    queryKey: addressCardKeys.assignees(organizationId, addressId),
+    queryFn: () => addressesApi.getAssignees(addressId),
+    enabled: enabled && addressId > 0,
+  })
+}
+
+export function useAddAssignee(addressId: number) {
+  const queryClient = useQueryClient()
+  const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
+
+  return useMutation({
+    mutationFn: (userId: number) => addressesApi.addAssignee(addressId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: addressCardKeys.assignees(organizationId, addressId) })
+    },
+  })
+}
+
+export function useRemoveAssignee(addressId: number) {
+  const queryClient = useQueryClient()
+  const organizationId = useAuthStore((state) => state.user?.organizationId ?? null)
+
+  return useMutation({
+    mutationFn: (userId: number) => addressesApi.removeAssignee(addressId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: addressCardKeys.assignees(organizationId, addressId) })
     },
   })
 }

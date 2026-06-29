@@ -15,6 +15,7 @@ Models Package
 
 from app.models.address import AddressContactModel  # Enums; Models
 from app.models.address import (
+    AddressAssigneeModel,
     AddressDocumentModel,
     AddressEquipmentModel,
     AddressHistoryEventType,
@@ -112,6 +113,7 @@ __all__ = [
     "AddressEquipmentModel",
     "AddressDocumentModel",
     "AddressContactModel",
+    "AddressAssigneeModel",
     "AddressHistoryModel",
     "IntercomPanelModel",
     "IntercomActionModel",

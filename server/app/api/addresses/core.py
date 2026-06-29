@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import distinct, func, or_
 from sqlalchemy.orm import Session
 
-from app.models import AddressModel, get_db
+from app.models import AddressAssigneeModel, AddressModel, get_db
 from app.models.task import TaskModel
 from app.models.user import UserModel
 from app.schemas.address import (
@@ -111,6 +111,57 @@ async def get_addresses(
     total = query.count()
 
     # Пагинация
+    addresses = (
+        query.order_by(AddressModel.address).offset((page - 1) * size).limit(size).all()
+    )
+
+    return AddressListResponse(
+        items=[AddressResponse.model_validate(a) for a in addresses],
+        total=total,
+        page=page,
+        size=size,
+        pages=(total + size - 1) // size if total > 0 else 1,
+    )
+
+
+@router.get("/my", response_model=AddressListResponse)
+async def get_my_addresses(
+    search: Optional[str] = Query(None, description="Поиск по адресу"),
+    page: int = Query(1, ge=1, description="Номер страницы"),
+    size: int = Query(50, ge=1, le=100, description="Размер страницы"),
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_current_user_required),
+):
+    """Адреса, назначенные текущему пользователю («Мои адреса»).
+
+    Возвращает только активные адреса, на которые пользователь назначен
+    (таблица address_assignees), с tenant-фильтрацией. Менеджеры также видят
+    лишь свои привязки — за полным списком есть обычный `GET /api/addresses`.
+    """
+    tenant = TenantFilter(user)
+    query = (
+        tenant.apply(db.query(AddressModel), AddressModel)
+        .join(
+            AddressAssigneeModel,
+            AddressAssigneeModel.address_id == AddressModel.id,
+        )
+        .filter(
+            AddressAssigneeModel.user_id == user.id,
+            AddressModel.is_active == True,
+        )
+    )
+
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            or_(
+                AddressModel.address.ilike(search_pattern),
+                AddressModel.street.ilike(search_pattern),
+                AddressModel.building.ilike(search_pattern),
+            )
+        )
+
+    total = query.count()
     addresses = (
         query.order_by(AddressModel.address).offset((page - 1) * size).limit(size).all()
     )

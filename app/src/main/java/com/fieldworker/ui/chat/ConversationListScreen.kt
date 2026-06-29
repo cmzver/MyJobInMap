@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -83,6 +84,7 @@ fun ConversationListScreen(
     onCreateDirectConversation: (Long) -> Unit,
     onCreateGroupConversation: (String, List<Long>) -> Unit,
     onRefresh: () -> Unit,
+    onOpenMenu: (() -> Unit)? = null,
 ) {
     LaunchedEffect(conversations.isEmpty(), isLoading) {
         if (conversations.isEmpty() && !isLoading) {
@@ -134,6 +136,7 @@ fun ConversationListScreen(
                     showCreateDialog = true
                     onLoadUsers(false)
                 },
+                onOpenMenu = onOpenMenu,
             )
 
             PullToRefreshBox(
@@ -226,6 +229,7 @@ private fun ConversationListHeader(
     onSearchQueryChange: (String) -> Unit,
     onFilterChange: (ConversationListFilter) -> Unit,
     onCreateClick: () -> Unit,
+    onOpenMenu: (() -> Unit)? = null,
 ) {
     Column(
         modifier = Modifier
@@ -235,14 +239,21 @@ private fun ConversationListHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 8.dp),
+                .padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (onOpenMenu != null) {
+                IconButton(onClick = onOpenMenu) {
+                    Icon(Icons.Default.Menu, contentDescription = "Меню")
+                }
+            }
             Text(
                 text = "Чаты",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = if (onOpenMenu != null) 4.dp else 12.dp),
             )
             IconButton(onClick = onCreateClick) {
                 Icon(

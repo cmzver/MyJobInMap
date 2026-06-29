@@ -14,7 +14,12 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.api.addresses.extended import get_address_or_404
-from app.models import IntercomActionModel, IntercomPanelModel, get_db
+from app.models import (
+    AddressAssigneeModel,
+    IntercomActionModel,
+    IntercomPanelModel,
+    get_db,
+)
 from app.models.user import UserModel
 from app.schemas.address import (
     PanelDoorActionResponse,
@@ -23,8 +28,29 @@ from app.schemas.address import (
 )
 from app.services import beward
 from app.services.auth import get_current_user_required
+from app.services.role_utils import is_dispatcher_or_admin_user
 
 router = APIRouter(prefix="/api/addresses", tags=["Intercom Panel Actions"])
+
+
+def _enforce_panel_access(address_id: int, db: Session, user: UserModel) -> None:
+    """Доступ к панели: менеджеры — всегда, остальные — только если назначены.
+
+    Закрывает возможность для рядового сотрудника управлять дверью любого
+    адреса организации по ID. Менеджеры (admin/dispatcher) — без ограничений.
+    """
+    if is_dispatcher_or_admin_user(user):
+        return
+    assigned = (
+        db.query(AddressAssigneeModel)
+        .filter(
+            AddressAssigneeModel.address_id == address_id,
+            AddressAssigneeModel.user_id == user.id,
+        )
+        .first()
+    )
+    if not assigned:
+        raise HTTPException(status_code=403, detail="Нет доступа к этой панели")
 
 
 def get_panel_or_404(
@@ -32,6 +58,7 @@ def get_panel_or_404(
 ) -> IntercomPanelModel:
     """Получить панель объекта (с проверкой доступа к адресу) или 404."""
     get_address_or_404(address_id, db, user)
+    _enforce_panel_access(address_id, db, user)
     panel = (
         db.query(IntercomPanelModel)
         .filter(
