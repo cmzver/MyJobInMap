@@ -179,6 +179,36 @@ const initialFormData: TaskFormData = {
   photos: [],
 }
 
+// Срок выполнения по приоритету (от момента создания). Подставляется автоматически
+// при выборе приоритета, чтобы не вводить дату и время вручную; значение можно
+// изменить. Дневные сроки ставятся на конец рабочего дня.
+const PLANNED_DATE_SLA: Record<TaskPriority, { days?: number; hours?: number }> = {
+  EMERGENCY: { hours: 4 },
+  URGENT: { days: 1 },
+  CURRENT: { days: 3 },
+  PLANNED: { days: 7 },
+}
+
+const DEADLINE_HOUR = 18
+
+const toDatetimeLocalValue = (date: Date): string => {
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+const computePlannedDateForPriority = (priority: TaskPriority): string => {
+  const sla = PLANNED_DATE_SLA[priority]
+  if (!sla) return ''
+  const date = new Date()
+  if (sla.hours != null) {
+    date.setHours(date.getHours() + sla.hours, 0, 0, 0)
+  } else if (sla.days != null) {
+    date.setDate(date.getDate() + sla.days)
+    date.setHours(DEADLINE_HOUR, 0, 0, 0)
+  }
+  return toDatetimeLocalValue(date)
+}
+
 interface TaskFormPageProps {
   mode: 'create' | 'edit'
 }
@@ -189,6 +219,8 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
   const { id } = useParams<{ id: string }>()
   const taskId = id ? Number(id) : undefined
   const restoredDraftRef = useRef(false)
+  // Пользователь правил дату вручную — больше не подставляем её по приоритету.
+  const plannedDateManuallySet = useRef(false)
 
   const [formData, setFormData] = useState<TaskFormData>(initialFormData)
   const [addressErrors, setAddressErrors] = useState<Partial<Record<keyof AddressFormData, string>>>({})
@@ -225,6 +257,9 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         ...draft.formData,
         photos: [],
       })
+      if (draft.formData.planned_date) {
+        plannedDateManuallySet.current = true
+      }
       setSelectedSystemType(draft.selectedSystemType || draft.formData.system_type || '')
     } catch {
       // ignore invalid session draft
@@ -244,17 +279,20 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
     )
 
     setFormData((current) => {
-      if (current.priority !== initialFormData.priority) {
-        return current
-      }
+      // Применяем дефолтный приоритет только если пользователь его ещё не менял.
+      const priority = current.priority === initialFormData.priority ? defaultPriority : current.priority
+      const priorityChanged = priority !== current.priority
+      const needsInitialDate = !current.planned_date
+      const shouldSetDate = !plannedDateManuallySet.current && (priorityChanged || needsInitialDate)
 
-      if (current.priority === defaultPriority) {
+      if (!priorityChanged && !shouldSetDate) {
         return current
       }
 
       return {
         ...current,
-        priority: defaultPriority,
+        priority,
+        ...(shouldSetDate ? { planned_date: computePlannedDateForPriority(priority) } : {}),
       }
     })
   }, [mode, portalInterfaceSettings?.default_task_priority])
@@ -427,6 +465,22 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         return next
       })
     }
+  }
+
+  // Смена приоритета подставляет срок выполнения (если дату не правили вручную).
+  const handlePriorityChange = (priority: TaskPriority) => {
+    setFormData(prev => ({
+      ...prev,
+      priority,
+      ...(mode === 'create' && !plannedDateManuallySet.current
+        ? { planned_date: computePlannedDateForPriority(priority) }
+        : {}),
+    }))
+  }
+
+  const handlePlannedDateChange = (value: string) => {
+    plannedDateManuallySet.current = true
+    handleFormChange('planned_date', value)
   }
 
   const validate = (): boolean => {
@@ -691,7 +745,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
               label="Приоритет"
               options={PRIORITY_OPTIONS_FOR_FORM}
               value={formData.priority}
-              onChange={(value) => handleFormChange('priority', value as TaskPriority)}
+              onChange={(value) => handlePriorityChange(value as TaskPriority)}
             />
 
             {/* Исполнитель */}
@@ -709,12 +763,17 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
             />
 
             {/* Плановая дата */}
-            <Input
-              type="datetime-local"
-              label="Желаемое время выполнения"
-              value={formData.planned_date}
-              onChange={(e) => handleFormChange('planned_date', e.target.value)}
-            />
+            <div>
+              <Input
+                type="datetime-local"
+                label="Желаемое время выполнения"
+                value={formData.planned_date}
+                onChange={(e) => handlePlannedDateChange(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Подставляется автоматически по приоритету (срочная — 1 день, текущая — 3 дня, плановая — 7 дней). Можно изменить вручную.
+              </p>
+            </div>
           </div>
         </Card>
 
