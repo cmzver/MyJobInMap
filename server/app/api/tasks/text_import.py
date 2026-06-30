@@ -25,8 +25,9 @@ from app.schemas import (
     ParsedTaskResponse,
     ParseTaskRequest,
 )
-from app.services import check_permission, geocoding_service, require_permission
+from app.services import check_permission, require_permission
 from app.services.task_parser import parse_dispatcher_message
+from app.services.task_service import TaskService
 from app.services.tenant_filter import TenantFilter
 from app.services.websocket_manager import (
     broadcast_task_assigned,
@@ -244,9 +245,12 @@ async def create_task_from_text(
             source_info.append(f"От: {request.sender}")
         description = f"{description}\n---\n{' | '.join(source_info)}"
 
-    # Геокодируем адрес
+    # Геокодируем адрес (через резолвер — матчит к адресной книге и привязывает
+    # заявку к адресу, чтобы правка его координат подхватывалась автоматически).
     address = parsed.get("address", "")
-    lat, lon = geocoding_service.geocode(address)
+    lat, lon, address_id = TaskService(db).resolve_coordinates(
+        address, user.organization_id
+    )
 
     task_number = external_id
 
@@ -257,6 +261,7 @@ async def create_task_from_text(
         description=description,
         lat=lat,
         lon=lon,
+        address_id=address_id,
         status=TaskStatus.NEW.value,
         priority=parsed.get("priority", TaskPriority.CURRENT.value),
         assigned_user_id=assigned_id,

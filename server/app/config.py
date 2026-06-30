@@ -193,6 +193,32 @@ class Settings(BaseSettings):
         description="Описание API",
     )
 
+    # === Beward intercom integration ===
+    # Учётные данные панелей (общий аккаунт). НЕ хранятся в БД — только здесь.
+    BEWARD_USER: str = Field(default="", description="Логин к веб-интерфейсу панелей")
+    BEWARD_PASSWORD: str = Field(
+        default="", description="Пароль к веб-интерфейсу панелей"
+    )
+    BEWARD_TIMEOUT: float = Field(
+        default=10.0, description="Таймаут запроса к панели, сек"
+    )
+    BEWARD_SNAPSHOT_CACHE_TTL: float = Field(
+        default=1.0, description="TTL кэша JPEG-кадра панели, сек (мягкий режим)"
+    )
+    # On-demand WireGuard: туннель поднимается только на время обращения к панели.
+    BEWARD_WG_ENABLED: bool = Field(
+        default=False,
+        description="Поднимать WireGuard on-demand для доступа к панелям",
+    )
+    BEWARD_WG_CONF: str = Field(
+        default="wg-intercom",
+        description="Имя интерфейса или путь к .conf для wg-quick",
+    )
+    BEWARD_WG_LINGER: float = Field(
+        default=45.0,
+        description="Сколько держать туннель поднятым после последнего обращения, сек",
+    )
+
     # === Вычисляемые пути (не из env) ===
     @computed_field
     @property

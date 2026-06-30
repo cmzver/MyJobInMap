@@ -10,7 +10,7 @@
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $rootDir = Split-Path -Parent $scriptDir
 
-$server = "root@185.121.232.130"
+$server = "root@balalayka.duckdns.org"
 $remotePath = "/opt/fieldworker"
 $sshPort = 22
 $sshKeyPath = Join-Path $HOME ".ssh\fieldworker_deploy"
@@ -82,9 +82,14 @@ $syncArgs = @{
     Force = $true
 }
 
+# NOTE: env-файлы (server/.env, bot/.env) НЕ заливаются автоматически —
+# локальный server/.env здесь dev-копия (другой SECRET_KEY), заливка
+# разлогинила бы всех. Прод-.env правится на сервере напрямую. Для
+# первичной заливки на свежий сервер используйте режим provision.
+# -WireGuard подмешивает on-demand WG-overlay (доступ к домофонным панелям).
 switch ($Mode) {
     "all" {
-        $syncArgs.IncludeServiceEnvFiles = $true
+        $syncArgs.WireGuard = $true
     }
     "portal" {
         $syncArgs.SkipSync = $true
@@ -93,7 +98,7 @@ switch ($Mode) {
     "server" {
         $syncArgs.SkipPortalBuild = $true
         $syncArgs.SkipPortalSync = $true
-        $syncArgs.IncludeServiceEnvFiles = $true
+        $syncArgs.WireGuard = $true
     }
     "provision" {
         # Full bootstrap: install Docker, generate/upload env, build + sync

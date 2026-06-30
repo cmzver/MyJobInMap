@@ -2,8 +2,10 @@ package com.fieldworker.data.repository
 
 import com.fieldworker.data.api.AddressesApi
 import com.fieldworker.data.mapper.toDomain
+import com.fieldworker.data.mapper.toSummary
 import com.fieldworker.data.remote.generated.AddressParseRequest
 import com.fieldworker.domain.model.AddressDetails
+import com.fieldworker.domain.model.AddressSummary
 import com.fieldworker.domain.model.Task
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,6 +16,64 @@ import javax.inject.Singleton
 class AddressRepository @Inject constructor(
     private val addressesApi: AddressesApi
 ) {
+
+    /** Список адресов, назначенных текущему пользователю. */
+    suspend fun getMyAddresses(): Result<List<AddressSummary>> = withContext(Dispatchers.IO) {
+        try {
+            val response = addressesApi.getMyAddresses()
+            val body = response.body()
+            if (!response.isSuccessful || body == null) {
+                return@withContext Result.failure(Exception("Не удалось загрузить адреса"))
+            }
+            Result.success(body.items.map { it.toSummary() })
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Полная карточка адреса по id (для экрана «Мои адреса»). */
+    suspend fun getAddressDetails(addressId: Long): Result<AddressDetails> = withContext(Dispatchers.IO) {
+        try {
+            val fullResponse = addressesApi.getAddressFull(addressId)
+            if (!fullResponse.isSuccessful || fullResponse.body() == null) {
+                return@withContext Result.failure(Exception("Не удалось загрузить карточку объекта"))
+            }
+            val historyResponse = addressesApi.getAddressHistory(addressId)
+            val history = if (historyResponse.isSuccessful) {
+                historyResponse.body().orEmpty().map { it.toDomain() }
+            } else {
+                emptyList()
+            }
+            Result.success(fullResponse.body()!!.toDomain(history))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Открыть дверь на сетевой панели. Возвращает is_open после команды
+     * либо понятную ошибку (504 — недоступна, 403 — нет доступа).
+     */
+    suspend fun openDoor(addressId: Long, panelId: Long): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val response = addressesApi.openPanelDoor(addressId, panelId)
+            val body = response.body()
+            if (response.isSuccessful && body != null) {
+                Result.success(body.isOpen)
+            } else {
+                val message = when (response.code()) {
+                    403 -> "Нет доступа к этой панели"
+                    404 -> "Панель не найдена"
+                    502 -> "Панель отвергла учётные данные"
+                    504 -> "Панель недоступна"
+                    else -> "Не удалось открыть дверь"
+                }
+                Result.failure(Exception(message))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
     suspend fun findAddressForTask(task: Task): Result<AddressDetails?> = withContext(Dispatchers.IO) {
         try {

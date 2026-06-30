@@ -87,6 +87,16 @@ class TaskModel(Base):
         Integer, ForeignKey("organizations.id"), nullable=True, index=True
     )
 
+    # Адрес из адресной книги, к которому привязана заявка (если сматчился при
+    # создании). Нужен, чтобы правка координат адреса автоматически
+    # подхватывалась заявками. NULL — адрес не нашёлся (координаты от геокодера).
+    address_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("addresses.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # Система и тип неисправности
     system_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("address_systems.id"), nullable=True

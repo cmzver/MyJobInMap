@@ -126,7 +126,14 @@ class TaskService:
         self,
         raw_address: str,
         organization_id: Optional[int] = None,
-    ) -> Tuple[float, float]:
+    ) -> Tuple[float, float, Optional[int]]:
+        """Определить координаты адреса заявки.
+
+        Возвращает (lat, lon, address_id). address_id != None — координаты взяты
+        из сматченного адреса книги (тогда заявка привязывается к нему, чтобы
+        правка координат адреса подхватывалась автоматически). None — координаты
+        получены геокодером.
+        """
         parsed = parse_address(raw_address)
         normalized_raw = geocoding_service.normalize_address(raw_address).lower()
 
@@ -214,9 +221,10 @@ class TaskService:
                 best_candidate.lat,
                 best_candidate.lon,
             )
-            return best_candidate.lat, best_candidate.lon
+            return best_candidate.lat, best_candidate.lon, best_candidate.id
 
-        return geocoding_service.geocode(raw_address)
+        lat, lon = geocoding_service.geocode(raw_address)
+        return lat, lon, None
 
     def get_by_id(self, task_id: int) -> TaskModel:
         """
@@ -304,7 +312,7 @@ class TaskService:
         - Генерирует внутренний номер
         """
         # Геокодирование
-        lat, lon = self.resolve_coordinates(
+        lat, lon, address_id = self.resolve_coordinates(
             data.address,
             user.organization_id if user else None,
         )
@@ -354,6 +362,7 @@ class TaskService:
             customer_phone=data.customer_phone,
             lat=lat,
             lon=lon,
+            address_id=address_id,
             status=status,
             priority=priority,
             planned_date=data.planned_date,
@@ -412,12 +421,13 @@ class TaskService:
             task.title = task_data.title
         if task_data.address is not None:
             task.raw_address = task_data.address
-            lat, lon = self.resolve_coordinates(
+            lat, lon, address_id = self.resolve_coordinates(
                 task_data.address,
                 task.organization_id or admin.organization_id,
             )
             task.lat = lat
             task.lon = lon
+            task.address_id = address_id
         if task_data.description is not None:
             task.description = task_data.description
         if task_data.customer_name is not None:

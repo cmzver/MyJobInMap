@@ -1,0 +1,31 @@
+# On-demand WireGuard для доступа к домофонным панелям (Beward).
+# ==============================================================
+# Overlay к docker-compose.yml. Включает в контейнере api возможность
+# поднимать WG-туннель по запросу (см. app/services/wireguard.py).
+#
+# Запуск:
+#   docker compose -f docker-compose.yml -f docker-compose.wireguard.yml up -d
+#
+# Перед запуском:
+#   1) положить реальный пир в deploy/wireguard/wg-intercom.conf
+#      (НЕ коммитить — он в .gitignore; см. deploy/wireguard/README.md);
+#   2) задать в server/.env: BEWARD_USER / BEWARD_PASSWORD;
+#   3) убедиться, что AllowedIPs в конфиге сужен до панельных подсетей
+#      (10.80.0.0/16 и т.п.), иначе туннель перехватит весь трафик.
+#
+# Внимание: wg-quick требует root, поэтому здесь api работает как root.
+# Это компромисс ради on-demand-туннеля внутри того же контейнера.
+services:
+  api:
+    user: root
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - BEWARD_WG_ENABLED=true
+      - BEWARD_WG_CONF=/etc/wireguard/wg-intercom.conf
+      - BEWARD_WG_LINGER=45
+    volumes:
+      # Пир монтируется read-only; реальный файл — вне git.
+      - ./deploy/wireguard/wg-intercom.conf:/etc/wireguard/wg-intercom.conf:ro

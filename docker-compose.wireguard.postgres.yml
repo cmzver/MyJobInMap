@@ -1,0 +1,24 @@
+# On-demand WireGuard overlay для PROD-стека (docker-compose.postgres.yml, сервис server).
+# ==========================================================================
+# Включает в контейнере server возможность поднимать WG-туннель по запросу
+# (app/services/wireguard.py) для доступа к домофонным панелям (10.80.0.0/16).
+#
+# Запуск ВМЕСТЕ с базовым файлом:
+#   docker compose -f docker-compose.postgres.yml -f docker-compose.wireguard.postgres.yml up -d server
+#
+# Требует: ядро с модулем wireguard (modprobe wireguard) + /dev/net/tun на хосте,
+# и peer-конфиг в deploy/wireguard/wg-intercom.conf (НЕ в git; см. README).
+# wg-quick требует root, поэтому server здесь работает как root.
+services:
+  server:
+    user: root
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - BEWARD_WG_ENABLED=true
+      - BEWARD_WG_CONF=/etc/wireguard/wg-intercom.conf
+      - BEWARD_WG_LINGER=45
+    volumes:
+      - ./deploy/wireguard/wg-intercom.conf:/etc/wireguard/wg-intercom.conf:ro

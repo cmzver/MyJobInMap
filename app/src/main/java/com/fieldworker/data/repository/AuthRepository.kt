@@ -61,6 +61,7 @@ class AuthRepository @Inject constructor(
                 prefs.setUserFullName(token.fullName)
                 prefs.setUserRole(token.role)
                 prefs.setUserRoleLabel(token.roleLabel)
+                prefs.setBaseAccess(token.baseAccess)
                 prefs.setUserAvatarUrl(token.avatarUrl)
                 
                 Result.success(token)
@@ -105,6 +106,7 @@ class AuthRepository @Inject constructor(
                 // role_label и avatar_url синхронизируем всегда — могут меняться
                 // без перелогина (переименование группы / смена аватара)
                 prefs.setUserRoleLabel(user.roleLabel)
+                prefs.setBaseAccess(user.baseAccess)
                 prefs.setUserAvatarUrl(user.avatarUrl)
                 Result.success(user)
             } else {

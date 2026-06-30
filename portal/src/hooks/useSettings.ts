@@ -10,6 +10,12 @@ export interface DefectType {
   system_types?: string[]  // Для каких типов систем применим этот тип неисправности
 }
 
+export interface DefectTypeInput {
+  name: string
+  description?: string
+  system_types?: string[]
+}
+
 export type SettingValue = string | number | boolean | string[]
 
 export interface SystemSetting {
@@ -84,11 +90,14 @@ export const settingsApi = {
   },
 
   // Добавить тип неисправности
-  async addDefectType(name: string, description?: string): Promise<DefectType> {
-    const { data } = await apiClient.post<DefectType>('/admin/settings/defect-types', {
-      name,
-      description,
-    })
+  async addDefectType(payload: DefectTypeInput): Promise<DefectType> {
+    const { data } = await apiClient.post<DefectType>('/admin/settings/defect-types', payload)
+    return data
+  },
+
+  // Обновить тип неисправности
+  async updateDefectType(id: string, payload: DefectTypeInput): Promise<DefectType> {
+    const { data } = await apiClient.patch<DefectType>(`/admin/settings/defect-types/${id}`, payload)
     return data
   },
 
@@ -147,6 +156,37 @@ export function useDefectTypes() {
     queryKey: queryKeys.defectTypes,
     queryFn: () => settingsApi.getDefectTypes(),
     staleTime: 300000, // 5 minutes
+  })
+}
+
+export function useAddDefectType() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: DefectTypeInput) => settingsApi.addDefectType(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.defectTypes })
+    },
+  })
+}
+
+export function useUpdateDefectType() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: DefectTypeInput }) =>
+      settingsApi.updateDefectType(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.defectTypes })
+    },
+  })
+}
+
+export function useDeleteDefectType() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => settingsApi.deleteDefectType(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.defectTypes })
+    },
   })
 }
 

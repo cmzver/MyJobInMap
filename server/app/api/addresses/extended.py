@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import (
+    AddressAssigneeModel,
     AddressContactModel,
     AddressDocumentModel,
     AddressEquipmentModel,
@@ -25,12 +26,15 @@ from app.models import (
     AddressHistoryModel,
     AddressModel,
     AddressSystemModel,
+    IntercomPanelModel,
     TaskModel,
     TaskStatus,
     get_db,
 )
 from app.models.user import UserModel
 from app.schemas.address import (
+    AddressAssigneeCreate,
+    AddressAssigneeResponse,
     AddressContactCreate,
     AddressContactResponse,
     AddressContactUpdate,
@@ -43,10 +47,17 @@ from app.schemas.address import (
     AddressSystemCreate,
     AddressSystemResponse,
     AddressSystemUpdate,
+    IntercomPanelCreate,
+    IntercomPanelResponse,
+    IntercomPanelUpdate,
     TaskStats,
 )
-from app.services.auth import get_current_user_required
+from app.services.auth import (
+    get_current_dispatcher_or_admin,
+    get_current_user_required,
+)
 from app.services.tenant_filter import TenantFilter
+from app.services.user_group_service import resolve_role_label
 from app.utils import normalize_priority_value
 
 router = APIRouter(prefix="/api/addresses", tags=["Address Extended"])
@@ -218,6 +229,7 @@ async def get_address_full(
         equipment=[
             AddressEquipmentResponse.model_validate(e) for e in address.equipment
         ],
+        panels=[IntercomPanelResponse.model_validate(p) for p in address.panels],
         documents=documents,
         contacts=[AddressContactResponse.model_validate(c) for c in address.contacts],
         task_stats=task_stats,
@@ -487,6 +499,265 @@ async def delete_address_equipment(
         address_id,
         AddressHistoryEventType.EQUIPMENT_UPDATED,
         f"Удалено оборудование: {equipment_name}",
+        user.id,
+    )
+
+    db.commit()
+
+
+# ============================================
+# Intercom Panels CRUD
+# ============================================
+
+
+@router.get("/{address_id}/panels", response_model=list[IntercomPanelResponse])
+async def get_address_panels(
+    address_id: int,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_current_user_required),
+):
+    """Получить сетевые панели объекта"""
+    get_address_or_404(address_id, db, user)
+    panels = (
+        db.query(IntercomPanelModel)
+        .filter(IntercomPanelModel.address_id == address_id)
+        .order_by(IntercomPanelModel.entrance, IntercomPanelModel.id)
+        .all()
+    )
+    return [IntercomPanelResponse.model_validate(p) for p in panels]
+
+
+@router.post(
+    "/{address_id}/panels", response_model=IntercomPanelResponse, status_code=201
+)
+async def create_address_panel(
+    address_id: int,
+    data: IntercomPanelCreate,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_current_user_required),
+):
+    """Добавить сетевую панель на объект"""
+    get_address_or_404(address_id, db, user)
+
+    panel = IntercomPanelModel(address_id=address_id, **data.model_dump())
+    db.add(panel)
+
+    add_history_event(
+        db,
+        address_id,
+        AddressHistoryEventType.PANEL_ADDED,
+        f"Добавлена панель: {data.label or data.ip}",
+        user.id,
+    )
+
+    db.commit()
+    db.refresh(panel)
+    return IntercomPanelResponse.model_validate(panel)
+
+
+@router.patch("/{address_id}/panels/{panel_id}", response_model=IntercomPanelResponse)
+async def update_address_panel(
+    address_id: int,
+    panel_id: int,
+    data: IntercomPanelUpdate,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_current_user_required),
+):
+    """Обновить сетевую панель"""
+    get_address_or_404(address_id, db, user)
+    panel = (
+        db.query(IntercomPanelModel)
+        .filter(
+            IntercomPanelModel.id == panel_id,
+            IntercomPanelModel.address_id == address_id,
+        )
+        .first()
+    )
+
+    if not panel:
+        raise HTTPException(status_code=404, detail="Панель не найдена")
+
+    update_data = data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(panel, key, value)
+
+    add_history_event(
+        db,
+        address_id,
+        AddressHistoryEventType.PANEL_UPDATED,
+        f"Обновлена панель: {panel.label or panel.ip}",
+        user.id,
+    )
+
+    db.commit()
+    db.refresh(panel)
+    return IntercomPanelResponse.model_validate(panel)
+
+
+@router.delete("/{address_id}/panels/{panel_id}", status_code=204)
+async def delete_address_panel(
+    address_id: int,
+    panel_id: int,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_current_user_required),
+):
+    """Удалить сетевую панель"""
+    get_address_or_404(address_id, db, user)
+    panel = (
+        db.query(IntercomPanelModel)
+        .filter(
+            IntercomPanelModel.id == panel_id,
+            IntercomPanelModel.address_id == address_id,
+        )
+        .first()
+    )
+
+    if not panel:
+        raise HTTPException(status_code=404, detail="Панель не найдена")
+
+    panel_name = panel.label or panel.ip
+    db.delete(panel)
+
+    add_history_event(
+        db,
+        address_id,
+        AddressHistoryEventType.PANEL_UPDATED,
+        f"Удалена панель: {panel_name}",
+        user.id,
+    )
+
+    db.commit()
+
+
+# ============================================
+# Assignees (per-user access) CRUD — admin/dispatcher only
+# ============================================
+
+
+def _assignee_to_response(
+    db: Session, assignee: AddressAssigneeModel
+) -> AddressAssigneeResponse:
+    """Собрать ответ о привязке с данными пользователя."""
+    u = assignee.user
+    role_label = None
+    if u is not None:
+        role_label = resolve_role_label(db, u.role, u.organization_id)
+    return AddressAssigneeResponse(
+        id=assignee.id,
+        address_id=assignee.address_id,
+        user_id=assignee.user_id,
+        full_name=u.full_name if u else None,
+        username=u.username if u else None,
+        role_label=role_label,
+        created_at=assignee.created_at,
+        created_by_name=(
+            assignee.created_by.full_name if assignee.created_by else None
+        ),
+    )
+
+
+@router.get("/{address_id}/assignees", response_model=list[AddressAssigneeResponse])
+async def get_address_assignees(
+    address_id: int,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
+):
+    """Список ответственных за адрес (только admin/dispatcher)."""
+    get_address_or_404(address_id, db, user)
+    assignees = (
+        db.query(AddressAssigneeModel)
+        .filter(AddressAssigneeModel.address_id == address_id)
+        .order_by(AddressAssigneeModel.created_at)
+        .all()
+    )
+    return [_assignee_to_response(db, a) for a in assignees]
+
+
+@router.post(
+    "/{address_id}/assignees",
+    response_model=AddressAssigneeResponse,
+    status_code=201,
+)
+async def add_address_assignee(
+    address_id: int,
+    data: AddressAssigneeCreate,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
+):
+    """Назначить пользователя на адрес (только admin/dispatcher)."""
+    get_address_or_404(address_id, db, user)
+
+    target = db.query(UserModel).filter(UserModel.id == data.user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    # Назначаемый должен быть из той же организации.
+    TenantFilter(user).enforce_access(
+        target, detail="Пользователь из другой организации"
+    )
+
+    existing = (
+        db.query(AddressAssigneeModel)
+        .filter(
+            AddressAssigneeModel.address_id == address_id,
+            AddressAssigneeModel.user_id == data.user_id,
+        )
+        .first()
+    )
+    if existing:
+        return _assignee_to_response(db, existing)
+
+    assignee = AddressAssigneeModel(
+        address_id=address_id,
+        user_id=data.user_id,
+        created_by_id=user.id,
+    )
+    db.add(assignee)
+
+    add_history_event(
+        db,
+        address_id,
+        AddressHistoryEventType.ASSIGNEE_ADDED,
+        f"Назначен ответственный: {target.full_name or target.username}",
+        user.id,
+    )
+
+    db.commit()
+    db.refresh(assignee)
+    return _assignee_to_response(db, assignee)
+
+
+@router.delete("/{address_id}/assignees/{user_id}", status_code=204)
+async def remove_address_assignee(
+    address_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
+):
+    """Снять пользователя с адреса (только admin/dispatcher)."""
+    get_address_or_404(address_id, db, user)
+    assignee = (
+        db.query(AddressAssigneeModel)
+        .filter(
+            AddressAssigneeModel.address_id == address_id,
+            AddressAssigneeModel.user_id == user_id,
+        )
+        .first()
+    )
+    if not assignee:
+        raise HTTPException(status_code=404, detail="Привязка не найдена")
+
+    target_name = (
+        assignee.user.full_name or assignee.user.username
+        if assignee.user
+        else str(user_id)
+    )
+    db.delete(assignee)
+
+    add_history_event(
+        db,
+        address_id,
+        AddressHistoryEventType.ASSIGNEE_REMOVED,
+        f"Снят ответственный: {target_name}",
         user.id,
     )
 

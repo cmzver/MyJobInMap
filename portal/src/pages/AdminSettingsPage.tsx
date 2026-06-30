@@ -60,6 +60,7 @@ import { UpdatesManagementSection } from '@/pages/UpdatesPage'
 import IpProtectionPanel from '@/components/security/IpProtectionPanel'
 import GroupsManager from '@/components/GroupsManager'
 import ServerHealthPanel from '@/components/settings/ServerHealthPanel'
+import DefectTypesTab from '@/components/settings/DefectTypesTab'
 import type { LucideIcon } from 'lucide-react'
 import {
   SettingsCard,
@@ -111,6 +112,7 @@ type SettingsPanelId =
   | 'task-defaults'
   | 'task-media'
   | 'task-fields'
+  | 'task-defect-types'
   | 'permissions-matrix'
   | 'telegram-bot'
 
@@ -126,7 +128,7 @@ type SettingsTab = {
 
 const SETTINGS_TABS: SettingsTab[] = [
   { id: 'system', label: 'Система', description: 'Состояние сервера, база данных и резервные копии.', icon: Server, panels: ['server-health', 'overview'] },
-  { id: 'tasks', label: 'Заявки', description: 'Параметры новых заявок и дополнительные поля.', icon: Puzzle, panels: ['task-defaults', 'task-media', 'task-fields'] },
+  { id: 'tasks', label: 'Заявки', description: 'Параметры новых заявок, типы неисправностей и дополнительные поля.', icon: Puzzle, panels: ['task-defaults', 'task-media', 'task-defect-types', 'task-fields'] },
   { id: 'notifications', label: 'Уведомления', description: 'Push-канал и зарегистрированные устройства.', icon: Bell, panels: ['mobile-notifications', 'mobile-devices'] },
   { id: 'security', label: 'Безопасность', description: 'Защита входа, IP-ограничения и права ролей.', icon: Shield, panels: ['security', 'permissions-matrix'] },
   { id: 'portal', label: 'Портал', description: 'Брендинг экрана входа и поведение интерфейса.', icon: Palette, panels: ['portal-branding', 'interface'] },
@@ -180,6 +182,8 @@ function renderPanel(
       return <ImageSettingsTab />
     case 'task-fields':
       return <CustomFieldsTab />
+    case 'task-defect-types':
+      return <DefectTypesTab />
     case 'telegram-bot':
       return <TelegramBotSettingsTab />
     default:

@@ -41,3 +41,15 @@ export type HistoryEventType = components['schemas']['AddressHistoryEventType']
 export type AddressHistory = components['schemas']['AddressHistoryResponse']
 
 export type AddressFull = components['schemas']['AddressFullResponse']
+
+// Привязка адрес→пользователь (персональный доступ «Мои адреса»)
+export type AddressAssignee = components['schemas']['AddressAssigneeResponse']
+export type CreateAssigneeData = components['schemas']['AddressAssigneeCreate']
+
+// Сетевые домофонные панели (Beward) на адресе
+export type IntercomPanel = components['schemas']['IntercomPanelResponse']
+export type CreateIntercomPanelData = components['schemas']['IntercomPanelCreate']
+export type UpdateIntercomPanelData = components['schemas']['IntercomPanelUpdate']
+export type PanelLockStatus = components['schemas']['PanelLockStatusResponse']
+export type PanelDoorAction = components['schemas']['PanelDoorActionResponse']
+export type PanelMifareScanCode = components['schemas']['PanelMifareScanCodeResponse']

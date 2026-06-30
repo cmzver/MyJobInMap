@@ -71,6 +71,11 @@ env/
 ENV/
 venv/
 .env
+
+# WireGuard peer configs for intercom panels (secrets) — keep only the example
+deploy/wireguard/*.conf
+!deploy/wireguard/*.conf.example
+
 *.db
 *.db-journal
 *.db-wal
