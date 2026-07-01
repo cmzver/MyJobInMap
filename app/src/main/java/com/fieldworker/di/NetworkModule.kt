@@ -16,6 +16,7 @@ import com.fieldworker.data.network.AuthInterceptor
 import com.fieldworker.data.network.RetryInterceptor
 import com.fieldworker.data.network.TokenAuthenticator
 import com.fieldworker.data.preferences.AppPreferences
+import com.fieldworker.data.remote.serialization.BigDecimalSerializer
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -31,6 +32,9 @@ import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFact
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.contextual
+import java.math.BigDecimal
 import okhttp3.MediaType.Companion.toMediaType
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -197,6 +201,11 @@ object NetworkModule {
         explicitNulls = false
         coerceInputValues = true
         namingStrategy = JsonNamingStrategy.SnakeCase
+        // Генератор помечает BigDecimal-поля (lat/lon, суммы) как @Contextual —
+        // без этого модуля парсинг падает "Serializer for class 'BigDecimal' is not found".
+        serializersModule = SerializersModule {
+            contextual(BigDecimal::class, BigDecimalSerializer)
+        }
     }
 
     @Provides
