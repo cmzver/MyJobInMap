@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef, Fragment } from 'rea
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { showApiError } from '@/utils/apiError'
-import { Search, Plus, RefreshCw, MapPin, Calendar, User, AlertTriangle, Clock, ChevronDown, SlidersHorizontal, X } from 'lucide-react'
+import { Plus, RefreshCw, MapPin, Calendar, User, AlertTriangle, Clock, ChevronDown, SlidersHorizontal } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useUnreadTaskNotifications } from '@/hooks/useNotifications'
 import { useTasks } from '@/hooks/useTasks'
@@ -12,8 +12,6 @@ import { tasksApi } from '@/api/tasks'
 import type { TaskStatus, TaskPriority, TaskFilters, Task, TaskSort } from '@/types/task'
 import { formatDateTime, getSla } from '@/utils/dateFormat'
 import {
-  STATUS_OPTIONS,
-  PRIORITY_OPTIONS,
   normalizePriority,
   getPriorityLabel as getPriorityLabelFn,
   getStatusLabel as getStatusLabelFn,
@@ -22,7 +20,6 @@ import {
 } from '@/config/taskConstants'
 import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
-import MultiSelectFilter from '@/components/MultiSelectFilter'
 import Select from '@/components/Select'
 import { SkeletonTaskList } from '@/components/Skeleton'
 import Pagination from '@/components/Pagination'
@@ -31,8 +28,15 @@ import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
 import Modal from '@/components/Modal'
 import Textarea from '@/components/Textarea'
+import TaskFiltersPanel, { type ActiveTaskFilter } from '@/components/tasks/TaskFiltersPanel'
 import { useAuthStore } from '@/store/authStore'
 import { isAssignableRole } from '@/types/user'
+import {
+  areTaskViewSettingsEqual,
+  useTaskSavedViews,
+  type TaskSavedView,
+  type TaskSavedViewSettings,
+} from '@/hooks/useTaskSavedViews'
 
 const PAGE_SIZE = 20
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
@@ -271,22 +275,6 @@ const loadVisibleColumns = (): Record<ToggleableColumnKey, boolean> => {
   }
 }
 
-// Алиасы для Select компонентов
-const statusOptions = [...STATUS_OPTIONS]
-const priorityOptions = [...PRIORITY_OPTIONS]
-
-const groupOptions = [
-  { value: '', label: 'Без группировки' },
-  { value: 'status', label: 'По статусу' },
-  { value: 'assignee', label: 'По исполнителю' },
-  { value: 'priority', label: 'По приоритету' },
-]
-
-const sortOptions = [
-  { value: 'created_at_desc', label: 'Дата заявки: новые сверху' },
-  { value: 'created_at_asc', label: 'Дата заявки: старые сверху' },
-]
-
 const TASK_STATUS_VALUES: TaskStatus[] = ['NEW', 'IN_PROGRESS', 'DONE', 'CANCELLED']
 const TASK_PRIORITY_VALUES: TaskPriority[] = ['EMERGENCY', 'URGENT', 'CURRENT', 'PLANNED']
 
@@ -302,19 +290,13 @@ const sanitizeAssigneeFilters = (values: string[]): string[] =>
 const areStringArraysEqual = (left: readonly string[], right: readonly string[]) =>
   left.length === right.length && left.every((value, index) => value === right[index])
 
-interface ActiveFilterChip {
-  id: string
-  type: 'search' | 'status' | 'priority' | 'assignee' | 'address'
-  label: string
-  value: string
-  rawValue?: string
-}
-
 export default function TasksPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const { user } = useAuthStore()
+  const savedViewScope = `${user?.organizationId ?? 'global'}:${user?.id ?? 'anonymous'}`
+  const { views: savedViews, saveView, deleteView } = useTaskSavedViews(savedViewScope)
   const [columnWidths, setColumnWidths] = useState<Record<ColumnKey, number>>(loadColumnWidths)
   const [visibleColumns, setVisibleColumns] = useState<Record<ToggleableColumnKey, boolean>>(loadVisibleColumns)
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false)
@@ -349,9 +331,14 @@ export default function TasksPage() {
     const value = searchParams.get('sort')
     return value === 'created_at_asc' ? 'created_at_asc' : 'created_at_desc'
   })
-  const [groupBy, setGroupBy] = useState('')
+  const [groupBy, setGroupBy] = useState(() => {
+    const value = searchParams.get('group') || ''
+    return ['status', 'assignee', 'priority'].includes(value) ? value : ''
+  })
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
-  const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(() =>
+    ['status', 'priority', 'assignee', 'address_id'].some((key) => searchParams.has(key)),
+  )
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkStatus, setBulkStatus] = useState('')
   const [showBulkStatusCommentModal, setShowBulkStatusCommentModal] = useState(false)
@@ -363,6 +350,21 @@ export default function TasksPage() {
   const [bulkAssignee, setBulkAssignee] = useState('')
   const [bulkPriority, setBulkPriority] = useState('')
   const [bulkPlannedDate, setBulkPlannedDate] = useState('')
+
+  const currentSavedViewSettings = useMemo<TaskSavedViewSettings>(() => ({
+    search,
+    statuses: statusFilter,
+    priorities: priorityFilter,
+    assignees: assigneeFilter,
+    addressId: addressIdFilter,
+    addressTitle: addressTitleFilter,
+    sort: sortBy,
+    groupBy,
+  }), [addressIdFilter, addressTitleFilter, assigneeFilter, groupBy, priorityFilter, search, sortBy, statusFilter])
+  const activeSavedViewId = useMemo(
+    () => savedViews.find((view) => areTaskViewSettingsEqual(view.settings, currentSavedViewSettings))?.id ?? '',
+    [currentSavedViewSettings, savedViews],
+  )
 
   // Build filters object
   const filters: TaskFilters = useMemo(() => ({
@@ -458,6 +460,58 @@ export default function TasksPage() {
   const handleSortChange = (value: string) => {
     setSortBy(value === 'created_at_asc' ? 'created_at_asc' : 'created_at_desc')
     setPage(1)
+  }
+
+  const toggleQuickStatus = (status: TaskStatus) => {
+    setStatusFilter((current) => (
+      current.length === 1 && current[0] === status ? [] : [status]
+    ))
+    setPage(1)
+  }
+
+  const toggleUrgentPriorities = () => {
+    setPriorityFilter((current) => {
+      const isUrgentView =
+        current.length === 2 &&
+        current.includes('EMERGENCY') &&
+        current.includes('URGENT')
+      return isUrgentView ? [] : ['EMERGENCY', 'URGENT']
+    })
+    setPage(1)
+  }
+
+  const applySavedView = (view: TaskSavedView) => {
+    setSearch(view.settings.search)
+    setSearchInput(view.settings.search)
+    setStatusFilter(view.settings.statuses)
+    setPriorityFilter(view.settings.priorities)
+    setAssigneeFilter(view.settings.assignees)
+    setAddressIdFilter(view.settings.addressId)
+    setAddressTitleFilter(view.settings.addressTitle)
+    setSortBy(view.settings.sort)
+    setGroupBy(view.settings.groupBy)
+    setCollapsedGroups(new Set())
+    setPage(1)
+    toast.success(`Применён вид «${view.name}»`)
+  }
+
+  const saveCurrentView = (name: string, settings: TaskSavedViewSettings) => {
+    try {
+      saveView(name, settings)
+      toast.success(`Вид «${name}» сохранён`)
+    } catch {
+      toast.error('Не удалось сохранить вид в браузере')
+    }
+  }
+
+  const deleteSavedView = (view: TaskSavedView) => {
+    if (!window.confirm(`Удалить сохранённый вид «${view.name}»?`)) return
+    try {
+      deleteView(view.id)
+      toast.success(`Вид «${view.name}» удалён`)
+    } catch {
+      toast.error('Не удалось удалить сохранённый вид')
+    }
   }
 
   const applyColumnWidth = useCallback((key: ColumnKey, width: number) => {
@@ -787,7 +841,7 @@ export default function TasksPage() {
     })
   }
 
-  const activeFilters = useMemo<ActiveFilterChip[]>(() => {
+  const activeFilters = useMemo<ActiveTaskFilter[]>(() => {
     return [
       ...(search
         ? [{ id: 'search', type: 'search' as const, label: 'Поиск', value: search }]
@@ -840,10 +894,18 @@ export default function TasksPage() {
         value: addressTitleFilter || `ID ${addressIdFilter}`,
       })
     }
-    return items as unknown as ActiveFilterChip[]
+    return items as unknown as ActiveTaskFilter[]
   }, [search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter, addressTitleFilter, assignableUsers, getPriorityLabel, getStatusLabel])
 
   const hasActiveFilters = activeFilters.length > 0
+  const advancedFilterCount =
+    statusFilter.length + priorityFilter.length + assigneeFilter.length + (addressIdFilter ? 1 : 0)
+  const isNewQuickView = statusFilter.length === 1 && statusFilter[0] === 'NEW'
+  const isInProgressQuickView = statusFilter.length === 1 && statusFilter[0] === 'IN_PROGRESS'
+  const isUrgentQuickView =
+    priorityFilter.length === 2 &&
+    priorityFilter.includes('EMERGENCY') &&
+    priorityFilter.includes('URGENT')
 
   const clearFilters = () => {
     setSearch('')
@@ -1124,6 +1186,7 @@ export default function TasksPage() {
     if (addressIdFilter) nextParams.set('address_id', addressIdFilter)
     if (addressTitleFilter) nextParams.set('address_title', addressTitleFilter)
     if (sortBy !== 'created_at_desc') nextParams.set('sort', sortBy)
+    if (groupBy) nextParams.set('group', groupBy)
     if (page > 1) nextParams.set('page', String(page))
     if (pageSize !== defaultPageSize) nextParams.set('size', String(pageSize))
 
@@ -1133,7 +1196,7 @@ export default function TasksPage() {
       isSyncingToUrl.current = true
       setSearchParams(nextParams, { replace: true })
     }
-  }, [search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter, addressTitleFilter, sortBy, page, pageSize, defaultPageSize, searchParams, setSearchParams])
+  }, [search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter, addressTitleFilter, sortBy, groupBy, page, pageSize, defaultPageSize, searchParams, setSearchParams])
 
   useEffect(() => {
     // Skip if this update was triggered by the state→URL sync above
@@ -1148,6 +1211,8 @@ export default function TasksPage() {
     const urlAddressId = searchParams.get('address_id') || ''
     const urlAddressTitle = searchParams.get('address_title') || ''
     const urlSort = searchParams.get('sort') === 'created_at_asc' ? 'created_at_asc' : 'created_at_desc'
+    const rawGroup = searchParams.get('group') || ''
+    const urlGroup = ['status', 'assignee', 'priority'].includes(rawGroup) ? rawGroup : ''
     const rawPage = Number(searchParams.get('page') || 1)
     const urlPage = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
     const rawSize = Number(searchParams.get('size') || defaultPageSize)
@@ -1161,6 +1226,7 @@ export default function TasksPage() {
     setAddressIdFilter((prev) => (prev === urlAddressId ? prev : urlAddressId))
     setAddressTitleFilter((prev) => (prev === urlAddressTitle ? prev : urlAddressTitle))
     setSortBy((prev) => (prev === urlSort ? prev : urlSort))
+    setGroupBy((prev) => (prev === urlGroup ? prev : urlGroup))
     setPage((prev) => (prev === urlPage ? prev : urlPage))
     setPageSize((prev) => (prev === urlSize ? prev : urlSize))
   }, [searchParams, defaultPageSize])
@@ -1193,139 +1259,44 @@ export default function TasksPage() {
         }
       />
 
-      {/* Filters */}
-      <div className="mb-5 rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-colors dark:border-gray-700 dark:bg-gray-800">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-          <div className="xl:w-[320px]">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
-              <input
-                type="text"
-                placeholder="Номер, адрес, клиент"
-                value={searchInput}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    commitSearch(searchInput)
-                  }
-                }}
-                className="h-9 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-500"
-              />
-            </div>
-          </div>
-
-          {/* Mobile toggle for the filter controls */}
-          <button
-            type="button"
-            onClick={() => setShowMobileFilters((prev) => !prev)}
-            className="flex items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 lg:hidden"
-          >
-            <span className="flex items-center gap-2">
-              <SlidersHorizontal className="h-4 w-4" />
-              Фильтры и сортировка
-              {hasActiveFilters && (
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-100 px-1.5 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
-                  {activeFilters.length}
-                </span>
-              )}
-            </span>
-            <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${showMobileFilters ? 'rotate-180' : ''}`} />
-          </button>
-
-          <div className={`flex-1 gap-3 sm:grid-cols-2 xl:grid-cols-5 ${showMobileFilters ? 'grid' : 'hidden'} lg:grid`}>
-            <Select
-              label="Сортировка"
-              options={sortOptions}
-              value={sortBy}
-              onChange={handleSortChange}
-              placeholder="Сортировка"
-              className="h-9 text-sm"
-            />
-            <Select
-              label="Группировка"
-              options={groupOptions}
-              value={groupBy}
-              onChange={(value) => {
-                setGroupBy(value)
-                setCollapsedGroups(new Set())
-              }}
-              placeholder="Без группировки"
-              className="h-9 text-sm"
-            />
-            <MultiSelectFilter
-              label="Статусы"
-              options={statusOptions}
-              selectedValues={statusFilter}
-              onChange={handleStatusFilterChange}
-              placeholder="Все статусы"
-            />
-            <MultiSelectFilter
-              label="Приоритеты"
-              options={priorityOptions}
-              selectedValues={priorityFilter}
-              onChange={handlePriorityFilterChange}
-              placeholder="Все приоритеты"
-            />
-            <MultiSelectFilter
-              label="Исполнители"
-              options={assignableUsers.map((user) => ({
-                value: String(user.id),
-                label: user.full_name || user.username,
-              }))}
-              selectedValues={assigneeFilter}
-              onChange={handleAssigneeFilterChange}
-              placeholder="Все исполнители"
-            />
-          </div>
-
-          <div className={`items-end ${showMobileFilters ? 'flex' : 'hidden'} lg:flex`}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearFilters}
-              disabled={!hasActiveFilters}
-              className="h-9 px-3"
-            >
-              Сбросить
-            </Button>
-          </div>
-        </div>
-
-        {hasActiveFilters && (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {activeFilters.map((filter) => (
-              <button
-                key={filter.id}
-                onClick={() => clearSingleFilter(filter)}
-                className="flex h-8 items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-3 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-200 dark:hover:bg-gray-800"
-              >
-                <span className="text-gray-500 dark:text-gray-400">{filter.label}:</span>
-                <span className="max-w-[180px] truncate text-gray-900 dark:text-white">{filter.value}</span>
-                <X size={12} className="text-gray-400" />
-              </button>
-            ))}
-          </div>
-      )}
-
-        {data && (
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-gray-100 pt-3 text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
-            <span className="eyebrow">Сводка</span>
-            <span>
-              Без исполнителя <span className="font-semibold text-gray-900 dark:text-white">{summary.unassigned}</span>
-            </span>
-            <span>
-              Просроченные <span className="font-semibold text-gray-900 dark:text-white">{summary.overdue}</span>
-            </span>
-            <span>
-              Срок &lt; 24ч <span className="font-semibold text-gray-900 dark:text-white">{summary.dueSoon}</span>
-            </span>
-            <span>
-              Срочные <span className="font-semibold text-gray-900 dark:text-white">{summary.urgent}</span>
-            </span>
-          </div>
-        )}
-      </div>
+      <TaskFiltersPanel
+        searchInput={searchInput}
+        onSearchChange={handleSearchChange}
+        onSearchCommit={() => commitSearch(searchInput)}
+        isNewQuickView={isNewQuickView}
+        isInProgressQuickView={isInProgressQuickView}
+        isUrgentQuickView={isUrgentQuickView}
+        onToggleQuickStatus={toggleQuickStatus}
+        onToggleUrgentPriorities={toggleUrgentPriorities}
+        showAdvancedFilters={showAdvancedFilters}
+        advancedFilterCount={advancedFilterCount}
+        onToggleAdvancedFilters={() => setShowAdvancedFilters((current) => !current)}
+        savedViews={savedViews}
+        activeSavedViewId={activeSavedViewId}
+        currentSavedViewSettings={currentSavedViewSettings}
+        onApplySavedView={applySavedView}
+        onSaveCurrentView={saveCurrentView}
+        onDeleteSavedView={deleteSavedView}
+        sortBy={sortBy}
+        groupBy={groupBy}
+        statusFilter={statusFilter}
+        priorityFilter={priorityFilter}
+        assigneeFilter={assigneeFilter}
+        assignableUsers={assignableUsers}
+        onSortChange={handleSortChange}
+        onGroupChange={(value) => {
+          setGroupBy(value)
+          setCollapsedGroups(new Set())
+        }}
+        onStatusChange={handleStatusFilterChange}
+        onPriorityChange={handlePriorityFilterChange}
+        onAssigneeChange={handleAssigneeFilterChange}
+        hasActiveFilters={hasActiveFilters}
+        activeFilters={activeFilters}
+        onClearFilters={clearFilters}
+        onClearSingleFilter={clearSingleFilter}
+        summary={data ? summary : undefined}
+      />
 
       {/* Content */}
       {isLoading ? (

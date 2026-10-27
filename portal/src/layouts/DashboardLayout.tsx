@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useMemo, useState } from 'react'
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { useTheme } from '@/hooks/useTheme'
@@ -61,6 +61,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [currentTime, setCurrentTime] = useState(() => new Date())
+  const sidebarRef = useRef<HTMLElement>(null)
+  const sidebarTriggerRef = useRef<HTMLButtonElement>(null)
+  const sidebarCloseRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const updateClock = () => {
@@ -76,6 +79,59 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
     return () => window.clearTimeout(timerId)
   }, [])
+
+  useEffect(() => {
+    if (!isSidebarOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    const sidebarTrigger = sidebarTriggerRef.current
+    const focusableSelector =
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    const animationFrame = requestAnimationFrame(() => sidebarCloseRef.current?.focus())
+
+    document.body.style.overflow = 'hidden'
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsSidebarOpen(false)
+        return
+      }
+
+      if (event.key !== 'Tab' || !sidebarRef.current) return
+      const focusable = Array.from(sidebarRef.current.querySelectorAll<HTMLElement>(focusableSelector))
+      if (focusable.length === 0) return
+
+      const first = focusable[0]!
+      const last = focusable[focusable.length - 1]!
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      cancelAnimationFrame(animationFrame)
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+      sidebarTrigger?.focus()
+    }
+  }, [isSidebarOpen])
+
+  useEffect(() => {
+    if (!isThemeMenuOpen && !isUserMenuOpen) return
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsThemeMenuOpen(false)
+        setIsUserMenuOpen(false)
+      }
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [isThemeMenuOpen, isUserMenuOpen])
 
   const handleLogout = () => {
     logout()
@@ -188,7 +244,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             {/* Logo and mobile menu */}
             <div className="flex min-w-0 items-center">
               <button
+                ref={sidebarTriggerRef}
+                type="button"
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                aria-label={isSidebarOpen ? 'Закрыть меню' : 'Открыть меню'}
+                aria-expanded={isSidebarOpen}
+                aria-controls="mobile-navigation"
                 className="lg:hidden p-2 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
               >
                 {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
@@ -221,7 +282,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               {/* Theme toggle */}
               <div className="relative">
                 <button
-                  onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
+                  type="button"
+                  onClick={() => {
+                    setIsThemeMenuOpen(!isThemeMenuOpen)
+                    setIsUserMenuOpen(false)
+                  }}
+                  aria-label="Сменить тему"
+                  aria-expanded={isThemeMenuOpen}
+                  aria-controls="theme-menu"
                   className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                   title="Сменить тему"
                 >
@@ -234,12 +302,20 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       className="fixed inset-0 z-10" 
                       onClick={() => setIsThemeMenuOpen(false)} 
                     />
-                    <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1.5 z-20">
+                    <div
+                      id="theme-menu"
+                      role="menu"
+                      aria-label="Выбор темы"
+                      className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1.5 z-20"
+                    >
                       {themeOptions.map((option) => {
                         const Icon = option.icon
                         return (
                           <button
                             key={option.value}
+                            type="button"
+                            role="menuitemradio"
+                            aria-checked={theme === option.value}
                             onClick={() => {
                               setTheme(option.value)
                               setIsThemeMenuOpen(false)
@@ -263,8 +339,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               {/* User menu */}
               <div className="relative">
                 <button
-                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                  type="button"
+                  onClick={() => {
+                    setIsUserMenuOpen(!isUserMenuOpen)
+                    setIsThemeMenuOpen(false)
+                  }}
                   aria-label="Меню пользователя"
+                  aria-expanded={isUserMenuOpen}
+                  aria-controls="user-menu"
                   className="flex h-10 min-w-10 items-center rounded-lg px-1.5 text-gray-700 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:px-3"
                 >
                   <UserAvatar
@@ -286,7 +368,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       className="fixed inset-0 z-10" 
                       onClick={() => setIsUserMenuOpen(false)} 
                     />
-                    <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1.5 z-20">
+                    <div
+                      id="user-menu"
+                      role="menu"
+                      aria-label="Меню пользователя"
+                      className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1.5 z-20"
+                    >
                       <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
                         <div className="flex items-center gap-3">
                           <UserAvatar
@@ -306,12 +393,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       </div>
                       <Link
                         to="/profile"
+                        role="menuitem"
                         onClick={() => setIsUserMenuOpen(false)}
                         className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                       >
                         Профиль
                       </Link>
                       <button
+                        type="button"
+                        role="menuitem"
                         onClick={() => {
                           setIsUserMenuOpen(false)
                           handleLogout()
@@ -360,13 +450,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             onClick={() => setIsSidebarOpen(false)}
           >
             <aside 
+              id="mobile-navigation"
+              ref={sidebarRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="mobile-navigation-title"
+              tabIndex={-1}
               className="fixed inset-y-0 left-0 w-72 bg-white dark:bg-gray-800 shadow-2xl transition-transform" 
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700">
-                <span className="text-xl font-bold text-gray-900 dark:text-white">Меню</span>
+                <span id="mobile-navigation-title" className="text-xl font-bold text-gray-900 dark:text-white">Меню</span>
                 <button 
+                  ref={sidebarCloseRef}
+                  type="button"
                   onClick={() => setIsSidebarOpen(false)} 
+                  aria-label="Закрыть меню"
                   className="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
                 >
                   <X size={24} />
