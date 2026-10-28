@@ -48,7 +48,8 @@ portal/
 │   ├── api/                  # API клиент
 │   ├── components/           # UI компоненты
 │   ├── config/
-│   │   └── menuConfig.ts     # Конфигурация меню по ролям
+│   │   ├── portalRoutes.tsx  # Маршруты, права, редиректы и метаданные навигации
+│   │   └── menuConfig.ts     # Меню, собранное из реестра маршрутов
 │   ├── hooks/                # React хуки
 │   ├── layouts/
 │   │   └── DashboardLayout.tsx
@@ -73,13 +74,17 @@ portal/
 │   │   └── authStore.ts      # Авторизация + роли
 │   ├── types/                # TypeScript типы
 │   ├── utils/                # Утилиты
-│   ├── App.tsx               # Роутинг с ProtectedRoute
+│   ├── App.tsx               # Рендер реестра маршрутов с ProtectedRoute
 │   └── main.tsx              # Entry point
 ├── package.json
 ├── tailwind.config.js
 ├── tsconfig.json
 └── vite.config.ts
 ```
+
+### Единый реестр маршрутов
+
+Защищённые маршруты портала описаны в `src/config/portalRoutes.tsx`. В одном месте задаются путь, допустимые роли, ограничение для администраторов организаций, совместимые редиректы и данные пункта меню. `App.tsx` рендерит этот реестр, а `menuConfig.ts` строит из него боковую и мобильную навигацию. При добавлении раздела не нужно отдельно синхронизировать права в роутере и меню.
 
 ## 🚀 Запуск
 
