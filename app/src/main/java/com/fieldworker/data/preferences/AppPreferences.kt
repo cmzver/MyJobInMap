@@ -315,6 +315,15 @@ class AppPreferences @Inject constructor(
         setSecureValue(KEY_USER_ROLE_LABEL, label)
     }
 
+    /** Грубый уровень доступа из токена: admin | dispatcher | worker. */
+    fun getBaseAccess(): String? {
+        return getSecureValue(KEY_USER_BASE_ACCESS)
+    }
+
+    fun setBaseAccess(baseAccess: String?) {
+        setSecureValue(KEY_USER_BASE_ACCESS, baseAccess)
+    }
+
     fun getUserAvatarUrl(): String? {
         return getSecureValue(KEY_USER_AVATAR_URL)
     }
@@ -348,6 +357,7 @@ class AppPreferences @Inject constructor(
             .remove(KEY_USER_FULLNAME)
             .remove(KEY_USER_ROLE)
             .remove(KEY_USER_ROLE_LABEL)
+            .remove(KEY_USER_BASE_ACCESS)
             .remove(KEY_USER_AVATAR_URL)
             .apply()
             prefs.edit()
@@ -358,6 +368,7 @@ class AppPreferences @Inject constructor(
                 .remove(KEY_USER_FULLNAME)
                 .remove(KEY_USER_ROLE)
                 .remove(KEY_USER_ROLE_LABEL)
+                .remove(KEY_USER_BASE_ACCESS)
                 .remove(KEY_USER_AVATAR_URL)
                 .apply()
     }
@@ -474,6 +485,7 @@ class AppPreferences @Inject constructor(
         private const val KEY_USER_FULLNAME = "user_fullname"
         private const val KEY_USER_ROLE = "user_role"
         private const val KEY_USER_ROLE_LABEL = "user_role_label"
+        private const val KEY_USER_BASE_ACCESS = "user_base_access"
         private const val KEY_USER_AVATAR_URL = "user_avatar_url"
         private const val KEY_DISMISSED_UPDATE_VERSION_CODE = "dismissed_update_version_code"
 

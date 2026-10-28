@@ -198,7 +198,7 @@ export default function SupportTicketDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_380px]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.3fr)_380px]">
         <div className="space-y-6">
           <Card title="Описание обращения">
             <div className="space-y-4">

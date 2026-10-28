@@ -13,7 +13,6 @@
 #
 # Примеры:
 #   ./scripts/recreate-containers-local.ps1                          # Postgres-стек, полный rebuild
-#   ./scripts/recreate-containers-local.ps1 -ComposeFile docker-compose.yml  # SQLite-стек
 #   ./scripts/recreate-containers-local.ps1 -SkipPortalBuild         # не пересобирать портал
 #   ./scripts/recreate-containers-local.ps1 -Logs                    # после старта прицепить логи
 

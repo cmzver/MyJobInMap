@@ -9,7 +9,7 @@ import asyncio
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
@@ -39,7 +39,14 @@ from app.services import (
     chat_service,
     check_permission,
     get_task_service,
+    metrics,
     require_permission,
+)
+from app.services.notification_service import (
+    broadcast_created_notification_async,
+    create_task_assignment_notification,
+    notification_broadcast_payload,
+    send_task_assignment_push,
 )
 from app.services.role_utils import is_dispatcher_or_admin_user, is_worker_user
 from app.services.tenant_filter import TenantFilter
@@ -64,8 +71,9 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("", response_model=TaskResponse)
-async def create_task(
+def create_task(
     task: TaskCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("create_tasks")),
     task_service=Depends(get_task_service),
@@ -92,24 +100,50 @@ async def create_task(
 
     try:
         db_task = task_service.create(task, user=user)
-        # Multi-tenant: привязать заявку к организации пользователя
-        tenant = TenantFilter(user)
-        tenant.set_org_id(db_task)
+        assignment_notifications = []
+        assigned_to = None
+        if db_task.assigned_user_id:
+            assigned_to = db.get(UserModel, db_task.assigned_user_id)
+            if assigned_to:
+                assignment_notifications = create_task_assignment_notification(
+                    db=db,
+                    task=db_task,
+                    assigned_to=assigned_to,
+                    assigned_by=user,
+                    commit=False,
+                    send_push=False,
+                )
         db.commit()
+        db.refresh(db_task)
     except TaskServiceError as exc:
+        db.rollback()
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
+    except Exception:
+        db.rollback()
+        raise
 
     logger.info(f"Заявка №{db_task.task_number} создана")
+    metrics.record_task_created(db_task.priority)
+    for notification in assignment_notifications:
+        notification_user_id, notification_event = notification_broadcast_payload(
+            notification
+        )
+        background_tasks.add_task(
+            broadcast_created_notification_async,
+            notification_user_id,
+            notification_event,
+        )
+    if assigned_to and assignment_notifications:
+        send_task_assignment_push(db_task, assigned_to)
 
     # WebSocket broadcast
-    asyncio.ensure_future(
-        broadcast_task_created(
-            task_id=db_task.id,
-            task_number=db_task.task_number or "",
-            title=db_task.title or "",
-            user_id=user.id,
-            organization_id=db_task.organization_id,
-        )
+    background_tasks.add_task(
+        broadcast_task_created,
+        task_id=db_task.id,
+        task_number=db_task.task_number or "",
+        title=db_task.title or "",
+        user_id=user.id,
+        organization_id=db_task.organization_id,
     )
 
     return task_to_response(db_task)
@@ -117,8 +151,8 @@ async def create_task(
 
 @router.get("", response_model=PaginatedResponse[TaskListResponse])
 async def get_tasks(
-    page: int = 1,
-    size: int = 20,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
     status: List[TaskStatus] = Query(default=[]),
     priority: List[str] = Query(default=[]),
     assignee_id: List[int] = Query(default=[]),
@@ -235,6 +269,7 @@ async def get_tasks(
     tasks = (
         query.options(
             joinedload(TaskModel.assigned_user),
+            joinedload(TaskModel.created_by),
             subqueryload(TaskModel.comments),
         )
         .order_by(*order_by)

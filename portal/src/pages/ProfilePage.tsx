@@ -170,7 +170,7 @@ export default function ProfilePage() {
 
       {/* User Card */}
       <Card>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center">
             <div className="relative">
               <UserAvatar

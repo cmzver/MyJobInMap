@@ -13,7 +13,6 @@ FieldWorker — система управления полевыми заявк�
 - `app/` — текущее Android приложение
 - `portal/` — React + TypeScript портал
 - `server/` — FastAPI backend, тесты, миграции и сервисы
-- `mobile-next/` — новая мобильная линия с KMP-структурой
 - `docs/` — официальная документация проекта
 - `bot/` — Telegram bot
 
@@ -21,13 +20,10 @@ FieldWorker — система управления полевыми заявк�
 
 - [README.md](../../README.md)
 - [GETTING_STARTED.md](../../GETTING_STARTED.md)
-- [docs/mobile-next-architecture.md](../mobile-next-architecture.md)
-- [docs/DEPLOYMENT.md](../DEPLOYMENT.md)
 
 ## Навигация по vault
 
 - [[02 Areas/Backend]]
 - [[02 Areas/Portal]]
 - [[02 Areas/Android App]]
-- [[02 Areas/Mobile Next]]
 - [[05 Runbooks/Local Development]]

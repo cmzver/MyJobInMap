@@ -9,6 +9,7 @@ import androidx.paging.PagingData
 import androidx.paging.map
 import com.fieldworker.data.api.TasksApi
 import com.fieldworker.data.image.ImageCompressor
+import com.fieldworker.data.local.LocalTransactionRunner
 import com.fieldworker.data.remote.generated.CommentCreate
 import com.fieldworker.data.remote.generated.PlannedDateUpdate
 import com.fieldworker.data.remote.generated.TaskStatusUpdate
@@ -33,9 +34,12 @@ import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.TaskStatus
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -57,6 +61,7 @@ class OfflineFirstTasksRepository @Inject constructor(
     private val taskDao: TaskDao,
     private val commentDao: CommentDao,
     private val pendingActionDao: PendingActionDao,
+    private val transactionRunner: LocalTransactionRunner,
     private val networkMonitor: NetworkMonitor,
     private val imageCompressor: ImageCompressor,
     @ApplicationContext private val context: Context
@@ -65,7 +70,10 @@ class OfflineFirstTasksRepository @Inject constructor(
         private const val TAG = "OfflineTasksRepo"
         private const val PAGE_SIZE = 100
         private const val PAGING_PAGE_SIZE = 30
+        private const val MAX_PENDING_RETRIES = 5
     }
+
+    private val pendingSyncMutex = Mutex()
     
     /**
      * Flow всех задач из локальной БД (для карты — загружает все)
@@ -98,9 +106,12 @@ class OfflineFirstTasksRepository @Inject constructor(
     /**
      * Загрузить задачи (сначала из кеша, потом обновить с сервера)
      */
-    suspend fun refreshTasks(): Result<List<Task>> = withContext(Dispatchers.IO) {
-        if (networkMonitor.isCurrentlyOnline()) {
-            syncPendingActions()
+    suspend fun refreshTasks(syncPendingFirst: Boolean = true): Result<List<Task>> = withContext(Dispatchers.IO) {
+        if (syncPendingFirst && networkMonitor.isCurrentlyOnline()) {
+            val syncResult = syncPendingActions()
+            if (syncResult.requiresAuthentication) {
+                return@withContext Result.failure(Exception("401 Unauthorized"))
+            }
         }
 
         try {
@@ -108,14 +119,18 @@ class OfflineFirstTasksRepository @Inject constructor(
                 val fetchResult = fetchAllTasksFromServer()
                 fetchResult.fold(
                     onSuccess = { tasks ->
-                        val entities = tasks.map { TaskEntity.fromDomain(it) }
+                        val locallyModifiedIds = taskDao.getLocallyModifiedTasks()
+                            .mapTo(mutableSetOf()) { it.id }
+                        val entities = tasks
+                            .filterNot { it.id in locallyModifiedIds }
+                            .map { TaskEntity.fromDomain(it) }
                         taskDao.upsertTasks(entities)
 
                         val serverIds = tasks.map { it.id }
                         taskDao.deleteTasksNotIn(serverIds)
 
                         Log.d(TAG, "Synced ${tasks.size} tasks from server")
-                        Result.success(tasks)
+                        Result.success(getTasksFromCache())
                     },
                     onFailure = { error ->
                         if (error.message?.contains("401") == true) {
@@ -130,6 +145,8 @@ class OfflineFirstTasksRepository @Inject constructor(
                 Log.d(TAG, "Offline mode, returning cached tasks")
                 Result.success(getTasksFromCache())
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Network error: ${e.message}", e)
             val cached = getTasksFromCache()
@@ -163,8 +180,9 @@ class OfflineFirstTasksRepository @Inject constructor(
 
             if (!response.isSuccessful) {
                 if (response.code() == 401) {
-                    Log.w(TAG, "401 Unauthorized: User session invalid, clearing cache")
-                    clearCache()
+                    // Не удаляем локальные изменения/outbox: пользователь может
+                    // повторно войти и безопасно продолжить синхронизацию.
+                    Log.w(TAG, "401 Unauthorized: user session must be renewed")
                     return Result.failure(Exception("401 Unauthorized"))
                 }
                 return Result.failure(Exception("Server error: ${response.code()}"))
@@ -213,6 +231,8 @@ class OfflineFirstTasksRepository @Inject constructor(
                     // Offline: из кеша
                     getTaskDetailFromCache(taskId)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Error getting task detail: ${e.message}", e)
                 getTaskDetailFromCache(taskId)
@@ -266,32 +286,32 @@ class OfflineFirstTasksRepository @Inject constructor(
                 // Offline: сохраняем локально
                 Log.d(TAG, "Offline: saving status update as pending action")
                 
-                // Обновляем локально
-                taskDao.updateStatusLocally(
-                    taskId = taskId,
-                    status = newStatus.name,
-                    pendingStatus = newStatus.name,
-                    comment = comment.ifEmpty { null }
-                )
-                
-                // Создаём pending action
-                pendingActionDao.insertPendingAction(
-                    PendingAction(
+                var updatedTask: Task? = null
+                transactionRunner.run {
+                    taskDao.updateStatusLocally(
                         taskId = taskId,
-                        actionType = ActionType.UPDATE_STATUS,
-                        newStatus = newStatus.name,
+                        status = newStatus.name,
+                        pendingStatus = newStatus.name,
                         comment = comment.ifEmpty { null }
                     )
-                )
-                
-                // Возвращаем обновлённую задачу из кеша
-                val updatedTask = taskDao.getTaskById(taskId)?.toDomain()
+                    pendingActionDao.insertPendingAction(
+                        PendingAction(
+                            taskId = taskId,
+                            actionType = ActionType.UPDATE_STATUS,
+                            newStatus = newStatus.name,
+                            comment = comment.ifEmpty { null }
+                        )
+                    )
+                    updatedTask = taskDao.getTaskById(taskId)?.toDomain()
+                }
                 if (updatedTask != null) {
-                    Result.success(updatedTask)
+                    Result.success(updatedTask!!)
                 } else {
                     Result.failure(Exception("Задача не найдена"))
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Error updating task status: ${e.message}", e)
             Result.failure(Exception("Ошибка обновления статуса: ${e.message}", e))
@@ -343,20 +363,22 @@ class OfflineFirstTasksRepository @Inject constructor(
                         tempId = tempId
                     )
                     
-                    commentDao.upsertComment(localComment)
-                    
-                    // Сохраняем pending action
-                    pendingActionDao.insertPendingAction(
-                        PendingAction(
-                            taskId = taskId,
-                            actionType = ActionType.ADD_COMMENT,
-                            comment = text,
-                            tempId = tempId
+                    transactionRunner.run {
+                        commentDao.upsertComment(localComment)
+                        pendingActionDao.insertPendingAction(
+                            PendingAction(
+                                taskId = taskId,
+                                actionType = ActionType.ADD_COMMENT,
+                                comment = text,
+                                tempId = tempId
+                            )
                         )
-                    )
+                    }
                     
                     Result.success(localComment.toDomain())
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Result.failure(Exception("Ошибка добавления комментария: ${e.message}", e))
             }
@@ -392,15 +414,30 @@ class OfflineFirstTasksRepository @Inject constructor(
                     Result.failure(Exception("Ошибка: ${response.code()}"))
                 }
             } else {
-                // Offline: обновляем локально
-                val entity = taskDao.getTaskById(taskId)
-                if (entity != null) {
-                    taskDao.upsertTask(entity.copy(plannedDate = plannedDate, isLocallyModified = true))
-                    Result.success(entity.copy(plannedDate = plannedDate).toDomain())
-                } else {
-                    Result.failure(Exception("Задача не найдена в кеше"))
+                // Локальная запись и outbox должны попасть в БД атомарно.
+                var updatedTask: Task? = null
+                transactionRunner.run {
+                    val entity = taskDao.getTaskById(taskId)
+                    if (entity == null) return@run
+                    val updated = entity.copy(
+                        plannedDate = plannedDate,
+                        isLocallyModified = true
+                    )
+                    taskDao.upsertTask(updated)
+                    pendingActionDao.insertPendingAction(
+                        PendingAction(
+                            taskId = taskId,
+                            actionType = ActionType.UPDATE_PLANNED_DATE,
+                            plannedDate = plannedDate
+                        )
+                    )
+                    updatedTask = updated.toDomain()
                 }
+                updatedTask?.let { Result.success(it) }
+                    ?: Result.failure(Exception("Задача не найдена в кеше"))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(Exception("Ошибка обновления даты: ${e.message}", e))
         }
@@ -409,19 +446,45 @@ class OfflineFirstTasksRepository @Inject constructor(
     /**
      * Синхронизация отложенных действий при появлении сети
      */
-    suspend fun syncPendingActions(): Int = withContext(Dispatchers.IO) {
+    data class PendingSyncResult(
+        val synced: Int = 0,
+        val retryableFailures: Int = 0,
+        val permanentFailures: Int = 0,
+        val requiresAuthentication: Boolean = false
+    )
+
+    private enum class SyncOutcome { SUCCESS, RETRYABLE_FAILURE, PERMANENT_FAILURE, AUTH_REQUIRED }
+
+    suspend fun syncPendingActions(): PendingSyncResult = pendingSyncMutex.withLock {
+        syncPendingActionsInternal()
+    }
+
+    private suspend fun syncPendingActionsInternal(): PendingSyncResult = withContext(Dispatchers.IO) {
         if (!networkMonitor.isCurrentlyOnline()) {
-            return@withContext 0
+            return@withContext PendingSyncResult()
         }
         
-        val pendingActions = pendingActionDao.getAllPendingActions()
+        val pendingActions = pendingActionDao.getSyncablePendingActions(MAX_PENDING_RETRIES)
         var syncedCount = 0
+        var retryableFailures = 0
+        var permanentFailures = 0
+        var requiresAuthentication = false
+        val blockedTaskIds = mutableSetOf<Long>()
         
         for (action in pendingActions) {
+            if (action.taskId in blockedTaskIds) continue
             try {
-                val success = when (action.actionType) {
+                val outcome = when (action.actionType) {
                     ActionType.UPDATE_STATUS -> {
-                        val status = action.newStatus ?: continue
+                        val status = action.newStatus
+                        if (status == null) {
+                            pendingActionDao.markAsFailed(
+                                action.id, "Missing status payload", MAX_PENDING_RETRIES
+                            )
+                            permanentFailures++
+                            blockedTaskIds += action.taskId
+                            continue
+                        }
                         val response = tasksApi.updateTaskStatus(
                             id = action.taskId,
                             status = TaskStatusUpdate(
@@ -430,59 +493,133 @@ class OfflineFirstTasksRepository @Inject constructor(
                             )
                         )
                         
-                        if (response.isSuccessful) {
-                            response.body()?.let { dto ->
-                                val task = dto.toDomain()
-                                taskDao.upsertTask(TaskEntity.fromDomain(task))
-                                taskDao.markAsSynced(action.taskId)
+                        val body = response.body()
+                        if (response.isSuccessful && body != null) {
+                            transactionRunner.run {
+                                pendingActionDao.deletePendingActionById(action.id)
+                                val remaining = pendingActionDao.getPendingActionsForTask(action.taskId)
+                                if (remaining.isEmpty()) {
+                                    taskDao.upsertTask(TaskEntity.fromDomain(body.toDomain()))
+                                    taskDao.markAsSynced(action.taskId)
+                                }
                             }
-                            true
+                            SyncOutcome.SUCCESS
+                        } else if (response.isSuccessful) {
+                            pendingActionDao.incrementRetryCount(action.id, "Empty response body")
+                            SyncOutcome.RETRYABLE_FAILURE
                         } else {
-                            false
+                            recordHttpFailure(action, response.code())
                         }
                     }
                     
                     ActionType.ADD_COMMENT -> {
-                        val text = action.comment ?: continue
+                        val text = action.comment
+                        if (text == null) {
+                            pendingActionDao.markAsFailed(
+                                action.id, "Missing comment payload", MAX_PENDING_RETRIES
+                            )
+                            permanentFailures++
+                            blockedTaskIds += action.taskId
+                            continue
+                        }
                         val response = tasksApi.addComment(
                             id = action.taskId,
                             comment = CommentCreate(text = text)
                         )
-                        if (response.isSuccessful) {
-                            val dto = response.body()
-                            if (dto != null) {
-                                val comment = dto.toDomain()
+                        val body = response.body()
+                        if (response.isSuccessful && body != null) {
+                            transactionRunner.run {
                                 action.tempId?.let { tempId ->
                                     commentDao.deleteByTempId(tempId)
                                 }
-                                commentDao.upsertComment(CommentEntity.fromDomain(comment))
-                            } else {
-                                action.tempId?.let { tempId ->
-                                    commentDao.deleteByTempId(tempId)
+                                commentDao.upsertComment(CommentEntity.fromDomain(body.toDomain()))
+                                pendingActionDao.deletePendingActionById(action.id)
+                            }
+                            SyncOutcome.SUCCESS
+                        } else if (response.isSuccessful) {
+                            pendingActionDao.incrementRetryCount(action.id, "Empty response body")
+                            SyncOutcome.RETRYABLE_FAILURE
+                        } else {
+                            recordHttpFailure(action, response.code())
+                        }
+                    }
+
+                    ActionType.UPDATE_PLANNED_DATE -> {
+                        val response = tasksApi.updatePlannedDate(
+                            id = action.taskId,
+                            plannedDate = PlannedDateUpdate(
+                                plannedDate = action.plannedDate
+                            )
+                        )
+                        val body = response.body()
+                        if (response.isSuccessful && body != null) {
+                            transactionRunner.run {
+                                pendingActionDao.deletePendingActionById(action.id)
+                                val remaining = pendingActionDao.getPendingActionsForTask(action.taskId)
+                                if (remaining.isEmpty()) {
+                                    taskDao.upsertTask(TaskEntity.fromDomain(body.toDomain()))
+                                    taskDao.markAsSynced(action.taskId)
                                 }
                             }
-                            true
+                            SyncOutcome.SUCCESS
+                        } else if (response.isSuccessful) {
+                            pendingActionDao.incrementRetryCount(action.id, "Empty response body")
+                            SyncOutcome.RETRYABLE_FAILURE
                         } else {
-                            false
+                            recordHttpFailure(action, response.code())
                         }
                     }
                 }
                 
-                if (success) {
-                    pendingActionDao.deletePendingActionById(action.id)
-                    syncedCount++
-                    Log.d(TAG, "Synced pending action ${action.id}")
-                } else {
-                    pendingActionDao.incrementRetryCount(action.id, "Server error")
+                when (outcome) {
+                    SyncOutcome.SUCCESS -> {
+                        syncedCount++
+                        Log.d(TAG, "Synced pending action ${action.id}")
+                    }
+                    SyncOutcome.RETRYABLE_FAILURE -> {
+                        retryableFailures++
+                        blockedTaskIds += action.taskId
+                    }
+                    SyncOutcome.PERMANENT_FAILURE -> {
+                        permanentFailures++
+                        blockedTaskIds += action.taskId
+                    }
+                    SyncOutcome.AUTH_REQUIRED -> {
+                        requiresAuthentication = true
+                        break
+                    }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to sync action ${action.id}: ${e.message}", e)
                 pendingActionDao.incrementRetryCount(action.id, e.message)
+                retryableFailures++
+                blockedTaskIds += action.taskId
             }
         }
         
-        Log.d(TAG, "Synced $syncedCount pending actions")
-        syncedCount
+        PendingSyncResult(
+            synced = syncedCount,
+            retryableFailures = retryableFailures,
+            permanentFailures = permanentFailures,
+            requiresAuthentication = requiresAuthentication
+        )
+    }
+
+    private suspend fun recordHttpFailure(action: PendingAction, code: Int): SyncOutcome {
+        val message = "Server error: $code"
+        return when {
+            code == 401 -> SyncOutcome.AUTH_REQUIRED
+            code == 408 || code == 429 || code >= 500 -> {
+                pendingActionDao.incrementRetryCount(action.id, message)
+                SyncOutcome.RETRYABLE_FAILURE
+            }
+            else -> {
+                pendingActionDao.markAsFailed(action.id, message, MAX_PENDING_RETRIES)
+                SyncOutcome.PERMANENT_FAILURE
+            }
+        }
     }
     
     /**
@@ -524,6 +661,8 @@ class OfflineFirstTasksRepository @Inject constructor(
                 } else {
                     Result.failure(Exception("Ошибка: ${response.code()}"))
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Result.failure(Exception("Ошибка сети: ${e.message}", e))
             }
@@ -572,6 +711,8 @@ class OfflineFirstTasksRepository @Inject constructor(
             } else {
                 Result.failure(Exception("Ошибка: ${response.code()}"))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(Exception("Ошибка загрузки: ${e.message}", e))
         }
@@ -589,6 +730,8 @@ class OfflineFirstTasksRepository @Inject constructor(
             } else {
                 Result.failure(Exception("Ошибка: ${response.code()}"))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(Exception("Ошибка сети: ${e.message}", e))
         }

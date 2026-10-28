@@ -15,12 +15,14 @@ import { format, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import Card from '@/components/Card'
 import PageHeader from '@/components/PageHeader'
+import QueryStatePanel from '@/components/QueryStatePanel'
 import Spinner from '@/components/Spinner'
 import { SkeletonStats, SkeletonTaskList } from '@/components/Skeleton'
 import PriorityBadge from '@/components/PriorityBadge'
 import StatusBadge from '@/components/StatusBadge'
 import apiClient from '@/api/client'
 import type { TaskPriority, TaskStatus } from '@/types/task'
+import { buildTaskListUrl } from '@/utils/taskListUrl'
 
 interface DashboardStats {
   totalTasks: number
@@ -66,7 +68,13 @@ interface RecentTask {
 }
 
 export default function DashboardPage() {
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    isFetching: statsFetching,
+    isError: statsError,
+    refetch: refetchStats,
+  } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
       const response = await apiClient.get<DashboardStats>('/dashboard/stats')
@@ -74,7 +82,13 @@ export default function DashboardPage() {
     },
   })
 
-  const { data: activity, isLoading: activityLoading } = useQuery({
+  const {
+    data: activity,
+    isLoading: activityLoading,
+    isFetching: activityFetching,
+    isError: activityError,
+    refetch: refetchActivity,
+  } = useQuery({
     queryKey: ['dashboard-activity'],
     queryFn: async () => {
       const response = await apiClient.get<DashboardActivity>('/dashboard/activity')
@@ -82,7 +96,13 @@ export default function DashboardPage() {
     },
   })
 
-  const { data: recentTasks, isLoading: tasksLoading } = useQuery({
+  const {
+    data: recentTasks,
+    isLoading: tasksLoading,
+    isFetching: tasksFetching,
+    isError: tasksError,
+    refetch: refetchTasks,
+  } = useQuery({
     queryKey: ['recent-tasks'],
     queryFn: async () => {
       const response = await apiClient.get<{ items: RecentTask[] }>('/tasks?size=4&sort=-created_at')
@@ -103,24 +123,28 @@ export default function DashboardPage() {
       value: stats?.totalTasks ?? 0,
       meta: 'в работе системы',
       icon: ClipboardList,
+      to: buildTaskListUrl(),
     },
     {
       title: 'Новые',
       value: stats?.newTasks ?? 0,
       meta: 'ждут разбора',
       icon: AlertTriangle,
+      to: buildTaskListUrl({ statuses: ['NEW'] }),
     },
     {
       title: 'В работе',
       value: stats?.inProgressTasks ?? 0,
       meta: 'назначены в работу',
       icon: Clock,
+      to: buildTaskListUrl({ statuses: ['IN_PROGRESS'] }),
     },
     {
       title: 'Выполнено',
       value: stats?.completedTasks ?? 0,
       meta: 'закрыто',
       icon: CheckCircle2,
+      to: buildTaskListUrl({ statuses: ['DONE'] }),
     },
   ]
 
@@ -130,18 +154,21 @@ export default function DashboardPage() {
       value: activity?.urgentTasks.length ?? 0,
       meta: 'нуждаются в приоритете',
       icon: Zap,
+      to: buildTaskListUrl({ priorities: ['EMERGENCY', 'URGENT'] }),
     },
     {
       title: 'Активные исполнители',
       value: stats?.activeWorkers ?? 0,
       meta: `из ${stats?.totalWorkers ?? 0}`,
       icon: Users,
+      to: '/analytics',
     },
     {
       title: 'Отменено',
       value: stats?.cancelledTasks ?? 0,
       meta: 'снято с исполнения',
       icon: AlertTriangle,
+      to: buildTaskListUrl({ statuses: ['CANCELLED'] }),
     },
   ]
 
@@ -152,9 +179,17 @@ export default function DashboardPage() {
         description="Сводка по очереди заявок, работе исполнителей и активности за неделю."
       />
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
         {statsLoading ? (
           <SkeletonStats count={4} className="grid-cols-2 gap-3 lg:grid-cols-4" />
+        ) : statsError && !stats ? (
+          <QueryStatePanel
+            state="error"
+            title="Не удалось загрузить состояние очереди"
+            onRetry={refetchStats}
+            isRetrying={statsFetching}
+            className="min-h-[220px]"
+          />
         ) : (
           <Card compact>
             <div className="space-y-4">
@@ -171,9 +206,17 @@ export default function DashboardPage() {
                 </Link>
               </div>
 
-              <dl className="grid gap-px overflow-hidden rounded-lg border border-gray-200 bg-gray-200 dark:border-gray-700 dark:bg-gray-700 sm:grid-cols-2 xl:grid-cols-4">
+              <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-gray-200 bg-gray-200 dark:border-gray-700 dark:bg-gray-700 xl:grid-cols-4">
                 {overviewCards.map((card) => (
-                  <div key={card.title} className="bg-white px-4 py-4 dark:bg-gray-800">
+                  <div
+                    key={card.title}
+                    className="group relative bg-white px-4 py-4 focus-within:z-10 focus-within:ring-2 focus-within:ring-primary-500 dark:bg-gray-800"
+                  >
+                    <Link
+                      to={card.to}
+                      aria-label={`${card.title}: ${card.value}. Открыть список`}
+                      className="absolute inset-0"
+                    />
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
                         <card.icon className="h-4.5 w-4.5" />
@@ -193,6 +236,14 @@ export default function DashboardPage() {
 
         {statsLoading || activityLoading ? (
           <SkeletonStats count={3} className="grid-cols-1 gap-3" />
+        ) : (statsError && !stats) || (activityError && !activity) ? (
+          <QueryStatePanel
+            state="error"
+            title="Не удалось загрузить контроль смены"
+            onRetry={() => Promise.all([refetchStats(), refetchActivity()])}
+            isRetrying={statsFetching || activityFetching}
+            className="min-h-[220px]"
+          />
         ) : (
           <Card compact>
             <div className="space-y-4">
@@ -204,8 +255,13 @@ export default function DashboardPage() {
                 {controlCards.map((card) => (
                   <div
                     key={card.title}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-4 py-3 dark:border-gray-700"
+                    className="group relative flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-4 py-3 transition-colors hover:bg-gray-50 focus-within:ring-2 focus-within:ring-primary-500 dark:border-gray-700 dark:hover:bg-gray-800"
                   >
+                    <Link
+                      to={card.to}
+                      aria-label={`${card.title}: ${card.value}. Открыть подробности`}
+                      className="absolute inset-0 rounded-lg"
+                    />
                     <div className="flex min-w-0 items-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
                         <card.icon className="h-4.5 w-4.5" />
@@ -244,7 +300,7 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(290px,0.95fr)]">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(290px,0.95fr)]">
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -260,6 +316,14 @@ export default function DashboardPage() {
 
                 {tasksLoading ? (
                   <SkeletonTaskList count={3} />
+                ) : tasksError && !recentTasks ? (
+                  <QueryStatePanel
+                    state="error"
+                    title="Не удалось загрузить последние заявки"
+                    onRetry={refetchTasks}
+                    isRetrying={tasksFetching}
+                    className="min-h-[180px]"
+                  />
                 ) : recentPreview.length > 0 ? (
                   <div className="space-y-2">
                     {recentPreview.map((task) => (
@@ -313,6 +377,14 @@ export default function DashboardPage() {
                   <div className="flex justify-center py-10">
                     <Spinner />
                   </div>
+                ) : activityError && !activity ? (
+                  <QueryStatePanel
+                    state="error"
+                    title="Не удалось загрузить активность"
+                    onRetry={refetchActivity}
+                    isRetrying={activityFetching}
+                    className="min-h-[180px] border-0 px-4 py-6"
+                  />
                 ) : activity ? (
                   <>
                     <div className="mt-4 flex h-24 items-end justify-between gap-2">
@@ -377,7 +449,7 @@ export default function DashboardPage() {
           compact
           action={
             <Link
-              to="/tasks"
+              to={buildTaskListUrl({ priorities: ['EMERGENCY', 'URGENT'] })}
               className="flex items-center gap-1 text-sm text-primary-600 transition hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
             >
               Открыть список <ArrowRight size={15} />
@@ -395,6 +467,14 @@ export default function DashboardPage() {
             <div className="flex justify-center py-8">
               <Spinner />
             </div>
+          ) : activityError && !activity ? (
+            <QueryStatePanel
+              state="error"
+              title="Не удалось загрузить срочные заявки"
+              onRetry={refetchActivity}
+              isRetrying={activityFetching}
+              className="min-h-[160px] border-0 px-4 py-6"
+            />
           ) : urgentPreview.length > 0 ? (
             <div className="space-y-2">
               {urgentPreview.map((task) => (

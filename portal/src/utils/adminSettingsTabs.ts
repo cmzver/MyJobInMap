@@ -17,6 +17,7 @@ export type SettingsPanelId =
   | 'task-defaults'
   | 'task-media'
   | 'task-fields'
+  | 'task-defect-types'
   | 'permissions-matrix'
   | 'telegram-bot'
 

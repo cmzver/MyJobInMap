@@ -5,7 +5,6 @@ Configuration
 Использует pydantic-settings для валидации и автоматической загрузки .env
 """
 
-import warnings
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Set
@@ -174,6 +173,13 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = Field(
         default="development", description="Окружение (development/production)"
     )
+    RUN_MIGRATIONS_ON_STARTUP: bool = Field(
+        default=False,
+        description=(
+            "Запускать Alembic при старте API. В production/Docker миграции "
+            "должен выполнять отдельный deploy job"
+        ),
+    )
 
     # === CORS ===
     CORS_ORIGINS: List[str] = Field(
@@ -191,6 +197,32 @@ class Settings(BaseSettings):
     API_DESCRIPTION: str = Field(
         default="REST API для управления заявками выездных сотрудников",
         description="Описание API",
+    )
+
+    # === Beward intercom integration ===
+    # Учётные данные панелей (общий аккаунт). НЕ хранятся в БД — только здесь.
+    BEWARD_USER: str = Field(default="", description="Логин к веб-интерфейсу панелей")
+    BEWARD_PASSWORD: str = Field(
+        default="", description="Пароль к веб-интерфейсу панелей"
+    )
+    BEWARD_TIMEOUT: float = Field(
+        default=10.0, description="Таймаут запроса к панели, сек"
+    )
+    BEWARD_SNAPSHOT_CACHE_TTL: float = Field(
+        default=1.0, description="TTL кэша JPEG-кадра панели, сек (мягкий режим)"
+    )
+    # On-demand WireGuard: туннель поднимается только на время обращения к панели.
+    BEWARD_WG_ENABLED: bool = Field(
+        default=False,
+        description="Поднимать WireGuard on-demand для доступа к панелям",
+    )
+    BEWARD_WG_CONF: str = Field(
+        default="wg-intercom",
+        description="Имя интерфейса или путь к .conf для wg-quick",
+    )
+    BEWARD_WG_LINGER: float = Field(
+        default=45.0,
+        description="Сколько держать туннель поднятым после последнего обращения, сек",
     )
 
     # === Вычисляемые пути (не из env) ===
@@ -256,16 +288,14 @@ class Settings(BaseSettings):
         """Создаём необходимые директории и проверяем безопасность"""
         self.PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
 
-        # Предупреждение о дефолтном SECRET_KEY в production
+        # Production с публично известным ключом небезопасен: не запускаемся.
         if (
             self.ENVIRONMENT.lower() == "production"
             and self.SECRET_KEY == "fieldworker-super-secret-key-change-in-production"
         ):
-            warnings.warn(
-                "⚠️  Используется дефолтный SECRET_KEY в production! "
-                "Задайте SECRET_KEY в переменных окружения или .env файле!",
-                RuntimeWarning,
-                stacklevel=2,
+            raise ValueError(
+                "Нельзя использовать дефолтный SECRET_KEY в production. "
+                "Задайте SECRET_KEY в переменных окружения или .env файле."
             )
         return self
 

@@ -78,6 +78,7 @@ def _send_web_push_sync(
     db = next(get_db())
     sent = 0
     failed = 0
+    retryable_failed = 0
     try:
         subs = (
             db.query(PushSubscriptionModel)
@@ -108,6 +109,7 @@ def _send_web_push_sync(
                 if status in (404, 410):
                     stale_ids.append(sub.id)
                 else:
+                    retryable_failed += 1
                     logger.warning(
                         "Web push: сбой доставки (sub=%s, status=%s): %s",
                         sub.id,
@@ -122,6 +124,13 @@ def _send_web_push_sync(
             db.commit()
             logger.info("Web push: удалено протухших подписок: %d", len(stale_ids))
 
+        if sent == 0 and retryable_failed:
+            return {
+                "success": False,
+                "message": f"Temporary web push failures: {retryable_failed}",
+                "sent": sent,
+                "failed": failed,
+            }
         return {"success": True, "sent": sent, "failed": failed}
     except Exception as exc:
         logger.error("Web push error: %s", exc)

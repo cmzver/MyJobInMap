@@ -2,20 +2,17 @@
 Database Service
 ================
 Бизнес-логика инструментов БД (раздел /api/admin/db*): сидинг тестовых данных,
-статистика, проверка целостности, очистка старых заявок, VACUUM/ANALYZE и
-полная очистка заявок. Роутер app/api/admin/database.py — тонкий.
+статистика, очистка старых заявок и полная очистка заявок. Роутер
+app/api/admin/database.py — тонкий.
 
-Низкоуровневые помощники путей SQLite и каталог бэкапов переиспользуются из
-backup_service (resolve_sqlite_db_path, BACKUP_DIR).
+Каталог бэкапов переиспользуется из backup_service (BACKUP_DIR).
 """
 
 import logging
 import os
-import sqlite3
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -32,7 +29,7 @@ from app.models import (
 from app.models.address import AddressModel
 from app.models.notification import NotificationModel
 from app.services.auth import get_password_hash
-from app.services.backup_service import BACKUP_DIR, resolve_sqlite_db_path
+from app.services.backup_service import BACKUP_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +44,7 @@ class DatabaseServiceError(Exception):
 
 
 class DatabaseService:
-    """Сидинг, статистика и обслуживание БД (только SQLite для maintenance)."""
+    """Сидинг, статистика и очистка заявок (диалект-независимо)."""
 
     def __init__(self, db: Session):
         self.db = db
@@ -280,33 +277,6 @@ class DatabaseService:
         except Exception as e:
             raise DatabaseServiceError(str(e), 500)
 
-    def check_integrity(self) -> dict:
-        """Проверка целостности БД (PRAGMA integrity_check, только SQLite).
-
-        Диалект определяем по реальному соединению, а не по settings: так
-        проверка корректна, даже если конфиг и фактическая БД расходятся
-        (напр. в тестах с подменённой сессией).
-        """
-        if self.db.get_bind().dialect.name != "sqlite":
-            raise DatabaseServiceError("Integrity check only supported for SQLite", 400)
-
-        try:
-            result = self.db.execute(text("PRAGMA integrity_check")).fetchall()
-            is_ok = len(result) == 1 and result[0][0] == "ok"
-
-            return {
-                "status": "ok" if is_ok else "error",
-                "integrity": "passed" if is_ok else "failed",
-                "details": [row[0] for row in result] if not is_ok else None,
-                "message": (
-                    "База данных в порядке"
-                    if is_ok
-                    else "Обнаружены проблемы целостности"
-                ),
-            }
-        except Exception as e:
-            raise DatabaseServiceError(str(e), 500)
-
     def cleanup_old_data(
         self,
         days: int = 90,
@@ -395,43 +365,6 @@ class DatabaseService:
         except Exception as e:
             self.db.rollback()
             raise DatabaseServiceError(str(e), 500)
-
-    def vacuum(self) -> dict:
-        """VACUUM БД (только SQLite, через прямое sqlite3-подключение)."""
-        if not settings.is_sqlite:
-            raise DatabaseServiceError("VACUUM only supported for SQLite", 400)
-
-        try:
-            db_path = resolve_sqlite_db_path()
-            # VACUUM нельзя выполнять внутри транзакции SQLAlchemy — используем
-            # raw sqlite3 connection с isolation_level=None (autocommit).
-            conn = sqlite3.connect(db_path, isolation_level=None)
-            conn.execute("VACUUM")
-            conn.close()
-
-            return {"status": "ok", "message": "Database vacuumed successfully"}
-        except Exception as e:
-            raise DatabaseServiceError(f"Vacuum failed: {str(e)}", 500)
-
-    def optimize(self) -> dict:
-        """Оптимизировать индексы БД (ANALYZE + VACUUM, только SQLite)."""
-        if not settings.is_sqlite:
-            raise DatabaseServiceError("Optimize only supported for SQLite", 400)
-
-        try:
-            # ANALYZE можно внутри транзакции
-            self.db.execute(text("ANALYZE"))
-            self.db.commit()
-
-            # VACUUM — вне транзакции через raw sqlite3
-            db_path = resolve_sqlite_db_path()
-            conn = sqlite3.connect(db_path, isolation_level=None)
-            conn.execute("VACUUM")
-            conn.close()
-
-            return {"status": "ok", "message": "Database optimized (ANALYZE + VACUUM)"}
-        except Exception as e:
-            raise DatabaseServiceError(f"Optimization failed: {str(e)}", 500)
 
     def delete_all_tasks(self) -> dict:
         """Удалить все заявки (вместе с комментариями и фото)."""

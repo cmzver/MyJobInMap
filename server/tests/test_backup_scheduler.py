@@ -18,11 +18,12 @@ import pytest
 class TestConfiguration:
     """Test Settings loads env variables correctly."""
 
-    def test_default_values(self):
+    def test_default_values(self, monkeypatch):
         """Default settings should have sensible values."""
         from app.config import Settings
 
-        s = Settings()
+        monkeypatch.delenv("LOG_FORMAT", raising=False)
+        s = Settings(_env_file=None)
         assert s.PORT == 8001
         assert s.HOST == "0.0.0.0"
         assert s.ALGORITHM == "HS256"
@@ -78,12 +79,12 @@ class TestConfiguration:
         )
         assert s.is_production is True
 
-    def test_production_secret_warning(self):
-        """Warning when using default SECRET_KEY in production."""
+    def test_production_default_secret_is_rejected(self):
+        """Production must not start with the public default JWT secret."""
         from app.config import Settings
 
-        with pytest.warns(RuntimeWarning, match="SECRET_KEY"):
-            Settings(ENVIRONMENT="production")
+        with pytest.raises(ValueError, match="SECRET_KEY"):
+            Settings(ENVIRONMENT="production", _env_file=None)
 
     def test_cors_origins_list(self, monkeypatch):
         """CORS_ORIGINS parsed as list."""

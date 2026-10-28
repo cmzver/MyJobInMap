@@ -246,8 +246,41 @@ class SettingsService:
             "system_types": system_types or [],
         }
         types_data.append(new_type)
-        set_setting(self.db, "defect_types", json.dumps(types_data, ensure_ascii=False))
+        # value_type="json", so set_typed_value handles encoding — pass the list,
+        # NOT a pre-dumped string (that double-encodes and corrupts the setting).
+        set_setting(self.db, "defect_types", types_data)
         return new_type
+
+    def update_defect_type(
+        self,
+        defect_type_id: str,
+        name: Optional[str],
+        description: Optional[str],
+        system_types: Optional[List[str]],
+    ) -> dict:
+        types_data = get_setting(self.db, "defect_types")
+        if not types_data:
+            raise SettingsServiceError("Тип не найден", 404)
+
+        updated = None
+        for defect_type in types_data:
+            if defect_type.get("id") == defect_type_id:
+                if name is not None:
+                    defect_type["name"] = name.strip()
+                if description is not None:
+                    defect_type["description"] = description
+                if system_types is not None:
+                    defect_type["system_types"] = system_types
+                updated = defect_type
+                break
+
+        if updated is None:
+            raise SettingsServiceError("Тип не найден", 404)
+
+        # value_type="json", so set_typed_value handles encoding — pass the list,
+        # NOT a pre-dumped string (that double-encodes and corrupts the setting).
+        set_setting(self.db, "defect_types", types_data)
+        return updated
 
     def delete_defect_type(self, defect_type_id: str) -> None:
         types_data = get_setting(self.db, "defect_types")
@@ -259,7 +292,9 @@ class SettingsService:
         if len(types_data) == original_len:
             raise SettingsServiceError("Тип не найден", 404)
 
-        set_setting(self.db, "defect_types", json.dumps(types_data, ensure_ascii=False))
+        # value_type="json", so set_typed_value handles encoding — pass the list,
+        # NOT a pre-dumped string (that double-encodes and corrupts the setting).
+        set_setting(self.db, "defect_types", types_data)
 
     # -- Telegram bot -------------------------------------------------------
 

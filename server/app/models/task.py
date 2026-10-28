@@ -40,6 +40,7 @@ class TaskModel(Base):
         Index("ix_tasks_planned_date", "planned_date"),
         Index("ix_tasks_created_at", "created_at"),
         Index("ix_tasks_completed_at", "completed_at"),
+        Index("ix_tasks_created_by_id", "created_by_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -79,12 +80,32 @@ class TaskModel(Base):
         Integer, ForeignKey("users.id"), nullable=True
     )
     assigned_user: Mapped[Optional["UserModel"]] = relationship(
-        "UserModel", back_populates="assigned_tasks"
+        "UserModel",
+        back_populates="assigned_tasks",
+        foreign_keys=[assigned_user_id],
+    )
+    created_by_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_by: Mapped[Optional["UserModel"]] = relationship(
+        "UserModel",
+        back_populates="created_tasks",
+        foreign_keys=[created_by_id],
     )
 
     # Multi-tenant
     organization_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("organizations.id"), nullable=True, index=True
+    )
+
+    # Адрес из адресной книги, к которому привязана заявка (если сматчился при
+    # создании). Нужен, чтобы правка координат адреса автоматически
+    # подхватывалась заявками. NULL — адрес не нашёлся (координаты от геокодера).
+    address_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("addresses.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
 
     # Система и тип неисправности

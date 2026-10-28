@@ -7,7 +7,7 @@
 #   3. пересобирает ВСЕ Docker-образы и принудительно пересоздаёт ВСЕ контейнеры
 #      (docker compose up -d --build --force-recreate).
 #
-# Тома (redis-data, tasks.db через bind-mount, uploads) при этом сохраняются —
+# Именованные тома (postgres_data, redis_data, server_uploads и т.д.) при этом сохраняются —
 # пересоздаются только контейнеры, не данные.
 #
 # Примеры:

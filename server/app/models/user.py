@@ -42,6 +42,9 @@ class UserModel(Base):
         DateTime, default=utcnow, nullable=True
     )
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Инкрементируется при смене учётных данных. JWT с предыдущей версией
+    # немедленно перестают проходить проверку, даже если ещё не истекли.
+    auth_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Multi-tenant
     organization_id: Mapped[Optional[int]] = mapped_column(
@@ -64,7 +67,14 @@ class UserModel(Base):
 
     # Назначенные задачи
     assigned_tasks: Mapped[List["TaskModel"]] = relationship(
-        "TaskModel", back_populates="assigned_user"
+        "TaskModel",
+        back_populates="assigned_user",
+        foreign_keys="TaskModel.assigned_user_id",
+    )
+    created_tasks: Mapped[List["TaskModel"]] = relationship(
+        "TaskModel",
+        back_populates="created_by",
+        foreign_keys="TaskModel.created_by_id",
     )
 
     # Уведомления пользователя

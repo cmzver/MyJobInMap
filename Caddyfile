@@ -86,3 +86,16 @@
         format json
     }
 }
+
+# Tiles Alliance Comms («говорилка») живёт на этом же хосте, в своём
+# docker-стеке (/opt/tiles-alliance-comms, репо HUB_Messenger). 80/443 здесь
+# у нас, поэтому TLS для её имён тоже снимаем мы, а дальше отдаём её
+# собственному Caddy открытым HTTP на 127.0.0.1:8080 — он сам разводит
+# запросы на приложение и LiveKit и ставит свои заголовки.
+#
+# X-Forwarded-For Caddy по умолчанию перезаписывает адресом клиента — на нём
+# держится рейт-лимит входа говорилки, не добавлять сюда header_up для XFF.
+# WebSocket сигналинга LiveKit reverse_proxy пробрасывает сам.
+tshub.duckdns.org, livekit.tshub.duckdns.org {
+    reverse_proxy 127.0.0.1:8080
+}

@@ -72,7 +72,11 @@ def _authenticate_websocket_user(
         return None
     if username and user.username != username:
         return None
-    if user.organization_id and user.organization and not user.organization.is_active:
+    if payload.get("auth_version", 0) != user.auth_version:
+        return None
+    if user.organization_id is not None and (
+        user.organization is None or not user.organization.is_active
+    ):
         return None
     is_superadmin = user.organization_id is None and user.role == UserRole.ADMIN.value
     return user.id, user.organization_id, is_superadmin

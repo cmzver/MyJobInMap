@@ -135,6 +135,7 @@ def _send_push_sync(
         )
 
         # Удаляем невалидные токены
+        retryable_failures = 0
         if response.failure_count > 0:
             for idx, send_response in enumerate(response.responses):
                 if not send_response.success:
@@ -151,17 +152,25 @@ def _send_push_sync(
                         logger.info(f"Removing invalid token for device {device.id}")
                         db.delete(device)
                         db.commit()
+                    else:
+                        retryable_failures += 1
 
         if response.success_count:
             metrics.record_push_result("success", response.success_count)
         if response.failure_count:
             metrics.record_push_result("failed", response.failure_count)
 
-        return {
+        result = {
             "success": True,
             "sent": response.success_count,
             "failed": response.failure_count,
         }
+        if response.success_count == 0 and retryable_failures:
+            result.update(
+                success=False,
+                message=f"Temporary Firebase failures: {retryable_failures}",
+            )
+        return result
 
     except Exception as e:
         logger.error(f"Push error: {e}")

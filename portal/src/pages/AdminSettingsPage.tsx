@@ -60,6 +60,7 @@ import { UpdatesManagementSection } from '@/pages/UpdatesPage'
 import IpProtectionPanel from '@/components/security/IpProtectionPanel'
 import GroupsManager from '@/components/GroupsManager'
 import ServerHealthPanel from '@/components/settings/ServerHealthPanel'
+import DefectTypesTab from '@/components/settings/DefectTypesTab'
 import type { LucideIcon } from 'lucide-react'
 import {
   SettingsCard,
@@ -111,6 +112,7 @@ type SettingsPanelId =
   | 'task-defaults'
   | 'task-media'
   | 'task-fields'
+  | 'task-defect-types'
   | 'permissions-matrix'
   | 'telegram-bot'
 
@@ -126,7 +128,7 @@ type SettingsTab = {
 
 const SETTINGS_TABS: SettingsTab[] = [
   { id: 'system', label: 'Система', description: 'Состояние сервера, база данных и резервные копии.', icon: Server, panels: ['server-health', 'overview'] },
-  { id: 'tasks', label: 'Заявки', description: 'Параметры новых заявок и дополнительные поля.', icon: Puzzle, panels: ['task-defaults', 'task-media', 'task-fields'] },
+  { id: 'tasks', label: 'Заявки', description: 'Параметры новых заявок, типы неисправностей и дополнительные поля.', icon: Puzzle, panels: ['task-defaults', 'task-media', 'task-defect-types', 'task-fields'] },
   { id: 'notifications', label: 'Уведомления', description: 'Push-канал и зарегистрированные устройства.', icon: Bell, panels: ['mobile-notifications', 'mobile-devices'] },
   { id: 'security', label: 'Безопасность', description: 'Защита входа, IP-ограничения и права ролей.', icon: Shield, panels: ['security', 'permissions-matrix'] },
   { id: 'portal', label: 'Портал', description: 'Брендинг экрана входа и поведение интерфейса.', icon: Palette, panels: ['portal-branding', 'interface'] },
@@ -180,6 +182,8 @@ function renderPanel(
       return <ImageSettingsTab />
     case 'task-fields':
       return <CustomFieldsTab />
+    case 'task-defect-types':
+      return <DefectTypesTab />
     case 'telegram-bot':
       return <TelegramBotSettingsTab />
     default:
@@ -327,37 +331,6 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
     },
   })
 
-  const vacuumMutation = useMutation({
-    mutationFn: () => apiClient.post('/admin/db/vacuum'),
-    onSuccess: () => {
-      showApiSuccess('БД оптимизирована (VACUUM)')
-      queryClient.invalidateQueries({ queryKey: ['db-stats'] })
-    },
-    onError: (err) => showApiError(err, 'Ошибка оптимизации'),
-  })
-
-  const optimizeMutation = useMutation({
-    mutationFn: () => apiClient.post('/admin/db/optimize'),
-    onSuccess: () => {
-      showApiSuccess('БД оптимизирована (ANALYZE + VACUUM)')
-      queryClient.invalidateQueries({ queryKey: ['db-stats'] })
-    },
-    onError: (err) => showApiError(err, 'Ошибка оптимизации'),
-  })
-
-  const integrityMutation = useMutation({
-    mutationFn: () => apiClient.get('/admin/db/integrity'),
-    onSuccess: (response) => {
-      const data = response.data as { status: string; message: string }
-      if (data.status === 'ok') {
-        toast.success(data.message)
-      } else {
-        toast.error(data.message)
-      }
-    },
-    onError: (err) => showApiError(err, 'Ошибка проверки целостности'),
-  })
-
   const [cleanupDays, setCleanupDays] = useState(90)
   const [showCleanupConfirm, setShowCleanupConfirm] = useState(false)
 
@@ -396,36 +369,6 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
   }
 
   const maintenanceOps = [
-    {
-      title: 'VACUUM',
-      desc: 'Освобождает неиспользуемое пространство и уменьшает размер SQLite-файла.',
-      button: (
-        <Button variant="secondary" size="sm" onClick={() => vacuumMutation.mutate()} disabled={vacuumMutation.isPending}>
-          <RefreshCw className="mr-1.5 h-4 w-4" />
-          {vacuumMutation.isPending ? '...' : 'Запустить'}
-        </Button>
-      ),
-    },
-    {
-      title: 'ANALYZE + VACUUM',
-      desc: 'Перестраивает статистику и оптимизирует таблицы после больших изменений данных.',
-      button: (
-        <Button variant="secondary" size="sm" onClick={() => optimizeMutation.mutate()} disabled={optimizeMutation.isPending}>
-          <RefreshCw className="mr-1.5 h-4 w-4" />
-          {optimizeMutation.isPending ? '...' : 'Оптимизировать'}
-        </Button>
-      ),
-    },
-    {
-      title: 'Проверка целостности',
-      desc: 'Запускает встроенную integrity_check-проверку текущей базы данных.',
-      button: (
-        <Button variant="secondary" size="sm" onClick={() => integrityMutation.mutate()} disabled={integrityMutation.isPending}>
-          <Shield className="mr-1.5 h-4 w-4" />
-          {integrityMutation.isPending ? '...' : 'Проверить'}
-        </Button>
-      ),
-    },
     {
       title: 'Тестовые данные',
       desc: 'Создаёт пользователей и примерные заявки для локальной проверки сценариев.',
@@ -1971,7 +1914,7 @@ function TelegramBotSettingsTab() {
             <div className="space-y-2">
               {mappings.map((m, index) => (
                 <div
-                  key={index}
+                  key={m.group_name}
                   className="grid grid-cols-[1fr_1fr_auto] gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-800 dark:bg-gray-900/70"
                 >
                   <div>

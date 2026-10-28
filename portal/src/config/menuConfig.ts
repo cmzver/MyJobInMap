@@ -1,20 +1,5 @@
-import {
-  LayoutDashboard,
-  ClipboardList,
-  Map,
-  Users,
-  Settings,
-  BarChart3,
-  MapPin,
-  UserCircle,
-  Bell,
-  Calendar,
-  DollarSign,
-  Building2,
-  MessageSquare,
-  LifeBuoy,
-  type LucideIcon,
-} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { getPortalRoutePath, navigationSections, portalRoutes } from '@/config/portalRoutes'
 import type { AccessRole, UserRole } from '@/types/user'
 import { normalizeRoleForAccess } from '@/types/user'
 
@@ -24,6 +9,7 @@ export interface MenuItem {
   id: string
   path: string
   label: string
+  mobileLabel?: string
   icon: LucideIcon
   roles: AccessRole[]
   badge?: string
@@ -36,150 +22,27 @@ export interface MenuSection {
   items: MenuItem[]
 }
 
-export const menuConfig: MenuSection[] = [
-  {
-    id: 'main',
-    title: 'Основное',
-    items: [
-      {
-        id: 'dashboard',
-        path: '/dashboard',
-        label: 'Дашборд',
-        icon: LayoutDashboard,
-        roles: ['admin', 'dispatcher'],
-      },
-      {
-        id: 'my-tasks',
-        path: '/my-tasks',
-        label: 'Мои заявки',
-        icon: ClipboardList,
-        roles: ['worker'],
-      },
-      {
-        id: 'tasks',
-        path: '/tasks',
-        label: 'Все заявки',
-        icon: ClipboardList,
-        roles: ['admin', 'dispatcher'],
-      },
-      {
-        id: 'map',
-        path: '/map',
-        label: 'Карта',
-        icon: Map,
-        roles: ['admin', 'dispatcher', 'worker'],
-      },
-      {
-        id: 'calendar',
-        path: '/calendar',
-        label: 'Календарь',
-        icon: Calendar,
-        roles: ['admin', 'dispatcher', 'worker'],
-      },
-      {
-        id: 'chat',
-        path: '/chat',
-        label: 'Чат',
-        icon: MessageSquare,
-        roles: ['admin', 'dispatcher', 'worker'],
-      },
-    ],
-  },
-  {
-    id: 'management',
-    title: 'Управление',
-    items: [
-      {
-        id: 'addresses',
-        path: '/addresses',
-        label: 'Адреса',
-        icon: MapPin,
-        roles: ['admin', 'dispatcher'],
-      },
-      {
-        id: 'users',
-        path: '/users',
-        label: 'Пользователи',
-        icon: Users,
-        roles: ['admin'],
-      },
-      {
-        id: 'finance',
-        path: '/finance',
-        label: 'Финансы',
-        icon: DollarSign,
-        roles: ['admin'],
-      },
-      {
-        id: 'analytics',
-        path: '/analytics',
-        label: 'Аналитика',
-        icon: BarChart3,
-        roles: ['admin', 'dispatcher'],
-      },
-    ],
-  },
-  {
-    id: 'personal',
-    title: 'Личное',
-    items: [
-      {
-        id: 'profile',
-        path: '/profile',
-        label: 'Профиль',
-        icon: UserCircle,
-        roles: ['admin', 'dispatcher', 'worker'],
-      },
-      {
-        id: 'notifications',
-        path: '/notifications',
-        label: 'Уведомления',
-        icon: Bell,
-        roles: ['admin', 'dispatcher', 'worker'],
-      },
-      {
-        id: 'support',
-        path: '/support',
-        label: 'Поддержка',
-        icon: LifeBuoy,
-        roles: ['admin', 'dispatcher', 'worker'],
-      },
-      {
-        id: 'settings',
-        path: '/settings',
-        label: 'Настройки',
-        icon: Settings,
-        roles: ['admin', 'dispatcher', 'worker'],
-      },
-    ],
-  },
-  {
-    id: 'admin',
-    title: 'Администрирование',
-    items: [
-      {
-        id: 'admin-settings',
-        path: '/admin/settings',
-        label: 'Система',
-        icon: Settings,
-        roles: ['admin'],
-      },
-      {
-        id: 'admin-organizations',
-        path: '/admin/organizations',
-        label: 'Организации',
-        icon: Building2,
-        roles: ['admin'],
-      },
-    ],
-  },
-]
+export const menuConfig: MenuSection[] = navigationSections.map((section) => ({
+  ...section,
+  items: portalRoutes.flatMap((route) => {
+    if (route.navigation?.section !== section.id || !route.roles) return []
 
-const HIDDEN_FOR_ORG_ADMIN = new Set([
-  'admin-organizations',
-  'admin-settings',
-  'finance',
-])
+    return [
+      {
+        id: route.id,
+        path: getPortalRoutePath(route.id),
+        label: route.navigation.label,
+        mobileLabel: route.navigation.mobileLabel,
+        icon: route.navigation.icon,
+        roles: route.roles,
+      },
+    ]
+  }),
+}))
+
+const HIDDEN_FOR_ORG_ADMIN = new Set(
+  portalRoutes.filter(({ excludeOrgAdmin }) => excludeOrgAdmin).map(({ id }) => id)
+)
 
 export function isOrgAdmin(role: UserRole, organizationId?: number | null): boolean {
   return normalizeRoleForAccess(role) === 'admin' && organizationId != null && role !== 'superadmin'
@@ -188,7 +51,7 @@ export function isOrgAdmin(role: UserRole, organizationId?: number | null): bool
 export function getMenuForRole(
   role: UserRole,
   organizationId?: number | null,
-  baseAccess?: string | null,
+  baseAccess?: string | null
 ): MenuSection[] {
   const normalizedRole = normalizeRoleForAccess(role, baseAccess)
   const orgAdmin = isOrgAdmin(role, organizationId)
@@ -209,10 +72,31 @@ export function getHomePathForRole(role: UserRole, baseAccess?: string | null): 
   switch (normalizeRoleForAccess(role, baseAccess)) {
     case 'admin':
     case 'dispatcher':
-      return '/dashboard'
+      return getPortalRoutePath('dashboard')
     case 'worker':
-      return '/my-tasks'
+      return getPortalRoutePath('my-tasks')
     default:
-      return '/my-tasks'
+      return getPortalRoutePath('my-tasks')
   }
+}
+
+const WORKER_MOBILE_MENU_IDS = ['my-tasks', 'map', 'calendar', 'chat', 'profile'] as const
+
+export function getMobileMenuForRole(
+  role: UserRole,
+  organizationId?: number | null,
+  baseAccess?: string | null
+): MenuItem[] {
+  if (normalizeRoleForAccess(role, baseAccess) !== 'worker') return []
+
+  const itemsById = new globalThis.Map(
+    getMenuForRole(role, organizationId, baseAccess)
+      .flatMap((section) => section.items)
+      .map((item) => [item.id, item])
+  )
+
+  return WORKER_MOBILE_MENU_IDS.flatMap((id) => {
+    const item = itemsById.get(id)
+    return item ? [item] : []
+  })
 }

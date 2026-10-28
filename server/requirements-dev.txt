@@ -1,0 +1,10 @@
+# Dev/CI tooling on top of requirements.txt.
+# Single source for CI (.github/workflows/ci-server.yml) and the local venv:
+#   server\venv\Scripts\pip install -r requirements.txt -r requirements-dev.txt
+# Formatters are pinned: an unpinned black/isort can suddenly reformat and
+# fail CI before pytest even runs. Bump deliberately.
+pytest==9.0.2
+pytest-cov==7.1.0
+black==26.5.1
+isort==8.0.1
+pylint==4.1.3

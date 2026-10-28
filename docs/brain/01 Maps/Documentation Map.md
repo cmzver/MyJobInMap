@@ -2,24 +2,26 @@
 
 ## Базовые документы
 
-- [README.md](../../README.md) — обзор проекта, команды, структура
-- [GETTING_STARTED.md](../../GETTING_STARTED.md) — быстрый старт
-- [CHANGELOG.md](../../CHANGELOG.md) — история изменений
+- [README.md](../../README.md) — обзор проекта, стек, проверки, деплой
+- [GETTING_STARTED.md](../../GETTING_STARTED.md) — быстрый старт и локальная разработка
+- [ROADMAP.md](../../ROADMAP.md) — что дальше
+- [CHANGELOG.md](../../CHANGELOG.md) — история изменений (генерируется из коммитов)
 
-## Инфраструктура и эксплуатация
+## Подсистемы
 
-- [docs/DEPLOYMENT.md](../DEPLOYMENT.md)
-- [docs/HTTPS_SETUP.md](../HTTPS_SETUP.md)
-- [docs/FIREBASE_SETUP.md](../FIREBASE_SETUP.md)
+- [server/README.md](../../server/README.md) — backend, конфигурация
+- [server/MIGRATIONS.md](../../server/MIGRATIONS.md) — миграции БД
+- [portal/README.md](../../portal/README.md) — портал, роли
 
 ## Архитектура
 
-- [docs/mobile-next-architecture.md](../mobile-next-architecture.md)
+- [docs/TECHNICAL_AUDIT_2026-10-25.md](../TECHNICAL_AUDIT_2026-10-25.md) — аудит и статус исправлений
+- [docs/PORTAL_UX_ARCHITECTURE.md](../PORTAL_UX_ARCHITECTURE.md) — UX-архитектура портала
+- [docs/chat-improvements-plan.md](../chat-improvements-plan.md) — оптимизация чатов
+- [[04 Decisions/ADR Index]] — архитектурные решения
 
-## Что стоит перенести в vault со временем
+## Инфраструктура и эксплуатация
 
-- карта backend API и bounded contexts
-- карта Android экранов и ViewModel
-- карта portal страниц и data-flow
-- runbooks по бэкапам, релизам и миграциям
-- ADR по крупным архитектурным решениям
+- [deploy/wireguard/README.md](../../deploy/wireguard/README.md) — WireGuard для домофонов
+- [docs/FIREBASE_SETUP.md](../FIREBASE_SETUP.md) — push-уведомления
+- [docs/custom_sounds.md](../custom_sounds.md) — звуки уведомлений Android

@@ -36,6 +36,11 @@ $failures = New-Object System.Collections.Generic.List[string]
 
 function Test-Cmd($name) { [bool](Get-Command $name -ErrorAction SilentlyContinue) }
 
+# Single Python env for the repo: server/venv (see server/requirements-dev.txt).
+# Falls back to whatever `python` is on PATH if the venv is missing.
+$python = Join-Path $repo 'server\venv\Scripts\python.exe'
+if (-not (Test-Path $python)) { $python = 'python' }
+
 # ---------------- portal/ (Vite + React + TS) ----------------
 $portalFiles = $changed | Where-Object { $_ -like 'portal/src/*' -and $_ -match '\.(ts|tsx)$' }
 if ($portalFiles -and (Test-Cmd npx)) {
@@ -59,10 +64,10 @@ if ($portalFiles -and (Test-Cmd npx)) {
 
 # ---------------- server/ (FastAPI, Python) ----------------
 $serverFiles = $changed | Where-Object { $_ -like 'server/*' -and $_ -match '\.py$' }
-if ($serverFiles -and (Test-Cmd python)) {
+if ($serverFiles -and (Test-Cmd $python)) {
     Push-Location (Join-Path $repo 'server')
     $rel = $serverFiles | ForEach-Object { $_ -replace '^server/', '' }
-    $pylintOut = & python -m pylint --disable=all --enable=E,F @rel 2>&1
+    $pylintOut = & $python -m pylint --disable=all --enable=E,F @rel 2>&1
     if ($LASTEXITCODE -ne 0) {
         $failures.Add("[server] pylint (errors only) failed:`n" + (($pylintOut | Select-Object -First 40) -join "`n"))
     }
@@ -71,10 +76,10 @@ if ($serverFiles -and (Test-Cmd python)) {
 
 # ---------------- bot/ (Python) ----------------
 $botFiles = $changed | Where-Object { $_ -like 'bot/*' -and $_ -match '\.py$' }
-if ($botFiles -and (Test-Cmd python)) {
+if ($botFiles -and (Test-Cmd $python)) {
     Push-Location (Join-Path $repo 'bot')
     $rel = $botFiles | ForEach-Object { $_ -replace '^bot/', '' }
-    $pylintOut = & python -m pylint --disable=all --enable=E,F @rel 2>&1
+    $pylintOut = & $python -m pylint --disable=all --enable=E,F @rel 2>&1
     if ($LASTEXITCODE -ne 0) {
         $failures.Add("[bot] pylint (errors only) failed:`n" + (($pylintOut | Select-Object -First 40) -join "`n"))
     }

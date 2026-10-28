@@ -337,8 +337,12 @@ export function useWebSocket() {
           pingTimerRef.current = null
         }
 
-        // Автоматический реконнект с exponential backoff
-        if (isAuthenticated) {
+        // Автоматический реконнект с exponential backoff.
+        // Живое состояние стора, а не захваченное в замыкании: после логаута
+        // (SPA-навигация, без reload) onclose приходит асинхронно уже после
+        // cleanup эффекта — по устаревшему isAuthenticated мы бы запланировали
+        // «зомби»-реконнект со старым токеном, который некому очистить.
+        if (useAuthStore.getState().isAuthenticated) {
           reconnectTimerRef.current = setTimeout(() => {
             reconnectDelayRef.current = Math.min(
               reconnectDelayRef.current * 2,

@@ -19,6 +19,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -29,6 +31,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -47,6 +50,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -66,7 +72,6 @@ import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.TaskCard
-import com.fieldworker.ui.map.PriorityBadge
 import com.fieldworker.ui.map.StatusChangeDialog
 import com.fieldworker.ui.map.toColor
 import com.fieldworker.ui.map.toIcon
@@ -74,6 +79,7 @@ import com.fieldworker.ui.utils.extractAdditionalInfo
 import com.fieldworker.ui.utils.extractApartment
 import com.fieldworker.ui.utils.extractPhoneNumber
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private fun normalizePhoneForDial(phone: String) = com.fieldworker.ui.utils.normalizePhoneForDial(phone)
 
@@ -125,7 +131,13 @@ fun TaskListScreen(
     val hasActiveFilters = statusFilter.isNotEmpty()
     val hasSearchQuery = searchQuery.isNotBlank()
     val hasLocalTransforms = hasActiveFilters || hasSearchQuery || sortOrder != com.fieldworker.ui.utils.TaskSortOrder.BY_DATE_DESC
-    
+
+    // Paging активен только без локальных трансформаций (поиск/фильтр/сортировка
+    // применяются к обычному списку). Счётчик и список берут данные из него.
+    val activePagingItems = pagingItems?.takeIf { !hasLocalTransforms }
+    val listState = rememberLazyListState()
+    val listScope = rememberCoroutineScope()
+
     Column(modifier = Modifier.fillMaxSize()) {
         // Поиск
         SearchBar(
@@ -159,7 +171,7 @@ fun TaskListScreen(
                 .padding(horizontal = 16.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val displayCount = tasks.size
+            val displayCount = activePagingItems?.itemCount ?: tasks.size
             Text(
                 text = "$displayCount ${com.fieldworker.ui.utils.TaskUtils.pluralizeTasks(displayCount)}",
                 style = MaterialTheme.typography.labelSmall,
@@ -176,8 +188,7 @@ fun TaskListScreen(
         // Список задач с FAB и Pull-to-Refresh
         Box(modifier = Modifier.weight(1f)) {
             val hasFilters = hasSearchQuery || hasActiveFilters
-            val activePagingItems = pagingItems?.takeIf { !hasLocalTransforms }
-            
+
             // Определяем: используем Paging 3 или обычный список
             val usePaging = activePagingItems != null
             val isPagingInitialLoad = activePagingItems?.loadState?.refresh is LoadState.Loading
@@ -197,7 +208,11 @@ fun TaskListScreen(
                 displayEmpty -> {
                     EmptyState(
                         message = if (hasFilters) "Задачи не найдены" else "Нет задач",
-                        isFiltered = hasFilters
+                        isFiltered = hasFilters,
+                        onReset = {
+                            onStatusFilterChange(emptySet())
+                            onSearchQueryChange("")
+                        }
                     )
                 }
                 // Список задач с Pull-to-Refresh
@@ -214,12 +229,13 @@ fun TaskListScreen(
                         modifier = Modifier.fillMaxSize()
                     ) {
                         LazyColumn(
+                            state = listState,
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(
                                 start = 12.dp,
                                 end = 12.dp,
                                 top = 6.dp,
-                                bottom = 80.dp  // Отступ для FAB
+                                bottom = 80.dp  // Отступ для FAB «наверх»
                             ),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
@@ -265,16 +281,18 @@ fun TaskListScreen(
                 }
             }
             
-            // FAB для обновления
-            FloatingActionButton(
-                onClick = onRefresh,
+            // FAB «наверх» — обновление уже доступно через pull-to-refresh,
+            // поэтому прайм-место отдаём быстрому возврату к началу длинного списка.
+            val showScrollToTop by remember {
+                derivedStateOf { listState.firstVisibleItemIndex > 2 }
+            }
+            ScrollToTopButton(
+                visible = showScrollToTop,
+                onClick = { listScope.launch { listState.animateScrollToItem(0) } },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(16.dp),
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(Icons.Default.Refresh, contentDescription = "Обновить")
-            }
+            )
         }
     }
     
@@ -314,6 +332,29 @@ fun TaskListScreen(
             }
         )
     }
+}
+
+/**
+ * Иконка-воронка «фильтр» (официальный Material path). Определена локально, чтобы
+ * не тянуть весь material-icons-extended ради одного значка.
+ */
+private val FilterFunnelIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "FilterList",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        path(fill = SolidColor(Color.Black)) {
+            moveTo(10f, 18f); horizontalLineToRelative(4f); verticalLineToRelative(-2f)
+            horizontalLineToRelative(-4f); close()
+            moveTo(3f, 6f); verticalLineToRelative(2f); horizontalLineToRelative(18f)
+            verticalLineTo(6f); horizontalLineTo(3f); close()
+            moveTo(6f, 13f); horizontalLineToRelative(12f); verticalLineToRelative(-2f)
+            horizontalLineTo(6f); close()
+        }
+    }.build()
 }
 
 @Composable
@@ -435,7 +476,7 @@ fun SearchBar(
                     }
                 ) {
                     Icon(
-                        Icons.Default.Settings,
+                        FilterFunnelIcon,
                         contentDescription = "Фильтры",
                         modifier = Modifier.size(18.dp),
                         tint = if (hasActiveFilters)
@@ -1701,10 +1742,37 @@ private fun HistoryTimelineItem(
     }
 }
 
+/**
+ * FAB «наверх» с анимацией появления. Вынесен в отдельный composable, чтобы
+ * [AnimatedVisibility] резолвился в top-level overload, а не в scoped-версию
+ * из внешних Column/Box (иначе конфликт implicit receiver).
+ */
+@Composable
+private fun ScrollToTopButton(
+    visible: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = modifier,
+    ) {
+        FloatingActionButton(
+            onClick = onClick,
+            containerColor = MaterialTheme.colorScheme.primary,
+        ) {
+            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Наверх")
+        }
+    }
+}
+
 @Composable
 fun EmptyState(
     message: String,
-    isFiltered: Boolean = false
+    isFiltered: Boolean = false,
+    onReset: (() -> Unit)? = null
 ) {
     Box(
         modifier = Modifier
@@ -1734,6 +1802,12 @@ fun EmptyState(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
+                if (onReset != null) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedButton(onClick = onReset) {
+                        Text("Сбросить фильтры")
+                    }
+                }
             }
         }
     }

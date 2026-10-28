@@ -3,10 +3,13 @@ package com.fieldworker.data.repository
 import com.fieldworker.data.api.TasksApi
 import android.content.Context
 import com.fieldworker.data.image.ImageCompressor
+import com.fieldworker.data.local.LocalTransactionRunner
 import com.fieldworker.data.local.dao.CommentDao
 import com.fieldworker.data.local.dao.PendingActionDao
 import com.fieldworker.data.local.dao.TaskDao
 import com.fieldworker.data.local.entity.TaskEntity
+import com.fieldworker.data.local.entity.ActionType
+import com.fieldworker.data.local.entity.PendingAction
 import com.fieldworker.data.network.NetworkMonitor
 import com.fieldworker.data.remote.generated.PaginatedResponseTaskListResponse
 import com.fieldworker.data.remote.generated.TaskListResponse
@@ -24,6 +27,7 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Test
+import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.Response
 
 /**
@@ -58,6 +62,9 @@ class OfflineFirstTasksRepositoryTest {
 
     @MockK
     private lateinit var pendingActionDao: PendingActionDao
+
+    @MockK
+    private lateinit var transactionRunner: LocalTransactionRunner
 
     @MockK
     private lateinit var networkMonitor: NetworkMonitor
@@ -107,12 +114,18 @@ class OfflineFirstTasksRepositoryTest {
         // Default mocks
         every { taskDao.getAllTasksFlow() } returns flowOf(listOf(testTaskEntity))
         every { pendingActionDao.getPendingActionsCountFlow() } returns flowOf(0)
+        coEvery { taskDao.getLocallyModifiedTasks() } returns emptyList()
+        coEvery { taskDao.getAllTasks() } returns listOf(testTaskEntity)
+        coEvery { transactionRunner.run(any()) } coAnswers {
+            firstArg<suspend () -> Unit>().invoke()
+        }
         
         repository = OfflineFirstTasksRepository(
             tasksApi = tasksApi,
             taskDao = taskDao,
             commentDao = commentDao,
             pendingActionDao = pendingActionDao,
+            transactionRunner = transactionRunner,
             networkMonitor = networkMonitor,
             imageCompressor = imageCompressor,
             context = context
@@ -132,7 +145,7 @@ class OfflineFirstTasksRepositoryTest {
         )
         coEvery { taskDao.upsertTasks(any()) } just Runs
         coEvery { taskDao.deleteTasksNotIn(any()) } just Runs
-        coEvery { pendingActionDao.getAllPendingActions() } returns emptyList()
+        coEvery { pendingActionDao.getSyncablePendingActions(any()) } returns emptyList()
 
         // When
         val result = repository.refreshTasks()
@@ -165,7 +178,7 @@ class OfflineFirstTasksRepositoryTest {
         every { networkMonitor.isCurrentlyOnline() } returns true
         coEvery { tasksApi.getTasks(any(), any(), any(), any()) } throws Exception("Network error")
         coEvery { taskDao.getAllTasks() } returns listOf(testTaskEntity)
-        coEvery { pendingActionDao.getAllPendingActions() } returns emptyList()
+        coEvery { pendingActionDao.getSyncablePendingActions(any()) } returns emptyList()
 
         // When
         val result = repository.refreshTasks()
@@ -239,6 +252,75 @@ class OfflineFirstTasksRepositoryTest {
         assertTrue(result.isSuccess)
         coVerify { taskDao.updateStatusLocally(1L, "IN_PROGRESS", "IN_PROGRESS", "Starting work") }
         coVerify { pendingActionDao.insertPendingAction(any()) }
+        coVerify(exactly = 1) { transactionRunner.run(any()) }
+    }
+
+    // =========================================================================
+    // pending outbox tests
+    // =========================================================================
+
+    @Test
+    fun `syncPendingActions retries temporary server errors`() = runTest {
+        val action = PendingAction(
+            id = 10L,
+            taskId = 1L,
+            actionType = ActionType.UPDATE_STATUS,
+            newStatus = "IN_PROGRESS"
+        )
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(action)
+        coEvery { tasksApi.updateTaskStatus(any(), any()) } returns
+            Response.error(503, "unavailable".toResponseBody())
+        coEvery { pendingActionDao.incrementRetryCount(any(), any()) } just Runs
+
+        val result = repository.syncPendingActions()
+
+        assertEquals(1, result.retryableFailures)
+        assertEquals(0, result.permanentFailures)
+        coVerify { pendingActionDao.incrementRetryCount(10L, "Server error: 503") }
+        coVerify(exactly = 0) { pendingActionDao.deletePendingActionById(any()) }
+    }
+
+    @Test
+    fun `syncPendingActions dead letters permanent client errors`() = runTest {
+        val action = PendingAction(
+            id = 11L,
+            taskId = 1L,
+            actionType = ActionType.UPDATE_STATUS,
+            newStatus = "IN_PROGRESS"
+        )
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(action)
+        coEvery { tasksApi.updateTaskStatus(any(), any()) } returns
+            Response.error(422, "invalid".toResponseBody())
+        coEvery { pendingActionDao.markAsFailed(any(), any(), any()) } just Runs
+
+        val result = repository.syncPendingActions()
+
+        assertEquals(0, result.retryableFailures)
+        assertEquals(1, result.permanentFailures)
+        coVerify { pendingActionDao.markAsFailed(11L, "Server error: 422", 5) }
+    }
+
+    @Test
+    fun `syncPendingActions stops without consuming action on unauthorized`() = runTest {
+        val action = PendingAction(
+            id = 12L,
+            taskId = 1L,
+            actionType = ActionType.UPDATE_STATUS,
+            newStatus = "IN_PROGRESS"
+        )
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(action)
+        coEvery { tasksApi.updateTaskStatus(any(), any()) } returns
+            Response.error(401, "unauthorized".toResponseBody())
+
+        val result = repository.syncPendingActions()
+
+        assertTrue(result.requiresAuthentication)
+        coVerify(exactly = 0) { pendingActionDao.incrementRetryCount(any(), any()) }
+        coVerify(exactly = 0) { pendingActionDao.markAsFailed(any(), any(), any()) }
+        coVerify(exactly = 0) { pendingActionDao.deletePendingActionById(any()) }
     }
 
     // =========================================================================

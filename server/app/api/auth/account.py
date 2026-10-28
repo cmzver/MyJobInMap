@@ -21,6 +21,7 @@ from app.services import (
     get_current_user_required,
     get_password_hash,
     image_optimizer,
+    revoke_user_refresh_sessions,
     verify_password,
 )
 from app.services.role_utils import canonical_role_value, public_role_value
@@ -153,7 +154,7 @@ async def upload_avatar(
 
 
 @router.patch("/password")
-async def change_password(
+def change_password(
     data: PasswordChange,
     user: UserModel = Depends(get_current_user_required),
     db: Session = Depends(get_db),
@@ -171,6 +172,8 @@ async def change_password(
 
     # Обновление пароля
     user.password_hash = get_password_hash(data.new_password)
+    user.auth_version += 1
+    revoke_user_refresh_sessions(db, user.id)
     db.commit()
 
     return {"success": True, "message": "Пароль успешно изменён"}

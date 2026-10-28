@@ -73,6 +73,9 @@ class ChatRealtimeClient @Inject constructor(
 
     private var reconnectJob: Job? = null
 
+    @Volatile
+    private var reconnectAttempts = 0
+
     fun connect() {
         if (webSocket != null) return
 
@@ -128,8 +131,14 @@ class ChatRealtimeClient @Inject constructor(
         if (manualDisconnect || preferences.getAuthToken().isNullOrBlank()) return
         if (reconnectJob?.isActive == true) return
 
+        // Экспоненциальный backoff: 3с, 6с, 12с … до 60с. Без этого при
+        // недоступном сервере клиент долбил бы раз в 3с, зря будя радио.
+        val delayMs = (BASE_RECONNECT_DELAY_MS shl reconnectAttempts.coerceAtMost(5))
+            .coerceAtMost(MAX_RECONNECT_DELAY_MS)
+        reconnectAttempts++
+
         reconnectJob = scope.launch {
-            delay(RECONNECT_DELAY_MS)
+            delay(delayMs)
             if (!manualDisconnect && webSocket == null) {
                 connect()
             }
@@ -207,6 +216,7 @@ class ChatRealtimeClient @Inject constructor(
     private val socketListener = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
             Log.d(TAG, "WebSocket connected")
+            reconnectAttempts = 0
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
@@ -252,6 +262,7 @@ class ChatRealtimeClient @Inject constructor(
         private const val TAG = "ChatRealtimeClient"
         private const val NORMAL_CLOSURE_CODE = 1000
         private const val AUTH_CLOSE_CODE = 4001
-        private const val RECONNECT_DELAY_MS = 3_000L
+        private const val BASE_RECONNECT_DELAY_MS = 3_000L
+        private const val MAX_RECONNECT_DELAY_MS = 60_000L
     }
 }

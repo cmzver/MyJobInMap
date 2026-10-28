@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -64,6 +65,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.fieldworker.ui.utils.avatarInitials
+import com.fieldworker.ui.utils.resolveAvatarUrl
 
 /**
  * Настройки пользователя: имя, аватар, смена пароля.
@@ -175,7 +178,7 @@ private fun AvatarBlock(
     onPick: () -> Unit,
 ) {
     val context = LocalContext.current
-    val resolved = remember(avatarUrl, baseUrl) { resolveUrl(avatarUrl, baseUrl) }
+    val resolved = remember(avatarUrl, baseUrl) { resolveAvatarUrl(avatarUrl, baseUrl) }
     // Bearer-токен подставляет AuthHeaderInterceptor в общем Coil ImageLoader.
     val imageRequest = remember(resolved) {
         resolved?.let { url ->
@@ -187,57 +190,69 @@ private fun AvatarBlock(
     }
 
     Box(
-        modifier = Modifier
-            .size(120.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primaryContainer)
-            .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
-            .clickable(enabled = !isUploading, onClick = onPick),
+        modifier = Modifier.size(120.dp),
         contentAlignment = Alignment.Center,
     ) {
-        if (imageRequest != null) {
-            AsyncImage(
-                model = imageRequest,
-                contentDescription = "Аватар",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize(),
-            )
-        } else {
-            val initials = remember(fullName) { initialsOf(fullName) }
-            if (initials.isNotEmpty()) {
-                Text(
-                    text = initials,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 40.sp,
+        // Круглый аватар. Клип только здесь, чтобы бейдж-карандаш в углу
+        // не обрезался круговой маской родителя.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer)
+                .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                .clickable(enabled = !isUploading, onClick = onPick),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (imageRequest != null) {
+                AsyncImage(
+                    model = imageRequest,
+                    contentDescription = "Аватар",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.matchParentSize(),
                 )
             } else {
-                Icon(
-                    Icons.Default.Person,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(56.dp),
-                )
+                val initials = remember(fullName) { avatarInitials(fullName) }
+                if (initials.isNotEmpty()) {
+                    Text(
+                        text = initials,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 40.sp,
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(56.dp),
+                    )
+                }
+            }
+
+            if (isUploading) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.Black.copy(alpha = 0.4f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
+                }
             }
         }
 
-        if (isUploading) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(Color.Black.copy(alpha = 0.4f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
-            }
-        } else {
+        // Бейдж «изменить» — поверх необрезаемого контейнера, у нижне-правого края круга.
+        if (!isUploading) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
+                    .offset(x = (-6).dp, y = (-6).dp)
                     .size(36.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary)
-                    .border(2.dp, MaterialTheme.colorScheme.background, CircleShape),
+                    .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
+                    .clickable(onClick = onPick),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -389,15 +404,3 @@ private fun PasswordField(
     )
 }
 
-private fun resolveUrl(avatarUrl: String?, baseUrl: String?): String? {
-    val a = avatarUrl?.trim().takeUnless { it.isNullOrBlank() } ?: return null
-    if (a.startsWith("http://") || a.startsWith("https://")) return a
-    val b = baseUrl?.trimEnd('/').takeUnless { it.isNullOrBlank() } ?: return null
-    return b + (if (a.startsWith("/")) a else "/$a")
-}
-
-private fun initialsOf(name: String?): String {
-    if (name.isNullOrBlank()) return ""
-    val parts = name.trim().split(" ", limit = 2)
-    return parts.mapNotNull { it.firstOrNull()?.uppercase() }.joinToString("").take(2)
-}

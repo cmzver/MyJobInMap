@@ -12,6 +12,7 @@ import type {
   AddressDocument,
   AddressContact,
   AddressHistory,
+  AddressAssignee,
 } from '@/types/address'
 import type { Task } from '@/types/task'
 
@@ -263,8 +264,27 @@ export const addressesApi = {
     await apiClient.delete(`/addresses/${addressId}/contacts/${contactId}`)
   },
 
+  // --- Ответственные (персональный доступ) ---
+
+  async getAssignees(addressId: number): Promise<AddressAssignee[]> {
+    const { data } = await apiClient.get<AddressAssignee[]>(`/addresses/${addressId}/assignees`)
+    return data
+  },
+
+  async addAssignee(addressId: number, userId: number): Promise<AddressAssignee> {
+    const { data } = await apiClient.post<AddressAssignee>(
+      `/addresses/${addressId}/assignees`,
+      { user_id: userId }
+    )
+    return data
+  },
+
+  async removeAssignee(addressId: number, userId: number): Promise<void> {
+    await apiClient.delete(`/addresses/${addressId}/assignees/${userId}`)
+  },
+
   // --- История ---
-  
+
   async getHistory(addressId: number, limit?: number): Promise<AddressHistory[]> {
     const params = limit ? `?limit=${limit}` : ''
     const { data } = await apiClient.get<AddressHistory[]>(`/addresses/${addressId}/history${params}`)

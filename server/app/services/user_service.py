@@ -253,6 +253,11 @@ class UserService:
             if not data.password:
                 raise UserServiceError("Password cannot be empty", 400)
             user.password_hash = get_password_hash(data.password)
+            user.auth_version += 1
+            # Import локальный, чтобы не создавать цикл services.auth ↔ user_service.
+            from app.services.auth import revoke_user_refresh_sessions
+
+            revoke_user_refresh_sessions(self.db, user.id)
 
         if data.full_name is not None:
             user.full_name = data.full_name

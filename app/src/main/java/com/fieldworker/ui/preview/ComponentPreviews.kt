@@ -16,15 +16,12 @@ import androidx.compose.ui.unit.dp
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskStatus
-import com.fieldworker.ui.components.TaskCardBalancedVariant
 import com.fieldworker.ui.components.TaskCard
-import com.fieldworker.ui.components.TaskCardEditorialVariant
-import com.fieldworker.ui.components.TaskCardRailVariant
 import com.fieldworker.ui.list.*
-import com.fieldworker.ui.map.PriorityBadge
 import com.fieldworker.ui.map.StatusChangeDialog
 import com.fieldworker.ui.map.toColor
 import com.fieldworker.ui.theme.FieldWorkerTheme
+import com.fieldworker.ui.utils.priorityColor
 
 // ==================== Preview Parameter Providers ====================
 
@@ -140,27 +137,6 @@ private fun TaskCardVariantsPreview() {
                     userLat = 59.85,
                     userLon = 30.26
                 )
-                TaskCardEditorialVariant(
-                    task = PreviewData.taskCurrent,
-                    isSelected = false,
-                    onClick = {},
-                    userLat = 59.85,
-                    userLon = 30.26
-                )
-                TaskCardBalancedVariant(
-                    task = PreviewData.taskCurrent,
-                    isSelected = false,
-                    onClick = {},
-                    userLat = 59.85,
-                    userLon = 30.26
-                )
-                TaskCardRailVariant(
-                    task = PreviewData.taskCurrent,
-                    isSelected = false,
-                    onClick = {},
-                    userLat = 59.85,
-                    userLon = 30.26
-                )
             }
         }
     }
@@ -266,7 +242,7 @@ private fun FiltersPanelPreview() {
 
 // ==================== Badge Previews ====================
 
-@Preview(name = "PriorityBadge - All", showBackground = true)
+@Preview(name = "Priority Colors - All", showBackground = true)
 @Composable
 private fun PriorityBadgeAllPreview() {
     FieldWorkerTheme {
@@ -276,7 +252,17 @@ private fun PriorityBadgeAllPreview() {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Priority.entries.forEach { priority ->
-                    PriorityBadge(priority = priority)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(14.dp)
+                                .background(priorityColor(priority), CircleShape),
+                        )
+                        Text(text = priority.displayName)
+                    }
                 }
             }
         }

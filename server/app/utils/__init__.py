@@ -209,6 +209,12 @@ def _base_task_dict(task: TaskModel) -> Dict[str, Any]:
             if task.assigned_user
             else None
         ),
+        "created_by_id": task.created_by_id,
+        "created_by_name": (
+            (task.created_by.full_name or task.created_by.username)
+            if task.created_by
+            else None
+        ),
         "is_remote": task.is_remote or False,
         "is_paid": task.is_paid or False,
         "payment_amount": task.payment_amount or 0.0,

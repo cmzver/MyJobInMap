@@ -1,0 +1,31 @@
+# FieldWorker — Telegram-бот как «edge»-нода в локации без блокировок Telegram
+# ============================================================================
+# Контекст: боевой сервер (balalayka) находится в локации, где api.telegram.org
+# НЕДОСТУПЕН (getUpdates уходит в timeout, бот там крэш-лупит). Этот бокс
+# (бывший petrosyan) в другой локации, откуда Telegram доступен. Поэтому бот
+# крутится здесь и ходит в боевой API по публичному HTTPS.
+#
+# Запуск (на edge-боксе, из /opt/fieldworker):
+#   docker compose -f docker-compose.bot-edge.yml up -d --build
+#
+# Требуется bot/.env с TELEGRAM_BOT_TOKEN + API_USERNAME/API_PASSWORD
+# (сервис-аккаунт, существующий в боевой БД). API_BASE_URL здесь
+# перекрывается на боевой домен и значение из .env игнорируется.
+#
+# ВАЖНО: на одном bot-токене может поллить только ОДИН экземпляр (Telegram
+# отдаёт getUpdates эксклюзивно). Убедись, что боевой bot-контейнер на
+# balalayka погашен/выключен, иначе будет Conflict.
+
+services:
+  telegram-bot:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    image: fieldworker-telegram-bot
+    container_name: fieldworker-telegram
+    restart: always
+    env_file:
+      - ./bot/.env
+    environment:
+      # Боевой API по публичному HTTPS (перекрывает bot/.env).
+      - API_BASE_URL=https://balalayka.duckdns.org

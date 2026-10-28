@@ -27,7 +27,7 @@ import com.fieldworker.data.local.entity.TaskEntity
         ConversationEntity::class,
         MessageEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class FieldWorkerDatabase : RoomDatabase() {
@@ -132,6 +132,24 @@ abstract class FieldWorkerDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_chat_messages_conversation_id_id` " +
                             "ON `chat_messages` (`conversation_id`, `id`)"
+                )
+            }
+        }
+
+        /** Migration 5 -> 6: cached attached task preview in chat messages. */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE chat_messages ADD COLUMN attached_task_json TEXT DEFAULT NULL"
+                )
+            }
+        }
+
+        /** Migration 6 -> 7: payload for offline planned-date updates. */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE pending_actions ADD COLUMN plannedDate TEXT DEFAULT NULL"
                 )
             }
         }

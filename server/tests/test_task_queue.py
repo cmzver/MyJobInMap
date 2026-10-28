@@ -86,6 +86,21 @@ class TestEnqueueRouting:
         assert done.wait(timeout=2)
         assert calls == [{"y": 2}]
 
+    def test_does_not_fallback_when_enqueue_result_is_uncertain(
+        self, temp_job, monkeypatch
+    ):
+        calls, done = temp_job
+        monkeypatch.setattr(settings, "TASK_QUEUE_ENABLED", True)
+
+        def timeout(name, kw):
+            raise task_queue.QueueEnqueueUncertainError("ack timed out")
+
+        monkeypatch.setattr(task_queue, "_enqueue_arq", timeout)
+        task_queue.enqueue("test_job", y=3)
+
+        assert not done.wait(timeout=0.05)
+        assert calls == []
+
     def test_unknown_job_raises_before_dispatch(self, monkeypatch):
         monkeypatch.setattr(settings, "TASK_QUEUE_ENABLED", False)
         with pytest.raises(KeyError):
@@ -111,3 +126,20 @@ class TestPushUsesQueue:
         assert captured["kwargs"]["body"] == "Body"
         assert captured["kwargs"]["notification_type"] == "chat"
         assert captured["kwargs"]["task_id"] == 7
+
+
+class TestDeliveryResultClassification:
+    def test_retryable_failure_raises(self):
+        with pytest.raises(RuntimeError, match="transport down"):
+            task_queue.raise_retryable_delivery_failure(
+                {"success": False, "message": "transport down"}
+            )
+
+    @pytest.mark.parametrize("message", sorted(task_queue.TERMINAL_DELIVERY_MESSAGES))
+    def test_terminal_failure_does_not_raise(self, message):
+        task_queue.raise_retryable_delivery_failure(
+            {"success": False, "message": message}
+        )
+
+    def test_success_does_not_raise(self):
+        task_queue.raise_retryable_delivery_failure({"success": True, "sent": 1})

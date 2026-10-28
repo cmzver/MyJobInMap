@@ -20,8 +20,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -44,8 +42,11 @@ import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.map.toColor
 import com.fieldworker.ui.map.toIcon
 import com.fieldworker.ui.utils.TaskUtils
-import com.fieldworker.ui.utils.priorityBackground
+import com.fieldworker.ui.utils.isAttention
 import com.fieldworker.ui.utils.priorityColor
+
+/** Дальше этого расстояние считаем недостоверным и не показываем. */
+private const val MAX_DISTANCE_METERS = 300_000f
 
 @Composable
 fun TaskCard(
@@ -59,6 +60,8 @@ fun TaskCard(
 ) {
     val view = LocalView.current
     val ui = rememberTaskCardUi(task, userLat, userLon)
+    val priorityIsAttention = task.priority.isAttention()
+    val barColor = if (priorityIsAttention) ui.priorityColor else MaterialTheme.colorScheme.outlineVariant
 
     Surface(
         modifier = modifier
@@ -87,7 +90,7 @@ fun TaskCard(
                 modifier = Modifier
                     .fillMaxHeight()
                     .width(if (isSelected) 5.dp else 4.dp)
-                    .background(ui.priorityColor)
+                    .background(barColor)
             )
             Column(
                 modifier = Modifier
@@ -100,28 +103,27 @@ fun TaskCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(task.status.toColor())
-                    )
+                    StatusChip(task = task)
                     Text(
                         text = "#${ui.displayNumber}",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
-                    BulletDot()
-                    Text(
-                        text = task.priority.displayName,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = ui.priorityColor,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
+                    // Ярлык приоритета показываем только когда он что-то значит
+                    // (аварийная/срочная) — рутина остаётся без цветового шума.
+                    if (priorityIsAttention) {
+                        BulletDot()
+                        Text(
+                            text = task.priority.displayName,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = ui.priorityColor,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                    }
                     Spacer(modifier = Modifier.weight(1f))
                     Text(
                         text = ui.formattedDate,
@@ -165,24 +167,24 @@ fun TaskCard(
                         Text(
                             text = ui.distance,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                         )
                     }
                     if (ui.formattedPlannedDate != null) {
                         BulletDot()
+                        // Цветом отмечаем только просрочку; обычная план-дата — тихий серый.
                         val plannedColor = if (ui.isPlannedOverdue) {
                             Color(0xFFFF3B30)
                         } else {
-                            Color(0xFFCC7A1A)
+                            MaterialTheme.colorScheme.onSurfaceVariant
                         }
                         val plannedPrefix = if (ui.isPlannedOverdue) "просрочено" else "план"
                         Text(
                             text = "$plannedPrefix ${ui.formattedPlannedDate}",
                             style = MaterialTheme.typography.bodySmall,
                             color = plannedColor,
-                            fontWeight = if (ui.isPlannedOverdue) FontWeight.SemiBold else FontWeight.Medium,
+                            fontWeight = if (ui.isPlannedOverdue) FontWeight.SemiBold else FontWeight.Normal,
                             maxLines = 1,
                         )
                     }
@@ -201,408 +203,45 @@ private fun BulletDot() {
     )
 }
 
+/**
+ * Компактный чип статуса: точка в цвете статуса + подпись. Заменяет прежний
+ * безымянный кружок — статус теперь читается без легенды.
+ */
 @Composable
-internal fun TaskCardEditorialVariant(
-    task: Task,
-    modifier: Modifier = Modifier,
-    isSelected: Boolean = false,
-    showArrow: Boolean = true,
-    userLat: Double? = null,
-    userLon: Double? = null,
-    onClick: () -> Unit,
-) {
-    val view = LocalView.current
-    val ui = rememberTaskCardUi(task, userLat, userLon)
-
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable {
-                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                onClick()
-            },
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f)
-            } else {
-                MaterialTheme.colorScheme.surface
-            }
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(28.dp),
-        border = BorderStroke(
-            1.dp,
-            if (isSelected) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.26f)
-            } else {
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.75f)
-            }
+private fun StatusChip(task: Task) {
+    val color = task.status.toColor()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 7.dp, vertical = 2.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(color),
         )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 15.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    PriorityChip(
-                        label = task.priority.displayName,
-                        accent = ui.priorityColor,
-                        background = ui.priorityBgColor,
-                    )
-                    StatusChip(task = task)
-                }
-
-                if (showArrow) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = ui.primaryTitle,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = ui.secondaryLine,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 11.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(ui.priorityBgColor),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.LocationOn,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = ui.priorityColor,
-                        )
-                    }
-                    Text(
-                        text = task.address,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TaskMetaPill(
-                        icon = Icons.Default.DateRange,
-                        text = ui.formattedDate,
-                    )
-                    if (ui.formattedPlannedDate != null) {
-                        TaskMetaPill(
-                            icon = Icons.Default.DateRange,
-                            text = ui.formattedPlannedDate,
-                            accentColor = Color(0xFFCC7A1A),
-                        )
-                    }
-                    if (task.commentsCount > 0) {
-                        TaskCountPill(text = "${task.commentsCount} комм.")
-                    }
-                }
-
-                if (ui.distance != null) {
-                    TaskMetaPill(
-                        icon = Icons.Default.LocationOn,
-                        text = ui.distance,
-                        accentColor = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun TaskCardBalancedVariant(
-    task: Task,
-    modifier: Modifier = Modifier,
-    isSelected: Boolean = false,
-    showArrow: Boolean = true,
-    userLat: Double? = null,
-    userLon: Double? = null,
-    onClick: () -> Unit,
-) {
-    val view = LocalView.current
-    val ui = rememberTaskCardUi(task, userLat, userLon)
-
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable {
-                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                onClick()
-            },
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
-            } else {
-                MaterialTheme.colorScheme.surface
-            }
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(24.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = ui.primaryTitle,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = ui.secondaryLine,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (showArrow) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                PriorityChip(
-                    label = task.priority.displayName,
-                    accent = ui.priorityColor,
-                    background = ui.priorityBgColor,
-                )
-                StatusChip(task = task)
-                if (ui.distance != null) {
-                    TaskMetaPill(
-                        icon = Icons.Default.LocationOn,
-                        text = ui.distance,
-                        accentColor = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = task.address,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TaskMetaPill(icon = Icons.Default.DateRange, text = ui.formattedDate)
-                if (ui.formattedPlannedDate != null) {
-                    TaskMetaPill(
-                        icon = Icons.Default.DateRange,
-                        text = ui.formattedPlannedDate,
-                        accentColor = Color(0xFFCC7A1A),
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun TaskCardRailVariant(
-    task: Task,
-    modifier: Modifier = Modifier,
-    isSelected: Boolean = false,
-    showArrow: Boolean = true,
-    userLat: Double? = null,
-    userLon: Double? = null,
-    onClick: () -> Unit,
-) {
-    val view = LocalView.current
-    val ui = rememberTaskCardUi(task, userLat, userLon)
-
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable {
-                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                onClick()
-            },
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f)
-            } else {
-                MaterialTheme.colorScheme.surface
-            }
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(22.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
-    ) {
-        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(5.dp)
-                    .background(ui.priorityColor.copy(alpha = 0.9f))
-            )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 14.dp, vertical = 14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = ui.primaryTitle,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = task.address,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    if (showArrow) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "#${ui.displayNumber}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = task.priority.displayName,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = ui.priorityColor,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    Text(
-                        text = task.status.displayName,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = task.status.toColor(),
-                    )
-                    if (ui.distance != null) {
-                        Text(
-                            text = ui.distance,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                }
-            }
-        }
+        Text(
+            text = task.status.displayName,
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+        )
     }
 }
 
 private data class TaskCardUi(
     val priorityColor: Color,
-    val priorityBgColor: Color,
     val distance: String?,
     val formattedDate: String,
     val formattedPlannedDate: String?,
     val isPlannedOverdue: Boolean,
     val displayNumber: String,
     val primaryTitle: String,
-    val secondaryLine: String,
 )
 
 @Composable
@@ -614,10 +253,11 @@ private fun rememberTaskCardUi(
     val displayNumber = task.getDisplayNumber()
     TaskCardUi(
         priorityColor = priorityColor(task.priority),
-        priorityBgColor = priorityBackground(task.priority),
-        distance = TaskUtils.formatDistance(
-            TaskUtils.calculateDistance(userLat, userLon, task.lat, task.lon)
-        ),
+        // Прячем неправдоподобную дистанцию: нет фикса геолокации или кривые
+        // координаты дают сотни/тысячи км — это мусор, а не полезный ориентир.
+        distance = TaskUtils.calculateDistance(userLat, userLon, task.lat, task.lon)
+            ?.takeIf { it in 0f..MAX_DISTANCE_METERS }
+            ?.let { TaskUtils.formatDistance(it) },
         formattedDate = TaskUtils.formatShortDate(task.createdAt),
         formattedPlannedDate = task.plannedDate?.let { TaskUtils.formatShortDate(it) },
         isPlannedOverdue = task.status != TaskStatus.DONE
@@ -625,85 +265,46 @@ private fun rememberTaskCardUi(
             && task.status != TaskStatus.UNKNOWN
             && TaskUtils.isDateOverdue(task.plannedDate),
         displayNumber = displayNumber,
-        primaryTitle = formatTaskTitle(task, displayNumber),
-        secondaryLine = buildString {
-            append("#$displayNumber")
-            task.assignedUserName?.takeIf { it.isNotBlank() }?.let { append(" • $it") }
-        },
+        primaryTitle = taskHeadline(task, displayNumber),
     )
 }
 
-@Composable
-private fun PriorityChip(
-    label: String,
-    accent: Color,
-    background: Color,
-) {
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = background,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(accent)
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = accent,
-            )
-        }
+/**
+ * Заголовок карточки — суть работы, а не адрес (адрес и так идёт отдельной
+ * строкой ниже). Берём описание работ; если его нет — падаем на очищенный title.
+ * У title в этих данных лежит адрес, поэтому без описания заголовок совпадёт с
+ * адресной строкой — это осознанный fallback, лучше чем пусто.
+ */
+private fun taskHeadline(task: Task, displayNumber: String): String {
+    val raw = task.description?.trim().orEmpty()
+    if (raw.isBlank()) return formatTaskTitle(task, displayNumber)
+
+    // 1. Многострочный случай: отбрасываем целиком строки-номера («№70/ №35980»).
+    var text = raw.lineSequence()
+        .map { it.trim() }
+        .filter { line -> line.isNotEmpty() && line.replace(SERVICE_CHARS, "").isNotEmpty() }
+        .joinToString(" ")
+        .trim()
+
+    // 2. Инлайн-префикс в одной строке: «№11/ №33522  08.05.2026 ЭЛЬТОН <текст>».
+    //    Срезаем ведущие «№../ №.. дата», и только если он был — следующий за ним
+    //    ALL-CAPS токен организации (иначе можно случайно съесть слово вроде «СРОЧНО»).
+    val withoutRefs = text.replaceFirst(LEADING_REF_PREFIX, "")
+    if (withoutRefs != text) {
+        text = withoutRefs.replaceFirst(LEADING_ORG_TOKEN, "").trim()
     }
+
+    return text.ifBlank { formatTaskTitle(task, displayNumber) }
 }
 
-@Composable
-private fun StatusChip(task: Task) {
-    val color = task.status.toColor()
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = color.copy(alpha = 0.12f),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Icon(
-                imageVector = task.status.toIcon(),
-                contentDescription = null,
-                tint = color,
-                modifier = Modifier.size(14.dp),
-            )
-            Text(
-                text = task.status.displayName,
-                style = MaterialTheme.typography.labelLarge,
-                color = color,
-            )
-        }
-    }
-}
+/** Символы служебных строк-номеров: цифры, №, разделители, пунктуация. */
+private val SERVICE_CHARS = Regex("[№#\\d/\\\\\\s.,;:()\\-–—]")
 
-@Composable
-private fun TaskCountPill(text: String) {
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-        )
-    }
-}
+/** Ведущий «№11/ №33522» + прилипшая к нему дата/числа. */
+private val LEADING_REF_PREFIX = Regex("^№?\\s*\\d+\\s*/\\s*№?\\s*[\\d.\\s]+")
+
+/** ALL-CAPS токен-организация сразу после номерного префикса (напр. «ЭЛЬТОН»). */
+private val LEADING_ORG_TOKEN = Regex("^[А-ЯЁA-Z]{3,}\\s+")
 
 private fun formatTaskTitle(task: Task, displayNumber: String): String {
     val escapedNumber = Regex.escape(displayNumber)
@@ -713,36 +314,6 @@ private fun formatTaskTitle(task: Task, displayNumber: String): String {
         .replaceFirst(Regex("^(?:№|N|No|в„–)\\s*$escapedNumber\\s*[-–—:]?\\s*"), "")
         .trim()
     return if (cleaned.isBlank()) task.title.trim() else cleaned
-}
-
-@Composable
-private fun TaskMetaPill(
-    icon: ImageVector,
-    text: String,
-    accentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
-) {
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = accentColor.copy(alpha = 0.10f)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(12.dp),
-                tint = accentColor
-            )
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelMedium,
-                color = accentColor
-            )
-        }
-    }
 }
 
 /**

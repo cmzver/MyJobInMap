@@ -15,15 +15,17 @@ from fastapi import Depends
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.models import CommentModel, TaskModel, TaskStatus, UserModel, UserRole, get_db
+from app.models import CommentModel, TaskModel, TaskStatus, UserModel, get_db
 from app.models.address import AddressModel
-from app.schemas import TaskCreate, TaskStatusUpdate, TaskUpdate
+from app.schemas import TaskCreate, TaskUpdate
 from app.services import metrics
 from app.services.address_parser import parse_address
 from app.services.geocoding import geocoding_service
 from app.services.notification_service import (
+    broadcast_created_notification,
     create_task_assignment_notification,
     create_task_status_notification,
+    send_task_assignment_push,
 )
 from app.services.push import send_push_notification
 from app.services.role_utils import is_worker_user
@@ -126,7 +128,14 @@ class TaskService:
         self,
         raw_address: str,
         organization_id: Optional[int] = None,
-    ) -> Tuple[float, float]:
+    ) -> Tuple[float, float, Optional[int]]:
+        """Определить координаты адреса заявки.
+
+        Возвращает (lat, lon, address_id). address_id != None — координаты взяты
+        из сматченного адреса книги (тогда заявка привязывается к нему, чтобы
+        правка координат адреса подхватывалась автоматически). None — координаты
+        получены геокодером.
+        """
         parsed = parse_address(raw_address)
         normalized_raw = geocoding_service.normalize_address(raw_address).lower()
 
@@ -214,9 +223,10 @@ class TaskService:
                 best_candidate.lat,
                 best_candidate.lon,
             )
-            return best_candidate.lat, best_candidate.lon
+            return best_candidate.lat, best_candidate.lon, best_candidate.id
 
-        return geocoding_service.geocode(raw_address)
+        lat, lon = geocoding_service.geocode(raw_address)
+        return lat, lon, None
 
     def get_by_id(self, task_id: int) -> TaskModel:
         """
@@ -304,7 +314,7 @@ class TaskService:
         - Генерирует внутренний номер
         """
         # Геокодирование
-        lat, lon = self.resolve_coordinates(
+        lat, lon, address_id = self.resolve_coordinates(
             data.address,
             user.organization_id if user else None,
         )
@@ -354,10 +364,12 @@ class TaskService:
             customer_phone=data.customer_phone,
             lat=lat,
             lon=lon,
+            address_id=address_id,
             status=status,
             priority=priority,
             planned_date=data.planned_date,
             assigned_user_id=assigned_id,
+            created_by_id=user.id if user else None,
             is_remote=bool(data.is_remote) if data.is_remote is not None else False,
             is_paid=bool(data.is_paid) if data.is_paid is not None else False,
             payment_amount=data.payment_amount or 0.0,
@@ -371,16 +383,13 @@ class TaskService:
             tenant.set_org_id(task)
 
         self.db.add(task)
-        self.db.commit()
-        self.db.refresh(task)
+        # Transaction ownership belongs to the API/use-case boundary.  flush()
+        # allocates the primary key without exposing a half-created task if
+        # number generation or the caller's remaining work fails.
+        self.db.flush()
 
         # Генерация номера
         task.task_number = task_number if task_number else f"Z-{task.id:05d}"
-        self.db.commit()
-        self.db.refresh(task)
-
-        logger.info(f"✅ Заявка №{task.task_number} создана")
-        metrics.record_task_created(priority)
 
         return task
 
@@ -412,12 +421,13 @@ class TaskService:
             task.title = task_data.title
         if task_data.address is not None:
             task.raw_address = task_data.address
-            lat, lon = self.resolve_coordinates(
+            lat, lon, address_id = self.resolve_coordinates(
                 task_data.address,
                 task.organization_id or admin.organization_id,
             )
             task.lat = lat
             task.lon = lon
+            task.address_id = address_id
         if task_data.description is not None:
             task.description = task_data.description
         if task_data.customer_name is not None:
@@ -476,10 +486,8 @@ class TaskService:
                 new_assigned_user_id = assigned_user.id
 
         task.updated_at = datetime.now(timezone.utc)
-        self.db.commit()
-        self.db.refresh(task)
-
-        # Уведомление при назначении
+        assignment_notifications = []
+        assigned_to = None
         if new_assigned_user_id and new_assigned_user_id != old_assigned_user_id:
             assigned_to = (
                 self.db.query(UserModel)
@@ -487,9 +495,21 @@ class TaskService:
                 .first()
             )
             if assigned_to:
-                create_task_assignment_notification(
-                    db=self.db, task=task, assigned_to=assigned_to, assigned_by=admin
+                assignment_notifications = create_task_assignment_notification(
+                    db=self.db,
+                    task=task,
+                    assigned_to=assigned_to,
+                    assigned_by=admin,
+                    commit=False,
+                    send_push=False,
                 )
+
+        self.db.commit()
+        self.db.refresh(task)
+        for notification in assignment_notifications:
+            broadcast_created_notification(notification)
+        if assigned_to and assignment_notifications:
+            send_task_assignment_push(task, assigned_to)
 
         return task
 
@@ -553,22 +573,25 @@ class TaskService:
             new_status=new_status,
         )
         self.db.add(comment)
-        self.db.commit()
-        self.db.refresh(task)
-        metrics.record_status_transition(old_status, new_status)
-
-        # Push уведомление исполнителю
-        self._notify_status_change(task, new_status, user)
-
-        # Создание уведомления в БД
+        status_notifications = []
         if user:
-            create_task_status_notification(
+            status_notifications = create_task_status_notification(
                 db=self.db,
                 task=task,
                 old_status=old_status,
                 new_status=new_status,
                 changed_by=user,
+                commit=False,
             )
+        self.db.commit()
+        self.db.refresh(task)
+        metrics.record_status_transition(old_status, new_status)
+
+        for notification in status_notifications:
+            broadcast_created_notification(notification)
+
+        # Push уведомление исполнителю
+        self._notify_status_change(task, new_status, user)
 
         return task
 
@@ -632,21 +655,30 @@ class TaskService:
             )
             self.db.add(comment)
 
-        self.db.commit()
-        self.db.refresh(task)
-
-        # Уведомление новому исполнителю
+        assignment_notifications = []
+        assigned_to = None
         if task.assigned_user_id and task.assigned_user_id != old_assignee_id:
-            # Создание уведомления в БД (+ FCM push)
             assigned_to = (
                 self.db.query(UserModel)
                 .filter(UserModel.id == task.assigned_user_id)
                 .first()
             )
             if assigned_to:
-                create_task_assignment_notification(
-                    db=self.db, task=task, assigned_to=assigned_to, assigned_by=user
+                assignment_notifications = create_task_assignment_notification(
+                    db=self.db,
+                    task=task,
+                    assigned_to=assigned_to,
+                    assigned_by=user,
+                    commit=False,
+                    send_push=False,
                 )
+
+        self.db.commit()
+        self.db.refresh(task)
+        for notification in assignment_notifications:
+            broadcast_created_notification(notification)
+        if assigned_to and assignment_notifications:
+            send_task_assignment_push(task, assigned_to)
 
         return task
 
