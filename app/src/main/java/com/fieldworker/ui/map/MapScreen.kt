@@ -752,18 +752,36 @@ private fun OsmMapView(
         }
     }
 
-    LaunchedEffect(markerGroups, showMyLocation, myLocationLat, myLocationLon) {
-        mapView.overlays.clear()
-
-        if (showMyLocation && myLocationLat != null && myLocationLon != null) {
-            val myLocationMarker = Marker(mapView).apply {
-                position = GeoPoint(myLocationLat, myLocationLon)
-                title = "Моё местоположение"
-                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                icon = getMyLocationIcon(context)
-            }
-            mapView.overlays.add(myLocationMarker)
+    // Маркер «я» создаём один раз и только двигаем: GPS-фиксы приходят часто,
+    // и раньше каждый из них пересоздавал все маркеры заявок.
+    val myLocationMarker = remember {
+        Marker(mapView).apply {
+            title = "Моё местоположение"
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+            icon = getMyLocationIcon(context)
         }
+    }
+    val taskOverlays = remember { mutableListOf<org.osmdroid.views.overlay.Overlay>() }
+
+    LaunchedEffect(showMyLocation, myLocationLat, myLocationLon) {
+        val lat = myLocationLat
+        val lon = myLocationLon
+        mapView.overlays.remove(myLocationMarker)
+        if (showMyLocation && lat != null && lon != null) {
+            myLocationMarker.position = GeoPoint(lat, lon)
+            // Под маркерами заявок, как и раньше
+            mapView.overlays.add(0, myLocationMarker)
+            if (!mapCentered && markerGroups.isEmpty()) {
+                mapView.controller.animateTo(myLocationMarker.position)
+                mapCentered = true
+            }
+        }
+        mapView.invalidate()
+    }
+
+    LaunchedEffect(markerGroups) {
+        mapView.overlays.removeAll(taskOverlays)
+        taskOverlays.clear()
 
         markerGroups.forEach { group ->
             if (group.isCluster) {
@@ -773,7 +791,7 @@ private fun OsmMapView(
                     count = group.count
                 ) ?: return@forEach
 
-                mapView.overlays.add(
+                taskOverlays.add(
                     ClusterBubbleOverlay(
                         mapView = mapView,
                         point = GeoPoint(group.lat, group.lon),
@@ -808,25 +826,16 @@ private fun OsmMapView(
                         true
                     }
                 }
-                mapView.overlays.add(marker)
+                taskOverlays.add(marker)
             }
         }
+        mapView.overlays.addAll(taskOverlays)
 
         // Центрируем карту только при первой загрузке данных.
         // При последующих обновлениях маркеров (смена статуса, фильтры) позицию не трогаем.
-        if (!mapCentered) {
-            val centered = when {
-                markerGroups.isNotEmpty() -> {
-                    fitMapToMarkers(mapView, markerGroups)
-                    true
-                }
-                showMyLocation && myLocationLat != null && myLocationLon != null -> {
-                    mapView.controller.animateTo(GeoPoint(myLocationLat, myLocationLon))
-                    true
-                }
-                else -> false
-            }
-            if (centered) mapCentered = true
+        if (!mapCentered && markerGroups.isNotEmpty()) {
+            fitMapToMarkers(mapView, markerGroups)
+            mapCentered = true
         }
 
         mapView.invalidate()
