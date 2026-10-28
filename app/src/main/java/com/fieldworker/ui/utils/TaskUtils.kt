@@ -89,6 +89,20 @@ object TaskUtils {
         }
     }
 
+    /**
+     * Компактная дата для ленты (заявки уже сгруппированы по дням): сегодня —
+     * время, текущий год — «28.10», иначе — «28.10.25».
+     */
+    fun formatCompactDate(dateString: String, today: java.time.LocalDate = java.time.LocalDate.now()): String {
+        val dateTime = parseDateTime(dateString) ?: return dateString
+        val pattern = when {
+            dateTime.toLocalDate() == today -> "HH:mm"
+            dateTime.year == today.year -> "dd.MM"
+            else -> "dd.MM.yy"
+        }
+        return dateTime.format(DateTimeFormatter.ofPattern(pattern))
+    }
+
     fun formatShortTime(dateString: String): String {
         return try {
             val dateTime = parseDateTime(dateString) ?: return ""

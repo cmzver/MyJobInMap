@@ -148,25 +148,27 @@ internal fun TaskCardVariantsPreview() {
 @Composable
 internal fun TaskListScreenPreview() {
     FieldWorkerTheme {
-        TaskListScreen(
-            tasks = PreviewData.sampleTasks,
-            comments = emptyList(),
-            isLoading = false,
-            isLoadingComments = false,
-            selectedTask = null,
-            showStatusDialog = false,
-            onRefresh = {},
-            onTaskClick = {},
-            onTaskDismiss = {},
-            onStatusChange = {},
-            onHideStatusDialog = {},
-            onStatusSelected = { _, _, _ -> },
-            onAddComment = { _, _ -> },
-            statusFilter = emptySet(),
-            searchQuery = "",
-            onStatusFilterChange = {},
-            onSearchQueryChange = {}
-        )
+        Surface(color = MaterialTheme.colorScheme.background) {
+            TaskListScreen(
+                tasks = PreviewData.sampleTasks,
+                comments = emptyList(),
+                isLoading = false,
+                isLoadingComments = false,
+                selectedTask = null,
+                showStatusDialog = false,
+                onRefresh = {},
+                onTaskClick = {},
+                onTaskDismiss = {},
+                onStatusChange = {},
+                onHideStatusDialog = {},
+                onStatusSelected = { _, _, _ -> },
+                onAddComment = { _, _ -> },
+                statusFilter = emptySet(),
+                searchQuery = "",
+                onStatusFilterChange = {},
+                onSearchQueryChange = {}
+            )
+        }
     }
 }
 
@@ -174,25 +176,27 @@ internal fun TaskListScreenPreview() {
 @Composable
 internal fun TaskListScreenLoadingPreview() {
     FieldWorkerTheme {
-        TaskListScreen(
-            tasks = emptyList(),
-            comments = emptyList(),
-            isLoading = true,
-            isLoadingComments = false,
-            selectedTask = null,
-            showStatusDialog = false,
-            onRefresh = {},
-            onTaskClick = {},
-            onTaskDismiss = {},
-            onStatusChange = {},
-            onHideStatusDialog = {},
-            onStatusSelected = { _, _, _ -> },
-            onAddComment = { _, _ -> },
-            statusFilter = emptySet(),
-            searchQuery = "",
-            onStatusFilterChange = {},
-            onSearchQueryChange = {}
-        )
+        Surface(color = MaterialTheme.colorScheme.background) {
+            TaskListScreen(
+                tasks = emptyList(),
+                comments = emptyList(),
+                isLoading = true,
+                isLoadingComments = false,
+                selectedTask = null,
+                showStatusDialog = false,
+                onRefresh = {},
+                onTaskClick = {},
+                onTaskDismiss = {},
+                onStatusChange = {},
+                onHideStatusDialog = {},
+                onStatusSelected = { _, _, _ -> },
+                onAddComment = { _, _ -> },
+                statusFilter = emptySet(),
+                searchQuery = "",
+                onStatusFilterChange = {},
+                onSearchQueryChange = {}
+            )
+        }
     }
 }
 
@@ -200,25 +204,27 @@ internal fun TaskListScreenLoadingPreview() {
 @Composable
 internal fun TaskListScreenEmptyPreview() {
     FieldWorkerTheme {
-        TaskListScreen(
-            tasks = emptyList(),
-            comments = emptyList(),
-            isLoading = false,
-            isLoadingComments = false,
-            selectedTask = null,
-            showStatusDialog = false,
-            onRefresh = {},
-            onTaskClick = {},
-            onTaskDismiss = {},
-            onStatusChange = {},
-            onHideStatusDialog = {},
-            onStatusSelected = { _, _, _ -> },
-            onAddComment = { _, _ -> },
-            statusFilter = emptySet(),
-            searchQuery = "",
-            onStatusFilterChange = {},
-            onSearchQueryChange = {}
-        )
+        Surface(color = MaterialTheme.colorScheme.background) {
+            TaskListScreen(
+                tasks = emptyList(),
+                comments = emptyList(),
+                isLoading = false,
+                isLoadingComments = false,
+                selectedTask = null,
+                showStatusDialog = false,
+                onRefresh = {},
+                onTaskClick = {},
+                onTaskDismiss = {},
+                onStatusChange = {},
+                onHideStatusDialog = {},
+                onStatusSelected = { _, _, _ -> },
+                onAddComment = { _, _ -> },
+                statusFilter = emptySet(),
+                searchQuery = "",
+                onStatusFilterChange = {},
+                onSearchQueryChange = {}
+            )
+        }
     }
 }
 

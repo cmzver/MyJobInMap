@@ -60,6 +60,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.painterResource
+import com.fieldworker.R
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -1140,7 +1142,7 @@ private fun Modifier.chatWallpaperPattern(
     primaryColor: Color,
     secondaryColor: Color,
 ): Modifier = drawWithCache {
-    val useTelegramLightStyle = backgroundColor.luminance() > 0.7f
+    val useTelegramLightStyle = false
     val patternPrimary = if (useTelegramLightStyle) {
         Color(0xFF76A968).copy(alpha = 0.07f)
     } else {
@@ -1555,12 +1557,12 @@ private fun MessageBubble(
     val bubbleStartPadding = if (!isOwn && !groupedWithPrevious) 14.dp else 12.dp
     val bubbleEndPadding = if (isOwn && !groupedWithNext) 14.dp else 12.dp
     val bubbleTextColor = if (isOwn) {
-        if (useTelegramLightStyle) Color(0xFF223124) else colorScheme.onPrimaryContainer
+        if (useTelegramLightStyle) Color(0xFF223124) else colorScheme.onSurface
     } else {
         if (useTelegramLightStyle) Color(0xFF1F2428) else colorScheme.onSurface
     }
     val bubbleMetaColor = if (isOwn) {
-        if (useTelegramLightStyle) Color(0xFF8AA08D) else colorScheme.onPrimaryContainer.copy(alpha = 0.55f)
+        if (useTelegramLightStyle) Color(0xFF8AA08D) else colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
     } else {
         if (useTelegramLightStyle) Color(0xFF9CA8AE) else colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
     }
@@ -2038,6 +2040,7 @@ private fun PhotoMessageAttachment(
             .clip(imageShape)
             .clickable(onClick = onPreview),
     ) {
+        ImageLoadingBackdrop()
         AsyncImage(
             model = previewRequest,
             contentDescription = attachment.fileName,
@@ -2078,6 +2081,7 @@ private fun AttachmentCard(
                 .clip(RoundedCornerShape(18.dp))
                 .clickable(onClick = onPreview),
         ) {
+            ImageLoadingBackdrop()
             AsyncImage(
                 model = previewRequest,
                 contentDescription = attachment.fileName,
@@ -2112,6 +2116,7 @@ private fun AttachmentCard(
                         .clip(RoundedCornerShape(16.dp))
                         .clickable(onClick = onPreview),
                 ) {
+                    ImageLoadingBackdrop()
                     AsyncImage(
                         model = previewRequest,
                         contentDescription = attachment.fileName,
@@ -2993,7 +2998,28 @@ private fun ChatInputBar(
     }
 }
 
-private fun ColorScheme.usesTelegramLightChatStyle(): Boolean = background.luminance() > 0.7f
+private fun ColorScheme.usesTelegramLightChatStyle(): Boolean = false
+
+/**
+ * Подложка под фото, пока оно грузится или если не загрузилось: иначе пузырь
+ * с вложением выглядит пустым белым прямоугольником.
+ */
+@Composable
+private fun BoxScope.ImageLoadingBackdrop() {
+    Box(
+        modifier = Modifier
+            .matchParentSize()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(id = R.drawable.ic_camera),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+            modifier = Modifier.size(32.dp),
+        )
+    }
+}
 
 private fun chatWallpaperBrush(colorScheme: ColorScheme): Brush {
     return if (colorScheme.usesTelegramLightChatStyle()) {
@@ -3005,13 +3031,7 @@ private fun chatWallpaperBrush(colorScheme: ColorScheme): Brush {
             )
         )
     } else {
-        Brush.verticalGradient(
-            colors = listOf(
-                colorScheme.background,
-                colorScheme.surface,
-                colorScheme.background,
-            )
-        )
+        SolidColor(colorScheme.background)
     }
 }
 

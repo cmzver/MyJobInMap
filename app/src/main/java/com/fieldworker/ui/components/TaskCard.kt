@@ -270,7 +270,7 @@ private fun rememberTaskCardUi(
         distance = TaskUtils.calculateDistance(userLat, userLon, task.lat, task.lon)
             ?.takeIf { it in 0f..MAX_DISTANCE_METERS }
             ?.let { TaskUtils.formatDistance(it) },
-        formattedDate = TaskUtils.formatShortDate(task.createdAt),
+        formattedDate = TaskUtils.formatCompactDate(task.createdAt),
         formattedPlannedDate = task.plannedDate?.let { TaskUtils.formatShortDate(it) },
         isPlannedOverdue = task.status != TaskStatus.DONE
             && task.status != TaskStatus.CANCELLED
@@ -306,8 +306,14 @@ private fun taskHeadline(task: Task, displayNumber: String): String {
         text = withoutRefs.replaceFirst(LEADING_ORG_TOKEN, "").trim()
     }
 
+    // 3. Телефон есть в отдельном поле — в заголовке он только съедает место.
+    text = text.replace(INLINE_PHONE, "").trim().trimEnd(',', ';', ':').trim()
+
     return text.ifBlank { formatTaskTitle(task, displayNumber) }
 }
+
+/** «Телефон: +79219876543» / «тел. 8921…» внутри описания. */
+private val INLINE_PHONE = Regex("""(?:тел(?:ефон)?\.?\s*:?\s*)?\+?[78]\d{10}""", RegexOption.IGNORE_CASE)
 
 /** Символы служебных строк-номеров: цифры, №, разделители, пунктуация. */
 private val SERVICE_CHARS = Regex("[№#\\d/\\\\\\s.,;:()\\-–—]")
