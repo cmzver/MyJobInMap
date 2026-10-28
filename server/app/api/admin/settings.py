@@ -52,6 +52,14 @@ class DefectTypeCreate(BaseModel):
     )
 
 
+class DefectTypeUpdate(BaseModel):
+    """Обновление типа неисправности (любое поле опционально)"""
+
+    name: Optional[str] = None
+    description: Optional[str] = None
+    system_types: Optional[List[str]] = None
+
+
 class SettingResponse(BaseModel):
     """Ответ с настройкой"""
 
@@ -112,7 +120,10 @@ def _clean_optional_string(value: Any) -> Optional[str]:
 
 
 def _build_login_branding_response(db: Session) -> LoginBrandingResponse:
-    init_default_settings(db)
+    # Публичный эндпоинт на каждый показ логина — не гоняем полный init каждый
+    # раз. Сеем дефолты лишь когда настройки ещё не созданы (холодная БД).
+    if get_setting(db, "login_app_name") is None:
+        init_default_settings(db)
 
     return LoginBrandingResponse(
         appName=str(
@@ -199,6 +210,25 @@ async def add_defect_type(
     """Добавить новый тип неисправности (только админы)"""
     new_type = service.add_defect_type(data.name, data.description, data.system_types)
     return DefectTypeResponse(**new_type)
+
+
+@router.patch(
+    "/settings/defect-types/{defect_type_id}", response_model=DefectTypeResponse
+)
+async def update_defect_type(
+    defect_type_id: str,
+    data: DefectTypeUpdate,
+    admin: UserModel = Depends(get_current_superadmin),
+    service: SettingsService = Depends(get_settings_service),
+):
+    """Обновить тип неисправности (только админы)"""
+    try:
+        updated = service.update_defect_type(
+            defect_type_id, data.name, data.description, data.system_types
+        )
+    except SettingsServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
+    return DefectTypeResponse(**updated)
 
 
 @router.delete("/settings/defect-types/{defect_type_id}")

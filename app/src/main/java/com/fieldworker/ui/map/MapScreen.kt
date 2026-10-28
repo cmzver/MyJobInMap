@@ -20,6 +20,8 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.TextPaint
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
@@ -64,7 +66,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.fieldworker.R
-import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskPhoto
@@ -76,6 +77,7 @@ import com.fieldworker.ui.list.TaskDetailBottomSheet
 import com.fieldworker.ui.utils.extractApartment
 import com.fieldworker.ui.utils.extractAdditionalInfo
 import com.fieldworker.ui.utils.extractPhoneNumber
+import com.fieldworker.ui.utils.priorityColor
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
@@ -384,52 +386,63 @@ fun MapScreen(
     }
 }
 
+/** Защитный таймаут одноразового запроса локации — после него GPS точно выключается. */
+private const val LOCATION_REQUEST_TIMEOUT_MS = 20_000L
+
 /**
- * Запрос текущего местоположения
+ * Одноразовый запрос текущего местоположения.
+ *
+ * Подписка снимается либо в [LocationListener.onLocationChanged] (получили fix),
+ * либо по защитному таймауту — иначе при отсутствии fix (в помещении) или уходе
+ * с экрана до fix GPS остался бы включённым и жёг батарею.
  */
 @SuppressLint("MissingPermission")
 private fun requestLocation(context: android.content.Context, viewModel: MapViewModel) {
     val locationManager = context.getSystemService(android.content.Context.LOCATION_SERVICE) as LocationManager
-    
-    // Пробуем получить последнее известное местоположение
+
+    // Последнее известное местоположение — мгновенный отклик без включения GPS
     val lastKnownLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
         ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-    
     lastKnownLocation?.let {
         viewModel.updateMyLocation(it.latitude, it.longitude)
     }
-    
-    // Запрашиваем обновление местоположения
+
+    val provider = when {
+        locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
+        locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
+        else -> return
+    }
+
+    val mainHandler = Handler(Looper.getMainLooper())
     val locationListener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
             viewModel.updateMyLocation(location.latitude, location.longitude)
+            mainHandler.removeCallbacksAndMessages(null) // отменяем таймаут
             locationManager.removeUpdates(this)
         }
-        
+
         override fun onProviderEnabled(provider: String) {}
         override fun onProviderDisabled(provider: String) {}
         @Deprecated("Deprecated in Java")
         override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
     }
-    
+
     try {
-        if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-            locationManager.requestLocationUpdates(
-                LocationManager.GPS_PROVIDER,
-                1000L,
-                10f,
-                locationListener
-            )
-        } else if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-            locationManager.requestLocationUpdates(
-                LocationManager.NETWORK_PROVIDER,
-                1000L,
-                10f,
-                locationListener
-            )
-        }
+        locationManager.requestLocationUpdates(
+            provider,
+            1000L,
+            10f,
+            locationListener,
+            Looper.getMainLooper(),
+        )
+        // Гарантированно снимаем подписку, даже если fix так и не пришёл.
+        mainHandler.postDelayed(
+            { locationManager.removeUpdates(locationListener) },
+            LOCATION_REQUEST_TIMEOUT_MS,
+        )
     } catch (e: Exception) {
         e.printStackTrace()
+        mainHandler.removeCallbacksAndMessages(null)
     }
 }
 
@@ -518,65 +531,6 @@ private fun MapActionButton(
             )
         }
     }
-}
-
-@Composable
-fun CommentCard(comment: Comment) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = if (comment.isStatusChange) 
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            else 
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Icon(
-                imageVector = if (comment.isStatusChange) Icons.Default.Edit else Icons.Default.MailOutline,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = if (comment.isStatusChange) 
-                    MaterialTheme.colorScheme.primary 
-                else 
-                    MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Column {
-                Text(
-                    text = comment.text,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "${comment.author} • ${comment.createdAt.take(16).replace("T", " ")}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun PriorityBadge(priority: Priority) {
-    val (color, icon) = when (priority) {
-        Priority.EMERGENCY -> Color(0xFFFF3B30) to Icons.Default.Warning                // Аварийная - красный
-        Priority.URGENT -> Color(0xFFFF9500) to Icons.Default.Warning           // Срочная - оранжевый
-        Priority.CURRENT -> Color(0xFF0A84FF) to Icons.Default.DateRange        // Текущая - синий
-        Priority.PLANNED -> Color(0xFF34C759) to Icons.Default.DateRange        // Плановая - зелёный
-    }
-    
-    Icon(
-        imageVector = icon,
-        contentDescription = priority.displayName,
-        tint = color,
-        modifier = Modifier.size(20.dp)
-    )
 }
 
 /**
@@ -709,14 +663,6 @@ fun TaskStatus.toColor(): Color = when (this) {
     TaskStatus.UNKNOWN -> Color(0xFF8E8E93)
 }
 
-// Маркеры на карте красятся по приоритету (как на портале) — аварии выделяются.
-fun Priority.toColor(): Color = when (this) {
-    Priority.EMERGENCY -> Color(0xFFFF3B30) // Аварийная — красный
-    Priority.URGENT -> Color(0xFFFF9500)    // Срочная — оранжевый
-    Priority.CURRENT -> Color(0xFF0A84FF)   // Текущая — синий
-    Priority.PLANNED -> Color(0xFF34C759)   // Плановая — зелёный
-}
-
 fun TaskStatus.toIcon() = when (this) {
     TaskStatus.NEW -> Icons.Default.Star
     TaskStatus.IN_PROGRESS -> Icons.Default.Refresh
@@ -808,7 +754,7 @@ private fun OsmMapView(
             if (group.isCluster) {
                 val clusterDrawable = getClusterMarkerIcon(
                     context = context,
-                    markerColor = group.summary.highestPriority.toColor(),
+                    markerColor = priorityColor(group.summary.highestPriority),
                     count = group.count
                 ) ?: return@forEach
 
@@ -834,7 +780,7 @@ private fun OsmMapView(
                     title = "[${group.primaryTask.taskNumber}] ${group.primaryTask.title}"
                     snippet = group.address
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    icon = getMarkerIcon(context, group.summary.highestPriority.toColor(), group.count)
+                    icon = getMarkerIcon(context, priorityColor(group.summary.highestPriority), group.count)
 
                     setOnMarkerClickListener { _, _ ->
                         pendingGroupOpenJob?.cancel()

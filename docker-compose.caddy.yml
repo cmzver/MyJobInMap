@@ -1,7 +1,7 @@
 # FieldWorker Docker Compose — Standalone Caddy SSL
 # ==================================================
 # Caddy с автоматическим Let's Encrypt сертификатом.
-# Используется ОТДЕЛЬНО от docker-compose.yml, т.к. API работает на хосте напрямую.
+# Используется ОТДЕЛЬНО от docker-compose.postgres.yml (свой compose-проект).
 #
 # Caddy автоматически:
 # - Получает SSL сертификат от Let's Encrypt

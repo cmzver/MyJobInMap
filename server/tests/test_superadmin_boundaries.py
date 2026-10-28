@@ -46,7 +46,6 @@ def test_org_admin_cannot_access_system_admin_endpoints(client: TestClient, db_s
 
     protected_endpoints = [
         ("get", "/api/admin/devices"),
-        ("get", "/api/admin/permissions"),
         ("get", "/api/admin/settings"),
         ("get", "/api/updates/history"),
     ]
@@ -54,6 +53,11 @@ def test_org_admin_cannot_access_system_admin_endpoints(client: TestClient, db_s
     for method, url in protected_endpoints:
         response = getattr(client, method)(url, headers=headers)
         assert response.status_code == 403, f"{url} should be forbidden for org-admin"
+
+    # Матрица прав/групп — per-org: орг-админ управляет группами СВОЕЙ организации,
+    # поэтому /api/admin/permissions ему доступен (в скоупе его организации).
+    response = client.get("/api/admin/permissions", headers=headers)
+    assert response.status_code == 200
 
 
 def test_org_admin_cannot_modify_global_custom_fields(client: TestClient, db_session):

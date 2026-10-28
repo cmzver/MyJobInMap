@@ -732,6 +732,113 @@ class TestMessages:
         assert len(data["items"]) == 2
         assert data["has_more"] is True
 
+    def test_messages_after_id_catchup(self, client, auth_headers, second_user):
+        """after_id: catch-up возвращает только сообщения новее курсора (по возр.)."""
+        conv_id = self._create_direct(client, auth_headers, second_user)
+
+        msg_ids = []
+        for i in range(5):
+            resp = client.post(
+                f"/api/chat/conversations/{conv_id}/messages",
+                json={"text": f"Message {i}"},
+                headers=auth_headers,
+            )
+            msg_ids.append(resp.json()["id"])
+
+        # Курсор — третье сообщение: ждём только два последних, по возрастанию.
+        resp = client.get(
+            f"/api/chat/conversations/{conv_id}/messages?after_id={msg_ids[2]}",
+            headers=auth_headers,
+        )
+        data = resp.json()
+        assert [m["id"] for m in data["items"]] == [msg_ids[3], msg_ids[4]]
+        assert data["has_more"] is False
+
+        # Пропущено больше limit → has_more=True (сигнал к полному рефетчу).
+        resp = client.get(
+            f"/api/chat/conversations/{conv_id}/messages?after_id={msg_ids[0]}&limit=2",
+            headers=auth_headers,
+        )
+        data = resp.json()
+        assert [m["id"] for m in data["items"]] == [msg_ids[1], msg_ids[2]]
+        assert data["has_more"] is True
+
+        # Курсор на последнем сообщении → пусто.
+        resp = client.get(
+            f"/api/chat/conversations/{conv_id}/messages?after_id={msg_ids[4]}",
+            headers=auth_headers,
+        )
+        data = resp.json()
+        assert data["items"] == []
+        assert data["has_more"] is False
+
+    def test_mention_creates_notification(
+        self, client, auth_headers, db_session, second_user
+    ):
+        """@упоминание создаёт уведомление в колокольчик со ссылкой на чат."""
+        from app.models import NotificationModel
+
+        conv_id = self._create_direct(client, auth_headers, second_user)
+        resp = client.post(
+            f"/api/chat/conversations/{conv_id}/messages",
+            json={"text": "@user2 глянь плиз"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+
+        notif = (
+            db_session.query(NotificationModel)
+            .filter(
+                NotificationModel.user_id == second_user.id,
+                NotificationModel.conversation_id == conv_id,
+            )
+            .first()
+        )
+        assert notif is not None
+        assert "Упоминание" in notif.title
+
+    def test_task_status_change_posts_system_message(self, client, auth_headers):
+        """Смена статуса заявки пишет системное сообщение в её чат."""
+        task_id = client.post(
+            "/api/tasks",
+            json={"title": "Task", "address": "St, 1"},
+            headers=auth_headers,
+        ).json()["id"]
+
+        # Открываем (создаём) чат заявки.
+        conv_id = client.get(f"/api/chat/task/{task_id}", headers=auth_headers).json()[
+            "id"
+        ]
+
+        resp = client.patch(
+            f"/api/tasks/{task_id}/status",
+            json={"status": "IN_PROGRESS"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+
+        messages = client.get(
+            f"/api/chat/conversations/{conv_id}/messages", headers=auth_headers
+        ).json()["items"]
+        system = [m for m in messages if m["message_type"] == "system"]
+        assert len(system) == 1
+        assert "Статус изменён" in system[0]["text"]
+
+    def test_task_status_change_without_chat_ok(self, client, auth_headers):
+        """Смена статуса без существующего чата заявки не падает."""
+        task_id = client.post(
+            "/api/tasks",
+            json={"title": "Task", "address": "St, 2"},
+            headers=auth_headers,
+        ).json()["id"]
+
+        resp = client.patch(
+            f"/api/tasks/{task_id}/status",
+            json={"status": "IN_PROGRESS"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+
     def test_reply_to_message(self, client, auth_headers, second_user):
         """Ответ на сообщение."""
         conv_id = self._create_direct(client, auth_headers, second_user)
@@ -868,6 +975,74 @@ class TestMessages:
         )
         assert resp.status_code == 200
         assert len(resp.json()) == 2
+
+        # Пустой запрос → пусто, без ошибки.
+        resp = client.post(
+            f"/api/chat/conversations/{conv_id}/messages/search",
+            json={"query": "   "},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_global_search_across_chats(self, client, auth_headers, second_user):
+        """Глобальный поиск находит сообщения во всех чатах пользователя."""
+        conv_a = self._create_direct(client, auth_headers, second_user)
+        client.post(
+            f"/api/chat/conversations/{conv_a}/messages",
+            json={"text": "unicorn alpha"},
+            headers=auth_headers,
+        )
+        # Второй чат (групповой) с тем же словом.
+        group = client.post(
+            "/api/chat/conversations",
+            json={
+                "type": "group",
+                "name": "Team",
+                "member_user_ids": [second_user.id],
+            },
+            headers=auth_headers,
+        ).json()
+        client.post(
+            f"/api/chat/conversations/{group['id']}/messages",
+            json={"text": "unicorn beta"},
+            headers=auth_headers,
+        )
+
+        resp = client.post(
+            "/api/chat/messages/search",
+            json={"query": "unicorn"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        conv_ids = {m["conversation_id"] for m in resp.json()}
+        assert conv_ids == {conv_a, group["id"]}
+
+    def test_global_search_excludes_foreign_chats(
+        self, client, auth_headers, db_session, second_user, worker_user
+    ):
+        """Глобальный поиск не выдаёт сообщения из чужих чатов."""
+        from app.services import chat_service
+
+        # Чат между second_user и worker_user — текущий пользователь не участник.
+        conv = chat_service.create_conversation(
+            db_session,
+            conv_type="direct",
+            creator_id=second_user.id,
+            organization_id=None,
+            member_user_ids=[worker_user.id],
+        )
+        chat_service.send_message(
+            db_session, conv.id, second_user.id, text="secret zebra"
+        )
+
+        resp = client.post(
+            "/api/chat/messages/search",
+            json={"query": "zebra"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json() == []
 
     def test_non_member_cannot_send(
         self, client, auth_headers, second_user, worker_user
@@ -1255,3 +1430,71 @@ class TestTaskAttachment:
         assert resp.status_code == 200
         conv = next(c for c in resp.json() if c["id"] == conv_id)
         assert conv["last_message"]["text"].startswith("📋 Заявка")
+
+
+class TestSendMessageWithAttachment:
+    """Атомарная отправка сообщения с вложением (без draft-сирот)."""
+
+    def _create_direct(self, client, auth_headers, second_user):
+        resp = client.post(
+            "/api/chat/conversations",
+            json={"type": "direct", "member_user_ids": [second_user.id]},
+            headers=auth_headers,
+        )
+        return resp.json()["id"]
+
+    def test_image_attachment_with_caption(self, client, auth_headers, second_user):
+        """Картинка с подписью → message_type=image, одно вложение, текст сохранён."""
+        conv_id = self._create_direct(client, auth_headers, second_user)
+        resp = client.post(
+            f"/api/chat/conversations/{conv_id}/messages/with-attachment",
+            data={"text": "смотри"},
+            files={"file": ("pic.png", b"fake-image-bytes", "image/png")},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["message_type"] == "image"
+        assert data["text"] == "смотри"
+        assert len(data["attachments"]) == 1
+        assert data["attachments"][0]["file_name"] == "pic.png"
+
+    def test_file_attachment_without_text(self, client, auth_headers, second_user):
+        """Не-картинка без текста → message_type=file, текст None."""
+        conv_id = self._create_direct(client, auth_headers, second_user)
+        resp = client.post(
+            f"/api/chat/conversations/{conv_id}/messages/with-attachment",
+            files={"file": ("doc.bin", b"binary", "application/octet-stream")},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["message_type"] == "file"
+        assert data["text"] is None
+        assert len(data["attachments"]) == 1
+
+    def test_single_message_no_orphan(self, client, auth_headers, second_user):
+        """В чате ровно одно сообщение с вложением — никакого пустого draft."""
+        conv_id = self._create_direct(client, auth_headers, second_user)
+        client.post(
+            f"/api/chat/conversations/{conv_id}/messages/with-attachment",
+            files={"file": ("a.png", b"x", "image/png")},
+            headers=auth_headers,
+        )
+        resp = client.get(
+            f"/api/chat/conversations/{conv_id}/messages", headers=auth_headers
+        )
+        items = resp.json()["items"]
+        assert len(items) == 1
+        assert len(items[0]["attachments"]) == 1
+
+    def test_reply_to_foreign_message_404(self, client, auth_headers, second_user):
+        """reply_to_id из чужого чата → 404, сообщение не создаётся."""
+        conv_id = self._create_direct(client, auth_headers, second_user)
+        resp = client.post(
+            f"/api/chat/conversations/{conv_id}/messages/with-attachment",
+            data={"reply_to_id": "999999"},
+            files={"file": ("a.png", b"x", "image/png")},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 404

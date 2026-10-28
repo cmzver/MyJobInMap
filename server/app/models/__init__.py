@@ -15,6 +15,7 @@ Models Package
 
 from app.models.address import AddressContactModel  # Enums; Models
 from app.models.address import (
+    AddressAssigneeModel,
     AddressDocumentModel,
     AddressEquipmentModel,
     AddressHistoryEventType,
@@ -25,6 +26,8 @@ from app.models.address import (
     DocumentType,
     EquipmentStatus,
     EquipmentType,
+    IntercomActionModel,
+    IntercomPanelModel,
     SystemStatus,
     SystemType,
 )
@@ -47,12 +50,13 @@ from app.models.security import (
     BlockedIPModel,
     IPAllowlistModel,
     IPSecurityEventModel,
+    RefreshSessionModel,
 )
 from app.models.settings import (
     CustomFieldModel,
-    CustomFieldValueModel,
     RolePermissionModel,
     SystemSettingModel,
+    UserGroupModel,
     get_all_settings,
     get_setting,
     get_settings_by_group,
@@ -67,7 +71,7 @@ from app.models.support import (
     SupportTicketStatus,
 )
 from app.models.task import CommentModel, TaskModel, TaskPhotoModel
-from app.models.user import DeviceModel, UserModel
+from app.models.user import DeviceModel, PushSubscriptionModel, UserModel
 
 __all__ = [
     # Base
@@ -97,6 +101,7 @@ __all__ = [
     # User Models
     "UserModel",
     "DeviceModel",
+    "PushSubscriptionModel",
     # Organization
     "OrganizationModel",
     # Task Models
@@ -109,13 +114,17 @@ __all__ = [
     "AddressEquipmentModel",
     "AddressDocumentModel",
     "AddressContactModel",
+    "AddressAssigneeModel",
     "AddressHistoryModel",
+    "IntercomPanelModel",
+    "IntercomActionModel",
     # Notification
     "NotificationModel",
     # Security
     "BlockedIPModel",
     "IPAllowlistModel",
     "IPSecurityEventModel",
+    "RefreshSessionModel",
     # Chat
     "ConversationType",
     "ConversationMemberRole",
@@ -129,8 +138,8 @@ __all__ = [
     # Settings Models
     "SystemSettingModel",
     "CustomFieldModel",
-    "CustomFieldValueModel",
     "RolePermissionModel",
+    "UserGroupModel",
     # Settings Functions
     "get_setting",
     "set_setting",

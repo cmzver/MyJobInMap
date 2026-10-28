@@ -17,7 +17,7 @@ export type SettingsPanelId =
   | 'task-defaults'
   | 'task-media'
   | 'task-fields'
-  | 'task-layout'
+  | 'task-defect-types'
   | 'permissions-matrix'
   | 'telegram-bot'
 
@@ -29,7 +29,6 @@ type PanelAlias =
   | 'notifications'
   | 'images'
   | 'custom-fields'
-  | 'card-builder'
 
 const panelAliases: Record<Exclude<PanelAlias, SettingsPanelId>, SettingsPanelId> = {
   updates: 'mobile-updates',
@@ -37,7 +36,6 @@ const panelAliases: Record<Exclude<PanelAlias, SettingsPanelId>, SettingsPanelId
   notifications: 'mobile-notifications',
   images: 'task-media',
   'custom-fields': 'task-fields',
-  'card-builder': 'task-layout',
 }
 
 function resolvePanelId(alias?: PanelAlias): SettingsPanelId {

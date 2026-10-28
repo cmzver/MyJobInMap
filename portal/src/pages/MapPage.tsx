@@ -6,6 +6,7 @@ import { DivIcon, Icon, LatLngBounds, divIcon } from 'leaflet'
 import {
   Calendar,
   Filter,
+  List,
   Locate,
   MapPin,
   Navigation,
@@ -13,7 +14,7 @@ import {
   User,
   X,
 } from 'lucide-react'
-import Spinner from '@/components/Spinner'
+import QueryStatePanel from '@/components/QueryStatePanel'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
 import Select from '@/components/Select'
@@ -21,10 +22,11 @@ import { useAuthStore } from '@/store/authStore'
 import { useTheme } from '@/hooks/useTheme'
 import { useUsers } from '@/hooks/useUsers'
 import apiClient from '@/api/client'
-import { Task, PaginatedResponse } from '@/types/task'
+import type { PaginatedResponse, Task, TaskPriority, TaskStatus } from '@/types/task'
 import { normalizeRoleForAccess, isAssignableRole } from '@/types/user'
 import { normalizePriority } from '@/config/taskConstants'
 import { formatDatePretty } from '@/utils/dateFormat'
+import { buildTaskListUrl } from '@/utils/taskListUrl'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -261,8 +263,8 @@ function LocateControl() {
 export default function MapPage() {
   const { user } = useAuthStore()
   const { resolvedTheme } = useTheme()
-  const [statusFilter, setStatusFilter] = useState<string[]>(['NEW', 'IN_PROGRESS'])
-  const [priorityFilter, setPriorityFilter] = useState<string[]>([])
+  const [statusFilter, setStatusFilter] = useState<TaskStatus[]>(['NEW', 'IN_PROGRESS'])
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriority[]>([])
   const [assigneeFilter, setAssigneeFilter] = useState<string>('')
   const [showFilters, setShowFilters] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
@@ -277,14 +279,21 @@ export default function MapPage() {
     { value: 'DONE', label: 'Выполненные', color: markerColors.DONE },
     { value: 'CANCELLED', label: 'Отменённые', color: markerColors.CANCELLED },
   ] as const
-  const isWorker = normalizeRoleForAccess(user?.role) === 'worker'
+  const isWorker = normalizeRoleForAccess(user?.role, user?.baseAccess) === 'worker'
   const { data: users = [] } = useUsers()
   const assignableUsers = useMemo(
     () => users.filter((candidate) => candidate.is_active && isAssignableRole(candidate.role)),
     [users],
   )
+  const taskListUrl = isWorker
+    ? '/my-tasks'
+    : buildTaskListUrl({
+        statuses: sortedStatuses,
+        priorities: sortedPriorities,
+        assigneeIds: assigneeFilter ? [Number(assigneeFilter)] : undefined,
+      })
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['map-tasks', statusQuery, priorityQuery, isWorker ? user?.id : assigneeFilter],
     queryFn: async () => {
       const PAGE_SIZE = 200
@@ -368,7 +377,7 @@ export default function MapPage() {
     return Array.from(groups.values())
   }, [tasks, zoom])
 
-  const toggleStatus = (status: string) => {
+  const toggleStatus = (status: TaskStatus) => {
     setStatusFilter((prev) => {
       const hasStatus = prev.includes(status)
       if (hasStatus && prev.length === 1) return prev
@@ -378,7 +387,7 @@ export default function MapPage() {
   }
 
   // Приоритет: пустой выбор = показывать все приоритеты.
-  const togglePriority = (priority: string) => {
+  const togglePriority = (priority: TaskPriority) => {
     setPriorityFilter((prev) =>
       prev.includes(priority) ? prev.filter((item) => item !== priority) : [...prev, priority],
     )
@@ -488,11 +497,22 @@ export default function MapPage() {
         )}
       </div>
 
-      <div className="absolute right-4 top-4 z-10 rounded-lg border border-gray-200 bg-white px-4 py-2 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <div className="absolute right-4 top-4 z-10 flex items-center rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <span className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
-          <MapPin size={16} className="text-gray-500" />
-          {tasks.length} заявок на карте
+          <span className="flex items-center gap-2 px-3 py-2 sm:px-4">
+            <MapPin size={16} className="text-gray-500" />
+            {tasks.length}
+            <span className="hidden sm:inline">заявок на карте</span>
+          </span>
         </span>
+        <Link
+          to={taskListUrl}
+          className="flex items-center gap-2 border-l border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+          aria-label={isWorker ? 'Открыть мои заявки списком' : 'Открыть отфильтрованные заявки списком'}
+        >
+          <List size={16} />
+          <span className="hidden sm:inline">Список</span>
+        </Link>
       </div>
 
       <div className="pointer-events-none absolute bottom-4 left-4 z-[1000] rounded-lg border border-gray-200 bg-white/95 px-3 py-2 shadow-sm dark:border-gray-700 dark:bg-gray-800/95">
@@ -510,9 +530,29 @@ export default function MapPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex h-full items-center justify-center rounded-xl border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
-          <Spinner size="lg" />
-        </div>
+        <QueryStatePanel
+          state="loading"
+          title="Загружаем заявки на карте"
+          className="h-full min-h-0 rounded-xl bg-gray-100 dark:bg-gray-800"
+        />
+      ) : error && !data ? (
+        <QueryStatePanel
+          state="error"
+          icon={MapPin}
+          title="Не удалось загрузить карту заявок"
+          description="Данные карты недоступны. Проверьте подключение и попробуйте ещё раз."
+          onRetry={refetch}
+          isRetrying={isFetching}
+          className="h-full min-h-0 rounded-xl bg-gray-100 dark:bg-gray-800"
+        />
+      ) : tasks.length === 0 ? (
+        <QueryStatePanel
+          state="empty"
+          icon={MapPin}
+          title="На карте нет заявок"
+          description="По выбранным фильтрам нет заявок с координатами. Измените фильтры или откройте список."
+          className="h-full min-h-0 rounded-xl bg-gray-100 dark:bg-gray-800"
+        />
       ) : (
         <MapContainer
           center={defaultCenter}

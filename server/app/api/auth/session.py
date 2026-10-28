@@ -15,30 +15,41 @@ from app.schemas import RefreshRequest, Token
 from app.services import (
     authenticate_user,
     create_access_token,
-    create_refresh_token,
+    issue_refresh_token,
+    rotate_refresh_token,
     verify_refresh_token,
 )
 from app.services.audit_log import audit_login_failed, audit_login_success
 from app.services.ip_guard import ip_guard
 from app.services.rate_limiter import login_rate_limiter
 from app.services.role_utils import public_role_value
+from app.services.user_group_service import resolve_base_access, resolve_role_label
 from app.utils import build_user_avatar_url
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 
-def _build_token_response(user: UserModel) -> Token:
+def _build_token_response(
+    user: UserModel, db: Session, *, refresh_token: str | None = None
+) -> Token:
     """Собрать пару токенов и публичный профиль пользователя."""
-    token_data = {"sub": user.username, "user_id": user.id, "role": user.role}
+    token_data = {
+        "sub": user.username,
+        "user_id": user.id,
+        "role": user.role,
+        "auth_version": user.auth_version,
+    }
     org_id = user.organization_id
     org_name = user.organization.name if org_id and user.organization else None
     return Token(
         access_token=create_access_token(data=token_data),
-        refresh_token=create_refresh_token(data=token_data),
+        refresh_token=refresh_token or issue_refresh_token(db, user),
         token_type="bearer",
         user_id=user.id,
         username=user.username,
         role=public_role_value(user.role, user.organization_id),
+        role_label=resolve_role_label(db, user.role, user.organization_id),
+        base_access=resolve_base_access(db, user.role, user.organization_id),
         full_name=user.full_name or user.username,
         avatar_url=build_user_avatar_url(user),
         organization_id=org_id,
@@ -47,7 +58,7 @@ def _build_token_response(user: UserModel) -> Token:
 
 
 @router.post("/login", response_model=Token)
-async def login(
+def login(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
@@ -73,7 +84,7 @@ async def login(
     client_ip = ip_guard.get_client_ip(request)
 
     # Проверить rate limit
-    is_allowed, remaining = login_rate_limiter.is_allowed(client_ip)
+    is_allowed, _remaining = login_rate_limiter.is_allowed(client_ip)
 
     if not is_allowed:
         retry_after = login_rate_limiter.get_retry_after(client_ip)
@@ -100,11 +111,11 @@ async def login(
     user.last_login = datetime.now(timezone.utc)
     db.commit()
 
-    return _build_token_response(user)
+    return _build_token_response(user, db)
 
 
 @router.post("/refresh", response_model=Token)
-async def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
+def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
     """
     Обновить access token с помощью refresh token.
 
@@ -146,12 +157,13 @@ async def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
         )
 
     # Проверяем, что организация активна
-    if user.organization_id and user.organization:
-        if not user.organization.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Организация деактивирована",
-            )
+    if user.organization_id is not None and (
+        user.organization is None or not user.organization.is_active
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Организация деактивирована",
+        )
 
     # Проверяем что username совпадает (защита от переиспользования ID)
     if user.username != username:
@@ -159,5 +171,16 @@ async def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token mismatch"
         )
 
-    # Создаём новую пару токенов (ротация)
-    return _build_token_response(user)
+    if payload.get("auth_version", 0) != user.auth_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked"
+        )
+
+    new_refresh_token = rotate_refresh_token(db, data.refresh_token, payload, user)
+    if new_refresh_token is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or reused refresh token",
+        )
+
+    return _build_token_response(user, db, refresh_token=new_refresh_token)

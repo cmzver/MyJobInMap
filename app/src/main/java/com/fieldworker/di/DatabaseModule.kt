@@ -47,9 +47,9 @@ object DatabaseModule {
                 FieldWorkerDatabase.MIGRATION_2_3,
                 FieldWorkerDatabase.MIGRATION_3_4,
                 FieldWorkerDatabase.MIGRATION_4_5,
+                FieldWorkerDatabase.MIGRATION_5_6,
+                FieldWorkerDatabase.MIGRATION_6_7,
             )
-            // Для разработки: при изменении схемы БД будет пересоздана (если нет миграции)
-            .fallbackToDestructiveMigration()
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)

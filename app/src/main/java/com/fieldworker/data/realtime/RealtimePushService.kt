@@ -56,11 +56,16 @@ class RealtimePushService : Service() {
     private var webSocket: WebSocket? = null
     private var reconnectJob: Job? = null
 
+    @Volatile
+    private var reconnectAttempts = 0
+
     companion object {
         private const val TAG = "RealtimePushService"
         private const val CHANNEL_ID = "realtime_push_service"
         private const val NOTIFICATION_ID = 4001
         private const val DEDUP_WINDOW_MS = 5000L
+        private const val BASE_RECONNECT_DELAY_MS = 5_000L
+        private const val MAX_RECONNECT_DELAY_MS = 60_000L
         private val recentNotifications = ConcurrentHashMap<String, Long>()
         
         fun startService(context: Context) {
@@ -146,8 +151,14 @@ class RealtimePushService : Service() {
         }
         if (reconnectJob?.isActive == true) return
 
+        // Экспоненциальный backoff: 5с, 10с, 20с … до 60с — чтобы при недоступном
+        // сервере foreground-сервис не будил радио каждые 5с и не жёг батарею.
+        val delayMs = (BASE_RECONNECT_DELAY_MS shl reconnectAttempts.coerceAtMost(4))
+            .coerceAtMost(MAX_RECONNECT_DELAY_MS)
+        reconnectAttempts++
+
         reconnectJob = scope.launch {
-            delay(5000L)
+            delay(delayMs)
             if (webSocket == null) {
                 connect()
             }
@@ -157,6 +168,7 @@ class RealtimePushService : Service() {
     private val socketListener = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
             Log.d(TAG, "WebSocket connected for Push Service")
+            reconnectAttempts = 0
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {

@@ -12,7 +12,9 @@ venv/
 # Database (use volumes)
 *.db
 *.sqlite
-backups/*.sqlite.gz
+# Бэкапы (SQLite .gz и PostgreSQL .dump) — артефакты рантайма, живут в томах,
+# не должны запекаться в образ (иначе свежий named-volume инициализируется ими).
+backups/
 
 # Git
 .git/

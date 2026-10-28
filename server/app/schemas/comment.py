@@ -4,10 +4,11 @@ Comment Schemas
 РЎС…РµРјС‹ РґР»СЏ РєРѕРјРјРµРЅС‚Р°СЂРёРµРІ.
 """
 
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.datetime_utc import UtcDateTime
 
 
 class CommentCreate(BaseModel):
@@ -31,4 +32,4 @@ class CommentResponse(BaseModel):
     new_status: Optional[str] = None
     old_assignee: Optional[str] = None
     new_assignee: Optional[str] = None
-    created_at: datetime
+    created_at: UtcDateTime

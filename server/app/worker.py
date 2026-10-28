@@ -22,6 +22,7 @@ from arq.connections import RedisSettings
 
 from app.config import settings
 from app.services import metrics
+from app.services.task_queue import raise_retryable_delivery_failure
 
 logger = logging.getLogger("worker")
 
@@ -32,10 +33,25 @@ async def push_send(ctx, **kwargs):
 
     try:
         result = await asyncio.to_thread(_send_push_sync, **kwargs)
+        raise_retryable_delivery_failure(result)
         metrics.record_queue_processed("push_send", "success")
         return result
     except Exception:
         metrics.record_queue_processed("push_send", "error")
+        raise  # пусть ARQ сделает retry
+
+
+async def web_push_send(ctx, **kwargs):
+    """Отправка web-push (см. web_push._send_web_push_sync)."""
+    from app.services.web_push import _send_web_push_sync
+
+    try:
+        result = await asyncio.to_thread(_send_web_push_sync, **kwargs)
+        raise_retryable_delivery_failure(result)
+        metrics.record_queue_processed("web_push_send", "success")
+        return result
+    except Exception:
+        metrics.record_queue_processed("web_push_send", "error")
         raise  # пусть ARQ сделает retry
 
 
@@ -50,7 +66,7 @@ async def _shutdown(ctx) -> None:
 class WorkerSettings:
     """Конфигурация ARQ-воркера (``arq app.worker.WorkerSettings``)."""
 
-    functions = [push_send]
+    functions = [push_send, web_push_send]
     on_startup = _startup
     on_shutdown = _shutdown
     redis_settings = RedisSettings.from_dsn(settings.REDIS_URL)

@@ -11,10 +11,29 @@ Security Models
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, utcnow
+
+
+class RefreshSessionModel(Base):
+    """Одноразовая refresh-сессия с поддержкой ротации и replay detection."""
+
+    __tablename__ = "refresh_sessions"
+
+    jti: Mapped[str] = mapped_column(String(64), primary_key=True)
+    family_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=False
+    )
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    replaced_by_jti: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
 
 class BlockedIPModel(Base):

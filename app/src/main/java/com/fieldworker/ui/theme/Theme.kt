@@ -16,11 +16,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-// Базовая палитра: нейтральные поверхности + спокойный акцент.
+// Базовая палитра: нейтральные поверхности + оранжевый акцент (как в портале).
 object AppColors {
-    val Primary = Color(0xFF16657A)
-    val PrimaryLight = Color(0xFF4E8FA3)
-    val PrimaryDark = Color(0xFF103F4B)
+    // Оранжевый акцент портала (tailwind primary: 500 #ff9800, 600 #fb8c00, 700 #f57c00).
+    val Primary = Color(0xFFF57C00)
+    val PrimaryLight = Color(0xFFFFB74D)
+    val PrimaryDark = Color(0xFFE65100)
+    // Светлая подложка активного пункта (portal primary-50).
+    val PrimaryContainerLight = Color(0xFFFFF3E0)
+    val PrimaryContainerDark = Color(0xFF4A2A00)
 
     val Emergency = Color(0xFFC94F4F)
     val EmergencyBg = Color(0xFFFCECEC)
@@ -50,8 +54,9 @@ object AppColors {
 
 private val DarkColorScheme = darkColorScheme(
     primary = AppColors.PrimaryLight,
-    onPrimary = Color.White,
-    primaryContainer = AppColors.PrimaryDark,
+    onPrimary = Color(0xFF3A1D00),
+    primaryContainer = AppColors.PrimaryContainerDark,
+    onPrimaryContainer = AppColors.PrimaryLight,
     secondary = AppColors.Current,
     tertiary = AppColors.Planned,
     background = Color(0xFF0F1416),
@@ -65,7 +70,8 @@ private val DarkColorScheme = darkColorScheme(
 private val LightColorScheme = lightColorScheme(
     primary = AppColors.Primary,
     onPrimary = Color.White,
-    primaryContainer = AppColors.PrimaryLight.copy(alpha = 0.2f),
+    primaryContainer = AppColors.PrimaryContainerLight,
+    onPrimaryContainer = AppColors.PrimaryDark,
     secondary = AppColors.Current,
     tertiary = AppColors.Planned,
     background = AppColors.Background,

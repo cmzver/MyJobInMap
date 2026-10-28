@@ -19,8 +19,11 @@ from app.services.auth import (
     get_current_user,
     get_current_user_required,
     get_password_hash,
+    issue_refresh_token,
     oauth2_scheme,
     require_permission,
+    revoke_user_refresh_sessions,
+    rotate_refresh_token,
     verify_password,
     verify_refresh_token,
 )
@@ -72,7 +75,9 @@ from app.services.task_service import (
     get_task_service,
 )
 from app.services.task_state_machine import TaskStatusMachine
+from app.services.user_group_service import UserGroupServiceError
 from app.services.user_service import UserService, UserServiceError, get_user_service
+from app.services.web_push import send_web_push
 
 __all__ = [
     # Geocoding
@@ -83,12 +88,16 @@ __all__ = [
     "send_push_notification",
     "send_push_background",
     "_send_push_sync",
+    "send_web_push",
     # Auth
     "verify_password",
     "get_password_hash",
     "create_access_token",
     "create_refresh_token",
     "verify_refresh_token",
+    "issue_refresh_token",
+    "rotate_refresh_token",
+    "revoke_user_refresh_sessions",
     "authenticate_user",
     "get_current_user",
     "get_current_user_required",
@@ -114,6 +123,7 @@ __all__ = [
     "UserService",
     "UserServiceError",
     "get_user_service",
+    "UserGroupServiceError",
     # Backup Service
     "BackupService",
     "BackupServiceError",

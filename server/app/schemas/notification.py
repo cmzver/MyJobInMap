@@ -4,10 +4,11 @@ Notification Schemas
 РЎС…РµРјС‹ РґР»СЏ СѓРІРµРґРѕРјР»РµРЅРёР№.
 """
 
-from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
+
+from app.schemas.datetime_utc import UtcDateTime
 
 
 class PushNotificationRequest(BaseModel):
@@ -28,6 +29,7 @@ class NotificationBase(BaseModel):
     type: str = "system"  # task, system, alert, support
     task_id: Optional[int] = None
     support_ticket_id: Optional[int] = None
+    conversation_id: Optional[int] = None
 
 
 class NotificationCreate(NotificationBase):
@@ -41,6 +43,6 @@ class NotificationResponse(NotificationBase):
 
     id: int
     is_read: bool
-    created_at: datetime
+    created_at: UtcDateTime
 
     model_config = ConfigDict(from_attributes=True)

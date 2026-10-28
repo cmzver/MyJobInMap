@@ -39,7 +39,32 @@ def is_superadmin_user(user: Any) -> bool:
 
 
 def is_dispatcher_or_admin_user(user: Any) -> bool:
-    return canonical_role_value(getattr(user, "role", None)) in {
+    if canonical_role_value(getattr(user, "role", None)) in {
         UserRole.ADMIN.value,
         UserRole.DISPATCHER.value,
-    }
+    }:
+        return True
+    # Кастомная группа с base_access=dispatcher тоже проходит dispatcher-гейтинг.
+    from sqlalchemy.orm import object_session
+
+    from app.services.user_group_service import resolve_base_access
+
+    session = object_session(user)
+    if session is None:
+        return False
+    base = resolve_base_access(
+        session,
+        getattr(user, "role", None),
+        getattr(user, "organization_id", None),
+    )
+    return base in {"admin", "dispatcher"}
+
+
+def is_worker_user(user: Any) -> bool:
+    """Worker-уровень доступа (для ограничения «только свои заявки»).
+
+    Всё, что не admin/dispatcher по base_access, считается работником —
+    включая кастомные группы с base_access=worker. Безопасный дефолт: при
+    неизвестной роли/отсутствии сессии считаем работником (сужаем доступ).
+    """
+    return not is_dispatcher_or_admin_user(user)

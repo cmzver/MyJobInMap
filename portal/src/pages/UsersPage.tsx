@@ -17,12 +17,14 @@ import {
 } from 'lucide-react'
 import { useCreateUser, useDeleteUser, useUpdateUser, useUsers } from '@/hooks/useUsers'
 import { useOrganizations } from '@/hooks/useOrganizations'
+import { useGroups } from '@/hooks/useGroups'
 import { useAuthStore } from '@/store/authStore'
 import {
   isSuperadminRole,
   type CreateUserData,
   type UpdateUserData,
   type User as UserType,
+  type UserGroup as ApiGroup,
   type UserRole,
 } from '@/types/user'
 import { mutationToast } from '@/utils/apiError'
@@ -34,21 +36,20 @@ import EmptyState from '@/components/EmptyState'
 import Input from '@/components/Input'
 import Select from '@/components/Select'
 import { SkeletonTable } from '@/components/Skeleton'
+import GroupsManager from '@/components/GroupsManager'
 
-const roleOptions = [
-  { value: 'superadmin', label: 'Супер-админ' },
-  { value: 'admin', label: 'Администратор' },
-  { value: 'manager', label: 'Менеджер' },
-  { value: 'dispatcher', label: 'Диспетчер' },
-  { value: 'worker', label: 'Работник' },
-]
+type RoleVisual = { label: string; variant: 'info' | 'warning' | 'danger' | 'gray'; icon: typeof User }
 
-const roleConfig: Record<UserRole, { label: string; variant: 'info' | 'warning' | 'danger'; icon: typeof User }> = {
-  superadmin: { label: 'Супер-админ', variant: 'danger', icon: Shield },
-  admin: { label: 'Администратор', variant: 'danger', icon: Shield },
-  manager: { label: 'Менеджер', variant: 'warning', icon: UsersIcon },
-  dispatcher: { label: 'Диспетчер', variant: 'warning', icon: UsersIcon },
-  worker: { label: 'Работник', variant: 'info', icon: Briefcase },
+// Бейдж роли строится из реестра групп; роль может быть встроенной или кастомной.
+function getRoleVisual(role: string, groups: ApiGroup[]): RoleVisual {
+  if (role === 'superadmin') return { label: 'Супер-админ', variant: 'danger', icon: Shield }
+  const group = groups.find((g) => g.name === role)
+  if (group) {
+    if (group.base_access === 'admin') return { label: group.label, variant: 'danger', icon: Shield }
+    if (group.base_access === 'dispatcher') return { label: group.label, variant: 'warning', icon: UsersIcon }
+    return { label: group.label, variant: 'info', icon: Briefcase }
+  }
+  return { label: role, variant: 'gray', icon: User }
 }
 
 interface UserFormData {
@@ -87,11 +88,13 @@ export default function UsersPage() {
   const [formData, setFormData] = useState<UserFormData>(initialFormData)
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
   const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<string[]>([])
+  const [showGroupsManager, setShowGroupsManager] = useState(false)
 
   const currentUser = useAuthStore((state) => state.user)
   const isSuperadmin = isSuperadminRole(currentUser?.role, currentUser?.organizationId)
 
   const { data: users, isLoading, refetch, isFetching } = useUsers()
+  const { data: groups = [] } = useGroups()
   const {
     data: organizations,
     refetch: refetchOrganizations,
@@ -163,17 +166,21 @@ export default function UsersPage() {
   const isRefreshing = isFetching || isFetchingOrganizations
   const isSubmitting = createMutation.isPending || updateMutation.isPending
   const availableRoleOptions = useMemo(() => {
-    const baseOptions = roleOptions.filter(
-      (option) => isSuperadmin || (option.value !== 'superadmin' && option.value !== 'admin'),
-    )
+    // Опции = группы из реестра (admin/dispatcher/worker + кастомные).
+    // superadmin отсутствует в реестре, поэтому добавляем его вручную для суперадмина.
+    const groupOptions = groups.map((group) => ({ value: group.name, label: group.label }))
+    const withSuper = isSuperadmin
+      ? [{ value: 'superadmin', label: 'Супер-админ' }, ...groupOptions]
+      : groupOptions.filter((option) => option.value !== 'admin')
 
-    if (baseOptions.some((option) => option.value === formData.role)) {
-      return baseOptions
+    if (withSuper.some((option) => option.value === formData.role)) {
+      return withSuper
     }
 
-    const currentRoleOption = roleOptions.find((option) => option.value === formData.role)
-    return currentRoleOption ? [currentRoleOption, ...baseOptions] : baseOptions
-  }, [formData.role, isSuperadmin])
+    // Текущая роль пользователя может быть отфильтрована/удалена — показываем её.
+    const fallback = getRoleVisual(formData.role, groups)
+    return [{ value: formData.role, label: fallback.label }, ...withSuper]
+  }, [formData.role, groups, isSuperadmin])
 
   const handleOpenCreate = () => {
     setEditingUser(null)
@@ -304,6 +311,14 @@ export default function UsersPage() {
             <Button
               variant="secondary"
               size="sm"
+              onClick={() => setShowGroupsManager((value) => !value)}
+            >
+              <Shield className="mr-2 h-4 w-4" />
+              Группы и права
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => void handleRefresh()}
               disabled={isRefreshing}
             >
@@ -317,6 +332,12 @@ export default function UsersPage() {
           </>
         }
       />
+
+      {showGroupsManager && (
+        <div className="mb-6">
+          <GroupsManager />
+        </div>
+      )}
 
       {isLoading ? (
         <SkeletonTable rows={4} columns={5} />
@@ -435,7 +456,7 @@ export default function UsersPage() {
                       </thead>
                       <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
                         {group.users.map((user) => {
-                          const role = roleConfig[user.role]
+                          const role = getRoleVisual(user.role, groups)
                           const RoleIcon = role.icon
 
                           return (

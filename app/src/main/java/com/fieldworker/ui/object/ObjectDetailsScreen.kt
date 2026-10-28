@@ -33,7 +33,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -360,6 +359,8 @@ private fun ObjectOverviewCard(addressDetails: AddressDetails) {
 
 @Composable
 private fun ObjectStatsGrid(addressDetails: AddressDetails) {
+    // Четыре равнозначных счётчика — ни один не важнее другого, поэтому
+    // раскраска не несёт смысла и только создаёт шум. Один нейтральный тон.
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -369,13 +370,11 @@ private fun ObjectStatsGrid(addressDetails: AddressDetails) {
                 modifier = Modifier.weight(1f),
                 label = "Заявки",
                 value = addressDetails.taskStats.total.toString(),
-                tint = MaterialTheme.colorScheme.primary
             )
             ObjectStatCard(
                 modifier = Modifier.weight(1f),
                 label = "Системы",
                 value = addressDetails.systems.size.toString(),
-                tint = Color(0xFF2F7D4B)
             )
         }
         Row(
@@ -386,13 +385,11 @@ private fun ObjectStatsGrid(addressDetails: AddressDetails) {
                 modifier = Modifier.weight(1f),
                 label = "Оборудование",
                 value = addressDetails.equipment.sumOf { it.quantity }.toString(),
-                tint = Color(0xFFCC7A1A)
             )
             ObjectStatCard(
                 modifier = Modifier.weight(1f),
                 label = "Документы",
                 value = addressDetails.documents.size.toString(),
-                tint = Color(0xFF2A6F97)
             )
         }
     }
@@ -403,12 +400,11 @@ private fun ObjectStatCard(
     modifier: Modifier = Modifier,
     label: String,
     value: String,
-    tint: Color
 ) {
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.medium,
-        color = tint.copy(alpha = 0.10f)
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
@@ -418,7 +414,7 @@ private fun ObjectStatCard(
                 text = value,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = tint
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = label,

@@ -93,7 +93,7 @@ def _get_worker_name(db: Session, user: UserModel, worker_id: Optional[int]) -> 
         tenant.apply(db.query(UserModel), UserModel)
         .filter(
             UserModel.id == worker_id,
-            UserModel.role.in_([UserRole.WORKER.value, UserRole.DISPATCHER.value]),
+            UserModel.role != UserRole.ADMIN.value,
             UserModel.is_active == True,
         )
         .first()

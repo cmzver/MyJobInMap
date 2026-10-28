@@ -48,7 +48,8 @@ portal/
 │   ├── api/                  # API клиент
 │   ├── components/           # UI компоненты
 │   ├── config/
-│   │   └── menuConfig.ts     # Конфигурация меню по ролям
+│   │   ├── portalRoutes.tsx  # Маршруты, права, редиректы и метаданные навигации
+│   │   └── menuConfig.ts     # Меню, собранное из реестра маршрутов
 │   ├── hooks/                # React хуки
 │   ├── layouts/
 │   │   └── DashboardLayout.tsx
@@ -73,13 +74,17 @@ portal/
 │   │   └── authStore.ts      # Авторизация + роли
 │   ├── types/                # TypeScript типы
 │   ├── utils/                # Утилиты
-│   ├── App.tsx               # Роутинг с ProtectedRoute
+│   ├── App.tsx               # Рендер реестра маршрутов с ProtectedRoute
 │   └── main.tsx              # Entry point
 ├── package.json
 ├── tailwind.config.js
 ├── tsconfig.json
 └── vite.config.ts
 ```
+
+### Единый реестр маршрутов
+
+Защищённые маршруты портала описаны в `src/config/portalRoutes.tsx`. В одном месте задаются путь, допустимые роли, ограничение для администраторов организаций, совместимые редиректы и данные пункта меню. `App.tsx` рендерит этот реестр, а `menuConfig.ts` строит из него боковую и мобильную навигацию. При добавлении раздела не нужно отдельно синхронизировать права в роутере и меню.
 
 ## 🚀 Запуск
 
@@ -88,8 +93,16 @@ portal/
 cd portal
 npm install
 
-# Режим разработки
+# Режим разработки: http://localhost:3000/portal/
 npm run dev
+
+# Проверки
+npm run lint
+npx tsc --noEmit
+npx vitest run
+
+# Типы API из OpenAPI сервера (после изменений в server/)
+npm run gen:api
 
 # Сборка
 npm run build
@@ -126,11 +139,3 @@ npm run preview
 - Десктоп (sidebar + main content)
 - Планшет (collapsible sidebar)
 - Мобильные (drawer menu)
-
-## Версия
-
-**v2.14.2** — портал с компактной карточкой заявки и Android-клиентом, где фильтры списка снова применяются корректно
-
----
-
-**Последнее обновление:** 12 марта 2026

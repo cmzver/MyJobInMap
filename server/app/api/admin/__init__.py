@@ -17,6 +17,7 @@ from app.api.admin.permissions import router as permissions_router
 from app.api.admin.security import router as security_router
 from app.api.admin.settings import public_router
 from app.api.admin.settings import router as settings_router
+from app.api.admin.system import router as system_router
 from app.api.admin.tasks import router as tasks_router
 from app.api.admin.users import router as users_router
 
@@ -31,5 +32,6 @@ router.include_router(database_router)
 router.include_router(security_router)
 router.include_router(settings_router)
 router.include_router(organizations_router)
+router.include_router(system_router)
 
 __all__ = ["router", "public_router"]

@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import TaskPriority, TaskStatus
 from app.schemas.comment import CommentResponse
+from app.schemas.datetime_utc import UtcDateTime
 
 
 def _parse_planned_date_value(value):
@@ -312,13 +313,13 @@ class _TaskReadBase(BaseModel):
         json_schema_extra={"example": "URGENT"},
     )
 
-    created_at: datetime = Field(
+    created_at: UtcDateTime = Field(
         ...,
         description="Дата создания (UTC)",
         json_schema_extra={"example": "2025-12-09T23:00:00"},
     )
 
-    updated_at: datetime = Field(
+    updated_at: UtcDateTime = Field(
         ...,
         description="Дата последнего обновления (UTC)",
         json_schema_extra={"example": "2025-12-09T23:30:00"},
@@ -330,7 +331,7 @@ class _TaskReadBase(BaseModel):
         json_schema_extra={"example": "2025-12-10T00:00:00"},
     )
 
-    completed_at: Optional[datetime] = Field(
+    completed_at: Optional[UtcDateTime] = Field(
         None,
         description="Дата завершения (если статус=DONE)",
         json_schema_extra={"example": "2025-12-09T21:00:00"},
@@ -346,6 +347,18 @@ class _TaskReadBase(BaseModel):
         None,
         description="Имя исполнителя",
         json_schema_extra={"example": "Иван Полевой"},
+    )
+
+    created_by_id: Optional[int] = Field(
+        None,
+        description="ID пользователя, который завел заявку",
+        json_schema_extra={"example": 1},
+    )
+
+    created_by_name: Optional[str] = Field(
+        None,
+        description="Кем заведена заявка",
+        json_schema_extra={"example": "Диспетчер"},
     )
 
     is_remote: bool = Field(

@@ -15,6 +15,11 @@ param(
     [switch]$DryRun = $false,
     [switch]$Force = $false,
 
+    # Unconditionally rebuild every Docker image and force-recreate every
+    # container, regardless of which files changed. Use for a clean "rebuild
+    # everything from scratch" deploy (see scripts/recreate-containers.ps1).
+    [switch]$ForceRebuild = $false,
+
     # Fresh-server bootstrap: install Docker, generate missing secrets, upload env
     # files and (optionally) bring up Caddy with automatic SSL. Safe to run against
     # an already-provisioned server too - every step is idempotent.
@@ -22,7 +27,34 @@ param(
     [string]$Domain = $null,
     [switch]$SkipDockerInstall = $false,
     [switch]$SkipCaddy = $false,
-    [switch]$SkipFirewall = $false
+    [switch]$SkipFirewall = $false,
+
+    # Compose stack used on the server. Defaults to the PostgreSQL stack
+    # (docker-compose.postgres.yml: db + redis + server + worker + telegram-bot),
+    # which is the production database. $ApiService/$ApiContainer must match the
+    # chosen file's API service/container names.
+    [string]$ComposeFile = "docker-compose.postgres.yml",
+    [string]$ApiService = "server",
+    [string]$ApiContainer = "fieldworker_server",
+
+    # Bring up the monitoring stack (Prometheus + Grafana + node-exporter) on top
+    # of the main stack via docker-compose.monitoring.yml. Ports 9090/3000 are NOT
+    # opened in the firewall - reach them over an SSH tunnel or put them behind
+    # Caddy with auth. Safe to re-run (idempotent).
+    [switch]$Monitoring = $false,
+    [string]$MonitoringFile = "docker-compose.monitoring.yml",
+
+    # Open Grafana (3000) and Prometheus (9090) in ufw for direct/test access.
+    # Off by default - production should reach Grafana over Caddy with auth, not a
+    # raw open port with the default admin password.
+    [switch]$OpenMonitoringPorts = $false,
+
+    # Layer the on-demand WireGuard overlay (docker-compose.wireguard.postgres.yml)
+    # on top of the main stack so the API container can reach the intercom panel
+    # subnet. Threaded into every compose invocation so it survives redeploys.
+    # Requires deploy/wireguard/wg-intercom.conf to exist (see deploy/wireguard/README.md).
+    [switch]$WireGuard = $false,
+    [string]$WireGuardFile = "docker-compose.wireguard.postgres.yml"
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,11 +99,29 @@ $colors = @{
     Error = "Red"
 }
 
-$script:SSHArgs = @("-p", "$SSHPort")
-$script:SCPArgs = @("-P", "$SSHPort")
-$script:RsyncShellCommand = "ssh -p $SSHPort"
+# Keep-alive so a flaky network drops the connection in ~1 min instead of
+# hanging ssh.exe forever on a half-open socket (Windows OpenSSH has no
+# connection multiplexing to fall back on).
+$script:SSHKeepAlive = @("-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=4")
+$script:RsyncKeepAlive = "-o ServerAliveInterval=15 -o ServerAliveCountMax=4"
+
+$script:SSHArgs = @("-p", "$SSHPort") + $script:SSHKeepAlive
+$script:SCPArgs = @("-P", "$SSHPort") + $script:SSHKeepAlive
+$script:RsyncShellCommand = "ssh -p $SSHPort $script:RsyncKeepAlive"
 $script:ControlPath = $null
 $script:UseConnectionSharing = $false
+
+# Compose file args threaded into every remote compose invocation. With
+# -WireGuard the on-demand WG overlay is layered on so it survives redeploys
+# (the deploy syncs both the overlay and the peer conf to the server).
+$script:ComposeFileArgs = "-f $ComposeFile"
+if ($WireGuard) {
+    $wgConf = Join-Path $LocalPath "deploy/wireguard/wg-intercom.conf"
+    if (-not (Test-Path $wgConf)) {
+        throw "WireGuard requested but $wgConf is missing. Create it (see deploy/wireguard/README.md) before deploying with -WireGuard."
+    }
+    $script:ComposeFileArgs += " -f $WireGuardFile"
+}
 
 if ($SshKeyPath) {
     if (-not (Test-Path $SshKeyPath)) {
@@ -135,6 +185,15 @@ function Invoke-PortalBuild {
 }
 
 function Initialize-SSHTransport {
+    # Windows OpenSSH does not support ControlMaster/ControlPath multiplexing;
+    # enabling it only produces a "multiplexing is not supported" warning and a
+    # fallback on every command. With key auth there is no password to amortise,
+    # so just skip connection sharing on Windows entirely.
+    $isWindows = ($PSVersionTable.PSVersion.Major -lt 6) -or $IsWindows
+    if ($isWindows) {
+        return
+    }
+
     $safeServer = $Server -replace "[^a-zA-Z0-9._-]", "_"
     $script:ControlPath = Join-Path $env:TEMP "fieldworker-ssh-$safeServer-$SSHPort.sock"
     $connectionSharingArgs = @(
@@ -150,9 +209,9 @@ function Initialize-SSHTransport {
 }
 
 function Disable-SSHConnectionSharing {
-    $script:SSHArgs = @("-p", "$SSHPort")
-    $script:SCPArgs = @("-P", "$SSHPort")
-    $script:RsyncShellCommand = "ssh -p $SSHPort"
+    $script:SSHArgs = @("-p", "$SSHPort") + $script:SSHKeepAlive
+    $script:SCPArgs = @("-P", "$SSHPort") + $script:SSHKeepAlive
+    $script:RsyncShellCommand = "ssh -p $SSHPort $script:RsyncKeepAlive"
 
     if ($SshKeyPath) {
         $script:SSHArgs += @("-i", $SshKeyPath)
@@ -352,7 +411,7 @@ function Format-ComposeCommand {
     # NO embedded double quotes: a 'DC="docker compose"' style shell variable does
     # not survive the Windows ssh.exe -> remote bash quoting round-trip (the quotes
     # get mangled and the variable ends up empty).
-    return "if docker compose version >/dev/null 2>&1; then docker compose $ComposeArgs; else docker-compose $ComposeArgs; fi"
+    return "if docker compose version >/dev/null 2>&1; then docker compose $script:ComposeFileArgs $ComposeArgs; else docker-compose $script:ComposeFileArgs $ComposeArgs; fi"
 }
 
 function Wait-ContainerHealthy {
@@ -425,7 +484,7 @@ function Sync-WithArchive {
         } -ErrorMessage "Failed to upload deployment archive"
 
         Write-Log "Cleaning old files on remote" "Info"
-        $cleanCommand = "cd $RemotePath 2>/dev/null && find . -maxdepth 1 -mindepth 1 ! -name server ! -name bot -exec rm -rf {} + 2>/dev/null; find server -maxdepth 1 -mindepth 1 ! -name .env ! -name uploads ! -name backups ! -name logs ! -name '*.db' ! -name '*.db-journal' ! -name '*.db-wal' ! -name '*.db-shm' -exec rm -rf {} + 2>/dev/null; find bot -maxdepth 1 -mindepth 1 ! -name .env -exec rm -rf {} + 2>/dev/null; true"
+        $cleanCommand = "cd $RemotePath 2>/dev/null && find . -maxdepth 1 -mindepth 1 ! -name server ! -name bot ! -name .env -exec rm -rf {} + 2>/dev/null; find server -maxdepth 1 -mindepth 1 ! -name .env ! -name uploads ! -name backups ! -name logs ! -name '*.db' ! -name '*.db-journal' ! -name '*.db-wal' ! -name '*.db-shm' -exec rm -rf {} + 2>/dev/null; find bot -maxdepth 1 -mindepth 1 ! -name .env -exec rm -rf {} + 2>/dev/null; true"
         Invoke-RemoteCommand $cleanCommand | Out-Null
 
         Write-Log "Extracting on remote" "Info"
@@ -598,7 +657,7 @@ function Set-RemoteFirewall {
     # NOTE: Docker publishes the API port (8001) straight into iptables and ufw does
     # NOT filter Docker-published ports. With the recommended Caddy setup that is fine
     # (8001 only needs to be reachable from localhost); to actually close it off, bind
-    # the port to 127.0.0.1 in docker-compose.yml.
+    # the port to 127.0.0.1 in docker-compose.postgres.yml.
     $cmd = @(
         "command -v ufw >/dev/null 2>&1 || { apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ufw; }"
         "ufw allow $SSHPort/tcp"
@@ -633,6 +692,30 @@ function Enable-CaddySSL {
     $command = "cd $RemotePath && export DOMAIN='$DomainName' && $composeUp"
     Invoke-RemoteCommand $command | Out-Null
     Write-Log "Caddy started for $DomainName (Let's Encrypt issues the certificate on first request)" "Success"
+}
+
+function Enable-Monitoring {
+    if (-not (Test-RemoteFileExists "$RemotePath/$MonitoringFile")) {
+        throw "$MonitoringFile not found at $RemotePath (the file sync step must run before monitoring setup)"
+    }
+
+    # Merge the monitoring compose with the main stack so Prometheus shares its
+    # network and can scrape the api service and node-exporter by name.
+    # --force-recreate: the archive sync deletes and re-extracts monitoring/ on
+    # every deploy, which leaves the running Grafana/Prometheus bind-mounts
+    # pointing at the old (removed) directory. Recreating re-binds the fresh dir
+    # so provisioned dashboards and prometheus.yml are always current.
+    $composeUp = Format-ComposeCommand "-f $MonitoringFile up -d --force-recreate"
+    Invoke-RemoteCommand "cd $RemotePath && $composeUp" | Out-Null
+    Write-Log "Monitoring stack up (Prometheus :9090, Grafana :3000, node-exporter)" "Success"
+
+    if ($OpenMonitoringPorts) {
+        Invoke-RemoteCommand "command -v ufw >/dev/null 2>&1 && ufw allow 3000/tcp && ufw allow 9090/tcp || true" | Out-Null
+        Write-Log "Opened ufw 3000 (Grafana) and 9090 (Prometheus) for direct access" "Warning"
+        Write-Log "Grafana login is admin/admin by default - change GRAFANA_PASSWORD before exposing publicly" "Warning"
+    } else {
+        Write-Log "Ports 9090/3000 are NOT opened in ufw - reach Grafana via SSH tunnel: ssh -p $SSHPort -L 3000:localhost:3000 $Server" "Warning"
+    }
 }
 
 if (-not (Test-Path $LocalPath)) {
@@ -751,6 +834,7 @@ try {
             "server/uploads/chat/*"
             "server/uploads/address_documents/*"
             "server/logs"
+            "server/backups"
             ".DS_Store"
             "app/src"
             "portal/src"
@@ -794,7 +878,7 @@ try {
         }
 
         # dist goes to two places: the standalone web root and the path the api
-        # container bind-mounts (./portal/dist in docker-compose.yml).
+        # container bind-mounts (./portal/dist in docker-compose.postgres.yml).
         $portalDestinations = @($PortalRemotePath, "$RemotePath/portal/dist")
 
         if ($DryRun) {
@@ -840,26 +924,22 @@ try {
             throw "Missing remote env files: $($missingRemoteFiles -join ', '). Use -IncludeServiceEnvFiles or create them manually on the server."
         }
 
-        # Decide whether a Docker image rebuild is actually needed. The api service
-        # bind-mounts ./server into the container (docker-compose.yml), so plain
-        # Python code changes are picked up by recreating the container from the
-        # existing image - no rebuild. A rebuild is only required when the image
-        # contents change: server/requirements.txt, server/Dockerfile, or any bot/
-        # file (the bot bakes its code into the image and has no bind mount).
+        # Decide whether a Docker image rebuild is actually needed. Both the API
+        # (docker-compose.postgres.yml has no ./server bind mount) and the bot bake
+        # their code into the image, so ANY server/ or bot/ change needs a rebuild.
+        # Only env-file changes take the fast path (recreate without rebuild).
         $rebuildRequired = $false
-        $apiCodeChanged = $false
 
-        if ($SkipSync -or $syncMode -ne "rsync") {
+        if ($ForceRebuild) {
+            # Explicit full rebuild requested - skip change detection entirely.
+            $rebuildRequired = $true
+        } elseif ($SkipSync -or $syncMode -ne "rsync") {
             # No reliable list of changed files - rebuild to stay safe.
             $rebuildRequired = $true
         } else {
             foreach ($changed in $script:ChangedFiles) {
-                if ($changed -match '^server/requirements\.txt$' -or
-                    $changed -match '^server/Dockerfile$' -or
-                    $changed -match '^bot/') {
+                if ($changed -match '^(server|bot)/') {
                     $rebuildRequired = $true
-                } elseif ($changed -match '^server/') {
-                    $apiCodeChanged = $true
                 }
             }
         }
@@ -867,25 +947,32 @@ try {
         $serverEnvChanged = $script:ChangedEnvServices -contains "server"
         $botEnvChanged = $script:ChangedEnvServices -contains "bot"
 
-        # NOTE: no --remove-orphans here. Only docker-compose.yml (api, telegram-bot)
+        # NOTE: no --remove-orphans here. Only $ComposeFile (+ WireGuard overlay)
         # is loaded, but other services in this project (notably fieldworker-caddy,
         # defined in docker-compose.caddy.yml) run from separate compose files. With
         # --remove-orphans they would be treated as orphans and destroyed.
         if ($rebuildRequired) {
-            # Build new images while the old containers keep running, then recreate
-            # only what changed.
-            Write-Log "Rebuilding and recreating containers" "Info"
-            Invoke-RemoteCommand "cd $RemotePath && $(Format-ComposeCommand 'up -d --build')" | Out-Null
+            # Build new images while the old containers keep running, then recreate.
+            # With -ForceRebuild we additionally --force-recreate so EVERY container
+            # is replaced even if its image/config did not change; otherwise compose
+            # only recreates services whose image was actually rebuilt.
+            if ($ForceRebuild) {
+                Write-Log "Force rebuilding images and recreating all containers" "Info"
+                Invoke-RemoteCommand "cd $RemotePath && $(Format-ComposeCommand 'up -d --build --force-recreate')" | Out-Null
+            } else {
+                Write-Log "Rebuilding and recreating containers" "Info"
+                Invoke-RemoteCommand "cd $RemotePath && $(Format-ComposeCommand 'up -d --build')" | Out-Null
+            }
         } else {
             # Fast path - no image rebuild. First ensure everything is up (this also
             # builds any missing image, e.g. on a first deploy), then force-recreate
-            # only the services whose bind-mounted code or env file changed.
-            $recreateApi = $apiCodeChanged -or $serverEnvChanged
+            # only the services whose env file changed.
+            $recreateApi = $serverEnvChanged
             $recreateBot = $botEnvChanged
 
             $fastCommand = "cd $RemotePath && $(Format-ComposeCommand 'up -d')"
             if ($recreateApi) {
-                $fastCommand += " && $(Format-ComposeCommand 'up -d --force-recreate --no-build api')"
+                $fastCommand += " && $(Format-ComposeCommand "up -d --force-recreate --no-build $ApiService")"
             }
             if ($recreateBot) {
                 $fastCommand += " && $(Format-ComposeCommand 'up -d --force-recreate --no-build telegram-bot')"
@@ -902,10 +989,10 @@ try {
         # Gate the deploy on the API healthcheck so a broken start fails loudly
         # instead of reporting a green 'ps' over a dead container.
         Write-Log "Waiting for API healthcheck" "Info"
-        if (Wait-ContainerHealthy -Container "fieldworker-api" -TimeoutSeconds 120) {
+        if (Wait-ContainerHealthy -Container $ApiContainer -TimeoutSeconds 120) {
             Write-Log "API is healthy" "Success"
         } else {
-            throw "API did not become healthy within 120s. Check logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose logs --tail=100 api'"
+            throw "API did not become healthy within 120s. Check logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose -f $ComposeFile logs --tail=100 $ApiService'"
         }
 
         Write-Log "Container status" "Info"
@@ -925,15 +1012,20 @@ try {
         }
     }
 
+    if ($Monitoring -and -not $DryRun) {
+        Write-Log "Setting up monitoring stack (Prometheus + Grafana + node-exporter)" "Info"
+        Enable-Monitoring
+    }
+
     $deployDuration = (Get-Date) - $deployStart
     $durationStr = "{0:mm\:ss}" -f $deployDuration
     Write-Log "Deployment completed in $durationStr" "Success"
     if ($Provision -and $Domain -and -not $SkipCaddy -and -not $DryRun) {
         Write-Log "Portal:  https://$Domain/portal/" "Success"
-        Write-Log "API:     https://$Domain/api/health" "Success"
+        Write-Log "Health:  https://$Domain/health" "Success"
     }
-    Write-Log "Check status: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose ps'" "Info"
-    Write-Log "View logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose logs -f'" "Info"
+    Write-Log "Check status: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose -f $ComposeFile ps'" "Info"
+    Write-Log "View logs: ssh -p $SSHPort $Server 'cd $RemotePath && docker compose -f $ComposeFile logs -f'" "Info"
 }
 finally {
     if ($portalBuildJob) {

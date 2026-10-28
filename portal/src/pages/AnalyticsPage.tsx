@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Activity,
+  ArrowRight,
   BarChart3,
   CheckCircle,
   Clock,
@@ -17,13 +19,13 @@ import SlaSection from '@/components/analytics/SlaSection'
 import { complianceColor, formatHours } from '@/components/analytics/analyticsUtils'
 import Button from '@/components/Button'
 import Card from '@/components/Card'
-import EmptyState from '@/components/EmptyState'
+import QueryStatePanel from '@/components/QueryStatePanel'
 import Select from '@/components/Select'
-import Spinner from '@/components/Spinner'
 import { downloadAnalyticsReport, useAnalytics } from '@/hooks/useAnalytics'
 import { useUsers } from '@/hooks/useUsers'
 import type { ReportPeriod } from '@/types/reports'
 import { isAssignableRole } from '@/types/user'
+import { buildTaskListUrl } from '@/utils/taskListUrl'
 
 const periodOptions = [
   { value: 'today', label: 'Сегодня' },
@@ -48,8 +50,18 @@ export default function AnalyticsPage() {
     period,
     worker_id: selectedWorkerId ? Number(selectedWorkerId) : undefined,
   }
+  const activeTaskListUrl = buildTaskListUrl({
+    statuses: ['NEW', 'IN_PROGRESS'],
+    assigneeIds: selectedWorkerId ? [Number(selectedWorkerId)] : undefined,
+  })
 
   const { data, isLoading, isFetching, error, refetch } = useAnalytics(filters)
+  const pageHeader = (
+    <PageHeader
+      title="Аналитика"
+      description="Сводка по заявкам, исполнителям и соблюдению SLA за выбранный период."
+    />
+  )
 
   const handleExport = async () => {
     try {
@@ -63,19 +75,26 @@ export default function AnalyticsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[420px] items-center justify-center">
-        <Spinner size="lg" />
+      <div className="space-y-4">
+        {pageHeader}
+        <QueryStatePanel state="loading" title="Загружаем аналитику" />
       </div>
     )
   }
 
   if (error || !data) {
     return (
-      <EmptyState
-        icon={BarChart3}
-        title="Не удалось загрузить аналитику"
-        description="Проверьте подключение к серверу и попробуйте обновить данные."
-      />
+      <div className="space-y-4">
+        {pageHeader}
+        <QueryStatePanel
+          state="error"
+          icon={BarChart3}
+          title="Не удалось загрузить аналитику"
+          description="Проверьте подключение к серверу и попробуйте обновить данные."
+          onRetry={refetch}
+          isRetrying={isFetching}
+        />
+      </div>
     )
   }
 
@@ -128,14 +147,11 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="Аналитика"
-        description="Сводка по заявкам, исполнителям и соблюдению SLA за выбранный период."
-      />
+      {pageHeader}
 
       <Card>
         <div className="space-y-4 p-5">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div>
                 <p className="mb-2 text-sm font-medium text-gray-900 dark:text-white">Период</p>
@@ -170,6 +186,13 @@ export default function AnalyticsPage() {
                     <Activity className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
                     Обновить
                   </Button>
+                  <Link
+                    to={activeTaskListUrl}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-4 py-2 text-base font-medium text-gray-900 transition-colors hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 dark:focus:ring-offset-gray-900"
+                  >
+                    Активные заявки
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
                   <Button variant="primary" onClick={handleExport}>
                     <Download className="h-4 w-4" />
                     Экспорт XLSX

@@ -80,6 +80,15 @@ export const chatApi = {
     return data
   },
 
+  // Catch-up для reconnect-sync: сообщения новее afterId (по возрастанию id).
+  async getMessagesAfter(conversationId: number, afterId: number, limit = 50): Promise<MessageListResponse> {
+    const { data } = await apiClient.get<MessageListResponse>(
+      `/chat/conversations/${conversationId}/messages`,
+      { params: { after_id: afterId, limit } },
+    )
+    return data
+  },
+
   async sendMessage(conversationId: number, payload: MessageCreate): Promise<MessageResponse> {
     const { data } = await apiClient.post<MessageResponse>(
       `/chat/conversations/${conversationId}/messages`,
@@ -109,6 +118,15 @@ export const chatApi = {
     return data
   },
 
+  // Глобальный поиск по всем чатам пользователя.
+  async searchAllMessages(query: string): Promise<MessageResponse[]> {
+    const { data } = await apiClient.post<MessageResponse[]>(
+      `/chat/messages/search`,
+      { query },
+    )
+    return data
+  },
+
   // Reactions
   async toggleReaction(messageId: number, emoji: string): Promise<ReactionInfo[]> {
     const { data } = await apiClient.post<ReactionInfo[]>(
@@ -132,6 +150,24 @@ export const chatApi = {
     const { data } = await apiClient.post<MessageResponse>(`/chat/messages/${messageId}/attachments`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
+    return data
+  },
+
+  // Атомарно: сообщение + вложение одним запросом (без draft-сирот)
+  async sendMessageWithAttachment(
+    conversationId: number,
+    file: File,
+    opts: { text?: string | null; replyToId?: number } = {},
+  ): Promise<MessageResponse> {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (opts.text) formData.append('text', opts.text)
+    if (opts.replyToId != null) formData.append('reply_to_id', String(opts.replyToId))
+    const { data } = await apiClient.post<MessageResponse>(
+      `/chat/conversations/${conversationId}/messages/with-attachment`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    )
     return data
   },
 

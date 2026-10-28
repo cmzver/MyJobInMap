@@ -7,7 +7,7 @@ User Models
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, utcnow
@@ -42,6 +42,9 @@ class UserModel(Base):
         DateTime, default=utcnow, nullable=True
     )
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Инкрементируется при смене учётных данных. JWT с предыдущей версией
+    # немедленно перестают проходить проверку, даже если ещё не истекли.
+    auth_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Multi-tenant
     organization_id: Mapped[Optional[int]] = mapped_column(
@@ -64,7 +67,14 @@ class UserModel(Base):
 
     # Назначенные задачи
     assigned_tasks: Mapped[List["TaskModel"]] = relationship(
-        "TaskModel", back_populates="assigned_user"
+        "TaskModel",
+        back_populates="assigned_user",
+        foreign_keys="TaskModel.assigned_user_id",
+    )
+    created_tasks: Mapped[List["TaskModel"]] = relationship(
+        "TaskModel",
+        back_populates="created_by",
+        foreign_keys="TaskModel.created_by_id",
     )
 
     # Уведомления пользователя
@@ -109,3 +119,28 @@ class DeviceModel(Base):
     )
 
     user: Mapped["UserModel"] = relationship("UserModel", back_populates="devices")
+
+
+class PushSubscriptionModel(Base):
+    """Web Push подписка браузера (Push API / VAPID).
+
+    Отдельно от ``DeviceModel`` (FCM/Android): здесь — браузерные подписки
+    портала. ``endpoint`` уникален; ``p256dh``/``auth`` — ключи шифрования
+    полезной нагрузки, выданные браузером при подписке.
+    """
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
+    endpoint: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    p256dh: Mapped[str] = mapped_column(String(255), nullable=False)
+    auth: Mapped[str] = mapped_column(String(255), nullable=False)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+
+    user: Mapped["UserModel"] = relationship("UserModel")

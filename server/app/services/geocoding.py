@@ -274,6 +274,38 @@ class GeocodingService:
                         self._add_to_cache(normalized, coords)
                         return coords
 
+            # Fallback: «голое» прилагательное-название улицы без слова
+            # «улица» (напр. «Невская, дом 9, Новоселье»). Nominatim часто не
+            # распознаёт такую улицу без явного типа — подставляем «улица».
+            # Guard на прилагательное-окончание, чтобы не сматчить город-первый
+            # формат («Москва, ...») как улицу.
+            if house_match and not street_match:
+                parts = [p.strip() for p in normalized.split(",") if p.strip()]
+                if parts and re.search(r"(ая|ий|ой|ый)$", parts[0], re.IGNORECASE):
+                    street_name = parts[0]
+                    house_num = house_match.group(1)
+                    if corp_match:
+                        house_num += f"к{corp_match.group(1)}"
+                    # Хвост после номера дома — населённый пункт (если без цифр).
+                    tail = (
+                        parts[-1]
+                        if len(parts) > 1 and not re.search(r"\d", parts[-1])
+                        else ""
+                    )
+                    variants = []
+                    if tail:
+                        variants.append(f"{street_name} улица {house_num}, {tail}")
+                    variants.append(f"{street_name} улица {house_num}")
+                    for query in variants:
+                        location = self.geolocator.geocode(query)
+                        if location:
+                            coords = (location.latitude, location.longitude)
+                            self._add_to_cache(normalized, coords)
+                            logger.debug(
+                                "Geocoding found (street-type fallback): %s", coords
+                            )
+                            return coords
+
             # Пробуем нормализованный
             location = self.geolocator.geocode(normalized)
             if location:

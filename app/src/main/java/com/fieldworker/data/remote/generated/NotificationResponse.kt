@@ -39,6 +39,7 @@ import kotlinx.serialization.Contextual
  * @param type 
  * @param taskId 
  * @param supportTicketId 
+ * @param conversationId 
  */
 @Serializable
 
@@ -66,7 +67,10 @@ data class NotificationResponse (
     val taskId: kotlin.Long? = null,
 
     @SerialName(value = "support_ticket_id")
-    val supportTicketId: kotlin.Long? = null
+    val supportTicketId: kotlin.Long? = null,
+
+    @SerialName(value = "conversation_id")
+    val conversationId: kotlin.Long? = null
 
 ) {
 

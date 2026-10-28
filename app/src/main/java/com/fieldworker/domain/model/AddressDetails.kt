@@ -51,6 +51,27 @@ data class AddressHistoryEntry(
     val createdAt: String
 )
 
+/** Сетевая домофонная панель адреса (открытие двери). */
+data class AddressPanel(
+    val id: Long,
+    val addressId: Long,
+    val label: String? = null,
+    val ip: String,
+    val entrance: String? = null,
+    val model: String? = null,
+    val isActive: Boolean = true
+)
+
+/** Лёгкая карточка адреса для списка «Мои адреса». */
+data class AddressSummary(
+    val id: Long,
+    val address: String,
+    val city: String? = null,
+    val street: String? = null,
+    val building: String? = null,
+    val hasIntercom: Boolean? = null
+)
+
 data class AddressDetails(
     val id: Long,
     val address: String,
@@ -73,6 +94,7 @@ data class AddressDetails(
     val equipment: List<AddressEquipment> = emptyList(),
     val documents: List<AddressDocument> = emptyList(),
     val contacts: List<AddressContact> = emptyList(),
+    val panels: List<AddressPanel> = emptyList(),
     val taskStats: AddressTaskStats = AddressTaskStats(),
     val history: List<AddressHistoryEntry> = emptyList()
 )

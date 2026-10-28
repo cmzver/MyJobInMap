@@ -1,60 +1,55 @@
-# 🚀 FieldWorker - Быстрый старт (5 минут)
+# 🚀 FieldWorker — Быстрый старт
 
-> **Версия:** 2.14.2 | **Статус:** ✅ Production Ready
-
-## 1. Установка сервера
+## Вариант A: всё в Docker (как в проде)
 
 ```bash
-cd server
-pip install -r requirements.txt
+docker-up.cmd        # = docker compose -f docker-compose.postgres.yml up -d --build
 ```
 
-## 2. Seed тестовых данных
+Поднимает PostgreSQL + Redis + API + worker + Telegram-бот. Миграции применяет
+одноразовый сервис `migrate` до старта API.
+
+- API / Swagger: **http://localhost:8001/docs**
+- Портал: **http://localhost:8001/portal/**
+- Остановка: `docker-down.cmd`, тесты в Docker: `docker-test.cmd`
+
+## Вариант B: сервер на хосте (удобно для разработки)
+
+### 1. База данных
 
 ```bash
-make seed
+docker compose -f docker-compose.postgres.yml up -d db
 ```
 
-Создаёт:
-- 👤 **admin/admin** — администратор
-- 👤 **dispatcher/dispatcher** — диспетчер  
-- 👤 **worker/worker** — работник
-- 📋 10 тестовых заявок
+### 2. Окружение и зависимости
 
-## 3. Запуск сервера
+В проекте одно Python-окружение — `server/venv`:
 
 ```bash
-make run-server
+make install-deps    # создаёт server/venv, ставит requirements.txt + requirements-dev.txt
 ```
 
-Сервер доступен на **http://localhost:8001**
+Скопируйте `server/.env.example` → `server/.env` и раскомментируйте строку
+`DATABASE_URL=postgresql+psycopg2://...@localhost:5432/fieldworker_db`.
 
-| URL | Описание |
-|-----|----------|
-| `/docs` | Swagger API документация |
-| `/portal/` | React веб-портал |
-| `/admin/` | Старая Bootstrap админка |
-| `/health` | Статус сервера |
-
-## 4. Запуск тестов
+### 3. Миграции и запуск
 
 ```bash
-make test
+make migrate         # python -m app.migrate
+start_server.cmd     # или: make run-server
 ```
 
-**Ожидаемый результат:** 490+ тестов ✅
+В режиме разработки (`ENVIRONMENT` не `production`) сервер создаёт тестовых
+пользователей **admin/admin** и **user/user**. Чтобы работать на реальных
+данных, загрузите снимок прода через `server/scripts/migrate_sqlite_to_postgres.py`.
 
-## 5. Запуск портала (опционально)
+### 4. Портал (Vite, hot reload)
 
 ```bash
 cd portal
 npm install
-npm run dev
+npm run dev          # http://localhost:3000/portal/  (проксирует /api → :8001)
 ```
-
-Портал на **http://localhost:5173**
-
-Или откройте **http://localhost:8001/portal/** (встроенный)
 
 ---
 
@@ -63,47 +58,19 @@ npm run dev
 1. Откройте проект в **Android Studio**
 2. Запустите эмулятор
 3. В настройках укажите сервер: `10.0.2.2:8001`
-4. Войдите как `worker/worker`
+4. Войдите как `user/user`
 
 ---
 
-## ⚙️ Основные команды
+## ⚙️ Основные команды (из корня)
 
 ```bash
-cd server
-
-make run-server     # Запуск сервера на :8001
-make test           # Все тесты (490+)
-make seed           # Создать тестовые данные
-make format         # Форматирование (black + isort)
-make clean          # Очистка кэша
+make run-server     # Сервер на :8001
+make test           # Тесты сервера (pytest)
+make format         # black + isort
+make clean          # Удалить сборки, кэши, скриншоты (scripts/clean.ps1)
 make help           # Все команды
 ```
-
----
-
-## 🔑 Тестовые аккаунты
-
-| Логин | Пароль | Роль |
-|-------|--------|------|
-| admin | admin | Администратор |
-| dispatcher | dispatcher | Диспетчер |
-| worker | worker | Работник |
-
----
-
-## 📋 Что включено в v2.14.2
-
-- ✅ **Организации и multi-tenant** — фильтрация данных и org-admin сценарии
-- ✅ **React Portal** — 18+ страниц, системные настройки и админка обновлений APK
-- ✅ **Rate Limiting** — защита от brute-force (5/60s)
-- ✅ **State Machine** — валидация переходов статусов
-- ✅ **Статусы без переоткрытия** — `DONE` и `CANCELLED` стали терминальными во всех клиентах
-- ✅ **Обязательный комментарий** — завершение и отмена заявки требуют комментарий в portal, workspace и Android
-- ✅ **490+ тестов** — pytest, расширенное покрытие API и сервисов
-- ✅ **Push-уведомления** — Firebase Cloud Messaging
-- ✅ **Offline-режим** — Room DB в Android приложении
-- ✅ **Android-обновления** — загрузка APK, извлечение версии из APK и проверка обновлений в приложении
 
 ---
 
@@ -112,10 +79,5 @@ make help           # Все команды
 | Документ | Описание |
 |----------|----------|
 | [README.md](README.md) | Полная документация |
-| [CHANGELOG.md](CHANGELOG.md) | История версий |
 | [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) | Push-уведомления |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Production развертывание |
-
----
-
-**Последнее обновление:** 16 марта 2026
+| [deploy/wireguard/README.md](deploy/wireguard/README.md) | WireGuard для домофонов |

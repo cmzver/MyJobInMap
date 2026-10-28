@@ -110,6 +110,10 @@ class AddressHistoryEventType(str, Enum):
     EQUIPMENT_UPDATED = "equipment_updated"
     CONTACT_ADDED = "contact_added"
     CONTACT_UPDATED = "contact_updated"
+    PANEL_ADDED = "panel_added"
+    PANEL_UPDATED = "panel_updated"
+    ASSIGNEE_ADDED = "assignee_added"
+    ASSIGNEE_REMOVED = "assignee_removed"
 
 
 # ============================================
@@ -209,6 +213,12 @@ class AddressModel(Base):
     )
     history: Mapped[List["AddressHistoryModel"]] = relationship(
         "AddressHistoryModel", back_populates="address", cascade="all, delete-orphan"
+    )
+    panels: Mapped[List["IntercomPanelModel"]] = relationship(
+        "IntercomPanelModel", back_populates="address", cascade="all, delete-orphan"
+    )
+    assignees: Mapped[List["AddressAssigneeModel"]] = relationship(
+        "AddressAssigneeModel", back_populates="address", cascade="all, delete-orphan"
     )
     organization: Mapped[Optional["OrganizationModel"]] = relationship(
         "OrganizationModel", back_populates="addresses"
@@ -429,6 +439,55 @@ class AddressContactModel(Base):
         return f"<AddressContact(id={self.id}, name='{self.name}')>"
 
 
+class AddressAssigneeModel(Base):
+    """Привязка адреса к пользователю (персональный доступ «Мои адреса»).
+
+    Адрес виден сотруднику в мобильном разделе «Мои адреса», только если он
+    назначен на этот адрес (либо пользователь — менеджер/admin). Назначение
+    делают admin/dispatcher из веб-портала.
+    """
+
+    __tablename__ = "address_assignees"
+    __table_args__ = (
+        Index(
+            "ix_address_assignees_address_user",
+            "address_id",
+            "user_id",
+            unique=True,
+        ),
+        Index("ix_address_assignees_user_id", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    address_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("addresses.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+    created_by_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Relationships
+    address: Mapped["AddressModel"] = relationship(
+        "AddressModel", back_populates="assignees"
+    )
+    user: Mapped["UserModel"] = relationship("UserModel", foreign_keys=[user_id])
+    created_by: Mapped[Optional["UserModel"]] = relationship(
+        "UserModel", foreign_keys=[created_by_id]
+    )
+
+    def __repr__(self):
+        return (
+            f"<AddressAssignee(id={self.id}, address_id={self.address_id}, "
+            f"user_id={self.user_id})>"
+        )
+
+
 class AddressHistoryModel(Base):
     """������� ��������� �������"""
 
@@ -461,3 +520,94 @@ class AddressHistoryModel(Base):
 
     def __repr__(self):
         return f"<AddressHistory(id={self.id}, event='{self.event_type}')>"
+
+
+class IntercomPanelModel(Base):
+    """Network intercom / door panel attached to an address (e.g. Beward).
+
+    Stores only addressing and identity info. Device credentials live in
+    server secrets/env, never in the DB. All control actions (open/close,
+    snapshot, status) are performed on demand, no background polling.
+    """
+
+    __tablename__ = "intercom_panels"
+    __table_args__ = (Index("ix_intercom_panels_address_id", "address_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    address_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("addresses.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # Driver / vendor of the panel (e.g. "beward").
+    vendor: Mapped[str] = mapped_column(String(30), nullable=False, default="beward")
+    model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    label: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+
+    # How to reach the device (over WireGuard from the server).
+    ip: Mapped[str] = mapped_column(String(64), nullable=False)
+    port: Mapped[int] = mapped_column(Integer, nullable=False, default=80)
+
+    # Entrance ("podyezd") this panel serves.
+    entrance: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
+    )
+
+    # Relationships
+    address: Mapped["AddressModel"] = relationship(
+        "AddressModel", back_populates="panels"
+    )
+
+    def __repr__(self):
+        return f"<IntercomPanel(id={self.id}, ip='{self.ip}', vendor='{self.vendor}')>"
+
+
+class IntercomActionModel(Base):
+    """Audit trail of device-touching actions on an intercom panel.
+
+    Records who did what on which panel and the result. Survives panel
+    deletion (panel_id -> SET NULL) so the trail is not lost. High-volume
+    reads (snapshot polling) are intentionally NOT recorded here.
+    """
+
+    __tablename__ = "intercom_actions"
+    __table_args__ = (
+        Index("ix_intercom_actions_panel_id", "panel_id"),
+        Index("ix_intercom_actions_created_at", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    panel_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("intercom_panels.id", ondelete="SET NULL"), nullable=True
+    )
+    address_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("addresses.id", ondelete="SET NULL"), nullable=True
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # open | close | lock_status | scan_code
+    action: Mapped[str] = mapped_column(String(30), nullable=False)
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    detail: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, nullable=True
+    )
+
+    # Relationships
+    user: Mapped[Optional["UserModel"]] = relationship("UserModel")
+
+    def __repr__(self):
+        return (
+            f"<IntercomAction(id={self.id}, action='{self.action}', "
+            f"success={self.success})>"
+        )

@@ -42,12 +42,17 @@ async def get_messages(
     before_id: Optional[int] = Query(
         None, description="Cursor: ID сообщения (загрузить старше)"
     ),
+    after_id: Optional[int] = Query(
+        None, description="Cursor: ID сообщения (catch-up, загрузить новее)"
+    ),
     limit: int = Query(50, ge=1, le=100),
     current_user: UserModel = Depends(get_current_user_required),
     db: Session = Depends(get_db),
 ):
     """Сообщения чата с cursor-пагинацией."""
-    return chat_service.get_messages(db, conv_id, current_user.id, before_id, limit)
+    return chat_service.get_messages(
+        db, conv_id, current_user.id, before_id, after_id, limit
+    )
 
 
 @router.post("/conversations/{conv_id}/messages", response_model=MessageResponse)
@@ -103,20 +108,62 @@ async def send_message(
             extra_data={"chat_id": str(conv_id)},
         )
 
+        # Web push (браузер): шлём всем не-замьютившим участникам — и оффлайн,
+        # и онлайн. Решение «показывать ли уведомление» принимает service worker:
+        # он подавляет пуш, если окно портала сейчас в фокусе (там виден тост),
+        # и показывает, если портал свёрнут/не в фокусе/закрыт.
+        from app.config import settings as _settings
+
+        if _settings.web_push_enabled:
+            from app.models.chat import ConversationMemberModel
+            from app.services import send_web_push
+
+            muted_ids = {
+                row[0]
+                for row in db.query(ConversationMemberModel.user_id)
+                .filter(
+                    ConversationMemberModel.conversation_id == conv_id,
+                    ConversationMemberModel.is_muted.is_(True),
+                )
+                .all()
+            }
+            web_targets = [uid for uid in notify_user_ids if uid not in muted_ids]
+            if web_targets:
+                send_web_push(
+                    title=title,
+                    body=body,
+                    url="/chat",
+                    user_ids=web_targets,
+                    extra_data={"chat_id": str(conv_id)},
+                )
+
+    # Упоминания → персистентные уведомления в колокольчик (не только toast).
+    if result.mentions:
+        from app.services.notification_service import create_notification
+
+        chat_label = conv.name if conv and conv.name else "чате"
+        snippet = (data.text or "")[:120]
+        for mention in result.mentions:
+            if mention.user_id == current_user.id:
+                continue
+            create_notification(
+                db,
+                user_id=mention.user_id,
+                title=f"💬 Упоминание в {chat_label}",
+                message=f"{current_user.full_name or current_user.username}: {snippet}",
+                notification_type="system",
+                conversation_id=conv_id,
+            )
+
+    # Полный MessageResponse в payload → клиент патчит кэш без рефетча истории.
+    # conversation_name — доп. поле для пуш-тостов (вне схемы; Android игнорирует лишнее).
     asyncio.ensure_future(
         broadcast_chat_message(
             member_user_ids=member_ids,
             conversation_id=conv_id,
             message_data={
-                "id": result.id,
-                "text": result.text,
-                "sender_id": current_user.id,
-                "sender_name": current_user.full_name or current_user.username,
+                **result.model_dump(mode="json"),
                 "conversation_name": conv.name if conv and conv.name else None,
-                "message_type": result.message_type,
-                "attached_task": (
-                    result.attached_task.model_dump() if result.attached_task else None
-                ),
             },
             sender_id=current_user.id,
         )
@@ -187,6 +234,16 @@ async def search_messages(
 ):
     """Поиск по сообщениям в чате."""
     return chat_service.search_messages(db, conv_id, current_user.id, data.query)
+
+
+@router.post("/messages/search", response_model=List[MessageResponse])
+async def search_all_messages(
+    data: MessageSearchRequest,
+    current_user: UserModel = Depends(get_current_user_required),
+    db: Session = Depends(get_db),
+):
+    """Глобальный поиск по всем чатам пользователя."""
+    return chat_service.search_all_messages(db, current_user.id, data.query)
 
 
 @router.post("/messages/{message_id}/reactions", response_model=List[ReactionInfo])

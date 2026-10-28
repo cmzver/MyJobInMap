@@ -41,6 +41,22 @@ class TestEngineSelection:
         finally:
             eng.dispose()
 
+    def test_file_sqlite_does_not_use_static_pool(self, tmp_path):
+        eng = create_db_engine(f"sqlite:///{tmp_path / 'test.db'}")
+        try:
+            assert not isinstance(eng.pool, StaticPool)
+        finally:
+            eng.dispose()
+
+    def test_sqlite_enables_foreign_keys(self, tmp_path):
+        eng = create_db_engine(f"sqlite:///{tmp_path / 'test.db'}")
+        try:
+            with eng.connect() as connection:
+                assert connection.execute(text("PRAGMA foreign_keys")).scalar() == 1
+                assert connection.execute(text("PRAGMA busy_timeout")).scalar() == 5000
+        finally:
+            eng.dispose()
+
 
 class TestDatabaseUrlNormalization:
     def test_heroku_postgres_scheme_normalized(self, monkeypatch):

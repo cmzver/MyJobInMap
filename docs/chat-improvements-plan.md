@@ -1,0 +1,204 @@
+# План улучшений чатов на портале
+
+> Рабочий документ. Создан 2026-06-25. Источник — анализ realtime/данных чата.
+> Цель: убрать паразитную нагрузку realtime-слоя, ускорить бэкенд, поднять UX, добавить интеграции.
+> Реализация поэтапно, **каждая фаза = отдельный PR с верификацией и коммитом**. Не сваливать всё в один диск.
+
+---
+
+## Kickoff-промт (вставить при старте)
+
+```
+Продолжаем работу по docs/chat-improvements-plan.md.
+Начинаем с Фазы 1 (WS-патч кэша + снятие polling). Правила:
+— работаю автономно как senior, без вопросов по ходу, отвечаю по-русски;
+— одна фаза = один логический коммит на ветке feat/chat-realtime-optimizations;
+— перед коммитом: build-linter (portal: eslint+tsc; server: black+isort+pytest), фиксы л── зелёные;
+— не менять контракт API без явной пометки в плане; payload broadcast'ов уже полный;
+— после каждой фазы: краткий отчёт (что сделано, замеры/проверка) и отметка [x] в туду этого файла.
+Контекст уже изучен: useChat.ts, useWebSocket.ts, ChatPage.tsx, websocket.py,
+websocket_manager.py, chat_service.py. Codegraph — основной инструмент навигации.
+```
+
+---
+
+## Архитектурные инварианты (не нарушать)
+
+- `broadcast_chat_message` уже шлёт **полный** payload сообщения → на клиенте можно `setQueryData`, рефетч не нужен.
+- Структура ключей кэша: `['chat','messages',convId]` (infinite), `['chat','conversations',includeArchived]`, `['chat','conversation',id]`.
+- WS-события приходят всем участникам **кроме отправителя** (`exclude_user_id`) — отправитель обновляет своё состояние сам через onSuccess мутации.
+- Tenant/membership проверки на бэке трогать нельзя — только производительность.
+- Контракт OpenAPI: если меняется schema ответа/эндпоинт → регенерация типов портала (и Android — отдельный follow-up, не блокер).
+
+---
+
+## ФАЗА 1 — Realtime: патч кэша вместо инвалидации + снять polling  ✅ ВНЕДРЕНО (commit 561e17d)
+
+> Готово: `chatCache.ts` + WS-патчи (message/edited/deleted), трекинг активного чата,
+> `chat_read` не инвалидирует список, polling ослаблен до fallback (msgs 30s / convs 60s).
+> Реакции оставлены на invalidate (payload без `user_names`) — follow-up.
+> Вложения: edited-broadcast несёт полное сообщение → получатель видит вложение без рефетча.
+
+**Проблема:** `useWebSocket` на каждое событие делает `invalidateQueries` → полный рефетч истории у всех участников; плюс `refetchInterval` дублирует WS.
+**Файлы:** [useWebSocket.ts](../portal/src/hooks/useWebSocket.ts), [useChat.ts](../portal/src/hooks/useChat.ts), [ChatPage.tsx](../portal/src/pages/ChatPage.tsx)
+
+- [ ] Убрать `refetchInterval: 10_000` из `useMessages`; в `useConversations` `refetchInterval: 15_000` → либо убрать, либо поднять до 60_000 как fallback.
+- [ ] `chat_message`: вместо invalidate — `setQueryData(['chat','messages',convId])` вставкой нового сообщения в последнюю страницу infinite-кэша (с дедупом по `id`, на случай гонки с рефетчем). Обновить превью в `conversations` через `setQueryData` (last_message + bump сортировки), без рефетча.
+- [ ] `chat_message_edited` / `chat_message_deleted` / `chat_reaction`: точечный патч соответствующего сообщения в кэше вместо invalidate.
+- [ ] `chat_read`: оставить лёгкую инвалидацию conversations ИЛИ патч `unread_count`; read-receipt листенер не трогать.
+- [ ] Вынести логику патча в хелперы (напр. `portal/src/utils/chatCache.ts`), чтобы `handleMessage` не разрастался.
+- [ ] Edge-cases: событие для **не открытого** чата (convId ≠ активный) — патчить кэш списка, но не messages, если страницы не загружены (проверять `getQueryData`).
+
+**Проверка:** два браузера/два юзера, обмен сообщениями — приходит мгновенно, без рефетч-запросов в Network (кроме отправителя). Прокрутка истории не ломается. Реакции/правки/удаления синхронны.
+**Коммит:** `perf(portal/chat): patch query cache from WS events, drop polling`
+
+---
+
+## ФАЗА 2 — Backend: устранить N+1 в горячих запросах  ✅ ВНЕДРЕНО
+
+> Готово: `_build_message_responses` (батч на всю страницу: reply/вложения/реакции/
+> упоминания/заявки/пользователи — по одному IN-запросу); `_build_message_response`
+> стал тонкой обёрткой. `get_user_conversations` переписан на агрегаты с `GROUP BY`
+> и батч-загрузку (last-message по `max(id)`, unread/mentions через `or_` per-conv
+> порогов, собеседники direct и их аватары — батчем). 87 chat-тестов зелёные.
+
+**Проблема:** `_build_message_response` — ~6 запросов на сообщение (стр.50 → 300+ SQL); `get_user_conversations` — ~5 запросов на чат в цикле.
+**Файлы:** [chat_service.py](../server/app/services/chat_service.py)
+
+- [ ] `get_messages`: батч-сборка страницы. Один запрос на senders (`UserModel.id IN ids`), один на attachments, один на reactions, один на mentions(+users) для всех id страницы; `_build_message_response` переписать на сборку из словарей (или сделать `_build_message_responses(db, msgs)` батч-версию).
+- [ ] reply-preview: собрать `reply_to_id`-ы страницы и подгрузить reply-сообщения + их sender'ов одним заходом.
+- [ ] attached task: батч-загрузка задач по `task_id IN (...)`.
+- [ ] `get_user_conversations`: unread_count и unread_mention_count — агрегирующими запросами с `GROUP BY conversation_id` вместо цикла; last_message — один запрос (оконная функция / коррелированный по `last_message_at`), sender'ы last-сообщений — батч.
+- [ ] Сохранить идентичный JSON-ответ (схемы не меняются) — это чисто внутренний рефактор.
+
+**Проверка:** залогировать кол-во SQL (echo / счётчик) до/после на чате с 50+ сообщениями и юзере с 10+ чатами; pytest по чату зелёный; ответ побайтово эквивалентен (snapshot-сравнение).
+**Коммит:** `perf(server/chat): batch-load messages & conversations to kill N+1`
+
+---
+
+## ФАЗА 3 — WS-хендлер: не блокировать event loop  ✅ ВНЕДРЕНО (commit fed4a6e)
+
+> Готово: `chat_typing`/`chat_read` через `run_in_threadpool`; состав чата для typing
+> из TTL-кэша (30s) с проверкой членства по нему же.
+
+**Проблема:** в [websocket.py](../server/app/api/websocket.py) `chat_typing`/`chat_read` делают синхронный `db.query` прямо в async-цикле; typing прилетает почти на каждый keystroke.
+**Файлы:** [websocket.py](../server/app/api/websocket.py), возможно [chat_service.py](../server/app/services/chat_service.py)
+
+- [ ] Sync-DB операции в хендлере обернуть в `run_in_threadpool` (`from fastapi.concurrency import run_in_threadpool`).
+- [ ] Список участников чата для typing — кэшировать (TTL-память в `ws_manager` или простой dict с инвалидацией по `chat_conversation_updated`), не ходить в БД на каждый typing.
+- [ ] `chat_read` через WS: оставить запись, но без блокировки loop; убедиться, что дублирование с REST `mark_as_read` не создаёт лишних broadcast'ов.
+
+**Проверка:** нагрузочно (несколько соединений, активный typing) — loop отзывчив; ручной тест typing-индикатора и read-receipt не сломан.
+**Коммит:** `perf(server/ws): offload sync DB to threadpool, cache chat members for typing`
+
+---
+
+## ФАЗА 4 — UX уведомлений: уважать mute/активный чат + бейдж непрочитанных  ✅ ВНЕДРЕНО
+
+> Готово: тост `chat_message` подавляется для активного И замьюченного чата
+> (`isConversationMuted` по кэшу); личное упоминание тостится даже в mute-чате и с
+> выделенным текстом. Бейдж непрочитанных и mention-бейдж в навигации уже были
+> (`DashboardLayout` суммирует `unread_count`/`unread_mention_count`) — теперь они
+> обновляются в реальном времени за счёт патча кэша из Фазы 1.
+
+**Файлы:** [useWebSocket.ts](../portal/src/hooks/useWebSocket.ts), навигация ([DashboardLayout.tsx](../portal/src/layouts/DashboardLayout.tsx)), [ChatPage.tsx](../portal/src/pages/ChatPage.tsx)
+
+- [ ] Тост на `chat_message` НЕ показывать, если: чат сейчас открыт (активный convId) ИЛИ чат в mute. Нужен доступ к активному convId и mute-флагам из WS-слоя (общий стор/ref активного чата).
+- [ ] Вместо toast-спама — глобальный счётчик непрочитанных: сумма `unread_count` по conversations → бейдж на пункте «Чаты» в навигации.
+- [ ] Упоминания (`unread_mention_count`) выделять сильнее (бейдж/звук опционально).
+
+**Проверка:** открытый чат не тостит; mute-чат молчит; бейдж в навбаре растёт/обнуляется корректно.
+**Коммит:** `feat(portal/chat): mute-aware toasts + unread badge in nav`
+
+---
+
+## ФАЗА 5 — Оптимистичная отправка + единый upload вложений  ✅ ВНЕДРЕНО
+
+> Готово (5a, commit c7bf91d): оптимистичная отправка текста — мгновенная вставка
+> (temp id, статус «отправляется»), resolve подтверждённым (устойчив к рефетчу),
+> ошибка → индикатор + повтор. `useSendMessage` не трогает кэш — им рулит ChatPage.
+> Готово (5b): атомарный эндпоинт `POST /conversations/{id}/messages/with-attachment`
+> (сообщение+вложение за один запрос, без draft-сирот, один broadcast с готовым
+> вложением); клиент перешёл на него (`useUploadAttachment`→append в кэш). +4 pytest.
+> Не делалось: оптимистичный «uploading…» бабл для файла (follow-up).
+
+**Файлы:** [useChat.ts](../portal/src/hooks/useChat.ts), [ChatPage.tsx](../portal/src/pages/ChatPage.tsx), бэкенд attachments ([attachments.py](../server/app/api/chat/attachments.py)) — опционально единый multipart-эндпоинт.
+
+- [ ] `useSendMessage`: `onMutate` вставляет оптимистичное сообщение со статусом `sending`; `onError` → пометить `failed` + кнопка «повторить»; `onSuccess` → заменить временный id реальным (дедуп с возможным WS-эхо).
+- [ ] Вложения: либо новый эндпоинт «сообщение+файл одним multipart», либо в текущем двухшаговом — откат draft при ошибке upload (удалять сироту). Предпочтительно единый эндпоинт.
+- [ ] Прогресс загрузки файла в UI.
+
+**Проверка:** на throttled-сети сообщение появляется мгновенно; ошибка отправки → retry; нет пустых сообщений-сирот при сбое upload.
+**Коммит:** `feat(portal/chat): optimistic send + atomic attachment upload`
+
+---
+
+## ФАЗА 6 — Web Push (доставка при закрытой вкладке)  ✅ ВНЕДРЕНО
+
+> Сделано как **самостоятельный Web Push (pywebpush + VAPID)**, независимо от
+> Firebase/FCM (тот остаётся для Android). Бэк коммит `e7c5338`, фронт `e61bc75`.
+> VAPID-ключи: пусто в конфиге → web push выключен (как FCM без креденшелов);
+> dev-пара лежит в gitignored `server/.env`, прод задаёт через env (private —
+> секрет). `requirements.txt`: `pywebpush==2.3.0`.
+
+**Файлы:** [sw.js](../portal/public/sw.js), [webPush.ts](../portal/src/utils/webPush.ts), [usePushNotifications.ts](../portal/src/hooks/usePushNotifications.ts), [push.ts](../portal/src/api/push.ts), кнопка-колокольчик в [ChatPage.tsx](../portal/src/pages/ChatPage.tsx); бэк: [web_push.py](../server/app/services/web_push.py), [push.py](../server/app/api/push.py), модель `PushSubscriptionModel`, миграция `20260627_0002`, конфиг VAPID, интеграция в [messages.py](../server/app/api/chat/messages.py).
+
+- [x] Service worker (`push`+`notificationclick`) + opt-in колокольчик в шапке сайдбара чата (регистрация SW, запрос разрешения, подписка через PushManager, сохранение на сервере; выключение — отписка обеих сторон).
+- [x] Бэкенд: таблица `push_subscriptions` (endpoint уникален, p256dh/auth), эндпоинты `/api/push/subscribe|unsubscribe|vapid-public-key`, VAPID в конфиге.
+- [x] Отправка web-push на новое сообщение только **оффлайн** участникам (`ws_manager.online_user_ids`) и **не-замьютившим** (per-member `is_muted`); через task_queue/ARQ; протухшие подписки (404/410) удаляются.
+- [ ] Дедуп с Android-push — **не делалось** (разные каналы/девайсы; пользователь на телефоне с FCM и в браузере с web push получит оба). Best-effort follow-up.
+
+**Проверка:** ✅ 6 pytest (`test_push_api.py`): subscribe/unsubscribe/идемпотентность, таргетинг (онлайн и mute исключены). Фронт: tsc+eslint+`vite build` зелёные, `sw.js` в `dist/`. Ручная проверка системного уведомления требует HTTPS/боевых VAPID-ключей (прод).
+**Коммиты:** `feat(server/chat): web push backend (VAPID)` + `feat(portal/chat): web push subscription + service worker`.
+**Прод-настройка:** сгенерировать боевую VAPID-пару (`vapid --gen`), задать `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` в прод-env; смена ключей инвалидирует все подписки.
+
+---
+
+## ФАЗА 7 — Поиск: полнотекст (Postgres) + глобальный поиск  ✅ ВНЕДРЕНО
+
+> ⚠️ Изначально план был под FTS5 (SQLite), но боевая БД — **PostgreSQL**
+> (проект двух-СУБД: прод PG, локалка/тесты SQLite). Поэтому сделано
+> **диалект-зависимо**: PG → `to_tsvector('russian')`/`websearch_to_tsquery`
+> по GIN-индексу; SQLite → `ILIKE`. Диалект берётся из биндинга сессии
+> (`db.get_bind().dialect.name`), не из `settings`, иначе SQLite-тесты падали
+> бы под PG-конфигом. FTS5 виртуальная таблица/триггеры не понадобились —
+> хватило функционального GIN-индекса (выражение совпадает с фильтром).
+
+**Файлы:** миграция `20260627_0001` (GIN-индекс, PG-only), [chat_service.py](../server/app/services/chat_service.py) (`_message_text_match`, `search_messages`, `search_all_messages`), [messages.py](../server/app/api/chat/messages.py) (`POST /messages/search`), [chat.ts](../portal/src/api/chat.ts) (`searchAllMessages`), [ChatPage.tsx](../portal/src/pages/ChatPage.tsx) (UI в сайдбаре).
+
+- [x] Полнотекст по `messages.text` на PG (GIN-индекс `to_tsvector('russian', coalesce(text,''))`); SQLite-фолбэк ILIKE.
+- [x] `search_messages` переведён на диалект-зависимый matcher (с membership-фильтром); пустой запрос → `[]`; батч-сборка ответа.
+- [x] Эндпоинт «поиск по всем моим чатам» (`POST /api/chat/messages/search`, membership-фильтр через подзапрос). +2 pytest (находит во всех чатах, исключает чужие).
+- [x] UI: строка поиска в сайдбаре чатов при ≥2 символах ищет и по тексту сообщений во всех чатах; секция «Сообщения» с переходом к сообщению (открыть чат + подсветка через pending-jump).
+- [x] **Reconnect-sync + удаление polling** ✅ ВНЕДРЕНО. На `onopen` (только реконнект, не первый коннект) `reconnectSync`: инвалидация списка чатов + по каждому открытому чату `getMessagesAfter(maxCachedId)` с merge в кэш (дедуп), `has_more` → полный рефетч во избежание дыр. Бэк: `get_messages` принимает `after_id` (id > cursor, ASC, +1 для has_more), эндпоинт — query-параметр `after_id`. Polling (`refetchInterval` 30s/60s) полностью убран — нагрузку держит WS. +1 pytest (`test_messages_after_id_catchup`). Контракт: добавлен опциональный query-параметр (аддитивно, типы портала не ломаются; Android-regen — follow-up).
+
+**Проверка:** ✅ глобальный поиск находит по всем чатам, исключает чужие (pytest); UI: ввод в строку поиска показывает результаты, клик открывает чат и подсвечивает сообщение. Реконнект-sync проверен отдельно (см. выше).
+**Коммит:** `feat(server/chat): Postgres FTS search + global message search` (бэк) + `feat(portal/chat): global message search UI` (фронт).
+**Follow-up:** переход к старому сообщению (не в первой странице) только открывает чат без подсветки — нужна загрузка контекста вокруг сообщения; Android-regen OpenAPI.
+
+---
+
+## ФАЗА 8 — Интеграции (по отдельности, каждая — свой PR)
+
+- [x] **Чат-из-заявки** ✅ (commit `6a6225e`): кнопка «Обсудить» в [TaskDetailPage.tsx](../portal/src/pages/TaskDetailPage.tsx) → `/chat?task=<id>`; ChatPage резолвит deep-link `?task=`/`?conversation=` через `getTaskChat`. Бэк: `chat_service.post_task_system_message` (системное сообщение в чат заявки, если он существует — без авто-создания) + broadcast в эндпоинте смены статуса. +2 pytest.
+- [x] **Центр уведомлений** ✅ (commit `78c2740`): @упоминания создают персистентное уведомление в колокольчик (не только toast). `NotificationModel.conversation_id` (миграция `20260627_0003`, мягкая ссылка), в схеме/WS-payload; NotificationsPage показывает ссылку «Открыть чат» (`/chat?conversation=`). +1 pytest.
+- [ ] **Telegram-бридж:** через существующий бот — уведомление о сообщении/упоминании в TG + ответ оттуда в чат. **Не сделано** — нужны продуктовые решения: какой бот, как связывать TG-аккаунт с пользователем портала, как маршрутизировать ответ обратно в нужный чат, права/безопасность. Отдельный PR после согласования.
+
+**Коммиты:** по одному на интеграцию (чат-из-заявки `6a6225e`, центр уведомлений `78c2740`).
+
+---
+
+## Глобальный порядок и зависимости
+
+1. **Фаза 1 + Фаза 3** — первыми (низкая стоимость, снимают основную нагрузку). Можно одним PR или двумя.
+2. **Фаза 2** — усиливает эффект Фазы 1 (рефетчей меньше И они дешевле).
+3. **Фаза 4** — быстрый UX-выигрыш.
+4. **Фаза 5** — заметность скорости.
+5. **Reconnect-sync** (из Фазы 7) — ✅ сделано; polling удалён.
+6. **Фаза 6 / 7 / 8** — по приоритету продукта.
+
+## Definition of Done (для каждой фазы)
+- build-linter зелёный (portal: eslint+tsc; server: black→isort→pytest cov≥50).
+- Ручная проверка сценария из раздела «Проверка».
+- Контракт API не сломан (или типы перегенерированы).
+- Отметка [x] в этом файле + краткий отчёт.

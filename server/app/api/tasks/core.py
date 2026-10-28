@@ -9,7 +9,7 @@ import asyncio
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
@@ -20,7 +20,6 @@ from app.models import (
     TaskModel,
     TaskStatus,
     UserModel,
-    UserRole,
     get_db,
 )
 from app.models.address import AddressModel
@@ -37,12 +36,22 @@ from app.schemas import (
 from app.services import (
     TaskService,
     TaskServiceError,
+    chat_service,
     check_permission,
     get_task_service,
+    metrics,
     require_permission,
 )
+from app.services.notification_service import (
+    broadcast_created_notification_async,
+    create_task_assignment_notification,
+    notification_broadcast_payload,
+    send_task_assignment_push,
+)
+from app.services.role_utils import is_dispatcher_or_admin_user, is_worker_user
 from app.services.tenant_filter import TenantFilter
 from app.services.websocket_manager import (
+    broadcast_chat_message,
     broadcast_task_assigned,
     broadcast_task_created,
     broadcast_task_deleted,
@@ -50,6 +59,7 @@ from app.services.websocket_manager import (
 )
 from app.utils import (
     get_priority_rank,
+    get_status_display_name,
     normalize_priority_value,
     priority_rank_expr,
     task_to_list_response,
@@ -61,8 +71,9 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("", response_model=TaskResponse)
-async def create_task(
+def create_task(
     task: TaskCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("create_tasks")),
     task_service=Depends(get_task_service),
@@ -89,24 +100,50 @@ async def create_task(
 
     try:
         db_task = task_service.create(task, user=user)
-        # Multi-tenant: привязать заявку к организации пользователя
-        tenant = TenantFilter(user)
-        tenant.set_org_id(db_task)
+        assignment_notifications = []
+        assigned_to = None
+        if db_task.assigned_user_id:
+            assigned_to = db.get(UserModel, db_task.assigned_user_id)
+            if assigned_to:
+                assignment_notifications = create_task_assignment_notification(
+                    db=db,
+                    task=db_task,
+                    assigned_to=assigned_to,
+                    assigned_by=user,
+                    commit=False,
+                    send_push=False,
+                )
         db.commit()
+        db.refresh(db_task)
     except TaskServiceError as exc:
+        db.rollback()
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
+    except Exception:
+        db.rollback()
+        raise
 
     logger.info(f"Заявка №{db_task.task_number} создана")
+    metrics.record_task_created(db_task.priority)
+    for notification in assignment_notifications:
+        notification_user_id, notification_event = notification_broadcast_payload(
+            notification
+        )
+        background_tasks.add_task(
+            broadcast_created_notification_async,
+            notification_user_id,
+            notification_event,
+        )
+    if assigned_to and assignment_notifications:
+        send_task_assignment_push(db_task, assigned_to)
 
     # WebSocket broadcast
-    asyncio.ensure_future(
-        broadcast_task_created(
-            task_id=db_task.id,
-            task_number=db_task.task_number or "",
-            title=db_task.title or "",
-            user_id=user.id,
-            organization_id=db_task.organization_id,
-        )
+    background_tasks.add_task(
+        broadcast_task_created,
+        task_id=db_task.id,
+        task_number=db_task.task_number or "",
+        title=db_task.title or "",
+        user_id=user.id,
+        organization_id=db_task.organization_id,
     )
 
     return task_to_response(db_task)
@@ -114,8 +151,8 @@ async def create_task(
 
 @router.get("", response_model=PaginatedResponse[TaskListResponse])
 async def get_tasks(
-    page: int = 1,
-    size: int = 20,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
     status: List[TaskStatus] = Query(default=[]),
     priority: List[str] = Query(default=[]),
     assignee_id: List[int] = Query(default=[]),
@@ -188,7 +225,7 @@ async def get_tasks(
 
     # Workers see only their tasks
     # Dispatchers and Admins can see all (optionally filter by assignee_id)
-    if user.role == UserRole.WORKER.value:
+    if is_worker_user(user):
         query = query.filter(TaskModel.assigned_user_id == user.id)
     elif assignee_id:
         query = query.filter(TaskModel.assigned_user_id.in_(assignee_id))
@@ -208,10 +245,7 @@ async def get_tasks(
     else:
         # Дефолтная (без явного sort) «умная» сортировка: заявки с
         # непрочитанными уведомлениями и более высоким приоритетом — наверх.
-        prioritize_unread_notifications = user.role in {
-            UserRole.ADMIN.value,
-            UserRole.DISPATCHER.value,
-        }
+        prioritize_unread_notifications = is_dispatcher_or_admin_user(user)
         has_unread_task_notification = (
             db.query(NotificationModel.id)
             .filter(
@@ -235,6 +269,7 @@ async def get_tasks(
     tasks = (
         query.options(
             joinedload(TaskModel.assigned_user),
+            joinedload(TaskModel.created_by),
             subqueryload(TaskModel.comments),
         )
         .order_by(*order_by)
@@ -314,6 +349,25 @@ async def update_task_status(
             organization_id=updated_task.organization_id,
         )
     )
+
+    # Системное сообщение в чат заявки (если он существует) + realtime-доставка.
+    if old_status != status_update.status.value:
+        system_text = (
+            f"Статус изменён: {get_status_display_name(old_status)} → "
+            f"{get_status_display_name(status_update.status.value)}"
+        )
+        posted = chat_service.post_task_system_message(
+            task_service.db, task_id, access.user.id, system_text
+        )
+        if posted is not None:
+            conv, message_response, member_ids = posted
+            asyncio.ensure_future(
+                broadcast_chat_message(
+                    member_user_ids=member_ids,
+                    conversation_id=conv.id,
+                    message_data=message_response.model_dump(mode="json"),
+                )
+            )
 
     return task_to_response(updated_task)
 

@@ -449,6 +449,27 @@ class TestWebSocketManager:
         ws2.send_json.assert_not_called()
         ws3.send_json.assert_called_once_with(msg)
 
+    def test_broadcast_without_tenant_does_not_leak_to_tenants(self, manager):
+        tenant_ws = AsyncMock()
+        tenant_ws.accept = AsyncMock()
+        tenant_ws.send_json = AsyncMock()
+        global_ws = AsyncMock()
+        global_ws.accept = AsyncMock()
+        global_ws.send_json = AsyncMock()
+
+        run_async(manager.connect(tenant_ws, user_id=1, organization_id=10))
+        run_async(
+            manager.connect(
+                global_ws, user_id=2, organization_id=None, is_superadmin=True
+            )
+        )
+
+        sent = run_async(manager.broadcast({"type": "test"}))
+
+        assert sent == 1
+        tenant_ws.send_json.assert_not_called()
+        global_ws.send_json.assert_called_once()
+
     def test_send_to_user(self, manager):
         """Отправка конкретному пользователю."""
         ws = AsyncMock()

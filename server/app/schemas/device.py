@@ -4,10 +4,11 @@ Device Schemas
 РЎС…РµРјС‹ РґР»СЏ СѓСЃС‚СЂРѕР№СЃС‚РІ.
 """
 
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
+
+from app.schemas.datetime_utc import UtcDateTime
 
 
 class DeviceRegister(BaseModel):
@@ -27,5 +28,5 @@ class DeviceResponse(BaseModel):
     user_name: Optional[str] = None
     fcm_token: str
     device_name: Optional[str] = None
-    created_at: datetime
-    last_active: datetime
+    created_at: UtcDateTime
+    last_active: UtcDateTime

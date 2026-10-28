@@ -1,98 +1,40 @@
-"""Alembic: Database Migration Guide
+# Миграции БД (Alembic)
 
-## Инициализация (один раз)
+Схема БД меняется только через миграции в `alembic/versions/`. URL базы Alembic
+берёт из настроек приложения (`DATABASE_URL`), а не из `alembic.ini`.
 
-Уже сделано в `alembic/` директории.
+## Применение
 
-## Применение миграций
+| Где | Как |
+|-----|-----|
+| Локально | `make migrate` (= `python -m app.migrate` из `server/`) |
+| Docker / прод | Одноразовый сервис `migrate` в `docker-compose.postgres.yml` выполняется до старта API и worker |
+| При старте API | Только если `RUN_MIGRATIONS_ON_STARTUP=true`; по умолчанию выключено |
+
+`python -m app.migrate` при ошибке завершается с ненулевым кодом, и API в Docker не стартует.
+
+## Новая миграция
+
+1. Измените модель в `app/models/`.
+2. Сгенерируйте миграцию:
+   ```bash
+   cd server
+   venv\Scripts\alembic revision --autogenerate -m "add tasks.created_by_id"
+   ```
+3. Проверьте файл в `alembic/versions/` вручную: autogenerate пропускает переименования,
+   серверные дефолты и изменения типов.
+4. Имя файла — `ГГГГММДД_NNNN_описание.py`, как у существующих.
+5. Примените (`make migrate`) и запустите тесты. CI прогоняет их на SQLite и PostgreSQL,
+   поэтому для операций, которых нет в SQLite, используйте `op.batch_alter_table()`.
+
+## Статус и откат
 
 ```bash
 cd server
-alembic upgrade head
+venv\Scripts\alembic current
+venv\Scripts\alembic history
+venv\Scripts\alembic downgrade -1
 ```
 
-## Проверка статуса
-
-```bash
-alembic current
-alembic history
-```
-
-## Legacy SQLite БД без истории Alembic
-
-Если локальная `tasks.db` уже обновлялась вручную и содержит актуальные таблицы/колонки,
-но `alembic upgrade head` падает на старых миграциях с ошибками вроде `duplicate column name`,
-используй такой порядок:
-
-```bash
-cd server
-python _fix_db.py
-alembic stamp head
-```
-
-Это нужно только для старых локальных БД, у которых схема уже доведена до актуального состояния,
-но таблица `alembic_version` пустая или отсутствует.
-
-## Откат миграции
-
-```bash
-alembic downgrade -1  # Откатить последнюю
-alembic downgrade 001_add_planned_date  # Откатить до конкретной
-```
-
-## Создание новой миграции
-
-1. Измени модель в `app/models/` (например, добавь новый Column).
-2. Запусти:
-   ```bash
-   alembic revision --autogenerate -m "Описание изменения"
-   ```
-3. Проверь сгенерированный файл в `alembic/versions/` — убедись, что миграция корректна.
-4. Примени:
-   ```bash
-   alembic upgrade head
-   ```
-
-## Типовые миграции
-
-### Добавить столбец
-```python
-def upgrade() -> None:
-    op.add_column("table_name", sa.Column("new_col", sa.String(100), nullable=True))
-
-def downgrade() -> None:
-    op.drop_column("table_name", "new_col")
-```
-
-### Удалить столбец
-```python
-def upgrade() -> None:
-    op.drop_column("table_name", "col_name")
-
-def downgrade() -> None:
-    op.add_column("table_name", sa.Column("col_name", sa.String(100), nullable=True))
-```
-
-### Изменить тип столбца
-```python
-def upgrade() -> None:
-    op.alter_column("table_name", "col_name", type_=sa.Text())
-
-def downgrade() -> None:
-    op.alter_column("table_name", "col_name", type_=sa.String(100))
-```
-
-## Workflow для команды
-
-1. Один разработчик создаёт новую миграцию.
-2. Коммитит в систему контроля версий.
-3. Остальные применяют миграцию перед пуллом: `alembic upgrade head`.
-
-## Боль-точки
-
-- SQLite не поддерживает многие операции (ALTER для переименования, удаления с constraints).
-  Решение: используй `batch_alter_table()` или пересоздание таблицы.
-- Автогенерация миграций (`--autogenerate`) не всегда точна. Проверяй вручную!
-- Для production используй параллельные миграции или feature flags.
-
-"""
+Перед откатом или рискованной миграцией на проде сделайте бэкап («Резервные копии» в системных настройках портала)
+и убедитесь, что из него можно восстановиться.

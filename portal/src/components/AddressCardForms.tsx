@@ -583,7 +583,7 @@ export function ContactForm({ contact, onSubmit, onCancel, isLoading }: ContactF
               type="checkbox"
               checked={formData.is_primary}
               onChange={(e) => handleChange('is_primary', e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
             />
             <span className="text-sm text-gray-700 dark:text-gray-300">
               Основной контакт

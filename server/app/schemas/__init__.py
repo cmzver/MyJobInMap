@@ -62,6 +62,9 @@ from app.schemas.settings import (
     SettingUpdate,
     SystemSettingSchema,
     UpdateRolePermissionRequest,
+    UserGroupCreate,
+    UserGroupResponse,
+    UserGroupUpdate,
 )
 from app.schemas.support import (
     SupportTicketCommentCreate,
@@ -143,6 +146,9 @@ __all__ = [
     "CustomFieldResponse",
     "RolePermissionsResponse",
     "UpdateRolePermissionRequest",
+    "UserGroupResponse",
+    "UserGroupCreate",
+    "UserGroupUpdate",
     "BackupListResponse",
     "BackupFile",
     "BackupSettingsSchema",

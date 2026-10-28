@@ -16,12 +16,11 @@ import os
 import sys
 import threading
 import uuid
-import warnings
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
@@ -37,7 +36,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.api import api_router
 from app.config import settings
-from app.models import SessionLocal, engine, get_db, init_db
+from app.models import SessionLocal, engine, get_db
 from app.models.base import run_migrations
 from app.services import create_default_users, init_firebase
 from app.services.backup_scheduler import (
@@ -107,18 +106,18 @@ async def lifespan(app: FastAPI):
 
     logger.info("🚀 Starting FieldWorker Server...")
     logger.info(f"   📁 Base dir: {settings.BASE_DIR}")
-    logger.info(f"   🗄️ Database: {settings.DATABASE_URL}")
+    logger.info("   🗄️ Database configured")
 
-    # Миграции БД (Alembic) + создание новых таблиц
-    run_migrations()
-    init_db()
+    # Для локальной разработки допустим удобный auto-migrate. В production
+    # Docker это выключено: отдельный одноразовый migrate-сервис завершает
+    # схему до запуска API/worker и исключает гонки нескольких реплик.
+    if settings.RUN_MIGRATIONS_ON_STARTUP:
+        run_migrations()
 
-    # Создание дефолтных пользователей
-    db = next(get_db())
-    try:
-        create_default_users(db)
-    finally:
-        db.close()
+    # Тестовые admin/admin и user/user допустимы только в development.
+    if not settings.is_production:
+        with SessionLocal() as db:
+            create_default_users(db)
 
     # Инициализация Firebase
     init_firebase()
@@ -402,10 +401,14 @@ async def portal_spa_fallback(full_path: str):
     SPA fallback: возвращает index.html для всех маршрутов портала.
     Это позволяет React Router работать при обновлении страницы.
     """
-    portal_dist = settings.BASE_DIR.parent / "portal" / "dist"
+    portal_dist = (settings.BASE_DIR.parent / "portal" / "dist").resolve()
 
     # Если запрашивается реальный файл (assets, images) - вернуть его
-    file_path = portal_dist / full_path
+    file_path = (portal_dist / full_path).resolve()
+    try:
+        file_path.relative_to(portal_dist)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from exc
     if file_path.exists() and file_path.is_file():
         return FileResponse(file_path)
 
@@ -423,18 +426,26 @@ async def portal_spa_fallback(full_path: str):
 
 
 @app.get("/health", tags=["System"])
-async def health_check():
+async def health_check(db: Session = Depends(get_db)):
     """Проверка состояния сервера с реальной проверкой БД"""
-    db_status = "connected"
     try:
-        db = next(get_db())
         db.execute(text("SELECT 1"))
-        db.close()
-    except Exception as e:
-        db_status = f"error: {str(e)}"
+    except Exception:
+        logger.exception("Health check database probe failed")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "unavailable",
+                "version": settings.API_VERSION,
+                "database": "error",
+            },
+        )
 
-    status = "ok" if db_status == "connected" else "degraded"
-    return {"status": status, "version": settings.API_VERSION, "database": db_status}
+    return {
+        "status": "ok",
+        "version": settings.API_VERSION,
+        "database": "connected",
+    }
 
 
 @app.get("/health/detailed", tags=["System"])

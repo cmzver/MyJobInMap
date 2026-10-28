@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { MessageSquare, Plus, Search, ArrowLeft, MoreVertical, VolumeX, Volume2, Archive, Inbox, Users } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { MessageSquare, Plus, Search, ArrowLeft, MoreVertical, VolumeX, Volume2, Archive, Inbox, Users, Bell, BellOff } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { useAuthStore } from '@/store/authStore'
 import Spinner from '@/components/Spinner'
@@ -11,6 +13,7 @@ import MessageInput from '@/components/chat/MessageInput'
 import NewChatModal from '@/components/chat/NewChatModal'
 import ChatSettingsModal from '@/components/chat/ChatSettingsModal'
 import {
+  chatKeys,
   useConversations,
   useConversation,
   useMessages,
@@ -30,9 +33,18 @@ import {
   useMuteConversation,
   useArchiveConversation,
 } from '@/hooks/useChat'
-import { sendWsMessage, onChatRead, onChatTyping } from '@/hooks/useWebSocket'
+import { sendWsMessage, onChatRead, onChatTyping, setActiveChatConversation } from '@/hooks/useWebSocket'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { chatApi } from '@/api/chat'
 import { buildChatTimelineItems } from '@/utils/chatTimeline'
+import {
+  appendMessageToCache,
+  bumpConversationListCache,
+  insertOptimisticMessage,
+  resolveOptimisticMessage,
+  setOptimisticStatus,
+  type CachedMessage,
+} from '@/utils/chatCache'
 import type { MessageResponse, ConversationType, AttachmentResponse, ConversationMemberRole } from '@/types/chat'
 import toast from 'react-hot-toast'
 
@@ -51,6 +63,9 @@ export default function ChatPage() {
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null)
   const [showNewChat, setShowNewChat] = useState(false)
   const [conversationSearchQuery, setConversationSearchQuery] = useState('')
+  const [debouncedConvSearchQuery, setDebouncedConvSearchQuery] = useState('')
+  const [globalSearchResults, setGlobalSearchResults] = useState<MessageResponse[]>([])
+  const [isGlobalSearching, setIsGlobalSearching] = useState(false)
   const [isMessageSearchOpen, setIsMessageSearchOpen] = useState(false)
   const [messageSearchQuery, setMessageSearchQuery] = useState('')
   const [debouncedMessageSearchQuery, setDebouncedMessageSearchQuery] = useState('')
@@ -66,9 +81,19 @@ export default function ChatPage() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<number | null>(null)
   const typingTimeoutsRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())
   const isTypingRef = useRef(false)
+  // Оптимистичная отправка: счётчик временных id (большие, чтобы сортировались
+  // в конец ленты) и payload'ы для повторной отправки по кнопке «повторить».
+  const optimisticIdRef = useRef(1_000_000_000_000_000)
+  const pendingPayloadsRef = useRef<Map<number, { text: string; replyToId?: number }>>(new Map())
+  // Переход к сообщению из глобального поиска после открытия нужного чата.
+  const pendingJumpRef = useRef<{ conversationId: number; messageId: number } | null>(null)
 
+  const qc = useQueryClient()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+
+  const push = usePushNotifications()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const { data: conversations = [], isLoading: convLoading } = useConversations(true)
   const { data: activeDetail } = useConversation(activeConversationId)
@@ -227,6 +252,123 @@ export default function ChatPage() {
     setReadReceipts(new Map())
   }, [activeConversationId])
 
+  // Глобальный поиск по всем чатам: та же строка, что фильтрует список по имени,
+  // при ≥2 символах ищет ещё и по тексту сообщений во всех чатах пользователя.
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedConvSearchQuery(conversationSearchQuery.trim())
+    }, 300)
+    return () => window.clearTimeout(timeoutId)
+  }, [conversationSearchQuery])
+
+  useEffect(() => {
+    if (debouncedConvSearchQuery.length < 2) {
+      setIsGlobalSearching(false)
+      setGlobalSearchResults([])
+      return
+    }
+
+    let cancelled = false
+    setIsGlobalSearching(true)
+    chatApi.searchAllMessages(debouncedConvSearchQuery)
+      .then((messages) => {
+        if (!cancelled) setGlobalSearchResults(messages)
+      })
+      .catch(() => {
+        if (!cancelled) setGlobalSearchResults([])
+      })
+      .finally(() => {
+        if (!cancelled) setIsGlobalSearching(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [debouncedConvSearchQuery])
+
+  const conversationNameById = useMemo(() => {
+    const map = new Map<number, string>()
+    for (const conversation of conversations) {
+      map.set(conversation.id, conversation.name ?? `Чат #${conversation.id}`)
+    }
+    return map
+  }, [conversations])
+
+  const handleSelectGlobalResult = useCallback((message: MessageResponse) => {
+    setConversationSearchQuery('')
+    setDebouncedConvSearchQuery('')
+    setGlobalSearchResults([])
+    if (message.conversation_id === activeConversationId) {
+      handleJumpToMessage(message.id)
+    } else {
+      pendingJumpRef.current = { conversationId: message.conversation_id, messageId: message.id }
+      setActiveConversationId(message.conversation_id)
+    }
+  }, [activeConversationId, handleJumpToMessage])
+
+  // Когда целевой чат открылся и его сообщение подгрузилось — прыгаем к нему.
+  useEffect(() => {
+    const pending = pendingJumpRef.current
+    if (!pending || pending.conversationId !== activeConversationId) return
+    if (allMessages.some((m) => m.id === pending.messageId)) {
+      pendingJumpRef.current = null
+      handleJumpToMessage(pending.messageId)
+    }
+  }, [activeConversationId, allMessages, handleJumpToMessage])
+
+  // Сообщаем WS-слою об открытом чате: его сообщения не считаем непрочитанными
+  // и не показываем по ним тосты.
+  useEffect(() => {
+    setActiveChatConversation(activeConversationId)
+    return () => setActiveChatConversation(null)
+  }, [activeConversationId])
+
+  // Открытие чата по deep-link: ?conversation=<id> напрямую, ?task=<id> —
+  // получить/создать чат заявки. Параметр снимается после обработки.
+  useEffect(() => {
+    const convParam = searchParams.get('conversation')
+    const taskParam = searchParams.get('task')
+    if (!convParam && !taskParam) return
+
+    let cancelled = false
+    const clear = () => {
+      const next = new URLSearchParams(searchParams)
+      next.delete('conversation')
+      next.delete('task')
+      setSearchParams(next, { replace: true })
+    }
+
+    if (convParam) {
+      const id = Number(convParam)
+      if (Number.isFinite(id)) setActiveConversationId(id)
+      clear()
+      return
+    }
+
+    const taskId = Number(taskParam)
+    if (!Number.isFinite(taskId)) {
+      clear()
+      return
+    }
+    chatApi.getTaskChat(taskId)
+      .then((conv) => {
+        if (cancelled) return
+        // Чат заявки мог быть только что создан — освежим список.
+        qc.invalidateQueries({ queryKey: chatKeys.conversationsRoot() })
+        setActiveConversationId(conv.id)
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('Не удалось открыть чат заявки')
+      })
+      .finally(() => {
+        if (!cancelled) clear()
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [searchParams, setSearchParams, qc])
+
   const canOpenSettings = activeDetail?.type === 'group' || activeDetail?.type === 'org_general'
 
   useEffect(() => {
@@ -339,13 +481,75 @@ export default function ChatPage() {
     return `${names.slice(0, 2).join(', ')} печатают...`
   }, [typingUsers])
 
+  const dispatchOptimistic = useCallback((conversationId: number, tempId: number, text: string, replyToId?: number) => {
+    sendMessage.mutate(
+      { conversationId, text, replyToId },
+      {
+        onSuccess: (msg) => {
+          pendingPayloadsRef.current.delete(tempId)
+          resolveOptimisticMessage(qc, conversationId, tempId, msg)
+          bumpConversationListCache(qc, msg, { incrementUnread: false, mentionsMe: false })
+        },
+        onError: () => {
+          setOptimisticStatus(qc, conversationId, tempId, { _optimistic: false, _failed: true })
+          toast.error('Сообщение не отправлено')
+        },
+      },
+    )
+  }, [qc, sendMessage])
+
   const handleSend = useCallback((text: string, replyToId?: number, taskId?: number) => {
     if (!activeConversationId) return
-    sendMessage.mutate(
-      { conversationId: activeConversationId, text, replyToId, taskId },
-      { onError: () => toast.error('Ошибка отправки') },
-    )
-  }, [activeConversationId, sendMessage])
+
+    // Прикреплённая заявка — карточку строит сервер; ждём подтверждения, без оптимистики.
+    if (taskId) {
+      sendMessage.mutate(
+        { conversationId: activeConversationId, text, replyToId, taskId },
+        {
+          onSuccess: (msg) => {
+            appendMessageToCache(qc, msg.conversation_id, msg)
+            bumpConversationListCache(qc, msg, { incrementUnread: false, mentionsMe: false })
+          },
+          onError: () => toast.error('Ошибка отправки'),
+        },
+      )
+      return
+    }
+
+    const tempId = ++optimisticIdRef.current
+    const optimistic: CachedMessage = {
+      id: tempId,
+      conversation_id: activeConversationId,
+      sender_id: currentUserId,
+      sender_name: user?.fullName || user?.username || '',
+      sender_username: user?.username || '',
+      text,
+      message_type: 'text',
+      reply_to: replyTo
+        ? { id: replyTo.id, text: replyTo.text, sender_id: replyTo.sender_id, sender_name: replyTo.sender_name }
+        : null,
+      attached_task: null,
+      attachments: [],
+      reactions: [],
+      mentions: [],
+      is_edited: false,
+      is_deleted: false,
+      created_at: new Date().toISOString(),
+      edited_at: null,
+      _optimistic: true,
+    }
+    insertOptimisticMessage(qc, activeConversationId, optimistic)
+    pendingPayloadsRef.current.set(tempId, { text, replyToId })
+    dispatchOptimistic(activeConversationId, tempId, text, replyToId)
+  }, [activeConversationId, currentUserId, user, replyTo, qc, sendMessage, dispatchOptimistic])
+
+  const handleRetryMessage = useCallback((tempId: number) => {
+    if (!activeConversationId) return
+    const payload = pendingPayloadsRef.current.get(tempId)
+    if (!payload) return
+    setOptimisticStatus(qc, activeConversationId, tempId, { _optimistic: true, _failed: false })
+    dispatchOptimistic(activeConversationId, tempId, payload.text, payload.replyToId)
+  }, [activeConversationId, qc, dispatchOptimistic])
 
   const handleEdit = useCallback((messageId: number, text: string) => {
     if (!activeConversationId) return
@@ -362,13 +566,16 @@ export default function ChatPage() {
     uploadAttachment.mutate(
       { conversationId: activeConversationId, file, replyToId },
       {
-        onSuccess: () => {
+        onSuccess: (msg) => {
+          // Отправитель исключён из WS-броадкаста — кладём сообщение в кэш сами.
+          appendMessageToCache(qc, msg.conversation_id, msg)
+          bumpConversationListCache(qc, msg, { incrementUnread: false, mentionsMe: false })
           setReplyTo(null)
         },
         onError: () => toast.error('Ошибка загрузки файла'),
       },
     )
-  }, [activeConversationId, replyTo, uploadAttachment])
+  }, [activeConversationId, replyTo, uploadAttachment, qc])
 
   const handleDelete = useCallback((messageId: number) => {
     if (!activeConversationId) return
@@ -601,7 +808,7 @@ export default function ChatPage() {
 
   return (
     <div
-      className="flex h-[calc(100vh-64px)] h-[calc(100dvh-64px)] bg-white dark:bg-gray-900"
+      className="flex h-[calc(100vh-8rem)] h-[calc(100dvh-8rem)] bg-white dark:bg-gray-900"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className={cn(
@@ -611,13 +818,34 @@ export default function ChatPage() {
       )}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
           <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Чаты</h1>
-          <button
-            onClick={() => setShowNewChat(true)}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-primary-500"
-            title="Новый чат"
-          >
-            <Plus className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            {push.supported && (
+              <button
+                onClick={push.toggle}
+                disabled={push.busy || push.denied}
+                className={cn(
+                  'p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50',
+                  push.subscribed ? 'text-primary-500' : 'text-gray-400',
+                )}
+                title={
+                  push.denied
+                    ? 'Уведомления заблокированы в браузере'
+                    : push.subscribed
+                      ? 'Push-уведомления включены — выключить'
+                      : 'Включить push-уведомления о сообщениях'
+                }
+              >
+                {push.subscribed ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5" />}
+              </button>
+            )}
+            <button
+              onClick={() => setShowNewChat(true)}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-primary-500"
+              title="Новый чат"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         <div className="px-4 py-2">
@@ -625,7 +853,7 @@ export default function ChatPage() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Поиск чатов..."
+              placeholder="Поиск чатов и сообщений..."
               value={conversationSearchQuery}
               onChange={(e) => setConversationSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -671,6 +899,43 @@ export default function ChatPage() {
               activeId={activeConversationId}
               onSelect={setActiveConversationId}
             />
+          )}
+
+          {debouncedConvSearchQuery.length >= 2 && (
+            <div className="border-t border-gray-200 px-2.5 pt-2 dark:border-gray-700">
+              <div className="flex items-center justify-between px-1.5 pb-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  Сообщения
+                </span>
+                {isGlobalSearching && <Spinner size="sm" />}
+              </div>
+
+              {!isGlobalSearching && globalSearchResults.length === 0 ? (
+                <p className="px-1.5 pb-3 text-xs text-gray-400 dark:text-gray-500">Ничего не найдено</p>
+              ) : (
+                <div className="flex flex-col gap-1 pb-2">
+                  {globalSearchResults.map((message) => (
+                    <button
+                      key={message.id}
+                      onClick={() => handleSelectGlobalResult(message)}
+                      className="flex flex-col gap-0.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-left transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/70"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-xs font-medium text-gray-700 dark:text-gray-300">
+                          {conversationNameById.get(message.conversation_id) ?? `Чат #${message.conversation_id}`}
+                        </span>
+                        <span className="flex-shrink-0 text-[11px] text-gray-400 dark:text-gray-500">
+                          {message.sender_name}
+                        </span>
+                      </div>
+                      <span className="truncate text-sm text-gray-600 dark:text-gray-400">
+                        {message.text ?? '—'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -865,6 +1130,7 @@ export default function ChatPage() {
                       onEdit={setEditingMessage}
                       onDelete={handleDelete}
                       onReaction={handleReaction}
+                      onRetry={handleRetryMessage}
                       currentUserId={currentUserId}
                     />
                   )

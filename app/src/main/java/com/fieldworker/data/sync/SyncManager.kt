@@ -33,7 +33,7 @@ class SyncManager @Inject constructor(
         
         workManager.enqueueUniqueWork(
             IMMEDIATE_SYNC_WORK,
-            ExistingWorkPolicy.REPLACE,
+            ExistingWorkPolicy.KEEP,
             SyncWorker.createOneTimeRequest()
         )
     }
@@ -64,6 +64,7 @@ class SyncManager @Inject constructor(
      */
     fun cancelAllSync() {
         Log.d(TAG, "Cancelling all sync work")
-        workManager.cancelAllWork()
+        workManager.cancelUniqueWork(IMMEDIATE_SYNC_WORK)
+        workManager.cancelUniqueWork(PERIODIC_SYNC_WORK)
     }
 }

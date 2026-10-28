@@ -4,11 +4,10 @@ Tasks API — text import
 Парсинг сообщений диспетчерской и создание заявки из текста (боты, импорт).
 """
 
-import asyncio
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -25,8 +24,9 @@ from app.schemas import (
     ParsedTaskResponse,
     ParseTaskRequest,
 )
-from app.services import check_permission, geocoding_service, require_permission
+from app.services import check_permission, require_permission
 from app.services.task_parser import parse_dispatcher_message
+from app.services.task_service import TaskService
 from app.services.tenant_filter import TenantFilter
 from app.services.websocket_manager import (
     broadcast_task_assigned,
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/parse", response_model=ParsedTaskResponse)
-async def parse_task_text(
+def parse_task_text(
     request: ParseTaskRequest,
     user: UserModel = Depends(require_permission("create_tasks")),
 ):
@@ -65,8 +65,9 @@ async def parse_task_text(
 
 
 @router.post("/from-text", response_model=CreateTaskFromTextResponse)
-async def create_task_from_text(
+def create_task_from_text(
     request: CreateTaskFromTextRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("create_tasks")),
 ):
@@ -201,24 +202,34 @@ async def create_task_from_text(
             # Уведомления при автоназначении
             if auto_assigned and assigned_user_obj:
                 from app.services.notification_service import (
+                    broadcast_created_notification_async,
                     create_task_assignment_notification,
+                    notification_broadcast_payload,
                 )
 
-                create_task_assignment_notification(
+                notifications = create_task_assignment_notification(
                     db=db,
                     task=existing_task,
                     assigned_to=assigned_user_obj,
                     assigned_by=user,
                 )
-                asyncio.ensure_future(
-                    broadcast_task_assigned(
-                        task_id=existing_task.id,
-                        task_number=existing_task.task_number or "",
-                        assigned_user_id=assigned_id,
-                        assigned_user_name=assign_name,
-                        user_id=user.id,
-                        organization_id=existing_task.organization_id,
+                for notification in notifications:
+                    notification_user_id, notification_event = (
+                        notification_broadcast_payload(notification)
                     )
+                    background_tasks.add_task(
+                        broadcast_created_notification_async,
+                        notification_user_id,
+                        notification_event,
+                    )
+                background_tasks.add_task(
+                    broadcast_task_assigned,
+                    task_id=existing_task.id,
+                    task_number=existing_task.task_number or "",
+                    assigned_user_id=assigned_id,
+                    assigned_user_name=assign_name,
+                    user_id=user.id,
+                    organization_id=existing_task.organization_id,
                 )
 
             source_log = f" [{request.source}]" if request.source else ""
@@ -244,9 +255,12 @@ async def create_task_from_text(
             source_info.append(f"От: {request.sender}")
         description = f"{description}\n---\n{' | '.join(source_info)}"
 
-    # Геокодируем адрес
+    # Геокодируем адрес (через резолвер — матчит к адресной книге и привязывает
+    # заявку к адресу, чтобы правка его координат подхватывалась автоматически).
     address = parsed.get("address", "")
-    lat, lon = geocoding_service.geocode(address)
+    lat, lon, address_id = TaskService(db).resolve_coordinates(
+        address, user.organization_id
+    )
 
     task_number = external_id
 
@@ -257,18 +271,16 @@ async def create_task_from_text(
         description=description,
         lat=lat,
         lon=lon,
+        address_id=address_id,
         status=TaskStatus.NEW.value,
         priority=parsed.get("priority", TaskPriority.CURRENT.value),
         assigned_user_id=assigned_id,
+        created_by_id=user.id,
     )
 
-    db.add(db_task)
-    db.commit()
-    db.refresh(db_task)
-
     tenant.set_org_id(db_task)
-    db.commit()
-    db.refresh(db_task)
+    db.add(db_task)
+    db.flush()
 
     # Генерируем номер заявки
     db_task.task_number = task_number if task_number else f"Z-{db_task.id:05d}"
@@ -279,39 +291,48 @@ async def create_task_from_text(
     logger.info(f"✅ Заявка №{db_task.task_number} создана из текста{source_log}")
 
     # WebSocket broadcast о новой заявке
-    asyncio.ensure_future(
-        broadcast_task_created(
-            task_id=db_task.id,
-            task_number=db_task.task_number or "",
-            title=db_task.title or "",
-            user_id=user.id,
-            organization_id=db_task.organization_id,
-        )
+    background_tasks.add_task(
+        broadcast_task_created,
+        task_id=db_task.id,
+        task_number=db_task.task_number or "",
+        title=db_task.title or "",
+        user_id=user.id,
+        organization_id=db_task.organization_id,
     )
 
     # Уведомление исполнителю (DB + FCM push)
     if assigned_id and resolved_assignee:
         from app.services.notification_service import (
+            broadcast_created_notification_async,
             create_task_assignment_notification,
+            notification_broadcast_payload,
         )
 
-        create_task_assignment_notification(
+        notifications = create_task_assignment_notification(
             db=db,
             task=db_task,
             assigned_to=resolved_assignee,
             assigned_by=user,
         )
-        asyncio.ensure_future(
-            broadcast_task_assigned(
-                task_id=db_task.id,
-                task_number=db_task.task_number or "",
-                assigned_user_id=assigned_id,
-                assigned_user_name=(
-                    resolved_assignee.full_name or resolved_assignee.username
-                ),
-                user_id=user.id,
-                organization_id=db_task.organization_id,
+        for notification in notifications:
+            notification_user_id, notification_event = notification_broadcast_payload(
+                notification
             )
+            background_tasks.add_task(
+                broadcast_created_notification_async,
+                notification_user_id,
+                notification_event,
+            )
+        background_tasks.add_task(
+            broadcast_task_assigned,
+            task_id=db_task.id,
+            task_number=db_task.task_number or "",
+            assigned_user_id=assigned_id,
+            assigned_user_name=(
+                resolved_assignee.full_name or resolved_assignee.username
+            ),
+            user_id=user.id,
+            organization_id=db_task.organization_id,
         )
 
     return CreateTaskFromTextResponse(

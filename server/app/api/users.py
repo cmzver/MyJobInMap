@@ -17,7 +17,7 @@ from app.models import TaskModel, UserModel, get_db
 from app.schemas import UserResponse
 from app.services import get_current_user_required
 from app.services.tenant_filter import TenantFilter
-from app.utils import user_to_response
+from app.utils import user_list_to_responses
 
 router = APIRouter(prefix="/api/users", tags=["Users"])
 
@@ -47,7 +47,7 @@ async def get_users(
         .filter(UserModel.is_active == True)
         .all()
     )
-    return [user_to_response(u) for u in users]
+    return user_list_to_responses(users)
 
 
 @router.get("/me/stats", response_model=UserStatsResponse)

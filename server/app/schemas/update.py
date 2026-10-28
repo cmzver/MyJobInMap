@@ -4,10 +4,11 @@ Update Schemas
 Схемы для системы обновления Android-приложения.
 """
 
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, Field
+
+from app.schemas.datetime_utc import UtcDateTime
 
 
 class AppUpdateInfo(BaseModel):
@@ -21,7 +22,7 @@ class AppUpdateInfo(BaseModel):
         default=None, description="Размер APK файла в байтах"
     )
     download_url: str = Field(description="URL для скачивания APK")
-    created_at: datetime = Field(description="Дата публикации")
+    created_at: UtcDateTime = Field(description="Дата публикации")
 
 
 class AppUpdateCheck(BaseModel):

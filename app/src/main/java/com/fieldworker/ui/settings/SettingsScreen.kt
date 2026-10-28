@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.fieldworker.data.preferences.AppPreferences
+import com.fieldworker.ui.utils.avatarInitials
+import com.fieldworker.ui.utils.resolveAvatarUrl
 import kotlinx.coroutines.launch
 
 /**
@@ -43,7 +45,8 @@ fun SettingsScreen(
     onOpenUserSettings: () -> Unit = {},
     baseUrl: String? = null,
     authToken: String? = null,
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    onOpenMenu: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var serverUrl by remember { mutableStateOf(preferences.getServerUrl()) }
@@ -79,13 +82,23 @@ fun SettingsScreen(
     val appVersion = appVersionInfo.first
     val appVersionCode = appVersionInfo.second
     val userName = preferences.getUserFullName() ?: preferences.getUsername() ?: "Пользователь"
-    val userRole = roleLabel(preferences.getUserRole())
+    // Предпочитаем серверный role_label (поддерживает кастомные группы),
+    // иначе — маппинг встроенных ролей.
+    val userRole = preferences.getUserRoleLabel()?.takeIf { it.isNotBlank() }
+        ?: roleLabel(preferences.getUserRole())
     
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = { Text("Настройки") },
+                navigationIcon = {
+                    if (onOpenMenu != null) {
+                        IconButton(onClick = onOpenMenu) {
+                            Icon(Icons.Default.Menu, contentDescription = "Меню")
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 )
@@ -413,17 +426,7 @@ private fun ProfileAvatar(
     authToken: String?,
 ) {
     val context = LocalContext.current
-    val resolved = remember(avatarUrl, baseUrl) {
-        val a = avatarUrl?.trim().takeUnless { it.isNullOrBlank() }
-        when {
-            a == null -> null
-            a.startsWith("http://") || a.startsWith("https://") -> a
-            else -> {
-                val b = baseUrl?.trimEnd('/').takeUnless { it.isNullOrBlank() }
-                if (b != null) b + (if (a.startsWith("/")) a else "/$a") else null
-            }
-        }
-    }
+    val resolved = remember(avatarUrl, baseUrl) { resolveAvatarUrl(avatarUrl, baseUrl) }
     // Bearer-токен подставляет AuthHeaderInterceptor в общем Coil ImageLoader.
     val request = remember(resolved) {
         resolved?.let { url ->
@@ -449,9 +452,7 @@ private fun ProfileAvatar(
                 modifier = Modifier.matchParentSize(),
             )
         } else {
-            val initials = fullName.trim().split(" ", limit = 2)
-                .mapNotNull { it.firstOrNull()?.uppercase() }
-                .joinToString("").take(2)
+            val initials = avatarInitials(fullName)
             if (initials.isNotEmpty()) {
                 Text(
                     text = initials,

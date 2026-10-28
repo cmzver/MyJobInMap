@@ -9,11 +9,13 @@ Telegram-бот диспетчер заявок для FieldWorker.
 переменную окружения GROUP_WORKER_MAP (JSON).
 """
 
+import asyncio
 import json
-import os
 import logging
+import os
 import re
 import threading
+import time
 
 import requests
 from dotenv import load_dotenv
@@ -111,14 +113,36 @@ def get_api_headers(force_refresh: bool = False) -> dict | None:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _api_request(method: str, path: str, **kwargs) -> requests.Response | None:
+    """
+    Запрос к API с авторизацией и одной повторной попыткой при 401
+    (токен мог истечь — обновляем и повторяем).
+
+    Returns:
+        requests.Response, либо None если учётные данные не настроены.
+        Сетевые исключения requests пробрасываются — обрабатывает вызывающий.
+    """
+    kwargs.setdefault("timeout", 10)
+    url = f"{API_BASE_URL}{path}"
+
+    headers = get_api_headers()
+    if not headers:
+        return None
+    resp = requests.request(method, url, headers=headers, **kwargs)
+    if resp.status_code == 401:
+        headers = get_api_headers(force_refresh=True)
+        if not headers:
+            return None
+        resp = requests.request(method, url, headers=headers, **kwargs)
+    return resp
+
+
 def _fetch_bot_settings() -> dict:
     """
     Загружает настройки бота с сервера (маппинг групп, флаги).
     Кэширует на CACHE_TTL_SECONDS секунд.
     При ошибке возвращает последний кэш или env-фолбэк.
     """
-    import time
-
     global _CACHED_BOT_SETTINGS, _CACHE_TIMESTAMP
 
     now = time.time()
@@ -126,23 +150,9 @@ def _fetch_bot_settings() -> dict:
         return _CACHED_BOT_SETTINGS
 
     try:
-        headers = get_api_headers()
-        if not headers:
+        resp = _api_request("GET", "/api/public/telegram-bot/mappings")
+        if resp is None:
             raise RuntimeError("No auth headers")
-        resp = requests.get(
-            f"{API_BASE_URL}/api/public/telegram-bot/mappings",
-            headers=headers,
-            timeout=10,
-        )
-        if resp.status_code == 401:
-            headers = get_api_headers(force_refresh=True)
-            if not headers:
-                raise RuntimeError("Token refresh failed")
-            resp = requests.get(
-                f"{API_BASE_URL}/api/public/telegram-bot/mappings",
-                headers=headers,
-                timeout=10,
-            )
         resp.raise_for_status()
         data = resp.json()
         _CACHED_BOT_SETTINGS = data
@@ -176,26 +186,13 @@ def _report_group(chat_id: int, title: str) -> None:
     if _REPORTED_GROUPS.get(chat_id) == title:
         return
     try:
-        headers = get_api_headers()
-        if not headers:
-            return
-        resp = requests.post(
-            f"{API_BASE_URL}/api/public/telegram-bot/report-group",
+        resp = _api_request(
+            "POST",
+            "/api/public/telegram-bot/report-group",
             json={"chat_id": chat_id, "title": title},
-            headers=headers,
             timeout=5,
         )
-        if resp.status_code == 401:
-            headers = get_api_headers(force_refresh=True)
-            if not headers:
-                return
-            resp = requests.post(
-                f"{API_BASE_URL}/api/public/telegram-bot/report-group",
-                json={"chat_id": chat_id, "title": title},
-                headers=headers,
-                timeout=5,
-            )
-        if resp.ok:
+        if resp is not None and resp.ok:
             _REPORTED_GROUPS[chat_id] = title
             logger.debug(f"Группа зарегистрирована: {title} ({chat_id})")
     except Exception as exc:
@@ -270,8 +267,6 @@ def send_to_server(text: str, sender: str, assigned_username: str | None = None)
     Returns:
         Словарь с ответом сервера или информацией об ошибке.
     """
-    url = f"{API_BASE_URL}/api/tasks/from-text"
-    
     payload = {
         "text": text,
         "source": "telegram",
@@ -279,23 +274,19 @@ def send_to_server(text: str, sender: str, assigned_username: str | None = None)
     }
     if assigned_username:
         payload["assigned_username"] = assigned_username
-    
+
+    response = None
     try:
-        headers = get_api_headers()
-        if not headers:
+        response = _api_request(
+            "POST", "/api/tasks/from-text", json=payload, timeout=15
+        )
+        if response is None:
             logger.error("API token is not configured for bot and API credentials are missing")
             return {"success": False, "error": "API token is not configured"}
-        response = requests.post(url, json=payload, headers=headers, timeout=15)
-        if response.status_code == 401:
-            headers = get_api_headers(force_refresh=True)
-            if not headers:
-                logger.error("API token refresh failed")
-                return {"success": False, "error": "API token is not configured"}
-            response = requests.post(url, json=payload, headers=headers, timeout=15)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.ConnectionError:
-        logger.error(f"Не удалось подключиться к серверу: {url}")
+        logger.error(f"Не удалось подключиться к серверу: {API_BASE_URL}")
         return {"success": False, "error": "Сервер недоступен"}
     except requests.exceptions.Timeout:
         logger.error("Таймаут при отправке заявки")
@@ -305,7 +296,7 @@ def send_to_server(text: str, sender: str, assigned_username: str | None = None)
         try:
             error_data = response.json()
             return {"success": False, "error": error_data.get("detail", f"Ошибка {response.status_code}")}
-        except:
+        except (ValueError, AttributeError):
             return {"success": False, "error": f"Ошибка {response.status_code}"}
     except Exception as e:
         logger.error(f"Неизвестная ошибка: {e}")
@@ -332,23 +323,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not is_potential_task(text):
         return
     
-    # Регистрируем группу на сервере (если ещё не отправляли)
+    # Регистрируем группу на сервере (если ещё не отправляли).
+    # Блокирующие HTTP-вызовы выносим в поток, чтобы не блокировать event loop.
     if chat.title and chat.id:
-        _report_group(chat.id, chat.title)
-    
+        await asyncio.to_thread(_report_group, chat.id, chat.title)
+
     # Определяем отправителя
     sender = user.username or user.first_name or str(user.id)
-    
+
     # Определяем работника для автоназначения по названию группы
-    assigned_username = resolve_worker_username(chat.title)
-    
+    assigned_username = await asyncio.to_thread(resolve_worker_username, chat.title)
+
     logger.info(
         f"📝 Потенциальная заявка от {sender} в чате {chat.title or chat.id}"
         + (f" → назначение: {assigned_username}" if assigned_username else "")
     )
-    
+
     # Отправляем на сервер для парсинга и создания
-    result = send_to_server(text, sender, assigned_username=assigned_username)
+    result = await asyncio.to_thread(
+        send_to_server, text, sender, assigned_username=assigned_username
+    )
     
     # Формируем ответ
     if result.get("success"):
@@ -440,17 +434,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команды /status - проверка связи с сервером."""
     try:
-        headers = get_api_headers()
-        if not headers:
+        response = await asyncio.to_thread(
+            _api_request, "GET", "/api/dashboard/stats", timeout=5
+        )
+        if response is None:
             await update.message.reply_text("❌ API token is not configured for bot")
             return
-        response = requests.get(f"{API_BASE_URL}/api/dashboard/stats", headers=headers, timeout=5)
-        if response.status_code == 401:
-            headers = get_api_headers(force_refresh=True)
-            if not headers:
-                await update.message.reply_text("❌ API token is not configured for bot")
-                return
-            response = requests.get(f"{API_BASE_URL}/api/dashboard/stats", headers=headers, timeout=5)
         if response.ok:
             stats = response.json()
             

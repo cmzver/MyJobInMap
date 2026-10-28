@@ -71,6 +71,11 @@ env/
 ENV/
 venv/
 .env
+
+# WireGuard peer configs for intercom panels (secrets) — keep only the example
+deploy/wireguard/*.conf
+!deploy/wireguard/*.conf.example
+
 *.db
 *.db-journal
 *.db-wal
@@ -116,8 +121,10 @@ chat_results.txt
 .obsidian/
 **/.obsidian/
 
-# Playwright MCP artifacts
+# Playwright MCP/CLI artifacts
 .playwright-mcp/
+.playwright-cli/
+/output/
 
 # Generated OpenAPI intermediate (types are committed, this dump is not)
 server/openapi.json
@@ -128,3 +135,5 @@ portal/openapi.json
 
 # Claude Code local (per-developer) settings; shared .claude/ files stay tracked
 .claude/settings.local.json
+.claude/CLAUDE.md
+.mcp.json

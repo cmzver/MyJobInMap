@@ -48,6 +48,8 @@ class NotificationModel(Base):
     support_ticket_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("support_tickets.id"), nullable=True, index=True
     )
+    # Мягкая ссылка на чат (для упоминаний) — без FK, чат можно удалить.
+    conversation_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=utcnow, nullable=True
     )

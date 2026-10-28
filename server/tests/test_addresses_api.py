@@ -457,3 +457,60 @@ class TestAddressFilters:
         )
         assert response.status_code == 200
         assert response.json()["total"] >= 1
+
+
+class TestAddressCoordinatePropagation:
+    """Правка координат адреса подхватывается привязанными заявками."""
+
+    def test_update_address_coords_propagates_to_linked_tasks(
+        self, client: TestClient, auth_headers: dict, db_session: Session
+    ):
+        from app.models.task import TaskModel
+
+        # Адрес с явными координатами (без обращения к геокодеру).
+        create = client.post(
+            "/api/addresses",
+            json={"address": "Связанный адрес", "lat": 59.0, "lon": 30.0},
+            headers=auth_headers,
+        )
+        assert create.status_code == 201
+        address_id = create.json()["id"]
+
+        # Привязанная заявка (снимок старых координат) и непривязанная.
+        linked = TaskModel(
+            title="Linked",
+            raw_address="Связанный адрес",
+            lat=59.0,
+            lon=30.0,
+            status="NEW",
+            priority="CURRENT",
+            address_id=address_id,
+        )
+        unlinked = TaskModel(
+            title="Unlinked",
+            raw_address="Другой адрес",
+            lat=59.0,
+            lon=30.0,
+            status="NEW",
+            priority="CURRENT",
+            address_id=None,
+        )
+        db_session.add_all([linked, unlinked])
+        db_session.commit()
+
+        # Правим только координаты адреса.
+        resp = client.patch(
+            f"/api/addresses/{address_id}",
+            json={"lat": 60.5, "lon": 31.5},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+
+        db_session.refresh(linked)
+        db_session.refresh(unlinked)
+        # Привязанная заявка подхватила новые координаты.
+        assert linked.lat == pytest.approx(60.5)
+        assert linked.lon == pytest.approx(31.5)
+        # Непривязанная — без изменений.
+        assert unlinked.lat == pytest.approx(59.0)
+        assert unlinked.lon == pytest.approx(30.0)

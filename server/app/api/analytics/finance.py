@@ -125,7 +125,8 @@ async def get_workers_stats(
     workers = (
         tenant.apply(db.query(UserModel), UserModel)
         .filter(
-            UserModel.role.in_([UserRole.WORKER.value, UserRole.DISPATCHER.value]),
+            # Исполнители = все не-админы (включая кастомные группы)
+            UserModel.role != UserRole.ADMIN.value,
             UserModel.is_active == True,
         )
         .all()

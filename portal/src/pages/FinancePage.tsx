@@ -24,6 +24,7 @@ import Select from '@/components/Select'
 import Spinner from '@/components/Spinner'
 import EmptyState from '@/components/EmptyState'
 import Card from '@/components/Card'
+import MetricCard from '@/components/MetricCard'
 
 type Period = 'all' | 'month' | 'week'
 
@@ -139,61 +140,26 @@ export default function FinancePage() {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                {statsLoading ? '...' : stats?.completed_tasks || 0}
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Выполнено заявок</p>
-            </div>
-          </div>
-        </Card>
-        
-        <Card>
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <DollarSign className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                {statsLoading ? '...' : stats?.paid_tasks || 0}
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Платных заявок</p>
-            </div>
-          </div>
-        </Card>
-        
-        <Card>
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-              <Home className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                {statsLoading ? '...' : stats?.remote_tasks || 0}
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Удалённых заявок</p>
-            </div>
-          </div>
-        </Card>
-        
-        <Card>
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-              <TrendingUp className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                {statsLoading ? '...' : formatCurrency(stats?.total_amount)}
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Общая сумма</p>
-            </div>
-          </div>
-        </Card>
+        <MetricCard
+          icon={CheckCircle}
+          label="Выполнено заявок"
+          value={statsLoading ? '...' : stats?.completed_tasks || 0}
+        />
+        <MetricCard
+          icon={DollarSign}
+          label="Платных заявок"
+          value={statsLoading ? '...' : stats?.paid_tasks || 0}
+        />
+        <MetricCard
+          icon={Home}
+          label="Удалённых заявок"
+          value={statsLoading ? '...' : stats?.remote_tasks || 0}
+        />
+        <MetricCard
+          icon={TrendingUp}
+          label="Общая сумма"
+          value={statsLoading ? '...' : formatCurrency(stats?.total_amount)}
+        />
       </div>
 
       {/* Workers Stats Table */}
@@ -290,7 +256,7 @@ export default function FinancePage() {
                       </span>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-right">
-                      <span className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                      <span className="text-sm text-gray-900 dark:text-white font-medium">
                         {worker.paid_tasks}
                       </span>
                     </td>
@@ -325,7 +291,7 @@ export default function FinancePage() {
                   <td className="px-4 py-3 text-right text-orange-600 dark:text-orange-400">
                     {workerStats.reduce((sum, w) => sum + w.in_progress_tasks, 0)}
                   </td>
-                  <td className="px-4 py-3 text-right text-blue-600 dark:text-blue-400">
+                  <td className="px-4 py-3 text-right text-gray-900 dark:text-white">
                     {workerStats.reduce((sum, w) => sum + w.paid_tasks, 0)}
                   </td>
                   <td className="px-4 py-3 text-right text-orange-600 dark:text-orange-400">

@@ -21,6 +21,7 @@ from app.services import (
     get_current_user_required,
     get_password_hash,
     image_optimizer,
+    revoke_user_refresh_sessions,
     verify_password,
 )
 from app.services.role_utils import canonical_role_value, public_role_value
@@ -153,7 +154,7 @@ async def upload_avatar(
 
 
 @router.patch("/password")
-async def change_password(
+def change_password(
     data: PasswordChange,
     user: UserModel = Depends(get_current_user_required),
     db: Session = Depends(get_db),
@@ -171,6 +172,8 @@ async def change_password(
 
     # Обновление пароля
     user.password_hash = get_password_hash(data.new_password)
+    user.auth_version += 1
+    revoke_user_refresh_sessions(db, user.id)
     db.commit()
 
     return {"success": True, "message": "Пароль успешно изменён"}
@@ -192,12 +195,21 @@ async def get_my_permissions(
     user: UserModel = Depends(get_current_user_required), db: Session = Depends(get_db)
 ):
     """Получить разрешения текущего пользователя"""
-    init_default_settings(db)
-    perms = (
-        db.query(RolePermissionModel)
-        .filter(RolePermissionModel.role == canonical_role_value(user.role))
-        .all()
+    from app.services.user_group_service import BASE_ACCESS_LEVELS
+
+    canonical = canonical_role_value(user.role)
+    # Встроенные роли — глобальные права (NULL), кастомные — в скоупе организации.
+    org_scope = None if canonical in BASE_ACCESS_LEVELS else user.organization_id
+    perms_query = db.query(RolePermissionModel).filter(
+        RolePermissionModel.role == canonical,
+        RolePermissionModel.organization_id == org_scope,
     )
+    perms = perms_query.all()
+    # Самозалечивание только при «холодной» БД — не на каждый запрос
+    # (init_default_settings делает десятки SELECT по настройкам/правам/группам).
+    if not perms:
+        init_default_settings(db)
+        perms = perms_query.all()
     permissions = {perm.permission: perm.is_allowed for perm in perms}
     return PermissionsResponse(
         role=public_role_value(user.role, user.organization_id),

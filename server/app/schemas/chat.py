@@ -4,12 +4,12 @@ Chat Schemas
 Pydantic-схемы для чата: разговоры, сообщения, реакции, прочтение.
 """
 
-from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.chat import ConversationMemberRole, ConversationType, MessageType
+from app.schemas.datetime_utc import UtcDateTime
 
 # ========== Conversations ==========
 
@@ -47,7 +47,7 @@ class MemberInfo(BaseModel):
     last_read_message_id: Optional[int] = None
     is_muted: bool = False
     is_archived: bool = False
-    joined_at: datetime
+    joined_at: UtcDateTime
 
 
 class LastMessagePreview(BaseModel):
@@ -57,7 +57,7 @@ class LastMessagePreview(BaseModel):
     text: Optional[str] = None
     sender_name: str
     message_type: MessageType = MessageType.TEXT
-    created_at: datetime
+    created_at: UtcDateTime
 
 
 class ConversationResponse(BaseModel):
@@ -72,8 +72,8 @@ class ConversationResponse(BaseModel):
     task_id: Optional[int] = None
     organization_id: Optional[int] = None
     created_by: int
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+    created_at: UtcDateTime
+    updated_at: Optional[UtcDateTime] = None
 
 
 class ConversationDetailResponse(ConversationResponse):
@@ -95,7 +95,7 @@ class ConversationListItem(BaseModel):
     unread_mention_count: int = 0
     is_muted: bool = False
     is_archived: bool = False
-    updated_at: Optional[datetime] = None
+    updated_at: Optional[UtcDateTime] = None
 
 
 # ========== Messages ==========
@@ -189,8 +189,8 @@ class MessageResponse(BaseModel):
     mentions: List[MentionInfo] = []
     is_edited: bool = False
     is_deleted: bool = False
-    created_at: datetime
-    edited_at: Optional[datetime] = None
+    created_at: UtcDateTime
+    edited_at: Optional[UtcDateTime] = None
 
 
 class MessageListResponse(BaseModel):

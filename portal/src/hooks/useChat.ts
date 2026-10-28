@@ -7,6 +7,7 @@ export const chatKeys = {
   conversationsRoot: () => [...chatKeys.all, 'conversations'] as const,
   conversations: (includeArchived = false) => [...chatKeys.conversationsRoot(), includeArchived] as const,
   conversation: (id: number) => [...chatKeys.all, 'conversation', id] as const,
+  messagesRoot: () => [...chatKeys.all, 'messages'] as const,
   messages: (conversationId: number) => [...chatKeys.all, 'messages', conversationId] as const,
 }
 
@@ -16,7 +17,9 @@ export function useConversations(includeArchived = false) {
   return useQuery({
     queryKey: chatKeys.conversations(includeArchived),
     queryFn: () => chatApi.getConversations(includeArchived),
-    refetchInterval: 15_000,
+    // Realtime обновляет список через WS-патчи кэша; пропущенное за время
+    // обрыва соединения дотягивает reconnect-sync (useWebSocket.onopen).
+    // Поллинг убран — нагрузку держит WS.
   })
 }
 
@@ -152,14 +155,16 @@ export function useMessages(conversationId: number | null) {
       return lastPage.items[0]?.id
     },
     enabled: conversationId != null,
-    refetchInterval: 10_000,
+    // История патчится WS-событиями; пропущенное за время обрыва соединения
+    // дотягивает reconnect-sync (useWebSocket.onopen). Поллинг убран.
   })
 }
 
 // ─── Message Actions ────────────────────────────────────────────
 
 export function useSendMessage() {
-  const qc = useQueryClient()
+  // Кэшем управляет вызывающий код (ChatPage): оптимистичная вставка и
+  // resolve/markFailed в onSuccess/onError. Здесь — только сетевой вызов.
   return useMutation({
     mutationFn: ({ conversationId, text, replyToId, messageType, taskId }: {
       conversationId: number
@@ -173,33 +178,18 @@ export function useSendMessage() {
       message_type: messageType ?? 'text',
       task_id: taskId,
     }),
-    onSuccess: (msg) => {
-      qc.invalidateQueries({ queryKey: chatKeys.messages(msg.conversation_id) })
-      qc.invalidateQueries({ queryKey: chatKeys.conversationsRoot() })
-    },
   })
 }
 
 export function useUploadAttachment() {
-  const qc = useQueryClient()
+  // Атомарный эндпоинт: сообщение+вложение за один запрос (без draft-сирот).
+  // Кэшем управляет вызывающий код (ChatPage.handleUpload) — append + bump.
   return useMutation({
-    mutationFn: async ({ conversationId, file, replyToId }: {
+    mutationFn: ({ conversationId, file, replyToId }: {
       conversationId: number
       file: File
       replyToId?: number
-    }) => {
-      const draft = await chatApi.sendMessage(conversationId, {
-        text: null,
-        reply_to_id: replyToId,
-        message_type: file.type.startsWith('image/') ? 'image' : 'file',
-      })
-
-      return chatApi.uploadAttachment(draft.id, file)
-    },
-    onSuccess: (msg) => {
-      qc.invalidateQueries({ queryKey: chatKeys.messages(msg.conversation_id) })
-      qc.invalidateQueries({ queryKey: chatKeys.conversationsRoot() })
-    },
+    }) => chatApi.sendMessageWithAttachment(conversationId, file, { replyToId }),
   })
 }
 

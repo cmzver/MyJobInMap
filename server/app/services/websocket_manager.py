@@ -61,6 +61,14 @@ class ConnectionManager:
         """Количество уникальных подключённых пользователей"""
         return len(self._connections)
 
+    def is_user_online(self, user_id: int) -> bool:
+        """Есть ли у пользователя хотя бы одно активное WS-соединение."""
+        return bool(self._connections.get(user_id))
+
+    def online_user_ids(self, user_ids: list[int]) -> set[int]:
+        """Подмножество user_ids, у кого есть активное WS-соединение."""
+        return {uid for uid in user_ids if self._connections.get(uid)}
+
     async def connect(
         self,
         websocket: WebSocket,
@@ -136,6 +144,7 @@ class ConnectionManager:
         message: dict,
         exclude_user_id: Optional[int] = None,
         organization_id: Optional[int] = None,
+        global_event: bool = False,
     ) -> int:
         """
         Отправить сообщение всем подключённым клиентам.
@@ -156,7 +165,11 @@ class ConnectionManager:
             user_id = meta["user_id"] if meta else self._ws_to_user.get(ws)
             if user_id == exclude_user_id:
                 continue
-            if organization_id is not None and meta is not None:
+            if not global_event:
+                # Отсутствующий tenant — не «все организации», а глобальный
+                # (org-less) скоуп. Суперадмин видит события всех tenant-ов.
+                if meta is None:
+                    continue
                 if (
                     not meta["is_superadmin"]
                     and meta["organization_id"] != organization_id
@@ -368,18 +381,23 @@ async def broadcast_chat_message_edited(
     message_id: int,
     new_text: str,
     sender_id: Optional[int] = None,
+    message: Optional[dict] = None,
 ) -> None:
-    """Broadcast: сообщение отредактировано."""
+    """Broadcast: сообщение отредактировано.
+
+    Если передан полный ``message`` (например, после загрузки вложения) —
+    клиент заменяет сообщение в кэше целиком; иначе патчит только текст.
+    """
+    payload: dict = {
+        "conversation_id": conversation_id,
+        "message_id": message_id,
+        "text": new_text,
+    }
+    if message is not None:
+        payload["message"] = message
     await ws_manager.send_to_conversation(
         member_user_ids,
-        _event(
-            "chat_message_edited",
-            {
-                "conversation_id": conversation_id,
-                "message_id": message_id,
-                "text": new_text,
-            },
-        ),
+        _event("chat_message_edited", payload),
         exclude_user_id=sender_id,
     )
 

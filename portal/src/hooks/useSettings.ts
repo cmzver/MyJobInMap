@@ -1,12 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import apiClient from '@/api/client'
 import type { TaskPriority } from '@/types/task'
+import type { components } from '@/types/api.generated'
 
 export interface DefectType {
   id: string
   name: string
   description?: string
   system_types?: string[]  // Для каких типов систем применим этот тип неисправности
+}
+
+export interface DefectTypeInput {
+  name: string
+  description?: string
+  system_types?: string[]
 }
 
 export type SettingValue = string | number | boolean | string[]
@@ -83,11 +90,14 @@ export const settingsApi = {
   },
 
   // Добавить тип неисправности
-  async addDefectType(name: string, description?: string): Promise<DefectType> {
-    const { data } = await apiClient.post<DefectType>('/admin/settings/defect-types', {
-      name,
-      description,
-    })
+  async addDefectType(payload: DefectTypeInput): Promise<DefectType> {
+    const { data } = await apiClient.post<DefectType>('/admin/settings/defect-types', payload)
+    return data
+  },
+
+  // Обновить тип неисправности
+  async updateDefectType(id: string, payload: DefectTypeInput): Promise<DefectType> {
+    const { data } = await apiClient.patch<DefectType>(`/admin/settings/defect-types/${id}`, payload)
     return data
   },
 
@@ -146,6 +156,37 @@ export function useDefectTypes() {
     queryKey: queryKeys.defectTypes,
     queryFn: () => settingsApi.getDefectTypes(),
     staleTime: 300000, // 5 minutes
+  })
+}
+
+export function useAddDefectType() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: DefectTypeInput) => settingsApi.addDefectType(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.defectTypes })
+    },
+  })
+}
+
+export function useUpdateDefectType() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: DefectTypeInput }) =>
+      settingsApi.updateDefectType(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.defectTypes })
+    },
+  })
+}
+
+export function useDeleteDefectType() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => settingsApi.deleteDefectType(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.defectTypes })
+    },
   })
 }
 
@@ -219,5 +260,83 @@ export function useUpdateTelegramBotSettings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: telegramBotKeys.settings })
     },
+  })
+}
+
+// ============================================
+// Custom Fields
+// ============================================
+
+export type CustomField = components['schemas']['CustomFieldResponse']
+export type CustomFieldCreateData = components['schemas']['CustomFieldCreate']
+export type CustomFieldUpdateData = components['schemas']['CustomFieldUpdate']
+
+export const customFieldsApi = {
+  async list(): Promise<CustomField[]> {
+    const { data } = await apiClient.get<CustomField[]>('/admin/custom-fields')
+    return data
+  },
+
+  async create(payload: CustomFieldCreateData): Promise<CustomField> {
+    const { data } = await apiClient.post<CustomField>('/admin/custom-fields', payload)
+    return data
+  },
+
+  async update(id: number, payload: CustomFieldUpdateData): Promise<CustomField> {
+    const { data } = await apiClient.patch<CustomField>(`/admin/custom-fields/${id}`, payload)
+    return data
+  },
+
+  async remove(id: number): Promise<void> {
+    await apiClient.delete(`/admin/custom-fields/${id}`)
+  },
+
+  async toggle(id: number): Promise<void> {
+    await apiClient.patch(`/admin/custom-fields/${id}/toggle`)
+  },
+}
+
+const customFieldKeys = {
+  all: ['custom-fields'] as const,
+}
+
+export function useCustomFields() {
+  return useQuery({
+    queryKey: customFieldKeys.all,
+    queryFn: () => customFieldsApi.list(),
+    staleTime: 300000,
+  })
+}
+
+export function useCreateCustomField() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CustomFieldCreateData) => customFieldsApi.create(payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: customFieldKeys.all }),
+  })
+}
+
+export function useUpdateCustomField() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: CustomFieldUpdateData }) =>
+      customFieldsApi.update(id, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: customFieldKeys.all }),
+  })
+}
+
+export function useDeleteCustomField() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => customFieldsApi.remove(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: customFieldKeys.all }),
+  })
+}
+
+export function useToggleCustomField() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => customFieldsApi.toggle(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: customFieldKeys.all }),
   })
 }

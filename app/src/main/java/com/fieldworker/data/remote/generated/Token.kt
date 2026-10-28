@@ -23,7 +23,6 @@
 
 package com.fieldworker.data.remote.generated
 
-import com.fieldworker.data.remote.generated.UserRole
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
@@ -39,6 +38,8 @@ import kotlinx.serialization.Contextual
  * @param username 
  * @param role 
  * @param fullName 
+ * @param roleLabel 
+ * @param baseAccess 
  * @param avatarUrl 
  * @param organizationId 
  * @param organizationName 
@@ -62,11 +63,17 @@ data class Token (
     @SerialName(value = "username")
     val username: kotlin.String,
 
-    @Contextual @SerialName(value = "role")
-    val role: UserRole,
+    @SerialName(value = "role")
+    val role: kotlin.String,
 
     @SerialName(value = "full_name")
     val fullName: kotlin.String,
+
+    @SerialName(value = "role_label")
+    val roleLabel: kotlin.String? = "",
+
+    @SerialName(value = "base_access")
+    val baseAccess: kotlin.String? = "worker",
 
     @SerialName(value = "avatar_url")
     val avatarUrl: kotlin.String? = null,

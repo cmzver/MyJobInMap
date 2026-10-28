@@ -18,6 +18,7 @@ from app.models.address import (
     SystemStatus,
     SystemType,
 )
+from app.schemas.datetime_utc import UtcDateTime
 
 # ============================================
 # Enums (��� ���������)
@@ -184,8 +185,8 @@ class AddressResponse(BaseModel):
     extra_info: Optional[str] = None
     is_active: bool = True
 
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
 
 
 class AddressListResponse(BaseModel):
@@ -289,8 +290,8 @@ class AddressSystemResponse(AddressSystemBase):
 
     id: int
     address_id: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
 
 
 # ============================================
@@ -343,8 +344,110 @@ class AddressEquipmentResponse(AddressEquipmentBase):
 
     id: int
     address_id: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
+
+
+# ============================================
+# Intercom Panel Schemas
+# ============================================
+
+
+class IntercomPanelBase(BaseModel):
+    """Base fields of a network intercom / door panel."""
+
+    vendor: str = Field(default="beward", max_length=30, description="Driver/vendor")
+    model: Optional[str] = Field(None, max_length=100)
+    label: Optional[str] = Field(None, max_length=200)
+    ip: str = Field(..., min_length=1, max_length=64, description="Device IP address")
+    port: int = Field(default=80, ge=1, le=65535)
+    entrance: Optional[str] = Field(
+        None, max_length=10, description="Entrance the panel serves"
+    )
+    is_active: bool = Field(default=True)
+    notes: Optional[str] = None
+
+
+class IntercomPanelCreate(IntercomPanelBase):
+    """Create a panel."""
+
+    pass
+
+
+class IntercomPanelUpdate(BaseModel):
+    """Update a panel (all fields optional)."""
+
+    vendor: Optional[str] = Field(None, max_length=30)
+    model: Optional[str] = Field(None, max_length=100)
+    label: Optional[str] = Field(None, max_length=200)
+    ip: Optional[str] = Field(None, min_length=1, max_length=64)
+    port: Optional[int] = Field(None, ge=1, le=65535)
+    entrance: Optional[str] = Field(None, max_length=10)
+    is_active: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class IntercomPanelResponse(IntercomPanelBase):
+    """Panel response."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    address_id: int
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
+
+
+# ============================================
+# Intercom Panel Action Schemas (live device I/O)
+# ============================================
+
+
+class PanelLockStatusResponse(BaseModel):
+    """Current lock state read from the device."""
+
+    is_open: bool = Field(..., description="True if the door is held open")
+
+
+class PanelDoorActionResponse(BaseModel):
+    """Result of an open/close command."""
+
+    ok: bool = True
+    action: str = Field(..., description="open | close")
+    is_open: bool = Field(..., description="Lock state after the command")
+
+
+class PanelMifareScanCodeResponse(BaseModel):
+    """Key-enrollment ('scan by code') value read from the device."""
+
+    code: Optional[str] = Field(None, description="Scan-by-code value")
+    active: bool = Field(False, description="Whether scan-by-code is enabled")
+
+
+# ============================================
+# Address Assignee Schemas (per-user access)
+# ============================================
+
+
+class AddressAssigneeCreate(BaseModel):
+    """Назначить пользователя ответственным за адрес."""
+
+    user_id: int = Field(..., description="ID пользователя")
+
+
+class AddressAssigneeResponse(BaseModel):
+    """Запись о привязке адрес→пользователь."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    address_id: int
+    user_id: int
+    full_name: Optional[str] = None
+    username: Optional[str] = None
+    role_label: Optional[str] = None
+    created_at: UtcDateTime
+    created_by_name: Optional[str] = None
 
 
 # ============================================
@@ -367,7 +470,7 @@ class AddressDocumentResponse(BaseModel):
     valid_from: Optional[datetime] = None
     valid_until: Optional[datetime] = None
     notes: Optional[str] = None
-    created_at: datetime
+    created_at: UtcDateTime
     created_by_id: Optional[int] = None
     created_by_name: Optional[str] = None  # ����������� � API
 
@@ -414,8 +517,8 @@ class AddressContactResponse(AddressContactBase):
 
     id: int
     address_id: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
 
 
 # ============================================
@@ -434,7 +537,7 @@ class AddressHistoryResponse(BaseModel):
     description: str
     user_id: Optional[int] = None
     user_name: Optional[str] = None  # ����������� � API
-    created_at: datetime
+    created_at: UtcDateTime
 
 
 # ============================================
@@ -478,12 +581,13 @@ class AddressFullResponse(BaseModel):
     notes: Optional[str] = None
     extra_info: Optional[str] = None
     is_active: bool = True
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
 
     # ��������� ������
     systems: List[AddressSystemResponse] = []
     equipment: List[AddressEquipmentResponse] = []
+    panels: List[IntercomPanelResponse] = []
     documents: List[AddressDocumentResponse] = []
     contacts: List[AddressContactResponse] = []
     task_stats: TaskStats = TaskStats()
