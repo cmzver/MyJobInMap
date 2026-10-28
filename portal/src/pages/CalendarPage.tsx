@@ -29,6 +29,7 @@ import {
   parseISO
 } from 'date-fns'
 import { ru } from 'date-fns/locale'
+import { STATUS_HEX } from '@/config/taskConstants'
 
 export default function CalendarPage() {
   const { user } = useAuthStore()
@@ -196,12 +197,8 @@ export default function CalendarPage() {
                             {dayTasks.slice(0, 3).map((task) => (
                               <span
                                 key={task.id}
-                                className={`w-1.5 h-1.5 rounded-full ${
-                                  isSelected ? 'bg-white/70' :
-                                  task.status === 'NEW' ? 'bg-red-500' :
-                                  task.status === 'IN_PROGRESS' ? 'bg-yellow-500' :
-                                  'bg-green-500'
-                                }`}
+                                className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white/70' : ''}`}
+                                style={isSelected ? undefined : { backgroundColor: STATUS_HEX[task.status] ?? STATUS_HEX.DONE }}
                               />
                             ))}
                             {dayTasks.length > 3 && (

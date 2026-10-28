@@ -9,13 +9,9 @@ import {
 import Card from '@/components/Card'
 import type { ReportsData } from '@/types/reports'
 import { formatHours } from '@/components/analytics/analyticsUtils'
+import { STATUS_HEX } from '@/config/taskConstants'
 
-const statusColors: Record<string, string> = {
-  NEW: '#EF4444',
-  IN_PROGRESS: '#F59E0B',
-  DONE: '#22C55E',
-  CANCELLED: '#6B7280',
-}
+const statusColors: Record<string, string> = STATUS_HEX
 
 const priorityColors: Record<string, string> = {
   EMERGENCY: '#DC2626',

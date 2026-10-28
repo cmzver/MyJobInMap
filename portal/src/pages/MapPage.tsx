@@ -24,7 +24,7 @@ import { useUsers } from '@/hooks/useUsers'
 import apiClient from '@/api/client'
 import type { PaginatedResponse, Task, TaskPriority, TaskStatus } from '@/types/task'
 import { normalizeRoleForAccess, isAssignableRole } from '@/types/user'
-import { normalizePriority } from '@/config/taskConstants'
+import { STATUS_HEX, normalizePriority } from '@/config/taskConstants'
 import { formatDatePretty } from '@/utils/dateFormat'
 import { buildTaskListUrl } from '@/utils/taskListUrl'
 
@@ -77,12 +77,7 @@ const createMarkerIcon = (color: string) => new Icon({
   popupAnchor: [0, -32],
 })
 
-const markerColors = {
-  NEW: '#EF4444',
-  IN_PROGRESS: '#F59E0B',
-  DONE: '#22C55E',
-  CANCELLED: '#6B7280',
-}
+const markerColors = STATUS_HEX
 
 // Маркеры красятся по приоритету — для диспетчера это главный сигнал.
 type PriorityKey = 'EMERGENCY' | 'URGENT' | 'CURRENT' | 'PLANNED'

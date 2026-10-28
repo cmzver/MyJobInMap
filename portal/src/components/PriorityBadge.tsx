@@ -12,7 +12,7 @@ interface PriorityBadgeProps {
 function PriorityBadge({ priority, className }: PriorityBadgeProps) {
   const normalized = normalizePriority(priority)
   const label = PRIORITY_LABELS[normalized] || String(priority)
-  const variant = PRIORITY_COLORS[normalized] || 'info'
+  const variant = PRIORITY_COLORS[normalized] || 'gray'
   const compactIcon = normalized === 'EMERGENCY'
     ? <Flame className="h-3 w-3" />
     : normalized === 'URGENT'
