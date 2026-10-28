@@ -1,139 +1,144 @@
 # FieldWorker — Field Service Management System
 
-[![CI](https://github.com/cmzver/MyJobInMap/actions/workflows/ci.yml/badge.svg)](https://github.com/cmzver/MyJobInMap/actions/workflows/ci.yml)
+[![Server CI](https://github.com/cmzver/MyJobInMap/actions/workflows/ci-server.yml/badge.svg)](https://github.com/cmzver/MyJobInMap/actions/workflows/ci-server.yml)
+[![Portal CI](https://github.com/cmzver/MyJobInMap/actions/workflows/ci-portal.yml/badge.svg)](https://github.com/cmzver/MyJobInMap/actions/workflows/ci-portal.yml)
 
-Система управления выездным обслуживанием. Состоит из четырёх компонентов:
-Android-приложения для исполнителей, веб-портала для диспетчеров (React),
-backend-сервера (FastAPI, порт 8001) и Telegram-бота.
+Система управления выездным обслуживанием: Android-приложение для исполнителей,
+веб-портал для диспетчеров и администраторов, backend на FastAPI и Telegram-бот.
 
 | | |
 |---|---|
-| Статус | Production |
-| Версия Android | 2.34.3 |
-| Версия API | 2.18.0 |
-| Тесты | 640+ |
+| Статус | Production (PostgreSQL, Docker) |
+| Версия Android | 2.36.1 — `app/build.gradle.kts` |
+| Версия API | 2.18.0 — `server/app/config.py` |
+| Тесты | сервер 825 · портал 73 · Android 106 |
 
 ---
 
-## Стек технологий
+## Стек
 
 | Слой | Технологии |
 |------|-----------|
-| Android (`app/`) | Kotlin, Jetpack Compose, Material 3, Hilt, Room (offline-first), Retrofit, OSMDroid, Coroutines/StateFlow, FCM push |
-| Web Portal (`portal/`) | React 18, TypeScript 5, Vite 5, TailwindCSS, TanStack Query, Zustand, React Router 6, Leaflet |
-| Backend (`server/`) | FastAPI, SQLAlchemy, Pydantic, Alembic, SQLite (опционально PostgreSQL), JWT, WebSocket, pytest |
-| Bot (`bot/`) | Python, Telegram Bot API |
-
-Экспериментальная переписка мобильного клиента на Kotlin Multiplatform
-(`mobile-next/`) заархивирована и выведена из активной разработки. Снимок
-сохранён в git-теге `archive/mobile-next-2026-06-04` и восстанавливается
-командой `git checkout archive/mobile-next-2026-06-04 -- mobile-next`.
+| Android (`app/`) | Kotlin, Jetpack Compose, Material 3, Hilt, Room (offline-first, outbox), Retrofit + kotlinx.serialization (модели из OpenAPI), OSMDroid, FCM |
+| Портал (`portal/`) | React 18, TypeScript 5, Vite 5, TailwindCSS, TanStack Query, Zustand, React Router 6, Leaflet; типы из OpenAPI |
+| Backend (`server/`) | FastAPI, SQLAlchemy 2, Pydantic 2, Alembic, PostgreSQL 15, Redis + ARQ (фоновые задачи), JWT, WebSocket, pytest |
+| Бот (`bot/`) | Python, python-telegram-bot |
+| Инфраструктура | Docker Compose, Caddy (HTTPS), Prometheus + Grafana, WireGuard (домофоны) |
 
 ---
 
-## Структура проекта
+## Возможности
+
+- **Заявки** — карта, список с фильтрами и сохранёнными видами, календарь, машина
+  состояний статусов (`DONE`/`CANCELLED` с обязательным комментарием), фото до/после,
+  комментарии, импорт из текста.
+- **Адреса** — адресная база с привязкой заявок, назначение адресов исполнителям
+  («Мои адреса»), карточка адреса.
+- **Домофоны Beward** — открытие двери, статус, снимок с камеры, коды ключей;
+  доступ к панелям через on-demand WireGuard.
+- **Чат** — групповые и личные чаты, реакции, упоминания, фото, прикрепление заявки,
+  realtime по WebSocket, push (FCM и Web Push).
+- **Организации** — изоляция данных по tenant, org-admin, произвольные группы
+  пользователей как роли.
+- **Аналитика** — дашборд, SLA, финансы, отчёты, экспорт.
+- **Offline-first Android** — Room-outbox, синхронизация с сохранением локальных
+  изменений, обновления APK из портала.
+- **Безопасность** — ротация refresh-сессий, rate limiting, IP-guard (бан, brute-force,
+  DDoS), аудит входов.
+- **Эксплуатация** — резервное копирование PostgreSQL (pg_dump), метрики Prometheus,
+  поддержка (тикеты).
+
+---
+
+## Структура
 
 ```
 MyJobInMap/
-├── app/            # Android-приложение (Kotlin, Jetpack Compose)
-├── portal/         # React + TypeScript веб-портал
-├── server/         # FastAPI backend (REST + WebSocket)
-│   ├── app/        #   api / models / schemas / services
-│   ├── alembic/    #   миграции БД
-│   └── tests/      #   pytest (640+)
+├── app/            # Android (Kotlin, Compose)
+├── portal/         # Веб-портал (React + TypeScript)
+├── server/         # Backend (FastAPI): app/, alembic/, tests/, scripts/
 ├── bot/            # Telegram-бот
-├── scripts/        # Деплой и вспомогательные скрипты
-├── monitoring/     # Prometheus / Grafana конфиги
-├── docs/           # Документация
-├── .github/        # CI (GitHub Actions)
-└── docker-compose.*.yml, Makefile, Caddyfile
+├── deploy/         # Конфиги развёртывания (WireGuard)
+├── monitoring/     # Prometheus / Grafana
+├── scripts/        # Деплой, проверки, генерация моделей, changelog
+├── docs/           # Аудит, архитектура портала, ADR (docs/brain)
+└── docker-compose.*.yml, Caddyfile, Makefile
 ```
 
 ---
 
 ## Быстрый старт
 
-### 1. Backend
+Подробно — в [GETTING_STARTED.md](GETTING_STARTED.md). Кратко:
 
 ```bash
-docker compose -f docker-compose.postgres.yml up -d db   # PostgreSQL
-make install-deps  # server/venv + requirements(-dev).txt
-make run-server    # http://localhost:8001  (Swagger: /docs)
+# Весь стек в Docker (PostgreSQL + Redis + API + worker + бот)
+docker-up.cmd                          # http://localhost:8001/docs, /portal/
+
+# Или сервер на хосте
+docker compose -f docker-compose.postgres.yml up -d db
+make install-deps                      # server/venv + requirements(-dev).txt
+make migrate                           # Alembic
+make run-server                        # http://localhost:8001
+
+# Портал с hot reload
+cd portal && npm install && npm run dev   # http://localhost:3000/portal/
 ```
 
-В development сервер сам применяет миграции и создаёт admin/admin и user/user.
-Весь стек в Docker — `docker-up.cmd`. Подробнее — [GETTING_STARTED.md](GETTING_STARTED.md).
-
-### 2. Web Portal
-
-```bash
-cd portal
-npm install
-npm run dev        # http://localhost:3000
-```
-
-Альтернативно — встроенный портал: http://localhost:8001/portal/
-
-### 3. Android
-
-```text
-Android Studio → Open → MyJobInMap
-Запуск на эмуляторе (сервер виден как 10.0.2.2:8001)
-```
-
-### 4. Тесты и проверки
-
-```bash
-cd server && make test     # pytest (640+)
-cd portal && npm run build # tsc + vite build
-```
-
-CI (GitHub Actions) на каждый push в `main` выполняет: black + isort +
-pytest (покрытие ≥ 50%) для сервера и tsc + build для портала.
+Android: открыть проект в Android Studio, сервер в эмуляторе — `10.0.2.2:8001`.
 
 ---
 
-## Возможности
+## Проверки
 
-- Заявки — карта с приоритет-маркерами, список, статусы (state machine), фото до/после, комментарии.
-- Чат — групповые и личные чаты, реакции, упоминания, фото, прикрепление заявки карточкой с быстрым переходом к ней (portal и Android), realtime по WebSocket, push (FCM).
-- Мультитенантность — изоляция данных по организациям, сценарии org-admin.
-- SLA и аналитика — метрики, summary-эндпоинты, экспорт CSV.
-- Offline-first — Android работает без сети, синхронизация при подключении.
-- Обновления Android — публикация APK из админки, извлечение версии, ручная проверка.
-- Безопасность — JWT, rate limiting (5/60s на login), role-based access.
-- Резервное копирование — автоматические и ручные копии БД.
+| Где | Команда | В CI |
+|-----|---------|------|
+| Сервер | `make test` (pytest), `make format` (black + isort) | black → isort → pytest, покрытие ≥ 75%, SQLite и PostgreSQL |
+| Портал | `npm run lint`, `npx tsc --noEmit`, `npx vitest run`, `npm run build` | tsc + build |
+| Android | `gradlew :app:testDebugUnitTest` | — |
+
+Python-окружение одно — `server/venv`; dev-инструменты зафиксированы в
+`server/requirements-dev.txt` и совпадают с CI.
 
 ---
 
 ## Ключевые API-эндпоинты
 
-Сервер: http://localhost:8001 · документация: /docs
+Полный список — Swagger на `/docs`.
 
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
-| POST | `/api/auth/login` | Вход (rate limit 5/60s) |
+| POST | `/api/auth/login`, `/api/auth/refresh` | Вход и ротация refresh-сессии |
 | GET | `/api/auth/me` | Текущий пользователь |
-| GET / POST | `/api/tasks` | Список (пагинация) / создание заявки |
-| PATCH | `/api/tasks/{id}/status` | Смена статуса (для `DONE`/`CANCELLED` требуется комментарий) |
-| GET / POST | `/api/chat/conversations` | Чаты / создание |
-| POST | `/api/chat/conversations/{id}/messages` | Сообщение (в т.ч. `task_id` — прикрепить заявку) |
-| WS | `/ws?token=…` | Realtime-события чата и задач |
-| GET | `/api/sla` | SLA и аналитика |
-| GET / POST | `/api/admin/backup/*` | Резервное копирование |
+| GET / POST | `/api/tasks` | Список (пагинация до 100) / создание заявки |
+| PATCH | `/api/tasks/{id}/status` | Смена статуса |
+| GET / POST | `/api/addresses` | Адресная база |
+| GET / POST | `/api/chat/conversations` | Чаты |
+| WS | `/ws?token=…` | Realtime-события чата и заявок |
+| GET | `/health` | Liveness/readiness (503 при недоступной БД) |
 
 ---
 
-## Команды (Makefile, из `server/`)
+## Разработка
 
-```bash
-make run-server   # запуск сервера
-make migrate      # применить миграции БД
-make test         # тесты
-make format       # black + isort
-make clean        # сборки, кэши, скриншоты
-make help         # справка
-```
+- **API-эндпоинт:** роутер в доменном пакете `server/app/api/<домен>/`, схема в
+  `server/app/schemas/`, логика в `server/app/services/`. Изменение модели — миграция
+  Alembic, см. [server/MIGRATIONS.md](server/MIGRATIONS.md).
+- **Типы клиентов:** после изменения API — `npm run gen:api` в `portal/` и
+  `scripts/gen-android-models.ps1` для Android.
+- **Страница портала:** компонент в `portal/src/pages/`, запись в реестре
+  `portal/src/config/portalRoutes.tsx` (маршрут, права, пункт меню).
+- **Версия Android:** `versionCode` / `versionName` в `app/build.gradle.kts`.
+- **Коммиты:** [conventional commits](https://www.conventionalcommits.org/ru/)
+  (`feat(portal): …`, `fix(server): …`) — из них генерируется CHANGELOG.
+- **Уборка:** `make clean` удаляет сборки, кэши и скриншоты (`scripts/clean.ps1`).
+
+## Деплой
+
+`scripts/sync-update-server.ps1 -Server <user@host> -SshKeyPath <key> -WireGuard` —
+сборка портала, синхронизация кода, пересборка образов и проверка healthcheck.
+`-Provision` выполняет первичную настройку сервера (Docker, Caddy + SSL, firewall).
+Серверный `.env` не перезаписывается без явного `-IncludeServiceEnvFiles`.
 
 ---
 
@@ -141,31 +146,20 @@ make help         # справка
 
 | Файл | Описание |
 |------|----------|
-| [GETTING_STARTED.md](GETTING_STARTED.md) | Быстрый старт |
-| [scripts/sync-update-server.ps1](scripts/sync-update-server.ps1) | Деплой на прод (`-Provision` — первичная настройка, Caddy + SSL) |
+| [GETTING_STARTED.md](GETTING_STARTED.md) | Быстрый старт и локальная разработка |
+| [ROADMAP.md](ROADMAP.md) | Что планируется дальше |
+| [CHANGELOG.md](CHANGELOG.md) | История изменений (генерируется из коммитов) |
+| [server/README.md](server/README.md) | Backend: конфигурация, структура, команды |
+| [server/MIGRATIONS.md](server/MIGRATIONS.md) | Миграции БД |
+| [portal/README.md](portal/README.md) | Портал: роли, структура |
+| [docs/TECHNICAL_AUDIT_2026-10-25.md](docs/TECHNICAL_AUDIT_2026-10-25.md) | Технический аудит и статус исправлений |
+| [docs/PORTAL_UX_ARCHITECTURE.md](docs/PORTAL_UX_ARCHITECTURE.md) | UX-архитектура портала |
 | [deploy/wireguard/README.md](deploy/wireguard/README.md) | WireGuard для домофонов |
-| [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) | Push-уведомления |
-| [docs/brain/README.md](docs/brain/README.md) | Knowledge vault (Obsidian) |
-
----
-
-## Разработка
-
-Добавить API-эндпоинт: роутер в `server/app/api/` → схема в
-`server/app/schemas/` → регистрация в `server/app/api/__init__.py`.
-
-Добавить страницу портала: компонент в `portal/src/pages/` → роут в
-`portal/src/App.tsx` → пункт меню в `portal/src/config/menuConfig.ts`.
-
-Обновить версию Android: `app/build.gradle.kts` → `versionCode` /
-`versionName`. История изменений — `git log`.
+| [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) | Push-уведомления (Firebase) |
+| [docs/brain/](docs/brain/README.md) | ADR и заметки (Obsidian vault) |
 
 ---
 
 ## Лицензия
 
 MIT License
-
----
-
-Последнее обновление: 18 июня 2026

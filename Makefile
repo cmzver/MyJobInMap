@@ -1,4 +1,4 @@
-.PHONY: help test lint format run-server run-android clean install-deps docker-up docker-down docker-logs docker-rebuild deploy-preset deploy-portal deploy-server
+.PHONY: help test lint format migrate changelog run-server run-android clean install-deps docker-up docker-down docker-logs docker-rebuild deploy-preset deploy-portal deploy-server
 
 # Single Python env for the repo (server/venv, see server/requirements-dev.txt).
 # Used from inside server/, hence the relative path.
@@ -13,6 +13,8 @@ help:
 	@echo "  make test              - Run pytest tests (server)"
 	@echo "  make lint              - Run pylint on server code"
 	@echo "  make format            - Auto-format code (black, isort)"
+	@echo "  make migrate           - Apply database migrations (Alembic)"
+	@echo "  make changelog         - Regenerate CHANGELOG.md from git history"
 	@echo "  make run-server        - Start FastAPI dev server (port 8001)"
 	@echo "  make run-android       - Build and run Android app (debug)"
 	@echo "  make clean             - Remove build artifacts, cache"
@@ -47,6 +49,14 @@ format:
 	cd server && $(PY) -m black app/ scripts/ tests/
 	cd server && $(PY) -m isort app/ scripts/ tests/
 	@echo "Format complete!"
+
+# Apply database migrations (one-shot, fails on error)
+migrate:
+	cd server && $(PY) -m app.migrate
+
+# Regenerate CHANGELOG.md from conventional commits
+changelog:
+	server\venv\Scripts\python.exe scripts\changelog.py
 
 # Run FastAPI server
 run-server:

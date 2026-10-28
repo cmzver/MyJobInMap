@@ -1,131 +1,68 @@
-# FieldWorker Backend Server
+# FieldWorker Backend
 
-> **Версия:** 2.14.2 | **Порт:** 8001
+FastAPI-сервер: REST API, WebSocket, фоновые задачи (ARQ + Redis), PostgreSQL.
+Порт 8001, Swagger — `/docs`. Версия API — `API_VERSION` в `app/config.py`.
 
-REST API сервер для управления заявками выездных сотрудников.
+## Запуск
 
-## Стек
-
-- **FastAPI** — веб-фреймворк
-- **SQLAlchemy** — ORM для SQLite/PostgreSQL
-- **Pydantic** — валидация данных
-- **JWT** — аутентификация
-- **Firebase Admin SDK** — push-уведомления
-- **Geopy (Nominatim)** — геокодирование с кэшированием
-- **Pillow** — оптимизация изображений
-- **pytest** — тестирование (490+ тестов)
-- **pyaxmlparser** — извлечение версии Android-приложения из APK
-
-## Быстрый старт
+Окружение одно — `server/venv`. Из корня репозитория:
 
 ```bash
-cd server
-venv/Scripts/pip install -r requirements.txt -r requirements-dev.txt
-make run-server     # http://localhost:8001
+docker compose -f docker-compose.postgres.yml up -d db   # PostgreSQL
+make install-deps                                        # venv + requirements(-dev).txt
+make migrate                                             # python -m app.migrate
+make run-server                                          # uvicorn --reload на :8001
 ```
+
+В Docker весь стек поднимает `docker-up.cmd`. Миграции там применяет одноразовый
+сервис `migrate` до старта API и worker.
 
 ## Структура
 
 ```
 server/
-├── main.py                 # Entry point
+├── main.py              # Точка входа: приложение, middleware, lifespan, раздача портала
 ├── app/
-│   ├── config.py           # Settings (API_VERSION, paths)
-│   ├── api/                # API роутеры (13 файлов)
-│   ├── models/             # SQLAlchemy ORM (9 файлов)
-│   ├── schemas/            # Pydantic схемы (9 файлов)
-│   ├── services/           # Бизнес-логика (11 файлов)
-│   └── utils/              # Утилиты
-├── backups/                # Резервные копии БД
-├── tests/                  # pytest тесты
-├── templates/              # Jinja2 шаблоны
-├── static/                 # JS старой админки
-└── uploads/                # Загруженные фото и APK обновлений
+│   ├── api/             # Роутеры по доменам: auth, tasks, addresses, chat, admin, analytics …
+│   ├── models/          # SQLAlchemy 2 (Mapped[]), base.py — engine и run_migrations()
+│   ├── schemas/         # Pydantic-схемы
+│   ├── services/        # Бизнес-логика (роутеры остаются тонкими)
+│   ├── utils/
+│   ├── config.py        # Настройки (pydantic-settings, читаются из .env)
+│   ├── migrate.py       # python -m app.migrate — одноразовое применение миграций
+│   └── worker.py        # ARQ worker (push и другие фоновые задачи)
+├── alembic/             # Миграции, см. MIGRATIONS.md
+├── tests/               # pytest
+└── scripts/             # dump_openapi.py, migrate_sqlite_to_postgres.py, seed_notifications.py
 ```
 
-## API Endpoints
+## Конфигурация
 
-### Основные
-| Endpoint | Описание |
-|----------|----------|
-| `POST /api/auth/login` | Вход (rate limit: 5/60s) |
-| `GET /api/tasks` | Список заявок (пагинация) |
-| `POST /api/tasks` | Создать заявку |
-| `PATCH /api/tasks/{id}/status` | Изменить статус. Для `DONE` и `CANCELLED` комментарий обязателен |
+Шаблон — [.env.example](.env.example). В Docker `DATABASE_URL` задаётся compose-файлом.
 
-### Изменение статуса заявки
+| Переменная | Назначение |
+|------------|------------|
+| `DATABASE_URL` | PostgreSQL, локально `postgresql+psycopg2://fieldworker:fieldworker_secret@localhost:5432/fieldworker_db` |
+| `SECRET_KEY` | Подпись JWT; в production дефолтное значение запрещено |
+| `ENVIRONMENT` | `development` / `production`; в development создаются тестовые admin/admin и user/user |
+| `RUN_MIGRATIONS_ON_STARTUP` | Применять миграции при старте API (по умолчанию нет) |
+| `TASK_QUEUE_ENABLED`, `REDIS_URL` | Фоновая очередь ARQ |
+| `FIREBASE_CREDENTIALS`, `VAPID_*` | Push: FCM и Web Push |
+| `BACKUP_*`, `PG_DUMP_BIN`, `BACKUP_PG_DOCKER_CONTAINER` | Резервное копирование (pg_dump) |
+| `TRUST_PROXY_HEADERS`, `RATE_LIMIT_*` | IP-guard и rate limiting за прокси |
+| `BEWARD_*` | Домофоны Beward и on-demand WireGuard |
 
-`PATCH /api/tasks/{id}/status`
+## Команды
 
-Пример payload:
-
-```json
-{
-	"status": "DONE",
-	"comment": "Работы выполнены, оборудование проверено"
-}
-```
-
-Правило:
-- для `DONE` и `CANCELLED` поле `comment` обязательно;
-- для `NEW` → `IN_PROGRESS` комментарий можно не передавать.
-
-### Бэкапы
-| Endpoint | Описание |
-|----------|----------|
-| `GET /api/admin/backup/list` | Список бэкапов |
-| `POST /api/admin/backup/run` | Создать бэкап |
-| `POST /api/admin/backup/restore/{filename}` | Восстановить |
-
-### Android Updates
-| Endpoint | Описание |
-|----------|----------|
-| `GET /api/updates/check` | Проверить наличие новой APK версии |
-| `POST /api/updates/upload` | Загрузить новую APK версию |
-| `GET /api/updates/download` | Скачать последнюю опубликованную APK |
-| `GET /api/updates/history` | История опубликованных APK версий |
-| `DELETE /api/updates/{version_code}` | Удалить опубликованную версию |
-
-### Web UI
-| URL | Описание |
-|-----|----------|
-| `/portal/` | React Portal |
-| `/admin/` | Bootstrap админка |
-| `/docs` | Swagger документация |
-| `/health` | Статус + версия |
-
-## Команды (Makefile)
+Из корня (`Makefile`) или из `server/` (`server/Makefile`):
 
 ```bash
-make run-server     # Запуск на :8001
-make test           # Все тесты (490+)
-make format         # Black + isort
-make clean          # Очистка кэша
-make help           # Справка
+make test        # pytest
+make lint        # pylint
+make format      # black + isort (настройки в pyproject.toml, как в CI)
+make migrate     # применить миграции
+make run-server  # dev-сервер на :8001
 ```
 
-## Конфигурация (.env)
-
-```env
-DATABASE_URL=postgresql+psycopg2://fieldworker:fieldworker_secret@localhost:5432/fieldworker_db
-SECRET_KEY=your-secret-key-here
-FIREBASE_CREDENTIALS=firebase-service-account.json
-HOST=0.0.0.0
-PORT=8001
-```
-
-## Версия
-
-Версия хранится в `app/config.py`:
-```python
-API_VERSION: str = "2.14.2"
-```
-
-Отображается в `/health`:
-```json
-{"status": "ok", "version": "2.14.2", "database": "connected"}
-```
-
----
-
-**Последнее обновление:** 12 марта 2026
+После изменения API перегенерируйте типы клиентов: `npm run gen:api` в `portal/`
+и `scripts/gen-android-models.ps1`.

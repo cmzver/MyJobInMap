@@ -1,27 +1,9 @@
 # Local Development
 
-## Backend
+Пошаговая инструкция — [GETTING_STARTED.md](../../GETTING_STARTED.md). Кратко:
 
-```bash
-cd server
-make run-server
-make test
-```
-
-## Portal
-
-```bash
-cd portal
-npm install
-npm run dev
-```
-
-## Android
-
-- Открыть проект в Android Studio
-- Для эмулятора backend доступен по `10.0.2.2:8001`
-
-## Где смотреть дальше
-
-- [README.md](../../README.md)
-- [GETTING_STARTED.md](../../GETTING_STARTED.md)
+- Python-окружение одно: `server/venv` (`make install-deps`).
+- БД — PostgreSQL из `docker-compose.postgres.yml` (`... up -d db`), затем `make migrate`.
+- Сервер — `make run-server` или `start_server.cmd` (:8001), портал — `npm run dev` (:3000/portal/).
+- Android-эмулятор видит сервер как `10.0.2.2:8001`.
+- Мусор (сборки, кэши, скриншоты) — `make clean`.

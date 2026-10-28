@@ -32,13 +32,14 @@ make install-deps    # создаёт server/venv, ставит requirements.txt
 Скопируйте `server/.env.example` → `server/.env` и раскомментируйте строку
 `DATABASE_URL=postgresql+psycopg2://...@localhost:5432/fieldworker_db`.
 
-### 3. Запуск
+### 3. Миграции и запуск
 
 ```bash
+make migrate         # python -m app.migrate
 start_server.cmd     # или: make run-server
 ```
 
-В режиме разработки сервер сам применяет миграции и создаёт тестовых
+В режиме разработки (`ENVIRONMENT` не `production`) сервер создаёт тестовых
 пользователей **admin/admin** и **user/user**. Чтобы работать на реальных
 данных, загрузите снимок прода через `server/scripts/migrate_sqlite_to_postgres.py`.
 

@@ -14,6 +14,8 @@
 
 - [README.md](../../README.md)
 - [GETTING_STARTED.md](../../GETTING_STARTED.md)
+- [ROADMAP.md](../../ROADMAP.md)
+- [docs/TECHNICAL_AUDIT_2026-10-25.md](../TECHNICAL_AUDIT_2026-10-25.md)
 - [docs/FIREBASE_SETUP.md](../FIREBASE_SETUP.md)
 
 ## Что это за vault
@@ -31,3 +33,4 @@ Vault не заменяет документацию проекта. Он нуж
 - Поддержка production-ready Android приложения в `app/`
 - Развитие веб-портала в `portal/`
 - Поддержка FastAPI backend в `server/`
+- Стабилизация после технического аудита — см. ROADMAP.md

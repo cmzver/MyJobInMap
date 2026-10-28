@@ -93,8 +93,16 @@ portal/
 cd portal
 npm install
 
-# Режим разработки
+# Режим разработки: http://localhost:3000/portal/
 npm run dev
+
+# Проверки
+npm run lint
+npx tsc --noEmit
+npx vitest run
+
+# Типы API из OpenAPI сервера (после изменений в server/)
+npm run gen:api
 
 # Сборка
 npm run build
@@ -131,11 +139,3 @@ npm run preview
 - Десктоп (sidebar + main content)
 - Планшет (collapsible sidebar)
 - Мобильные (drawer menu)
-
-## Версия
-
-**v2.14.2** — портал с компактной карточкой заявки и Android-клиентом, где фильтры списка снова применяются корректно
-
----
-
-**Последнее обновление:** 12 марта 2026
