@@ -1,5 +1,5 @@
 import { Fragment } from 'react'
-import { Calendar, ChevronDown, Clock, MapPin, User } from 'lucide-react'
+import { Calendar, ChevronDown, Clock, MapPin, User, UserPlus } from 'lucide-react'
 
 import PriorityBadge from '@/components/PriorityBadge'
 import StatusBadge from '@/components/StatusBadge'
@@ -100,6 +100,12 @@ export default function TaskMobileList({
                             <User className="h-3.5 w-3.5 flex-shrink-0" />
                             {task.assigned_user_name || 'Не назначен'}
                           </span>
+                          {task.created_by_name && (
+                            <span className="inline-flex items-center gap-1">
+                              <UserPlus className="h-3.5 w-3.5 flex-shrink-0" />
+                              {task.created_by_name}
+                            </span>
+                          )}
                           <span className="inline-flex items-center gap-1">
                             <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
                             {formatDateTime(task.created_at)}

@@ -17,9 +17,11 @@ export default function UserAvatar({
   textClassName = 'text-sm',
   className,
 }: Props) {
-  const [hasError, setHasError] = useState(false)
+  // Track the specific URL that failed so a new avatarUrl (e.g. after upload)
+  // automatically retries instead of being stuck on the initials fallback.
+  const [erroredUrl, setErroredUrl] = useState<string | null>(null)
   const initials = getUserInitials(fullName)
-  const canRenderImage = Boolean(avatarUrl) && !hasError
+  const canRenderImage = Boolean(avatarUrl) && erroredUrl !== avatarUrl
 
   return (
     <div
@@ -35,7 +37,7 @@ export default function UserAvatar({
           src={avatarUrl ?? undefined}
           alt={fullName ?? 'Аватар пользователя'}
           className="h-full w-full object-cover"
-          onError={() => setHasError(true)}
+          onError={() => setErroredUrl(avatarUrl ?? null)}
         />
       ) : (
         initials

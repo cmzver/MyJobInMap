@@ -1975,7 +1975,7 @@ function TelegramBotSettingsTab() {
             <div className="space-y-2">
               {mappings.map((m, index) => (
                 <div
-                  key={index}
+                  key={m.group_name}
                   className="grid grid-cols-[1fr_1fr_auto] gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-800 dark:bg-gray-900/70"
                 >
                   <div>

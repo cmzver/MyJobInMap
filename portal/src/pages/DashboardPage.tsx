@@ -179,7 +179,7 @@ export default function DashboardPage() {
         description="Сводка по очереди заявок, работе исполнителей и активности за неделю."
       />
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
         {statsLoading ? (
           <SkeletonStats count={4} className="grid-cols-2 gap-3 lg:grid-cols-4" />
         ) : statsError && !stats ? (
@@ -206,7 +206,7 @@ export default function DashboardPage() {
                 </Link>
               </div>
 
-              <dl className="grid gap-px overflow-hidden rounded-lg border border-gray-200 bg-gray-200 dark:border-gray-700 dark:bg-gray-700 sm:grid-cols-2 xl:grid-cols-4">
+              <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-gray-200 bg-gray-200 dark:border-gray-700 dark:bg-gray-700 xl:grid-cols-4">
                 {overviewCards.map((card) => (
                   <div
                     key={card.title}
@@ -300,7 +300,7 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(290px,0.95fr)]">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(290px,0.95fr)]">
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>

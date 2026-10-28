@@ -6,6 +6,7 @@ export type TaskTableColumnKey =
   | 'status'
   | 'priority'
   | 'assignee'
+  | 'creator'
   | 'date'
   | 'sla'
 
@@ -21,6 +22,7 @@ export const toggleableTaskTableColumns: Array<{
   { key: 'status', label: 'Статус' },
   { key: 'priority', label: 'Приоритет' },
   { key: 'assignee', label: 'Исполнитель' },
+  { key: 'creator', label: 'Кем заведена' },
   { key: 'date', label: 'Дата' },
   { key: 'sla', label: 'Срок' },
 ]
@@ -32,6 +34,7 @@ export const defaultVisibleTaskTableColumns: Record<ToggleableTaskTableColumnKey
   status: true,
   priority: true,
   assignee: true,
+  creator: true,
   date: true,
   sla: true,
 }

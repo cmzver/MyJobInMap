@@ -148,10 +148,10 @@ export default function SupportPage() {
         <StatPill title="Закрытые" value={resolvedCount} tone="success" />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_290px]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_290px]">
         <Card title="Новое обращение" compact>
           <form className="space-y-3" onSubmit={handleCreateTicket}>
-            <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
               <Select
                 label="Тип"
                 options={categoryOptions.map((item) => ({ value: item.value, label: item.label }))}

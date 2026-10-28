@@ -50,6 +50,7 @@ const columnLabels: Record<ToggleableTaskTableColumnKey, string> = {
   status: 'Статус',
   priority: 'Приоритет',
   assignee: 'Исполнитель',
+  creator: 'Кем заведена',
   date: 'Дата',
   sla: 'Срок',
 }
@@ -108,6 +109,15 @@ function renderTaskCell(task: Task, key: ToggleableTaskTableColumnKey, unreadCou
           <User className="h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
           <span className="min-w-0 truncate text-sm text-gray-600 dark:text-gray-300">
             {task.assigned_user_name || '-'}
+          </span>
+        </div>
+      )
+    case 'creator':
+      return (
+        <div className="flex min-w-0 items-center gap-1.5">
+          <User className="h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+          <span className="min-w-0 truncate text-sm text-gray-600 dark:text-gray-300">
+            {task.created_by_name || '-'}
           </span>
         </div>
       )

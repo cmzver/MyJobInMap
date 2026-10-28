@@ -151,7 +151,7 @@ export default function AnalyticsPage() {
 
       <Card>
         <div className="space-y-4 p-5">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div>
                 <p className="mb-2 text-sm font-medium text-gray-900 dark:text-white">Период</p>

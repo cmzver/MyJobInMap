@@ -1562,7 +1562,11 @@ export interface paths {
         delete: operations["delete_defect_type_api_admin_settings_defect_types__defect_type_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Defect Type
+         * @description Обновить тип неисправности (только админы)
+         */
+        patch: operations["update_defect_type_api_admin_settings_defect_types__defect_type_id__patch"];
         trace?: never;
     };
     "/api/admin/settings/{key}": {
@@ -4948,6 +4952,18 @@ export interface components {
             system_types?: string[] | null;
         };
         /**
+         * DefectTypeUpdate
+         * @description Обновление типа неисправности (любое поле опционально)
+         */
+        DefectTypeUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** System Types */
+            system_types?: string[] | null;
+        };
+        /**
          * DeviceRegister
          * @description Р РµРіРёСЃС‚СЂР°С†РёСЏ СѓСЃС‚СЂРѕР№СЃС‚РІР°
          */
@@ -6275,6 +6291,18 @@ export interface components {
              */
             assigned_user_name?: string | null;
             /**
+             * Created By Id
+             * @description ID пользователя, который завел заявку
+             * @example 1
+             */
+            created_by_id?: number | null;
+            /**
+             * Created By Name
+             * @description Кем заведена заявка
+             * @example Диспетчер
+             */
+            created_by_name?: string | null;
+            /**
              * Is Remote
              * @description Может ли быть выполнена удалённо
              * @default false
@@ -6481,6 +6509,18 @@ export interface components {
              * @example Иван Полевой
              */
             assigned_user_name?: string | null;
+            /**
+             * Created By Id
+             * @description ID пользователя, который завел заявку
+             * @example 1
+             */
+            created_by_id?: number | null;
+            /**
+             * Created By Name
+             * @description Кем заведена заявка
+             * @example Диспетчер
+             */
+            created_by_name?: string | null;
             /**
              * Is Remote
              * @description Может ли быть выполнена удалённо
@@ -9763,6 +9803,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_defect_type_api_admin_settings_defect_types__defect_type_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                defect_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DefectTypeUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DefectTypeResponse"];
                 };
             };
             /** @description Validation Error */

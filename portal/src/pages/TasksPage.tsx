@@ -60,6 +60,7 @@ const defaultColumnWidths: Record<ColumnKey, number> = {
   status: 130,
   priority: 130,
   assignee: 160,
+  creator: 160,
   date: 150,
   sla: 140,
 }
@@ -72,6 +73,7 @@ const columnMinWidths: Record<ColumnKey, number> = {
   status: 72,
   priority: 72,
   assignee: 88,
+  creator: 88,
   date: 84,
   sla: 72,
 }
@@ -84,6 +86,7 @@ const columnMaxWidths: Record<ColumnKey, number> = {
   status: 360,
   priority: 360,
   assignee: 520,
+  creator: 520,
   date: 360,
   sla: 320,
 }

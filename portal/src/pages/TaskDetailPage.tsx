@@ -140,7 +140,10 @@ export default function TaskDetailPage() {
 
     const loadPhotoUrls = async () => {
       if (photos.length === 0) {
-        setPhotoUrls({})
+        // Keep the same reference when already empty so this effect (which
+        // re-runs whenever `photos` is a fresh [] during loading) doesn't
+        // trigger an endless render loop.
+        setPhotoUrls((prev) => (Object.keys(prev).length === 0 ? prev : {}))
         return
       }
 
@@ -335,7 +338,7 @@ export default function TaskDetailPage() {
       id: `created-${task.id}`,
       title: 'Заявка создана',
       timestamp: task.created_at,
-      author: 'Система',
+      author: task.created_by_name || 'Система',
       details: ['Создано в системе'],
     },
     ...comments
@@ -451,7 +454,7 @@ export default function TaskDetailPage() {
           </div>
 
           {/* Факты: ровная сетка без внутренних линий */}
-          <div className="mt-5 grid gap-x-8 gap-y-5 border-t border-gray-100 pt-5 dark:border-gray-800 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-5 grid gap-x-8 gap-y-5 border-t border-gray-100 pt-5 dark:border-gray-800 sm:grid-cols-2 lg:grid-cols-5">
             <div className="min-w-0">
               <p className="eyebrow">Исполнитель</p>
               <div className="mt-1.5 text-sm font-medium text-gray-900 dark:text-white">
@@ -492,6 +495,13 @@ export default function TaskDetailPage() {
                   </button>
                 )}
               </div>
+            </div>
+
+            <div className="min-w-0">
+              <p className="eyebrow">Кем заведена</p>
+              <p className="mt-1.5 truncate text-sm font-medium text-gray-900 dark:text-white">
+                {task.created_by_name || 'Не указано'}
+              </p>
             </div>
 
             <div className="min-w-0">

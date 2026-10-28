@@ -704,7 +704,7 @@ function MessageBubble({
               className={cn(
                 'mt-1 flex w-full items-start gap-2 rounded-xl border px-3 py-2 text-left transition-colors',
                 isOwn
-                  ? 'border-white/20 bg-white/10 hover:bg-white/20'
+                  ? 'border-white/25 bg-white/15 hover:bg-white/25'
                   : 'border-gray-200 bg-white/80 hover:bg-white dark:border-gray-600 dark:bg-gray-800/80 dark:hover:bg-gray-800',
                 !message.attached_task.accessible && 'cursor-not-allowed opacity-60 hover:bg-transparent',
               )}
@@ -720,7 +720,7 @@ function MessageBubble({
                         </span>
                       )}
                       <span className="truncate text-sm font-medium">
-                        {message.attached_task.title}
+                        {message.attached_task.title?.replace(/^\[\d+\]\s*/, '') || message.attached_task.title}
                       </span>
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-1">
