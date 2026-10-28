@@ -487,9 +487,9 @@ fun TasksStatsBar(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatItem(count = newCount, label = stringResource(id = R.string.stat_new), color = Color(0xFFFF3B30))
-            StatItem(count = inProgressCount, label = stringResource(id = R.string.stat_in_progress), color = Color(0xFFFF9500))
-            StatItem(count = doneCount, label = stringResource(id = R.string.stat_done), color = Color(0xFF34C759))
+            StatItem(count = newCount, label = stringResource(id = R.string.stat_new), color = TaskStatus.NEW.toColor())
+            StatItem(count = inProgressCount, label = stringResource(id = R.string.stat_in_progress), color = TaskStatus.IN_PROGRESS.toColor())
+            StatItem(count = doneCount, label = stringResource(id = R.string.stat_done), color = TaskStatus.DONE.toColor())
         }
     }
 }
@@ -674,6 +674,10 @@ fun StatusChangeDialog(
 
 fun TaskStatus.toColor(): Color = com.fieldworker.ui.utils.statusColor(this)
 
+/** Цвет маркера: красный для активной аварийной, иначе — цвет доминирующего статуса. */
+internal fun TaskGroupSummary.markerColor(): Color =
+    if (hasActiveEmergency) priorityColor(Priority.EMERGENCY) else dominantStatus.toColor()
+
 fun TaskStatus.toIcon() = when (this) {
     TaskStatus.NEW -> Icons.Default.Star
     TaskStatus.IN_PROGRESS -> Icons.Default.Refresh
@@ -765,7 +769,7 @@ private fun OsmMapView(
             if (group.isCluster) {
                 val clusterDrawable = getClusterMarkerIcon(
                     context = context,
-                    markerColor = priorityColor(group.summary.highestPriority),
+                    markerColor = group.summary.markerColor(),
                     count = group.count
                 ) ?: return@forEach
 
@@ -791,7 +795,7 @@ private fun OsmMapView(
                     title = "[${group.primaryTask.taskNumber}] ${group.primaryTask.title}"
                     snippet = group.address
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    icon = getMarkerIcon(context, priorityColor(group.summary.highestPriority), group.count)
+                    icon = getMarkerIcon(context, group.summary.markerColor(), group.count)
 
                     setOnMarkerClickListener { _, _ ->
                         pendingGroupOpenJob?.cancel()

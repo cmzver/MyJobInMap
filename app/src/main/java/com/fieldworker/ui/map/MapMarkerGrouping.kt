@@ -15,6 +15,22 @@ internal data class TaskGroupSummary(
 ) {
     val activeCount: Int
         get() = newCount + inProgressCount
+
+    /**
+     * Статус, которым красим маркер — тот же язык, что в ленте: самое «живое»
+     * состояние группы (новые важнее «в работе», те — закрытых).
+     */
+    val dominantStatus: TaskStatus
+        get() = when {
+            newCount > 0 -> TaskStatus.NEW
+            inProgressCount > 0 -> TaskStatus.IN_PROGRESS
+            doneCount > 0 -> TaskStatus.DONE
+            else -> TaskStatus.CANCELLED
+        }
+
+    /** Аварийная активная заявка перекрашивает маркер в единственный красный. */
+    val hasActiveEmergency: Boolean
+        get() = highestPriority == Priority.EMERGENCY && activeCount > 0
 }
 
 internal data class TaskMarkerGroup(

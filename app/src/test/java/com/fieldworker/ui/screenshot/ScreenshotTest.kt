@@ -57,6 +57,8 @@ class ScreenshotTest(
             "filters_panel" to { FiltersPanelPreview() },
             "map_stats_bar" to { TasksStatsBarPreview() },
             "map_legend" to { FullLegendPreview() },
+            "addresses" to { MyAddressesListPreview() },
+            "address_detail" to { AddressDetailPreview() },
             "chat_list" to { ChatListLightPreview() },
             "chat_list_dark" to { ChatListDarkPreview() },
             "chat_screen" to { ChatScreenFullPreview() },
