@@ -31,8 +31,13 @@ import androidx.compose.runtime.*
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.fieldworker.ui.utils.avatarInitials
+import com.fieldworker.ui.utils.resolveAvatarUrl
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -246,6 +251,9 @@ fun MainScreen(
                     ?: viewModel.preferences.getUsername()
                     ?: "Профиль",
                 roleLabel = viewModel.preferences.getUserRoleLabel(),
+                avatarUrl = viewModel.preferences.getUserAvatarUrl(),
+                baseUrl = baseUrl,
+                authToken = authToken,
                 currentScreen = currentScreen,
                 newTasksCount = uiState.newTasksCount,
                 unreadChatCount = unreadChatCount,
@@ -647,6 +655,9 @@ private fun mainTitleFor(screen: Screen): String {
 private fun AppDrawer(
     userName: String,
     roleLabel: String?,
+    avatarUrl: String?,
+    baseUrl: String?,
+    authToken: String?,
     currentScreen: Screen,
     newTasksCount: Int,
     unreadChatCount: Int,
@@ -673,6 +684,19 @@ private fun AppDrawer(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val context = LocalContext.current
+                val resolvedAvatarUrl = remember(avatarUrl, baseUrl) {
+                    resolveAvatarUrl(avatarUrl, baseUrl)
+                }
+                // Bearer-токен подставляет AuthHeaderInterceptor в общем Coil ImageLoader.
+                val avatarRequest = remember(resolvedAvatarUrl) {
+                    resolvedAvatarUrl?.let { url ->
+                        ImageRequest.Builder(context)
+                            .data(url)
+                            .crossfade(true)
+                            .build()
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .size(44.dp)
@@ -687,11 +711,20 @@ private fun AppDrawer(
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = userName.trim().firstOrNull()?.uppercase() ?: "?",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = Color.White,
-                    )
+                    if (avatarRequest != null) {
+                        AsyncImage(
+                            model = avatarRequest,
+                            contentDescription = "Аватар",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.matchParentSize(),
+                        )
+                    } else {
+                        Text(
+                            text = avatarInitials(userName).ifEmpty { "?" },
+                            style = MaterialTheme.typography.titleLarge,
+                            color = Color.White,
+                        )
+                    }
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -724,8 +757,9 @@ private fun AppDrawer(
                 PortalDrawerItem(Screen.MyAddresses, currentScreen == Screen.MyAddresses, 0, onMyAddresses)
 
                 DrawerSectionTitle("Личное")
+                // «Профиль» намеренно не дублируем пунктом меню — переход туда
+                // уже даёт клик по шапке с аватаром выше.
                 PortalDrawerItem(Screen.Settings, currentScreen == Screen.Settings, 0, onSettings)
-                PortalDrawerItem(Screen.UserSettings, currentScreen == Screen.UserSettings, 0, onProfile)
             }
 
             Spacer(modifier = Modifier.weight(1f))

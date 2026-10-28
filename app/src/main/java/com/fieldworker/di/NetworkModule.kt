@@ -170,6 +170,22 @@ object NetworkModule {
             .build()
     }
 
+    /**
+     * Отдельный «голый» клиент для refresh-запроса в [TokenAuthenticator].
+     * Без Authenticator (иначе рекурсия) и без интерцепторов, добавляющих токен.
+     * Синглтон — переиспользуется на каждый 401, не создаётся заново.
+     */
+    @Provides
+    @Singleton
+    @Named("refresh")
+    fun provideRefreshOkHttpClient(): OkHttpClient {
+        return OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .build()
+    }
+
     @Provides
     @Singleton
     @Named("websocket")

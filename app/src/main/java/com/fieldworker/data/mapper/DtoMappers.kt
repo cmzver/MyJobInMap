@@ -121,7 +121,8 @@ fun UserResponse.toDomain(): User = User(
     email = email,
     phone = phone,
     role = UserRole.fromString(role),
-    isActive = isActive
+    isActive = isActive,
+    avatarUrl = avatarUrl
 )
 
 /**
@@ -137,7 +138,8 @@ fun Token.toUser(): User = User(
     username = username,
     fullName = fullName,
     role = UserRole.fromString(role),
-    isActive = true
+    isActive = true,
+    avatarUrl = avatarUrl
 )
 
 // ==================== Photo Mappers ====================

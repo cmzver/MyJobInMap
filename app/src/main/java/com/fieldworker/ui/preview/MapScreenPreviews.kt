@@ -15,10 +15,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.TaskStatus
-import com.fieldworker.ui.map.PriorityBadge
 import com.fieldworker.ui.map.TasksStatsBar
 import com.fieldworker.ui.map.toColor
 import com.fieldworker.ui.theme.FieldWorkerTheme
+import com.fieldworker.ui.utils.priorityColor
 
 // ==================== Map Screen Previews ====================
 
@@ -57,7 +57,12 @@ private fun PriorityLegendPreview() {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        PriorityBadge(priority = priority)
+                        Box(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .clip(CircleShape)
+                                .background(priorityColor(priority))
+                        )
                         Text(
                             text = "${priority.value}. ${priority.displayName}",
                             style = MaterialTheme.typography.bodyMedium
@@ -133,7 +138,12 @@ private fun FullLegendPreview() {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            PriorityBadge(priority = priority)
+                            Box(
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .clip(CircleShape)
+                                    .background(priorityColor(priority))
+                            )
                             Text(
                                 text = priority.displayName,
                                 style = MaterialTheme.typography.bodySmall

@@ -8,6 +8,7 @@ import com.fieldworker.data.repository.OfflineFirstTasksRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CancellationException
 
 /**
  * Worker для фоновой синхронизации данных.
@@ -64,19 +65,29 @@ class SyncWorker @AssistedInject constructor(
         
         return try {
             // Синхронизируем отложенные действия
-            val syncedActions = repository.syncPendingActions()
-            Log.d(TAG, "Synced $syncedActions pending actions")
+            val syncResult = repository.syncPendingActions()
+            Log.d(TAG, "Pending action sync: $syncResult")
+
+            if (syncResult.requiresAuthentication) {
+                Log.w(TAG, "Sync stopped: authentication is required")
+                return Result.failure()
+            }
             
             // Обновляем данные с сервера
-            val result = repository.refreshTasks()
+            val result = repository.refreshTasks(syncPendingFirst = false)
             
-            if (result.isSuccess) {
+            if (syncResult.retryableFailures > 0) {
+                Log.w(TAG, "Retryable outbox failures: ${syncResult.retryableFailures}")
+                Result.retry()
+            } else if (result.isSuccess) {
                 Log.d(TAG, "Sync completed successfully")
                 Result.success()
             } else {
                 Log.e(TAG, "Sync failed: ${result.exceptionOrNull()?.message}")
                 Result.retry()
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Sync error: ${e.message}", e)
             if (runAttemptCount < 3) {

@@ -100,7 +100,6 @@ fun ConversationListScreen(
         conversations.filter { conversation ->
             val matchesFilter = when (selectedFilter) {
                 ConversationListFilter.ACTIVE -> !conversation.isArchived
-                ConversationListFilter.UNREAD -> !conversation.isArchived && conversation.unreadCount > 0
                 ConversationListFilter.ARCHIVED -> conversation.isArchived
             }
             val q = searchQuery.trim()
@@ -313,7 +312,6 @@ private fun ConversationListHeader(
 
         val selectedIndex = when (selectedFilter) {
             ConversationListFilter.ACTIVE -> 0
-            ConversationListFilter.UNREAD -> 0
             ConversationListFilter.ARCHIVED -> 1
         }
         SecondaryTabRow(

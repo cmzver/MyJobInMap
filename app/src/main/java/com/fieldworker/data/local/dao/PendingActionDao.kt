@@ -17,6 +17,22 @@ interface PendingActionDao {
      */
     @Query("SELECT * FROM pending_actions ORDER BY createdAt ASC")
     suspend fun getAllPendingActions(): List<PendingAction>
+
+    @Query("""
+        SELECT * FROM pending_actions
+        WHERE retryCount < :maxRetries
+          AND NOT EXISTS (
+              SELECT 1 FROM pending_actions AS failed
+              WHERE failed.taskId = pending_actions.taskId
+                AND failed.retryCount >= :maxRetries
+                AND (
+                    failed.createdAt < pending_actions.createdAt
+                    OR (failed.createdAt = pending_actions.createdAt AND failed.id < pending_actions.id)
+                )
+          )
+        ORDER BY createdAt ASC, id ASC
+    """)
+    suspend fun getSyncablePendingActions(maxRetries: Int): List<PendingAction>
     
     /**
      * Получить количество отложенных действий как Flow
@@ -75,6 +91,13 @@ interface PendingActionDao {
         WHERE id = :actionId
     """)
     suspend fun incrementRetryCount(actionId: Long, error: String?)
+
+    @Query("""
+        UPDATE pending_actions
+        SET retryCount = :maxRetries, lastError = :error
+        WHERE id = :actionId
+    """)
+    suspend fun markAsFailed(actionId: Long, error: String?, maxRetries: Int)
     
     /**
      * Получить действия с превышенным количеством попыток

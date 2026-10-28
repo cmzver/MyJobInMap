@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.fieldworker.domain.model.ConversationType
+import com.fieldworker.ui.utils.avatarInitials
+import com.fieldworker.ui.utils.resolveAvatarUrl
 import kotlin.math.abs
 
 @Composable
@@ -36,7 +38,7 @@ fun ChatAvatar(
     modifier: Modifier = Modifier,
     size: Int = 44,
 ) {
-    val initials = getInitials(name)
+    val initials = avatarInitials(name).ifEmpty { "?" }
     val bgColor = getAvatarColor(id ?: 0L, type)
     val context = LocalContext.current
     val borderColor = if (size <= 30) {
@@ -89,30 +91,6 @@ fun ChatAvatar(
             )
         }
     }
-}
-
-private fun getInitials(name: String?): String {
-    if (name.isNullOrBlank()) return "?"
-    val parts = name.trim().split(" ", limit = 2)
-    return parts.mapNotNull { it.firstOrNull()?.uppercase() }.joinToString("").take(2)
-}
-
-private fun resolveAvatarUrl(avatarUrl: String?, baseUrl: String?): String? {
-    val normalizedAvatarUrl = avatarUrl?.trim().takeUnless { it.isNullOrBlank() } ?: return null
-    if (
-        normalizedAvatarUrl.startsWith("http://") ||
-        normalizedAvatarUrl.startsWith("https://")
-    ) {
-        return normalizedAvatarUrl
-    }
-
-    val normalizedBaseUrl = baseUrl?.trimEnd('/').takeUnless { it.isNullOrBlank() } ?: return null
-    val normalizedPath = if (normalizedAvatarUrl.startsWith("/")) {
-        normalizedAvatarUrl
-    } else {
-        "/$normalizedAvatarUrl"
-    }
-    return normalizedBaseUrl + normalizedPath
 }
 
 @Composable

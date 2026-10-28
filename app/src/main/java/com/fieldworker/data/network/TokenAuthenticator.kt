@@ -11,8 +11,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.Route
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import javax.inject.Named
 import javax.inject.Singleton
 
 /**
@@ -30,7 +30,8 @@ import javax.inject.Singleton
 @Singleton
 class TokenAuthenticator @Inject constructor(
     private val appPreferences: AppPreferences,
-    private val json: Json
+    private val json: Json,
+    @Named("refresh") private val refreshClient: OkHttpClient,
 ) : Authenticator {
     
     companion object {
@@ -112,30 +113,25 @@ class TokenAuthenticator @Inject constructor(
         val baseUrl = appPreferences.getFullServerUrl().let { url ->
             if (url.endsWith("/")) url else "$url/"
         }
-        
-        val client = OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(10, TimeUnit.SECONDS)
-            .build()
-        
-        // Используем прямой HTTP-запрос (без Retrofit/Authenticator) для refresh
+
+        // Используем прямой HTTP-запрос (без Retrofit/Authenticator) для refresh.
+        // Клиент общий (инжектится), не создаётся заново на каждый 401.
         val body = org.json.JSONObject().put("refresh_token", refreshToken).toString()
         val request = Request.Builder()
             .url("${baseUrl}api/auth/refresh")
             .post(body.toRequestBody("application/json".toMediaType()))
             .build()
-        
-        val response = client.newCall(request).execute()
-        
-        if (response.isSuccessful) {
-            val body = response.body?.string()
-            if (body != null) {
-                val tokenResponse = json.decodeFromString<com.fieldworker.data.remote.generated.Token>(body)
-                return Pair(tokenResponse.accessToken, tokenResponse.refreshToken)
+
+        refreshClient.newCall(request).execute().use { response ->
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string()
+                if (responseBody != null) {
+                    val tokenResponse = json.decodeFromString<com.fieldworker.data.remote.generated.Token>(responseBody)
+                    return Pair(tokenResponse.accessToken, tokenResponse.refreshToken)
+                }
             }
+            Log.w(TAG, "Refresh token API returned ${response.code}")
+            return null
         }
-        
-        Log.w(TAG, "Refresh token API returned ${response.code}")
-        return null
     }
 }

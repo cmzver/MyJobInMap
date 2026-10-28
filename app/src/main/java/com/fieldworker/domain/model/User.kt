@@ -11,7 +11,8 @@ data class User(
     val email: String? = null,
     val phone: String? = null,
     val role: UserRole,
-    val isActive: Boolean = true
+    val isActive: Boolean = true,
+    val avatarUrl: String? = null
 ) {
     /**
      * Возвращает отображаемое имя (fullName или username)

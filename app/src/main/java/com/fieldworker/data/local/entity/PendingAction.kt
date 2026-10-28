@@ -14,6 +14,7 @@ data class PendingAction(
     val taskId: Long,
     val actionType: ActionType,
     val newStatus: String? = null,
+    val plannedDate: String? = null,
     val comment: String? = null,
     val tempId: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
@@ -26,5 +27,6 @@ data class PendingAction(
  */
 enum class ActionType {
     UPDATE_STATUS,
-    ADD_COMMENT
+    ADD_COMMENT,
+    UPDATE_PLANNED_DATE
 }

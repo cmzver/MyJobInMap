@@ -35,7 +35,6 @@ data class ConversationListState(
 
 enum class ConversationListFilter {
     ACTIVE,
-    UNREAD,
     ARCHIVED,
 }
 
