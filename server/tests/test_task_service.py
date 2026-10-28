@@ -83,6 +83,7 @@ class TestTaskServiceCreate:
         assert task.raw_address == "Test Address"
         assert task.status == TaskStatus.NEW.value
         assert task.priority == "URGENT"
+        assert task.created_by_id == admin_user.id
 
     def test_create_with_planned_date(self, db_session, admin_user):
         """Test task creation with planned date."""

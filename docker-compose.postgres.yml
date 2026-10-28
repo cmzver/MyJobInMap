@@ -47,6 +47,25 @@ services:
       timeout: 3s
       retries: 5
 
+  # ========================================================================
+  # One-shot Alembic deploy job. API/worker стартуют только после успеха.
+  # ========================================================================
+  migrate:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    restart: "no"
+    command: ["python", "-m", "app.migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./server/.env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-fieldworker}:${POSTGRES_PASSWORD:-fieldworker_secret}@db:5432/${POSTGRES_DB:-fieldworker_db}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - RUN_MIGRATIONS_ON_STARTUP=false
+
   # ==========================================================================
   # API Server (FastAPI + PostgreSQL)
   # ==========================================================================
@@ -63,6 +82,8 @@ services:
         condition: service_healthy
       docker-proxy:
         condition: service_started
+      migrate:
+        condition: service_completed_successfully
     env_file:
       - ./server/.env
     environment:
@@ -77,6 +98,7 @@ services:
       # возможное значение из server/.env (оно для запуска на хосте).
       - BACKUP_PG_DOCKER_CONTAINER=
       - ENVIRONMENT=${ENVIRONMENT:-production}
+      - RUN_MIGRATIONS_ON_STARTUP=false
       - PORT=8001
       - LOG_FORMAT=json
       - BACKUP_SCHEDULER_ENABLED=${BACKUP_SCHEDULER_ENABLED:-false}
@@ -109,6 +131,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      server:
+        condition: service_healthy
     env_file:
       - ./server/.env
     environment:
@@ -117,6 +141,7 @@ services:
       - TASK_QUEUE_ENABLED=true
       - BACKUP_PG_DOCKER_CONTAINER=
       - ENVIRONMENT=${ENVIRONMENT:-production}
+      - RUN_MIGRATIONS_ON_STARTUP=false
     # У образа есть HEALTHCHECK на curl :8001, но worker не поднимает веб-сервер,
     # поэтому свой healthcheck отключаем (иначе контейнер был бы "unhealthy").
     healthcheck:

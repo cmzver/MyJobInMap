@@ -24,12 +24,30 @@ graceful fallback в inline-режим — запрос пользователя
 import asyncio
 import logging
 import threading
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Any, Callable, Dict, Optional
 
 from app.config import settings
 from app.services import metrics
 
 logger = logging.getLogger("task_queue")
+
+TERMINAL_DELIVERY_MESSAGES = {
+    "Firebase not configured",
+    "No devices",
+    "Web push not configured",
+    "No recipients",
+    "No subscriptions",
+}
+
+
+def raise_retryable_delivery_failure(result: object) -> None:
+    """Turn delivery failures returned as data into worker retryable errors."""
+    if not isinstance(result, dict) or result.get("success") is not False:
+        return
+    message = str(result.get("message") or "Unknown delivery failure")
+    if message not in TERMINAL_DELIVERY_MESSAGES:
+        raise RuntimeError(message)
 
 
 # ---------------------------------------------------------------- job registry
@@ -101,6 +119,10 @@ _loop_lock = threading.Lock()
 _pool: Any = None
 
 
+class QueueEnqueueUncertainError(RuntimeError):
+    """ARQ may have accepted the job, but acknowledgement timed out."""
+
+
 def _ensure_loop() -> asyncio.AbstractEventLoop:
     global _loop
     with _loop_lock:
@@ -132,7 +154,14 @@ def _enqueue_arq(job_name: str, kwargs: Dict[str, Any]) -> None:
     """Поставить задачу в ARQ. Бросает исключение при недоступности Redis."""
     loop = _ensure_loop()
     future = asyncio.run_coroutine_threadsafe(_enqueue_coro(job_name, kwargs), loop)
-    future.result(timeout=3)  # подтверждаем приём (или ловим ошибку Redis)
+    try:
+        future.result(timeout=3)  # подтверждаем приём (или ловим ошибку Redis)
+    except FutureTimeoutError as exc:
+        # Отмена здесь не доказывает, что Redis не принял команду. Отдельный
+        # inline-запуск мог бы доставить одно уведомление дважды.
+        raise QueueEnqueueUncertainError(
+            f"ARQ enqueue acknowledgement timed out for {job_name}"
+        ) from exc
     metrics.record_queue_enqueued(job_name, "arq")
 
 
@@ -153,6 +182,15 @@ def enqueue(job_name: str, **kwargs: Any) -> None:
     if settings.TASK_QUEUE_ENABLED:
         try:
             _enqueue_arq(job_name, kwargs)
+            return
+        except QueueEnqueueUncertainError as exc:
+            metrics.record_queue_enqueued(job_name, "uncertain")
+            logger.error(
+                "ARQ enqueue для %s имеет неопределённый результат (%s); "
+                "inline fallback пропущен во избежание дубликата",
+                job_name,
+                exc,
+            )
             return
         except Exception as exc:  # Redis недоступен/таймаут — не валим запрос
             logger.warning(

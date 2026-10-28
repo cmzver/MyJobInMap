@@ -18,6 +18,7 @@ def get_task_or_404(task_id: int, db: Session = Depends(get_db)) -> TaskModel:
         db.query(TaskModel)
         .options(
             joinedload(TaskModel.assigned_user),
+            joinedload(TaskModel.created_by),
             subqueryload(TaskModel.comments),
         )
         .filter(TaskModel.id == task_id)

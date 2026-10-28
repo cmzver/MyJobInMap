@@ -59,6 +59,42 @@ class TestAuth:
         # Org-less admin (organization_id=None) is exposed as superadmin in the public role
         assert data["role"] == "superadmin"
 
+    def test_refresh_token_cannot_authenticate_api_request(self, client, admin_user):
+        login = client.post(
+            "/api/auth/login", data={"username": "admin", "password": "admin"}
+        )
+        refresh_token = login.json()["refresh_token"]
+
+        response = client.get(
+            "/api/auth/me",
+            headers={"Authorization": f"Bearer {refresh_token}"},
+        )
+
+        assert response.status_code == 401
+
+    def test_access_token_rejected_after_organization_deactivation(
+        self, client, admin_user, db_session
+    ):
+        from app.models import OrganizationModel
+
+        organization = OrganizationModel(name="Test Org", slug="test-org")
+        db_session.add(organization)
+        db_session.flush()
+        admin_user.organization_id = organization.id
+        db_session.commit()
+
+        token = client.post(
+            "/api/auth/login", data={"username": "admin", "password": "admin"}
+        ).json()["access_token"]
+        organization.is_active = False
+        db_session.commit()
+
+        response = client.get(
+            "/api/auth/me", headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 401
+
 
 class TestAuthRateLimit:
     """Test rate limiting on login endpoint."""
@@ -147,6 +183,15 @@ class TestTokenRefresh:
         # Tokens should be valid strings
         assert len(data["access_token"]) > 0
         assert len(data["refresh_token"]) > 0
+
+    def test_refresh_token_is_single_use(self, client, admin_user):
+        refresh_token = self._get_refresh_token(client, admin_user)
+
+        first = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
+        replay = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
+
+        assert first.status_code == 200
+        assert replay.status_code == 401
 
     def test_refresh_with_new_access_token_works(self, client, admin_user):
         """Test that the new access token is valid for API calls."""
@@ -238,6 +283,35 @@ class TestPasswordChange:
 
         assert response.status_code == 200
         assert response.json()["success"] is True
+
+    def test_change_password_revokes_existing_tokens(
+        self, client, admin_user, admin_token
+    ):
+        login = client.post(
+            "/api/auth/login", data={"username": "admin", "password": "admin"}
+        ).json()
+
+        changed = client.patch(
+            "/api/auth/password",
+            json={"current_password": "admin", "new_password": "newadmin123"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        assert changed.status_code == 200
+        assert (
+            client.get(
+                "/api/auth/me",
+                headers={"Authorization": f"Bearer {login['access_token']}"},
+            ).status_code
+            == 401
+        )
+        assert (
+            client.post(
+                "/api/auth/refresh",
+                json={"refresh_token": login["refresh_token"]},
+            ).status_code
+            == 401
+        )
 
         old_login = client.post(
             "/api/auth/login",

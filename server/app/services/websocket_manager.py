@@ -144,6 +144,7 @@ class ConnectionManager:
         message: dict,
         exclude_user_id: Optional[int] = None,
         organization_id: Optional[int] = None,
+        global_event: bool = False,
     ) -> int:
         """
         Отправить сообщение всем подключённым клиентам.
@@ -164,7 +165,11 @@ class ConnectionManager:
             user_id = meta["user_id"] if meta else self._ws_to_user.get(ws)
             if user_id == exclude_user_id:
                 continue
-            if organization_id is not None and meta is not None:
+            if not global_event:
+                # Отсутствующий tenant — не «все организации», а глобальный
+                # (org-less) скоуп. Суперадмин видит события всех tenant-ов.
+                if meta is None:
+                    continue
                 if (
                     not meta["is_superadmin"]
                     and meta["organization_id"] != organization_id

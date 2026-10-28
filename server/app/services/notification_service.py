@@ -36,6 +36,9 @@ def create_notification(
     task_id: Optional[int] = None,
     support_ticket_id: Optional[int] = None,
     conversation_id: Optional[int] = None,
+    *,
+    commit: bool = True,
+    broadcast: bool = True,
 ) -> NotificationModel:
     """
     Создать уведомление для пользователя
@@ -64,8 +67,20 @@ def create_notification(
     )
 
     db.add(notification)
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(notification)
+
+    if broadcast:
+        broadcast_created_notification(notification)
+
+    return notification
+
+
+def broadcast_created_notification(notification: NotificationModel) -> None:
+    """Publish a notification only after its owning transaction commits."""
 
     try:
         loop = asyncio.get_running_loop()
@@ -73,25 +88,32 @@ def create_notification(
         loop = None
 
     if loop is not None and not loop.is_closed():
-        loop.create_task(
-            ws_manager.send_to_user(
-                user_id,
-                _event(
-                    "notification_created",
-                    {
-                        "notification_id": notification.id,
-                        "type": notification.type,
-                        "title": notification.title,
-                        "message": notification.message,
-                        "task_id": notification.task_id,
-                        "support_ticket_id": notification.support_ticket_id,
-                        "conversation_id": notification.conversation_id,
-                    },
-                ),
-            )
-        )
+        user_id, event = notification_broadcast_payload(notification)
+        loop.create_task(broadcast_created_notification_async(user_id, event))
 
-    return notification
+
+def notification_broadcast_payload(notification: NotificationModel) -> tuple[int, dict]:
+    """Materialize ORM fields while the owning session is still available."""
+    return (
+        notification.user_id,
+        _event(
+            "notification_created",
+            {
+                "notification_id": notification.id,
+                "type": notification.type,
+                "title": notification.title,
+                "message": notification.message,
+                "task_id": notification.task_id,
+                "support_ticket_id": notification.support_ticket_id,
+                "conversation_id": notification.conversation_id,
+            },
+        ),
+    )
+
+
+async def broadcast_created_notification_async(user_id: int, event: dict) -> None:
+    """Async form used by FastAPI BackgroundTasks from sync handlers."""
+    await ws_manager.send_to_user(user_id, event)
 
 
 def create_task_status_notification(
@@ -100,7 +122,9 @@ def create_task_status_notification(
     old_status: str,
     new_status: str,
     changed_by: UserModel,
-) -> None:
+    *,
+    commit: bool = True,
+) -> list[NotificationModel]:
     """
     Создать уведомление при изменении статуса заявки
 
@@ -131,15 +155,21 @@ def create_task_status_notification(
     if changed_by:
         message += f"\nИзменил: {changed_by.full_name or changed_by.username}"
 
+    notifications: list[NotificationModel] = []
+
     # Создаём уведомление для назначенного исполнителя
     if task.assigned_user_id and task.assigned_user_id != changed_by.id:
-        create_notification(
-            db=db,
-            user_id=task.assigned_user_id,
-            title=title,
-            message=message,
-            notification_type=notification_type,
-            task_id=task.id,
+        notifications.append(
+            create_notification(
+                db=db,
+                user_id=task.assigned_user_id,
+                title=title,
+                message=message,
+                notification_type=notification_type,
+                task_id=task.id,
+                commit=False,
+                broadcast=False,
+            )
         )
 
     # Если статус изменён на NEW, IN_PROGRESS или DONE, уведомляем админов/диспетчеров
@@ -160,24 +190,40 @@ def create_task_status_notification(
         )
 
         for admin in admins:
-            create_notification(
-                db=db,
-                user_id=admin.id,
-                title=title,
-                message=message,
-                notification_type=notification_type,
-                task_id=task.id,
+            notifications.append(
+                create_notification(
+                    db=db,
+                    user_id=admin.id,
+                    title=title,
+                    message=message,
+                    notification_type=notification_type,
+                    task_id=task.id,
+                    commit=False,
+                    broadcast=False,
+                )
             )
+
+    if commit:
+        db.commit()
+        for notification in notifications:
+            broadcast_created_notification(notification)
+    return notifications
 
 
 def create_task_assignment_notification(
-    db: Session, task: TaskModel, assigned_to: UserModel, assigned_by: UserModel
-) -> None:
+    db: Session,
+    task: TaskModel,
+    assigned_to: UserModel,
+    assigned_by: UserModel,
+    *,
+    commit: bool = True,
+    send_push: bool = True,
+) -> list[NotificationModel]:
     """
     Создать уведомление при назначении заявки
     """
     if assigned_to.id == assigned_by.id:
-        return  # Не уведомляем, если пользователь назначил сам себе
+        return []  # Не уведомляем, если пользователь назначил сам себе
 
     title = "📋 Вам назначена заявка"
     message = f"Заявка №{task.task_number or task.id} - {task.title}\n"
@@ -190,16 +236,30 @@ def create_task_assignment_notification(
         notification_type = "alert"
         title = "⚠️ СРОЧНАЯ заявка!"
 
-    create_notification(
+    notification = create_notification(
         db=db,
         user_id=assigned_to.id,
         title=title,
         message=message,
         notification_type=notification_type,
         task_id=task.id,
+        commit=False,
+        broadcast=False,
     )
 
+    if commit:
+        db.commit()
+        broadcast_created_notification(notification)
+
     # FCM push уведомление
+    if send_push:
+        send_task_assignment_push(task, assigned_to)
+
+    return [notification]
+
+
+def send_task_assignment_push(task: TaskModel, assigned_to: UserModel) -> None:
+    """Queue the external side effect after the database commit."""
     priority_name = get_priority_display_name(task.priority)
     push_title = (
         f"Новая заявка ({priority_name})"

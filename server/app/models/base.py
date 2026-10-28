@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, event
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -43,23 +44,35 @@ def _register_unicode_case_functions(dbapi_connection, _connection_record):
     dbapi_connection.create_function(
         "upper", 1, lambda v: v.upper() if isinstance(v, str) else v
     )
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA busy_timeout=5000")
+    finally:
+        cursor.close()
 
 
 def create_db_engine(url: str):
     """Построить engine под диалект URL — единая точка переключения режима БД.
 
-    * **SQLite** — общий in-memory-safe pool (StaticPool) + Unicode lower/upper.
+    * **SQLite in-memory** — общий pool (StaticPool), чтобы сессии видели одну БД.
+    * **SQLite file** — стандартный QueuePool с независимыми транзакциями.
     * **PostgreSQL** — пул соединений с pre-ping и ротацией (несколько
       процессов: web + worker).
     * прочее — engine с настройками по умолчанию.
     """
     if url.startswith("sqlite"):
-        eng = create_engine(
-            url,
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-            echo=False,
+        parsed_url = make_url(url)
+        is_memory = parsed_url.database in (None, "", ":memory:") or (
+            parsed_url.query.get("mode") == "memory"
         )
+        engine_options = {
+            "connect_args": {"check_same_thread": False},
+            "echo": False,
+        }
+        if is_memory:
+            engine_options["poolclass"] = StaticPool
+        eng = create_engine(url, **engine_options)
         event.listen(eng, "connect", _register_unicode_case_functions)
         return eng
     if url.startswith("postgresql") or url.startswith("postgres"):
@@ -97,11 +110,7 @@ logger.info(
 )
 logger.info(
     "URL: %s",
-    (
-        SQLALCHEMY_DATABASE_URL[:50] + "..."
-        if len(SQLALCHEMY_DATABASE_URL) > 50
-        else SQLALCHEMY_DATABASE_URL
-    ),
+    make_url(SQLALCHEMY_DATABASE_URL).render_as_string(hide_password=True),
 )
 
 
@@ -159,8 +168,10 @@ def run_migrations():
             existing_tables = set(inspector.get_table_names())
 
             if not existing_tables or existing_tables == {"alembic_version"}:
-                # Совсем новая БД — stamp head, create_all сделает остальное
-                logger.info("🔄 New database, stamping head...")
+                # Ранние миграции рассчитаны на существовавшую до Alembic схему.
+                # Для пустой БД сначала создаём актуальную metadata, затем stamp.
+                logger.info("🔄 New database, creating current schema...")
+                Base.metadata.create_all(bind=engine)
                 command.stamp(alembic_cfg, "head")
             else:
                 # До-alembic БД — определяем до какой миграции дошли
@@ -168,9 +179,13 @@ def run_migrations():
                 if "users" in existing_tables:
                     columns = {c["name"] for c in inspector.get_columns("users")}
                     if "avatar_path" in columns:
-                        # Всё уже на месте
-                        logger.info("🔄 All schema up to date, stamping head...")
-                        command.stamp(alembic_cfg, "head")
+                        # Наличие avatar_path доказывает только эту ревизию, а не
+                        # актуальный head. Остальные миграции нужно выполнить.
+                        logger.info(
+                            "🔄 Avatar schema detected, applying remaining migrations..."
+                        )
+                        command.stamp(alembic_cfg, "20260319_0001")
+                        command.upgrade(alembic_cfg, "head")
                     elif "conversations" in existing_tables:
                         # Чат есть, аватарки нет → stamp chat migration, upgrade далее
                         logger.info(
@@ -191,8 +206,9 @@ def run_migrations():
                         command.stamp(alembic_cfg, "002")
                         command.upgrade(alembic_cfg, "head")
                 else:
-                    logger.info("🔄 Unknown DB state, stamping head...")
-                    command.stamp(alembic_cfg, "head")
+                    raise RuntimeError(
+                        "Unknown pre-Alembic database schema; refusing to stamp head"
+                    )
         else:
             # Применяем pending миграции
             logger.info(f"🔄 Running migrations (current: {current_rev})...")
@@ -207,7 +223,6 @@ def run_migrations():
             logger.info(f"✅ Migrations applied: {current_rev} → {new_rev}")
         else:
             logger.info(f"✅ Database up to date (revision: {new_rev})")
-    except Exception as e:
-        logger.error(
-            f"⚠️ Migration failed: {e}. Server will continue with create_all fallback."
-        )
+    except Exception:
+        logger.exception("Migration failed; refusing to start with an unknown schema")
+        raise

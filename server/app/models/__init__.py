@@ -50,6 +50,7 @@ from app.models.security import (
     BlockedIPModel,
     IPAllowlistModel,
     IPSecurityEventModel,
+    RefreshSessionModel,
 )
 from app.models.settings import (
     CustomFieldModel,
@@ -123,6 +124,7 @@ __all__ = [
     "BlockedIPModel",
     "IPAllowlistModel",
     "IPSecurityEventModel",
+    "RefreshSessionModel",
     # Chat
     "ConversationType",
     "ConversationMemberRole",

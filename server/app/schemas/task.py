@@ -349,6 +349,18 @@ class _TaskReadBase(BaseModel):
         json_schema_extra={"example": "Иван Полевой"},
     )
 
+    created_by_id: Optional[int] = Field(
+        None,
+        description="ID пользователя, который завел заявку",
+        json_schema_extra={"example": 1},
+    )
+
+    created_by_name: Optional[str] = Field(
+        None,
+        description="Кем заведена заявка",
+        json_schema_extra={"example": "Диспетчер"},
+    )
+
     is_remote: bool = Field(
         False,
         description="Может ли быть выполнена удалённо",

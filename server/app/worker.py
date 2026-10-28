@@ -22,6 +22,7 @@ from arq.connections import RedisSettings
 
 from app.config import settings
 from app.services import metrics
+from app.services.task_queue import raise_retryable_delivery_failure
 
 logger = logging.getLogger("worker")
 
@@ -32,6 +33,7 @@ async def push_send(ctx, **kwargs):
 
     try:
         result = await asyncio.to_thread(_send_push_sync, **kwargs)
+        raise_retryable_delivery_failure(result)
         metrics.record_queue_processed("push_send", "success")
         return result
     except Exception:
@@ -45,6 +47,7 @@ async def web_push_send(ctx, **kwargs):
 
     try:
         result = await asyncio.to_thread(_send_web_push_sync, **kwargs)
+        raise_retryable_delivery_failure(result)
         metrics.record_queue_processed("web_push_send", "success")
         return result
     except Exception:

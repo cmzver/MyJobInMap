@@ -5,7 +5,6 @@ Configuration
 Использует pydantic-settings для валидации и автоматической загрузки .env
 """
 
-import warnings
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Set
@@ -174,6 +173,13 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = Field(
         default="development", description="Окружение (development/production)"
     )
+    RUN_MIGRATIONS_ON_STARTUP: bool = Field(
+        default=False,
+        description=(
+            "Запускать Alembic при старте API. В production/Docker миграции "
+            "должен выполнять отдельный deploy job"
+        ),
+    )
 
     # === CORS ===
     CORS_ORIGINS: List[str] = Field(
@@ -282,16 +288,14 @@ class Settings(BaseSettings):
         """Создаём необходимые директории и проверяем безопасность"""
         self.PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
 
-        # Предупреждение о дефолтном SECRET_KEY в production
+        # Production с публично известным ключом небезопасен: не запускаемся.
         if (
             self.ENVIRONMENT.lower() == "production"
             and self.SECRET_KEY == "fieldworker-super-secret-key-change-in-production"
         ):
-            warnings.warn(
-                "⚠️  Используется дефолтный SECRET_KEY в production! "
-                "Задайте SECRET_KEY в переменных окружения или .env файле!",
-                RuntimeWarning,
-                stacklevel=2,
+            raise ValueError(
+                "Нельзя использовать дефолтный SECRET_KEY в production. "
+                "Задайте SECRET_KEY в переменных окружения или .env файле."
             )
         return self
 
