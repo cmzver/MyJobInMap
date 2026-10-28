@@ -22,9 +22,9 @@ import org.robolectric.annotation.GraphicsMode
  *
  * Application подменён на пустой, чтобы не поднимать Hilt/Firebase.
  *
- * Диалоги с текстовым полем (StatusChangeDialog) здесь не снимаются: под
- * Robolectric окно AlertDialog отдаёт фокус полю, мигающий курсор — бесконечная
- * анимация, и Compose не становится idle. В приложении это штатное поведение.
+ * Отдельные окна (AlertDialog, ModalBottomSheet) Robolectric рисует пустыми —
+ * снимайте их содержимое (как TaskDetailContent). Диалоги с полем ввода к тому
+ * же не дают Compose стать idle: мигающий курсор — бесконечная анимация.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

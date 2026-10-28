@@ -104,4 +104,15 @@ interface PendingActionDao {
      */
     @Query("SELECT * FROM pending_actions WHERE retryCount >= :maxRetries")
     suspend fun getFailedActions(maxRetries: Int = 5): List<PendingAction>
+
+    /** Dead-letter: действия, которые очередь больше не повторяет сама. */
+    @Query("SELECT * FROM pending_actions WHERE retryCount >= :maxRetries ORDER BY createdAt ASC, id ASC")
+    fun getFailedActionsFlow(maxRetries: Int): Flow<List<PendingAction>>
+
+    @Query("SELECT * FROM pending_actions WHERE id = :actionId")
+    suspend fun getPendingActionById(actionId: Long): PendingAction?
+
+    /** Вернуть действие в очередь (ручной «Повторить»). */
+    @Query("UPDATE pending_actions SET retryCount = 0, lastError = NULL WHERE id = :actionId")
+    suspend fun resetRetries(actionId: Long)
 }

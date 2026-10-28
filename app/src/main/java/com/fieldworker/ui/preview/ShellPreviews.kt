@@ -6,6 +6,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import com.fieldworker.data.preferences.AppPreferences
+import com.fieldworker.domain.model.FailedAction
+import com.fieldworker.ui.components.FailedActionsDialog
 import com.fieldworker.ui.main.AppDrawer
 import com.fieldworker.ui.navigation.Screen
 import com.fieldworker.ui.settings.ConnectionStatus
@@ -48,5 +50,23 @@ internal fun SettingsPreview() {
                 connectionStatus = ConnectionStatus.IDLE,
             )
         }
+    }
+}
+
+@Preview(name = "Failed actions", showBackground = true)
+@Composable
+internal fun FailedActionsPreview() {
+    FieldWorkerTheme {
+        FailedActionsDialog(
+            actions = listOf(
+                FailedAction(1, 10, "#1138996 · Ленинский пр., д.82", "Смена статуса → Выполнена",
+                    "Сервер отклонил изменение: оно конфликтует с текущим состоянием заявки"),
+                FailedAction(2, 11, "#1138997 · пр. Стачек, д.15", "Комментарий: «Заменил кран, проверил»",
+                    "Не удалось отправить после нескольких попыток"),
+            ),
+            onRetry = {},
+            onDiscard = {},
+            onDismiss = {},
+        )
     }
 }

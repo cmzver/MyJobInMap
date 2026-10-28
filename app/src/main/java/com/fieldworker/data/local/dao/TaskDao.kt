@@ -72,6 +72,9 @@ interface TaskDao {
     @Query("DELETE FROM tasks")
     suspend fun deleteAllTasks()
     
+    @Query("SELECT id FROM tasks")
+    suspend fun getAllTaskIds(): List<Long>
+
     /** ID синхронизированных (без локальных правок) задач — кандидаты на удаление. */
     @Query("SELECT id FROM tasks WHERE isLocallyModified = 0")
     suspend fun getSyncedTaskIds(): List<Long>

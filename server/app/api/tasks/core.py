@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
 from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
@@ -44,6 +44,7 @@ from app.services import (
     metrics,
     require_permission,
 )
+from app.services.idempotency import cached_response, remember_response
 from app.services.notification_service import (
     broadcast_created_notification_async,
     create_task_assignment_notification,
@@ -362,9 +363,20 @@ async def update_task_status(
             "change_task_status", worker_detail="Нет доступа к этой заявке"
         )
     ),
+    idempotency_key: Optional[str] = Header(
+        None,
+        alias="Idempotency-Key",
+        max_length=64,
+        description="Повтор с тем же ключом вернёт сохранённый ответ (Android-outbox).",
+    ),
     task_service=Depends(get_task_service),
 ):
     """Изменить статус заявки."""
+
+    scope = f"status:{task_id}"
+    cached = cached_response(task_service.db, access.user.id, idempotency_key, scope)
+    if cached is not None:
+        return cached
 
     old_status = access.task.status
     try:
@@ -408,7 +420,9 @@ async def update_task_status(
                 )
             )
 
-    return task_to_response(updated_task)
+    response = task_to_response(updated_task)
+    remember_response(task_service.db, access.user.id, idempotency_key, scope, response)
+    return response
 
 
 @router.delete("/{task_id}")
@@ -451,9 +465,20 @@ async def update_planned_date(
     access: TaskAccess = Depends(
         require_task_access("edit_tasks", worker_detail="Нет доступа к этой заявке")
     ),
+    idempotency_key: Optional[str] = Header(
+        None,
+        alias="Idempotency-Key",
+        max_length=64,
+        description="Повтор с тем же ключом вернёт сохранённый ответ (Android-outbox).",
+    ),
     task_service=Depends(get_task_service),
 ):
     """Изменить плановую дату заявки."""
+
+    scope = f"planned_date:{task_id}"
+    cached = cached_response(task_service.db, access.user.id, idempotency_key, scope)
+    if cached is not None:
+        return cached
 
     try:
         updated_task = task_service.update_planned_date(
@@ -464,7 +489,9 @@ async def update_planned_date(
     except TaskServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
-    return task_to_list_response(updated_task)
+    response = task_to_list_response(updated_task)
+    remember_response(task_service.db, access.user.id, idempotency_key, scope, response)
+    return response
 
 
 @router.patch("/{task_id}/assign", response_model=TaskResponse)

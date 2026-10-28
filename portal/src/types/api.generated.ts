@@ -7653,7 +7653,10 @@ export interface operations {
     update_task_status_api_tasks__task_id__status_patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Повтор с тем же ключом вернёт сохранённый ответ (Android-outbox). */
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 task_id: number;
             };
@@ -7688,7 +7691,10 @@ export interface operations {
     update_planned_date_api_tasks__task_id__planned_date_patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Повтор с тем же ключом вернёт сохранённый ответ (Android-outbox). */
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 task_id: number;
             };
@@ -7789,7 +7795,10 @@ export interface operations {
     add_comment_api_tasks__task_id__comments_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Повтор с тем же ключом вернёт сохранённый ответ (Android-outbox). */
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 task_id: number;
             };

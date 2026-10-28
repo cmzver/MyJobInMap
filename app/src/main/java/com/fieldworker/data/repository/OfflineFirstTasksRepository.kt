@@ -31,6 +31,7 @@ import com.fieldworker.data.network.NetworkError
 import com.fieldworker.data.network.NetworkMonitor
 import com.fieldworker.data.network.toUserMessage
 import com.fieldworker.domain.model.Comment
+import com.fieldworker.domain.model.FailedAction
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.TaskStatus
@@ -39,6 +40,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -111,6 +113,12 @@ class OfflineFirstTasksRepository @Inject constructor(
      */
     val pendingActionsCount: Flow<Int> = pendingActionDao.getPendingActionsCountFlow()
 
+    /** Действия, которые очередь больше не повторяет сама — их разбирает пользователь. */
+    val failedActions: Flow<List<FailedAction>> = pendingActionDao
+        .getFailedActionsFlow(MAX_PENDING_RETRIES)
+        .map { actions -> actions.map { it.toFailedAction() } }
+        .flowOn(Dispatchers.IO)
+
     /** Монотонное время последней полной выгрузки; null — в этом процессе её не было. */
     private var lastFullSyncAtMs: Long? = null
     
@@ -149,7 +157,13 @@ class OfflineFirstTasksRepository @Inject constructor(
                         } else {
                             // Изменённые заявки не расскажут об удалённых и переназначенных —
                             // сверяемся со списком видимых ID. Не получилось — не удаляем.
-                            fetchVisibleTaskIds()?.let { pruneTasksNotIn(it) }
+                            fetchVisibleTaskIds()?.let { visibleIds ->
+                                pruneTasksNotIn(visibleIds)
+                                // Видна на сервере, но нет в кеше (не менялась с курсора) —
+                                // по изменениям её не получить; следующий проход — полный.
+                                val cachedIds = taskDao.getAllTaskIds().toHashSet()
+                                if (visibleIds.any { it !in cachedIds }) lastFullSyncAtMs = null
+                            }
                         }
 
                         Log.d(TAG, "Synced ${tasks.size} tasks from server (full=$isFullSync)")
@@ -569,7 +583,8 @@ class OfflineFirstTasksRepository @Inject constructor(
                             status = TaskStatusUpdate(
                                 status = GenTaskStatus.valueOf(status),
                                 comment = action.comment ?: ""
-                            )
+                            ),
+                            idempotencyKey = action.operationId.ifBlank { null }
                         )
                         
                         val body = response.body()
@@ -603,7 +618,8 @@ class OfflineFirstTasksRepository @Inject constructor(
                         }
                         val response = tasksApi.addComment(
                             id = action.taskId,
-                            comment = CommentCreate(text = text)
+                            comment = CommentCreate(text = text),
+                            idempotencyKey = action.operationId.ifBlank { null }
                         )
                         val body = response.body()
                         if (response.isSuccessful && body != null) {
@@ -628,7 +644,8 @@ class OfflineFirstTasksRepository @Inject constructor(
                             id = action.taskId,
                             plannedDate = PlannedDateUpdate(
                                 plannedDate = action.plannedDate
-                            )
+                            ),
+                            idempotencyKey = action.operationId.ifBlank { null }
                         )
                         val body = response.body()
                         if (response.isSuccessful && body != null) {
@@ -701,6 +718,95 @@ class OfflineFirstTasksRepository @Inject constructor(
         }
     }
     
+    /** Вернуть «провалившееся» действие в очередь и сразу попробовать отправить. */
+    suspend fun retryFailedAction(actionId: Long): PendingSyncResult = withContext(Dispatchers.IO) {
+        pendingActionDao.resetRetries(actionId)
+        syncPendingActions()
+    }
+
+    /**
+     * Отменить «провалившееся» действие: удалить его и локальные следы (черновик
+     * комментария). Если по заявке больше ничего не ждёт отправки — вернуть её
+     * к серверному состоянию.
+     */
+    suspend fun discardFailedAction(actionId: Long) = withContext(Dispatchers.IO) {
+        val action = pendingActionDao.getPendingActionById(actionId) ?: return@withContext
+        var restoreTask = false
+        transactionRunner.run {
+            pendingActionDao.deletePendingActionById(actionId)
+            action.tempId?.let { commentDao.deleteByTempId(it) }
+            restoreTask = pendingActionDao.getPendingActionsForTask(action.taskId).isEmpty()
+        }
+        if (restoreTask) restoreTaskFromServer(action.taskId)
+    }
+
+    private suspend fun restoreTaskFromServer(taskId: Long) {
+        val restored = try {
+            val response = tasksApi.getTaskDetail(taskId)
+            val body = response.body()
+            when {
+                response.isSuccessful && body != null -> {
+                    taskDao.upsertTask(TaskEntity.fromDomain(body.toDomain()))
+                    taskDao.markAsSynced(taskId)
+                    true
+                }
+                // Заявку удалили или отняли доступ — локальной копии больше не место
+                response.code() == 403 || response.code() == 404 -> {
+                    taskDao.markAsSynced(taskId) // снять флаг, иначе DELETE её пропустит
+                    taskDao.deleteSyncedTasksByIds(listOf(taskId))
+                    true
+                }
+                else -> false
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            false
+        }
+        if (!restored) {
+            // Без сети: снимаем «локально изменена», а следующий refresh — полный,
+            // чтобы перезаписать заявку серверной версией.
+            taskDao.markAsSynced(taskId)
+            lastFullSyncAtMs = null
+        }
+    }
+
+    private suspend fun PendingAction.toFailedAction(): FailedAction {
+        val task = taskDao.getTaskById(taskId)
+        val label = task?.let { entity ->
+            val domain = entity.toDomain()
+            "#${domain.getDisplayNumber()} · ${domain.address}"
+        } ?: "Заявка #$taskId"
+        val description = when (actionType) {
+            ActionType.UPDATE_STATUS -> {
+                val status = newStatus?.let { TaskStatus.fromString(it).displayName } ?: "—"
+                "Смена статуса → $status"
+            }
+            ActionType.ADD_COMMENT -> "Комментарий: «${comment.orEmpty().take(60)}»"
+            ActionType.UPDATE_PLANNED_DATE ->
+                "Плановая дата → ${plannedDate?.substringBefore('T') ?: "снять"}"
+        }
+        return FailedAction(
+            id = id,
+            taskId = taskId,
+            taskLabel = label,
+            description = description,
+            reason = failureReason(lastError),
+        )
+    }
+
+    private fun failureReason(lastError: String?): String {
+        val code = lastError?.substringAfter("Server error: ", "")?.toIntOrNull()
+        return when (code) {
+            400, 409, 422 -> "Сервер отклонил изменение: оно конфликтует с текущим состоянием заявки"
+            403 -> "Нет прав на это действие"
+            404 -> "Заявка не найдена — возможно, удалена"
+            null -> lastError?.takeIf { it.isNotBlank() }?.let { "Не удалось отправить: $it" }
+                ?: "Не удалось отправить после нескольких попыток"
+            else -> "Ошибка сервера ($code)"
+        }
+    }
+
     /**
      * Очистить локальный кеш (при выходе из аккаунта)
      */

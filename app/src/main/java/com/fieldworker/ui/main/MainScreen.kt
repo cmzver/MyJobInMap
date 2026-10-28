@@ -49,6 +49,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.paging.compose.collectAsLazyPagingItems
+import com.fieldworker.ui.components.FailedActionsDialog
 import com.fieldworker.ui.components.OfflineBanner
 import com.fieldworker.ui.components.PhotoUploadConfirmDialog
 import com.fieldworker.ui.chat.ChatViewModel
@@ -325,8 +326,18 @@ fun MainScreen(
             OfflineBanner(
                 isOffline = uiState.isOffline,
                 pendingActionsCount = uiState.pendingActionsCount,
-                onSyncClick = { viewModel.forceSync() }
+                onSyncClick = { viewModel.forceSync() },
+                failedActionsCount = uiState.failedActions.size,
+                onReviewFailed = { viewModel.showFailedActions() }
             )
+            if (uiState.showFailedActions) {
+                FailedActionsDialog(
+                    actions = uiState.failedActions,
+                    onRetry = { viewModel.retryFailedAction(it) },
+                    onDiscard = { viewModel.discardFailedAction(it) },
+                    onDismiss = { viewModel.hideFailedActions() }
+                )
+            }
 
             Box(modifier = Modifier.weight(1f)) {
             NavHost(

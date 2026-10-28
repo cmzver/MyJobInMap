@@ -14,6 +14,7 @@ import android.net.Uri
 import com.fieldworker.domain.model.AccessLevel
 import com.fieldworker.domain.model.AddressDetails
 import com.fieldworker.domain.model.Comment
+import com.fieldworker.domain.model.FailedAction
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskPhoto
@@ -94,6 +95,8 @@ data class MapUiState(
     // Offline режим
     val isOffline: Boolean = false,
     val pendingActionsCount: Int = 0,
+    val failedActions: List<FailedAction> = emptyList(),
+    val showFailedActions: Boolean = false,
     val lastSyncTime: Long? = null,
     // Доступ текущего пользователя
     val access: AccessLevel = AccessLevel.WORKER,
@@ -402,6 +405,40 @@ class MapViewModel @Inject constructor(
             getTasksUseCase.pendingActionsCount.collect { count ->
                 _uiState.update { it.copy(pendingActionsCount = count) }
             }
+        }
+        viewModelScope.launch {
+            getTasksUseCase.failedActions.collect { failed ->
+                _uiState.update {
+                    it.copy(
+                        failedActions = failed,
+                        // Разобрали всё — диалог больше не нужен
+                        showFailedActions = it.showFailedActions && failed.isNotEmpty()
+                    )
+                }
+            }
+        }
+    }
+
+    fun showFailedActions() {
+        _uiState.update { it.copy(showFailedActions = it.failedActions.isNotEmpty()) }
+    }
+
+    fun hideFailedActions() {
+        _uiState.update { it.copy(showFailedActions = false) }
+    }
+
+    fun retryFailedAction(actionId: Long) {
+        viewModelScope.launch {
+            val result = getTasksUseCase.retryFailedAction(actionId)
+            if (result.permanentFailures > 0 || result.retryableFailures > 0) {
+                _uiState.update { it.copy(error = "Отправить не удалось — действие осталось в списке") }
+            }
+        }
+    }
+
+    fun discardFailedAction(actionId: Long) {
+        viewModelScope.launch {
+            getTasksUseCase.discardFailedAction(actionId)
         }
     }
     

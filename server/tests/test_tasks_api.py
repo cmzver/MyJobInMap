@@ -496,3 +496,79 @@ class TestIncrementalSync:
 
         worker_ids = client_with_worker.get("/api/tasks/ids").json()["ids"]
         assert worker_ids == [mine["id"]]
+
+
+class TestIdempotencyKeys:
+    """Idempotency-Key: повтор outbox-операции после потерянного ответа."""
+
+    def _task(self, client, token):
+        response = client.post(
+            "/api/tasks",
+            json={"title": "Idem", "address": "Main St, 2"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        return response.json()
+
+    def test_repeated_comment_is_created_once(self, client, admin_token):
+        task = self._task(client, admin_token)
+        headers = {"Authorization": f"Bearer {admin_token}", "Idempotency-Key": "op-1"}
+
+        first = client.post(
+            f"/api/tasks/{task['id']}/comments", json={"text": "Раз"}, headers=headers
+        )
+        second = client.post(
+            f"/api/tasks/{task['id']}/comments", json={"text": "Раз"}, headers=headers
+        )
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert second.json()["id"] == first.json()["id"]
+        comments = client.get(
+            f"/api/tasks/{task['id']}/comments",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        ).json()
+        assert [c["text"] for c in comments].count("Раз") == 1
+
+    def test_repeated_status_change_returns_saved_response(self, client, admin_token):
+        task = self._task(client, admin_token)
+        headers = {"Authorization": f"Bearer {admin_token}", "Idempotency-Key": "op-2"}
+        body = {"status": "IN_PROGRESS", "comment": ""}
+
+        first = client.patch(
+            f"/api/tasks/{task['id']}/status", json=body, headers=headers
+        )
+        # Без ключа повтор упал бы на «недопустимом переходе» IN_PROGRESS → IN_PROGRESS
+        second = client.patch(
+            f"/api/tasks/{task['id']}/status", json=body, headers=headers
+        )
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert second.json()["status"] == "IN_PROGRESS"
+
+    def test_key_reuse_for_other_operation_is_rejected(self, client, admin_token):
+        task = self._task(client, admin_token)
+        headers = {"Authorization": f"Bearer {admin_token}", "Idempotency-Key": "op-3"}
+        client.post(
+            f"/api/tasks/{task['id']}/comments", json={"text": "x"}, headers=headers
+        )
+        response = client.patch(
+            f"/api/tasks/{task['id']}/status",
+            json={"status": "IN_PROGRESS", "comment": ""},
+            headers=headers,
+        )
+        assert response.status_code == 422
+
+    def test_without_key_behaviour_is_unchanged(self, client, admin_token):
+        task = self._task(client, admin_token)
+        headers = {"Authorization": f"Bearer {admin_token}"}
+        for _ in range(2):
+            client.post(
+                f"/api/tasks/{task['id']}/comments",
+                json={"text": "Два"},
+                headers=headers,
+            )
+        comments = client.get(
+            f"/api/tasks/{task['id']}/comments", headers=headers
+        ).json()
+        assert [c["text"] for c in comments].count("Два") == 2

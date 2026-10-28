@@ -115,6 +115,7 @@ class OfflineFirstTasksRepositoryTest {
         // Default mocks
         every { taskDao.getAllTasksFlow() } returns flowOf(listOf(testTaskEntity))
         every { pendingActionDao.getPendingActionsCountFlow() } returns flowOf(0)
+        every { pendingActionDao.getFailedActionsFlow(any()) } returns flowOf(emptyList())
         coEvery { taskDao.getLocallyModifiedTasks() } returns emptyList()
         coEvery { taskDao.getAllTasks() } returns listOf(testTaskEntity)
         coEvery { taskDao.getMaxUpdatedAt() } returns null
@@ -273,7 +274,7 @@ class OfflineFirstTasksRepositoryTest {
             updatedAt = "2024-01-01T11:00:00",
             comments = emptyList()
         )
-        coEvery { tasksApi.updateTaskStatus(any(), any()) } returns Response.success(updatedDto)
+        coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } returns Response.success(updatedDto)
         coEvery { taskDao.upsertTask(any()) } just Runs
 
         // When
@@ -282,7 +283,7 @@ class OfflineFirstTasksRepositoryTest {
         // Then
         assertTrue(result.isSuccess)
         assertEquals(TaskStatus.IN_PROGRESS, result.getOrNull()?.status)
-        coVerify { tasksApi.updateTaskStatus(1L, any()) }
+        coVerify { tasksApi.updateTaskStatus(1L, any(), any()) }
     }
 
     @Test
@@ -317,7 +318,7 @@ class OfflineFirstTasksRepositoryTest {
         )
         every { networkMonitor.isCurrentlyOnline() } returns true
         coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(action)
-        coEvery { tasksApi.updateTaskStatus(any(), any()) } returns
+        coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } returns
             Response.error(503, "unavailable".toResponseBody())
         coEvery { pendingActionDao.incrementRetryCount(any(), any()) } just Runs
 
@@ -339,7 +340,7 @@ class OfflineFirstTasksRepositoryTest {
         )
         every { networkMonitor.isCurrentlyOnline() } returns true
         coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(action)
-        coEvery { tasksApi.updateTaskStatus(any(), any()) } returns
+        coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } returns
             Response.error(422, "invalid".toResponseBody())
         coEvery { pendingActionDao.markAsFailed(any(), any(), any()) } just Runs
 
@@ -348,6 +349,67 @@ class OfflineFirstTasksRepositoryTest {
         assertEquals(0, result.retryableFailures)
         assertEquals(1, result.permanentFailures)
         coVerify { pendingActionDao.markAsFailed(11L, "Server error: 422", 5) }
+    }
+
+    @Test
+    fun `syncPendingActions sends operation id as idempotency key`() = runTest {
+        val action = PendingAction(
+            id = 12L,
+            taskId = 1L,
+            actionType = ActionType.UPDATE_STATUS,
+            newStatus = "IN_PROGRESS",
+            operationId = "op-42"
+        )
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(action)
+        coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } returns
+            Response.error(503, "unavailable".toResponseBody())
+        coEvery { pendingActionDao.incrementRetryCount(any(), any()) } just Runs
+
+        repository.syncPendingActions()
+
+        coVerify { tasksApi.updateTaskStatus(1L, any(), "op-42") }
+    }
+
+    @Test
+    fun `discarding last failed action restores task from server`() = runTest {
+        val action = PendingAction(id = 13L, taskId = 1L, actionType = ActionType.UPDATE_STATUS, newStatus = "DONE")
+        coEvery { pendingActionDao.getPendingActionById(13L) } returns action
+        coEvery { pendingActionDao.getPendingActionsForTask(1L) } returns emptyList()
+        val serverTask = TaskResponse(
+            id = 1L,
+            taskNumber = "Z-001",
+            title = "Test Task",
+            rawAddress = "Test Address",
+            description = "Test Description",
+            lat = BigDecimal("55.75"),
+            lon = BigDecimal("37.62"),
+            status = GenTaskStatus.NEW,
+            priority = GenTaskPriority.CURRENT,
+            createdAt = "2024-01-01T10:00:00",
+            updatedAt = "2024-01-01T11:00:00",
+            comments = emptyList()
+        )
+        coEvery { tasksApi.getTaskDetail(1L) } returns Response.success(serverTask)
+
+        repository.discardFailedAction(13L)
+
+        coVerify { pendingActionDao.deletePendingActionById(13L) }
+        coVerify { taskDao.upsertTask(match { it.id == 1L && it.status == "NEW" }) }
+        coVerify { taskDao.markAsSynced(1L, any()) }
+    }
+
+    @Test
+    fun `discard keeps task local state when other actions still pending`() = runTest {
+        val action = PendingAction(id = 14L, taskId = 1L, actionType = ActionType.ADD_COMMENT, comment = "x", tempId = "tmp-1")
+        val other = PendingAction(id = 15L, taskId = 1L, actionType = ActionType.UPDATE_STATUS, newStatus = "DONE")
+        coEvery { pendingActionDao.getPendingActionById(14L) } returns action
+        coEvery { pendingActionDao.getPendingActionsForTask(1L) } returns listOf(other)
+
+        repository.discardFailedAction(14L)
+
+        coVerify { commentDao.deleteByTempId("tmp-1") }
+        coVerify(exactly = 0) { tasksApi.getTaskDetail(any()) }
     }
 
     @Test
@@ -360,7 +422,7 @@ class OfflineFirstTasksRepositoryTest {
         )
         every { networkMonitor.isCurrentlyOnline() } returns true
         coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(action)
-        coEvery { tasksApi.updateTaskStatus(any(), any()) } returns
+        coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } returns
             Response.error(401, "unauthorized".toResponseBody())
 
         val result = repository.syncPendingActions()

@@ -17,6 +17,7 @@ import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.HTTP
+import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -64,7 +65,8 @@ interface TasksApi {
     @PATCH("api/tasks/{id}/status")
     suspend fun updateTaskStatus(
         @Path("id") id: Long,
-        @Body status: TaskStatusUpdate
+        @Body status: TaskStatusUpdate,
+        @Header("Idempotency-Key") idempotencyKey: String? = null
     ): Response<TaskResponse>
     
     /**
@@ -73,7 +75,8 @@ interface TasksApi {
     @POST("api/tasks/{id}/comments")
     suspend fun addComment(
         @Path("id") id: Long,
-        @Body comment: CommentCreate
+        @Body comment: CommentCreate,
+        @Header("Idempotency-Key") idempotencyKey: String? = null
     ): Response<CommentResponse>
     
     /**
@@ -91,7 +94,8 @@ interface TasksApi {
     @PATCH("api/tasks/{id}/planned-date")
     suspend fun updatePlannedDate(
         @Path("id") id: Long,
-        @Body plannedDate: PlannedDateUpdate
+        @Body plannedDate: PlannedDateUpdate,
+        @Header("Idempotency-Key") idempotencyKey: String? = null
     ): Response<TaskListResponse>
     
     /**

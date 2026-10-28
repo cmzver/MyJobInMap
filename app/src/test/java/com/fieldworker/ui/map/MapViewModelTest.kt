@@ -18,6 +18,7 @@ import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.*
@@ -107,6 +108,7 @@ class MapViewModelTest {
         getTasksUseCase = mockk(relaxed = true)
         every { getTasksUseCase.tasksFlow } returns tasksFlow
         every { getTasksUseCase.pendingActionsCount } returns pendingCountFlow
+        every { getTasksUseCase.failedActions } returns flowOf(emptyList())
         
         updateTaskStatusUseCase = mockk(relaxed = true)
         taskPhotosUseCase = mockk(relaxed = true)

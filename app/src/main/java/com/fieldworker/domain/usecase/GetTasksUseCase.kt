@@ -32,6 +32,13 @@ class GetTasksUseCase @Inject constructor(
      * Получить Flow количества отложенных действий
      */
     val pendingActionsCount = repository.pendingActionsCount
+
+    /** Офлайн-действия, которые не удалось отправить (dead-letter). */
+    val failedActions = repository.failedActions
+
+    suspend fun retryFailedAction(actionId: Long) = repository.retryFailedAction(actionId)
+
+    suspend fun discardFailedAction(actionId: Long) = repository.discardFailedAction(actionId)
     
     /**
      * Обновить список задач (из кеша или сервера)

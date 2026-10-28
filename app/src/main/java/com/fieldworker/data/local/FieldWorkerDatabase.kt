@@ -27,7 +27,7 @@ import com.fieldworker.data.local.entity.TaskEntity
         ConversationEntity::class,
         MessageEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class FieldWorkerDatabase : RoomDatabase() {
@@ -150,6 +150,20 @@ abstract class FieldWorkerDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "ALTER TABLE pending_actions ADD COLUMN plannedDate TEXT DEFAULT NULL"
+                )
+            }
+        }
+
+        /** Migration 7 -> 8: идентификатор операции для серверной идемпотентности. */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE pending_actions ADD COLUMN operationId TEXT NOT NULL DEFAULT ''"
+                )
+                // Уже стоящим в очереди действиям — уникальные ключи
+                db.execSQL(
+                    "UPDATE pending_actions SET operationId = lower(hex(randomblob(16))) " +
+                        "WHERE operationId = ''"
                 )
             }
         }
