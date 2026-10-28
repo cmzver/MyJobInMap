@@ -79,6 +79,7 @@ import com.fieldworker.ui.map.toIcon
 import com.fieldworker.ui.utils.extractAdditionalInfo
 import com.fieldworker.ui.utils.extractApartment
 import com.fieldworker.ui.utils.extractPhoneNumber
+import com.fieldworker.ui.utils.formatPhoneForDisplay
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -754,8 +755,63 @@ fun TaskDetailBottomSheet(
     onPlannedDateChange: ((String?) -> Unit)? = null,
     onAssignClick: (() -> Unit)? = null
 ) {
-    var commentText by remember { mutableStateOf("") }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.background // Светло-серый фон как на референсе
+    ) {
+        TaskDetailContent(
+            task = task,
+            addressDetails = addressDetails,
+            isLoadingAddress = isLoadingAddress,
+            hasAttemptedAddressLookup = hasAttemptedAddressLookup,
+            comments = comments,
+            isLoadingComments = isLoadingComments,
+            photos = photos,
+            isLoadingPhotos = isLoadingPhotos,
+            isUploadingPhoto = isUploadingPhoto,
+            baseUrl = baseUrl,
+            authToken = authToken,
+            onStatusChange = onStatusChange,
+            onOpenObjectCard = onOpenObjectCard,
+            onAddComment = onAddComment,
+            onAddPhotoClick = onAddPhotoClick,
+            onDeletePhoto = onDeletePhoto,
+            onPlannedDateChange = onPlannedDateChange,
+            onAssignClick = onAssignClick
+        )
+    }
+}
+
+/**
+ * Содержимое карточки заявки без оболочки шторки — отдельно, чтобы рендериться
+ * в превью и скриншот-тестах (окно ModalBottomSheet Robolectric не рисует).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TaskDetailContent(
+    task: Task,
+    addressDetails: AddressDetails? = null,
+    isLoadingAddress: Boolean = false,
+    hasAttemptedAddressLookup: Boolean = false,
+    comments: List<Comment>,
+    isLoadingComments: Boolean,
+    photos: List<TaskPhoto> = emptyList(),
+    isLoadingPhotos: Boolean = false,
+    isUploadingPhoto: Boolean = false,
+    baseUrl: String = "",
+    authToken: String? = null,
+    onStatusChange: () -> Unit,
+    onOpenObjectCard: () -> Unit = {},
+    onAddComment: (String) -> Unit,
+    onAddPhotoClick: () -> Unit = {},
+    onDeletePhoto: (Long) -> Unit = {},
+    onPlannedDateChange: ((String?) -> Unit)? = null,
+    onAssignClick: (() -> Unit)? = null
+) {
+    var commentText by remember { mutableStateOf("") }
     val context = LocalContext.current
     
     // Состояния для спойлеров
@@ -790,8 +846,6 @@ fun TaskDetailBottomSheet(
         task.plannedDate?.let { com.fieldworker.ui.utils.TaskUtils.formatShortDate(it) }
     }
     
-    val priorityColor = com.fieldworker.ui.utils.priorityColor(task.priority)
-    val priorityBgColor = com.fieldworker.ui.utils.priorityBackground(task.priority)
     val accentColor = MaterialTheme.colorScheme.primary
     
     // Сортируем комментарии от новых к старым
@@ -840,27 +894,36 @@ fun TaskDetailBottomSheet(
         }
     }
     
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.background // Светло-серый фон как на референсе
-    ) {
+    val openNavigation = {
+        if (task.hasValidCoordinates()) {
+            com.fieldworker.ui.utils.TaskUtils.openNavigation(context, task)
+        } else {
+            Toast.makeText(context, "Координаты не указаны", Toast.LENGTH_SHORT).show()
+        }
+    }
+    val dialPhone: (() -> Unit)? = phoneNumber?.let { phone ->
+        {
+            val intent = Intent(Intent.ACTION_DIAL).apply {
+                data = Uri.parse("tel:${normalizePhoneForDial(phone)}")
+            }
+            context.startActivity(intent)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
+                .weight(1f, fill = false)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                TaskDetailHeader(
-                    task = task,
-                    commentsCount = sortedComments.size,
-                    photosCount = photos.size
-                )
+                TaskDetailHeader(task = task, onStatusChange = onStatusChange)
             }
 
             item {
-                TaskSummaryCard(
+                TaskFactsCard(
                     task = task,
                     formattedDate = formattedDate,
                     formattedPlannedDate = formattedPlannedDate,
@@ -869,30 +932,13 @@ fun TaskDetailBottomSheet(
                     phoneNumber = phoneNumber,
                     assignedUserName = assignedUserName,
                     onAssignClick = onAssignClick,
-                    priorityColor = priorityColor,
-                    priorityBgColor = priorityBgColor,
-                    accentColor = accentColor,
-                    onStatusChange = onStatusChange,
                     onPlannedDateClick = if (onPlannedDateChange != null) {
                         { showDatePicker = true }
                     } else {
                         null
                     },
-                    onOpenNavigation = {
-                        if (task.hasValidCoordinates()) {
-                            com.fieldworker.ui.utils.TaskUtils.openNavigation(context, task)
-                        } else {
-                            Toast.makeText(context, "Координаты не указаны", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    onDialPhone = phoneNumber?.let { phone ->
-                        {
-                            val intent = Intent(Intent.ACTION_DIAL).apply {
-                                data = Uri.parse("tel:${normalizePhoneForDial(phone)}")
-                            }
-                            context.startActivity(intent)
-                        }
-                    }
+                    onOpenNavigation = openNavigation,
+                    onDialPhone = dialPhone
                 )
             }
 
@@ -960,6 +1006,13 @@ fun TaskDetailBottomSheet(
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
+
+        TaskActionBar(
+            status = task.status,
+            onDialPhone = dialPhone,
+            onOpenNavigation = openNavigation,
+            onStatusChange = onStatusChange
+        )
     }
 }
 
@@ -1038,46 +1091,90 @@ private fun TaskObjectPreviewSection(
     }
 }
 
+/**
+ * Шапка карточки: статус + приоритет + номер одной строкой, ниже суть заявки.
+ * Номер показываем один раз — он же убран из заголовка.
+ */
 @Composable
 private fun TaskDetailHeader(
     task: Task,
-    commentsCount: Int,
-    photosCount: Int
+    onStatusChange: () -> Unit
 ) {
+    val displayNumber = remember(task) { task.getDisplayNumber() }
+    val title = remember(task) { com.fieldworker.ui.components.formatTaskTitle(task, displayNumber) }
     Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            StatusPill(status = task.status, onClick = onStatusChange)
+            if (task.priority == Priority.EMERGENCY || task.priority == Priority.URGENT) {
+                val color = com.fieldworker.ui.utils.priorityColor(task.priority)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (task.priority == Priority.EMERGENCY) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = color,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Text(
+                        text = task.priority.displayName,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = color
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = "#$displayNumber",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         Text(
-            text = "Детали заявки",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface
         )
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            SheetHeaderChip(text = "#${task.getDisplayNumber()}")
-            SheetHeaderChip(text = "$commentsCount записей")
-            if (photosCount > 0) {
-                SheetHeaderChip(text = "$photosCount фото")
-            }
-        }
     }
 }
 
+/** Чип статуса; нажатие открывает смену статуса (в т.ч. отмену). */
 @Composable
-private fun SheetHeaderChip(text: String) {
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+private fun StatusPill(status: TaskStatus, onClick: () -> Unit) {
+    val color = status.toColor()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(com.fieldworker.ui.utils.statusBackground(status))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
+        Box(
+            modifier = Modifier
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
         Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+            text = status.displayName,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = color
         )
     }
 }
@@ -1121,7 +1218,44 @@ private fun TaskSectionCard(
 }
 
 @Composable
-private fun TaskSummaryCard(
+private fun SheetHeaderChip(text: String) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+        )
+    }
+}
+
+/** Мелкий приглушённый лейбл над значением (eyebrow, как в портале). */
+@Composable
+private fun Eyebrow(text: String) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        letterSpacing = 0.6.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+private data class TaskFact(
+    val label: String,
+    val value: String,
+    val onClick: (() -> Unit)? = null,
+    val isPlaceholder: Boolean = false,
+)
+
+/**
+ * Факты заявки одной плоской карточкой: адрес на всю ширину (тап — маршрут),
+ * остальное сеткой в две колонки. Кликабельные значения — акцентным цветом.
+ */
+@Composable
+private fun TaskFactsCard(
     task: Task,
     formattedDate: String,
     formattedPlannedDate: String?,
@@ -1130,242 +1264,83 @@ private fun TaskSummaryCard(
     phoneNumber: String?,
     assignedUserName: String?,
     onAssignClick: (() -> Unit)?,
-    priorityColor: Color,
-    priorityBgColor: Color,
-    accentColor: Color,
-    onStatusChange: () -> Unit,
     onPlannedDateClick: (() -> Unit)?,
     onOpenNavigation: () -> Unit,
     onDialPhone: (() -> Unit)?
 ) {
-    TaskSectionCard(title = "Сводка") {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                shape = RoundedCornerShape(999.dp),
-                color = priorityBgColor
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    if (task.priority == Priority.EMERGENCY || task.priority == Priority.URGENT) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_warning_triangle),
-                            contentDescription = null,
-                            tint = priorityColor,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                    Text(
-                        text = task.priority.displayName,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = priorityColor,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "#${task.getDisplayNumber()}",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+    val facts = buildList {
+        customerName?.let { add(TaskFact("Клиент", it)) }
+        phoneNumber?.let { add(TaskFact("Телефон", formatPhoneForDisplay(it), onDialPhone)) }
+        add(TaskFact("Создана", formattedDate))
+        add(
+            TaskFact(
+                label = "Срок",
+                value = formattedPlannedDate ?: if (onPlannedDateClick != null) "Установить" else "Не задан",
+                onClick = onPlannedDateClick,
+                isPlaceholder = formattedPlannedDate == null
             )
-            Spacer(modifier = Modifier.weight(1f))
-            Surface(
-                shape = RoundedCornerShape(999.dp),
-                color = task.status.toColor().copy(alpha = 0.15f),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .clickable(onClick = onStatusChange)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = task.status.displayName,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = task.status.toColor(),
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_edit),
-                        contentDescription = null,
-                        tint = task.status.toColor(),
-                        modifier = Modifier.size(12.dp)
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        Text(
-            text = task.title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
         )
+        if (onAssignClick != null || assignedUserName != null) {
+            add(
+                TaskFact(
+                    label = "Исполнитель",
+                    value = assignedUserName ?: "Назначить",
+                    onClick = onAssignClick,
+                    isPlaceholder = assignedUserName == null
+                )
+            )
+        }
+        if (task.isPaid) {
+            add(
+                TaskFact(
+                    label = "Оплата",
+                    value = if (task.paymentAmount > 0.0) "${"%.0f".format(task.paymentAmount)} ₽" else "Платная"
+                )
+            )
+        }
+        task.systemType?.takeIf { it.isNotBlank() }?.let { add(TaskFact("Система", it)) }
+        task.defectType?.takeIf { it.isNotBlank() }?.let { add(TaskFact("Неисправность", it)) }
+        if (task.isRemote) add(TaskFact("Формат", "Удалённо"))
+    }
 
-        Spacer(modifier = Modifier.height(14.dp))
-
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(MaterialTheme.shapes.large)
-                .clickable(onClick = onOpenNavigation)
-        ) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
-                modifier = Modifier.padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenNavigation),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    modifier = Modifier.size(42.dp),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_location_pin),
-                            contentDescription = null,
-                            tint = Color.Unspecified,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Адрес",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        letterSpacing = 0.4.sp
-                    )
+                    Eyebrow("Адрес")
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = task.address + (apartment?.let { ", кв. $it" } ?: ""),
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 Icon(
-                    painter = painterResource(id = R.drawable.ic_chevron_right),
-                    contentDescription = null,
-                    tint = Color.Unspecified,
-                    modifier = Modifier.size(20.dp)
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "Маршрут",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
 
-        Spacer(modifier = Modifier.height(14.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            SummaryMetaCard(
-                modifier = Modifier.weight(1f),
-                iconRes = R.drawable.ic_calendar_create,
-                label = "Создана",
-                value = formattedDate
-            )
-            SummaryMetaCard(
-                modifier = Modifier.weight(1f),
-                iconRes = R.drawable.ic_calendar_deadline,
-                label = "Срок",
-                value = formattedPlannedDate ?: "Установить",
-                accentColor = accentColor,
-                clickable = onPlannedDateClick != null,
-                onClick = onPlannedDateClick
-            )
-        }
-
-        if (customerName != null || phoneNumber != null || assignedUserName != null || onAssignClick != null || task.isRemote || task.isPaid || task.systemType != null || task.defectType != null) {
-            Spacer(modifier = Modifier.height(14.dp))
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.background
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+            facts.chunked(2).forEach { row ->
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        text = "Контакт и выполнение",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    customerName?.let {
-                        DetailInfoRow(
-                            icon = Icons.Default.Person,
-                            label = "Клиент",
-                            value = it
-                        )
-                    }
-                    phoneNumber?.let {
-                        DetailInfoRow(
-                            icon = Icons.Default.Phone,
-                            label = "Телефон",
-                            value = normalizePhoneForDial(it),
-                            onClick = onDialPhone
-                        )
-                    }
-                    if (onAssignClick != null) {
-                        DetailInfoRow(
-                            icon = Icons.Default.Person,
-                            label = "Исполнитель",
-                            value = assignedUserName ?: "Не назначен — нажмите, чтобы назначить",
-                            onClick = onAssignClick
-                        )
-                    } else {
-                        assignedUserName?.let {
-                            DetailInfoRow(
-                                icon = Icons.Default.Person,
-                                label = "Исполнитель",
-                                value = it
-                            )
-                        }
-                    }
-                    if (task.isRemote) {
-                        DetailInfoRow(
-                            icon = Icons.Default.CheckCircle,
-                            label = "Формат",
-                            value = "Можно выполнить удалённо"
-                        )
-                    }
-                    if (task.isPaid) {
-                        DetailInfoRow(
-                            icon = Icons.Default.Info,
-                            label = "Оплата",
-                            value = if (task.paymentAmount > 0.0) {
-                                "Платная заявка • ${"%.0f".format(task.paymentAmount)} ₽"
-                            } else {
-                                "Платная заявка"
-                            }
-                        )
-                    }
-                    task.systemType?.takeIf { it.isNotBlank() }?.let {
-                        DetailInfoRow(
-                            icon = Icons.Default.Build,
-                            label = "Система",
-                            value = it
-                        )
-                    }
-                    task.defectType?.takeIf { it.isNotBlank() }?.let {
-                        DetailInfoRow(
-                            icon = Icons.Default.Warning,
-                            label = "Неисправность",
-                            value = it
-                        )
-                    }
+                    row.forEach { fact -> FactCell(fact = fact, modifier = Modifier.weight(1f)) }
+                    if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -1373,54 +1348,85 @@ private fun TaskSummaryCard(
 }
 
 @Composable
-private fun SummaryMetaCard(
-    modifier: Modifier = Modifier,
-    iconRes: Int,
-    label: String,
-    value: String,
-    accentColor: Color = MaterialTheme.colorScheme.onSurface,
-    clickable: Boolean = false,
-    onClick: (() -> Unit)? = null
-) {
-    Surface(
+private fun FactCell(fact: TaskFact, modifier: Modifier = Modifier) {
+    val valueColor = when {
+        fact.onClick != null -> MaterialTheme.colorScheme.primary
+        fact.isPlaceholder -> MaterialTheme.colorScheme.onSurfaceVariant
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    Column(
         modifier = modifier
-            .clip(MaterialTheme.shapes.medium)
-            .clickable(enabled = clickable) { onClick?.invoke() },
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.background,
-        tonalElevation = 0.dp
+            .then(if (fact.onClick != null) Modifier.clickable(onClick = fact.onClick) else Modifier)
+    ) {
+        Eyebrow(fact.label)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = fact.value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = valueColor
+        )
+    }
+}
+
+/**
+ * Закреплённая панель главных действий: звонок, маршрут и следующий шаг по
+ * статусу (большая кнопка под пальцем). Для закрытых заявок — без кнопки статуса.
+ */
+@Composable
+private fun TaskActionBar(
+    status: TaskStatus,
+    onDialPhone: (() -> Unit)?,
+    onOpenNavigation: () -> Unit,
+    onStatusChange: () -> Unit
+) {
+    val nextActionLabel = when (status) {
+        TaskStatus.NEW -> "Взять в работу"
+        TaskStatus.IN_PROGRESS -> "Завершить"
+        else -> null
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 8.dp
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(
-                painter = painterResource(id = iconRes),
-                contentDescription = null,
-                tint = Color.Unspecified,
-                modifier = Modifier.size(18.dp)
+            val secondaryActionColors = IconButtonDefaults.filledTonalIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                contentColor = MaterialTheme.colorScheme.onSurface
             )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = accentColor
-                )
+            if (onDialPhone != null) {
+                FilledTonalIconButton(
+                    onClick = onDialPhone,
+                    colors = secondaryActionColors,
+                    modifier = Modifier.size(52.dp)
+                ) {
+                    Icon(Icons.Default.Phone, contentDescription = "Позвонить")
+                }
             }
-            if (clickable) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_edit),
-                    contentDescription = null,
-                    tint = accentColor,
-                    modifier = Modifier.size(14.dp)
-                )
+            FilledTonalIconButton(
+                onClick = onOpenNavigation,
+                colors = secondaryActionColors,
+                modifier = Modifier.size(52.dp)
+            ) {
+                Icon(Icons.Default.LocationOn, contentDescription = "Маршрут")
+            }
+            if (nextActionLabel != null) {
+                Button(
+                    onClick = onStatusChange,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp)
+                ) {
+                    Text(nextActionLabel, style = MaterialTheme.typography.titleSmall)
+                }
             }
         }
     }

@@ -76,7 +76,17 @@ android {
         // тесте. Важно: mockkStatic(android.util.Log) конфликтует со стабингом
         // property-геттеров (every { mock.prop }) — см. MapViewModelTest.
         unitTests.isReturnDefaultValues = true
+        // Robolectric-скриншоты (ui/screenshot) читают ресурсы приложения
+        unitTests.isIncludeAndroidResources = true
         unitTests.all {
+            // Скриншот-тесты медленные (Robolectric) — только по запросу:
+            //   ./gradlew :app:testDebugUnitTest -Pscreenshots --tests "*.screenshot.*"
+            // PNG пишутся в app/build/outputs/roborazzi/.
+            if (project.hasProperty("screenshots")) {
+                it.systemProperty("roborazzi.test.record", "true")
+            } else {
+                it.exclude("**/screenshot/**")
+            }
             // MockK agent needs these JVM args on JDK 17+ / 21+
             it.jvmArgs(
                 "-XX:+EnableDynamicAgentLoading",
@@ -159,6 +169,11 @@ dependencies {
     testImplementation(libs.turbine)
     testImplementation(libs.arch.core.testing)
     testImplementation(libs.room.testing)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
     
     androidTestImplementation(libs.androidx.test.ext)
     androidTestImplementation(libs.espresso.core)

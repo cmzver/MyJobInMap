@@ -24,7 +24,7 @@ import com.fieldworker.ui.utils.priorityColor
 
 @Preview(name = "TasksStatsBar", showBackground = true)
 @Composable
-private fun TasksStatsBarPreview() {
+internal fun TasksStatsBarPreview() {
     FieldWorkerTheme {
         Surface {
             TasksStatsBar(
@@ -39,7 +39,7 @@ private fun TasksStatsBarPreview() {
 
 @Preview(name = "Priority Legend", showBackground = true)
 @Composable
-private fun PriorityLegendPreview() {
+internal fun PriorityLegendPreview() {
     FieldWorkerTheme {
         Surface {
             Column(
@@ -78,7 +78,7 @@ private fun PriorityLegendPreview() {
 
 @Preview(name = "Status Legend", showBackground = true)
 @Composable
-private fun StatusLegendPreview() {
+internal fun StatusLegendPreview() {
     FieldWorkerTheme {
         Surface {
             Column(
@@ -117,7 +117,7 @@ private fun StatusLegendPreview() {
 
 @Preview(name = "Full Legend", showBackground = true)
 @Composable
-private fun FullLegendPreview() {
+internal fun FullLegendPreview() {
     FieldWorkerTheme {
         Surface {
             Row(

@@ -301,13 +301,23 @@ fun extractAdditionalInfo(task: Task): String? {
     val description = task.description
     if (description.isBlank()) return null
     var info = description
-        .replace(Regex("""\+?[78]\d{10}"""), "")
+        .replace(Regex("""(?:тел(?:ефон)?\.?\s*:?\s*)?\+?[78]\d{10}""", RegexOption.IGNORE_CASE), "")
         .replace(Regex("""(?:кв\.?\s*|квартира\s*)\d+""", RegexOption.IGNORE_CASE), "")
         .replace(Regex("""\s*,\s*,\s*"""), ", ")
         .replace(Regex("""^\s*,\s*"""), "")
         .replace(Regex("""\s*,\s*$"""), "")
         .trim()
+        .trimEnd(',', ';', ':')
+        .trim()
     return info.ifBlank { null }
+}
+
+/** «+79219876543» → «+7 921 987-65-43»; нестандартные номера — как есть. */
+fun formatPhoneForDisplay(phone: String): String {
+    val normalized = normalizePhoneForDial(phone)
+    val m = Regex("""^\+7(\d{3})(\d{3})(\d{2})(\d{2})$""").find(normalized) ?: return normalized
+    val (code, a, b, c) = m.destructured
+    return "+7 $code $a-$b-$c"
 }
 
 fun normalizePhoneForDial(phone: String): String {

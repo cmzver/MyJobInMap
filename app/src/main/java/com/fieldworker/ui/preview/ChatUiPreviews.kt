@@ -23,7 +23,7 @@ import com.fieldworker.ui.chat.ConversationListScreen
 import com.fieldworker.ui.theme.FieldWorkerTheme
 import java.time.LocalDateTime
 
-private object ChatPreviewData {
+internal object ChatPreviewData {
     private val now = LocalDateTime.of(2026, 3, 19, 14, 30)
 
     val me = User(
@@ -229,7 +229,7 @@ private object ChatPreviewData {
 
 @Preview(name = "Chat List Light", showBackground = true, showSystemUi = true)
 @Composable
-private fun ChatListLightPreview() {
+internal fun ChatListLightPreview() {
     FieldWorkerTheme(darkTheme = false) {
         Surface {
             ConversationListScreen(
@@ -255,7 +255,7 @@ private fun ChatListLightPreview() {
 
 @Preview(name = "Chat List Dark", showBackground = true, showSystemUi = true)
 @Composable
-private fun ChatListDarkPreview() {
+internal fun ChatListDarkPreview() {
     FieldWorkerTheme(darkTheme = true) {
         Surface {
             ConversationListScreen(
@@ -281,7 +281,7 @@ private fun ChatListDarkPreview() {
 
 @Preview(name = "Chat Screen Full", showBackground = true, showSystemUi = true)
 @Composable
-private fun ChatScreenFullPreview() {
+internal fun ChatScreenFullPreview() {
     FieldWorkerTheme(darkTheme = false) {
         Surface(modifier = Modifier.fillMaxSize()) {
             ChatScreen(
@@ -336,7 +336,7 @@ private fun ChatScreenFullPreview() {
 
 @Preview(name = "Chat Screen Dark Compact", showBackground = true, device = "spec:width=411dp,height=891dp,dpi=420")
 @Composable
-private fun ChatScreenDarkCompactPreview() {
+internal fun ChatScreenDarkCompactPreview() {
     FieldWorkerTheme(darkTheme = true) {
         Surface(modifier = Modifier.fillMaxSize()) {
             ChatScreen(

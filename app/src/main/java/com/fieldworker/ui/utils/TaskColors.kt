@@ -2,29 +2,30 @@ package com.fieldworker.ui.utils
 
 import androidx.compose.ui.graphics.Color
 import com.fieldworker.domain.model.Priority
+import com.fieldworker.domain.model.TaskStatus
+import com.fieldworker.ui.theme.AppColors
 
 /**
- * Цвет приоритета. Акцент отдаём только тому, что требует внимания
- * (аварийная/срочная); текущие и плановые — нейтральный серый, чтобы экран
- * рутинных заявок был спокойным, а срочное выстреливало. См. [Priority.isAttention].
+ * Палитра заявок. Цвет несёт статус; приоритет — иконка и слово, и только
+ * аварийный приоритет получает красный (больше красного на экране нет), чтобы
+ * «Новая» и «Аварийная» не сливались.
  */
+fun statusColor(status: TaskStatus): Color = when (status) {
+    TaskStatus.NEW -> AppColors.StatusNew
+    TaskStatus.IN_PROGRESS -> AppColors.StatusInProgress
+    TaskStatus.DONE -> AppColors.StatusDone
+    TaskStatus.CANCELLED, TaskStatus.UNKNOWN -> AppColors.StatusCancelled
+}
+
+/** Подложка чипа статуса: полупрозрачная, поэтому работает в обеих темах. */
+fun statusBackground(status: TaskStatus): Color = statusColor(status).copy(alpha = 0.14f)
+
 fun priorityColor(priority: Priority): Color = when (priority) {
-    Priority.EMERGENCY -> Color(0xFFFF3B30)
-    Priority.URGENT    -> Color(0xFFFF9500)
-    Priority.CURRENT   -> NEUTRAL_PRIORITY
-    Priority.PLANNED   -> NEUTRAL_PRIORITY
+    Priority.EMERGENCY -> AppColors.PriorityEmergency
+    else -> AppColors.PriorityNeutral
 }
 
-fun priorityBackground(priority: Priority): Color = when (priority) {
-    Priority.EMERGENCY -> Color(0xFFFFEBEE)
-    Priority.URGENT    -> Color(0xFFFFF3E0)
-    Priority.CURRENT   -> NEUTRAL_PRIORITY_BG
-    Priority.PLANNED   -> NEUTRAL_PRIORITY_BG
-}
+fun priorityBackground(priority: Priority): Color = priorityColor(priority).copy(alpha = 0.12f)
 
-/** Приоритет, ради которого стоит «жечь» цвет: аварийная или срочная. */
-fun Priority.isAttention(): Boolean =
-    this == Priority.EMERGENCY || this == Priority.URGENT
-
-private val NEUTRAL_PRIORITY = Color(0xFF8E8E93)
-private val NEUTRAL_PRIORITY_BG = Color(0xFFEFEFF0)
+/** Приоритет, ради которого стоит «жечь» цвет: только аварийная. */
+fun Priority.isAttention(): Boolean = this == Priority.EMERGENCY

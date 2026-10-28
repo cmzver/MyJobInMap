@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -37,6 +38,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.map.toColor
@@ -53,7 +55,7 @@ fun TaskCard(
     task: Task,
     modifier: Modifier = Modifier,
     isSelected: Boolean = false,
-    showArrow: Boolean = true,
+    showArrow: Boolean = false,
     userLat: Double? = null,
     userLon: Double? = null,
     onClick: () -> Unit,
@@ -61,7 +63,9 @@ fun TaskCard(
     val view = LocalView.current
     val ui = rememberTaskCardUi(task, userLat, userLon)
     val priorityIsAttention = task.priority.isAttention()
-    val barColor = if (priorityIsAttention) ui.priorityColor else MaterialTheme.colorScheme.outlineVariant
+    // Полоса — только у аварийной: единственный красный сигнал в ленте
+    val barColor = if (priorityIsAttention) ui.priorityColor else Color.Transparent
+    val showPriorityLabel = priorityIsAttention || task.priority == Priority.URGENT
 
     Surface(
         modifier = modifier
@@ -111,9 +115,17 @@ fun TaskCard(
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     // Ярлык приоритета показываем только когда он что-то значит
-                    // (аварийная/срочная) — рутина остаётся без цветового шума.
-                    if (priorityIsAttention) {
+                    // (аварийная — красным, срочная — нейтрально); рутина без шума.
+                    if (showPriorityLabel) {
                         BulletDot()
+                        if (priorityIsAttention) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = ui.priorityColor,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
                         Text(
                             text = task.priority.displayName,
                             style = MaterialTheme.typography.labelMedium,
@@ -175,7 +187,7 @@ fun TaskCard(
                         BulletDot()
                         // Цветом отмечаем только просрочку; обычная план-дата — тихий серый.
                         val plannedColor = if (ui.isPlannedOverdue) {
-                            Color(0xFFFF3B30)
+                            MaterialTheme.colorScheme.error
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         }
@@ -306,7 +318,7 @@ private val LEADING_REF_PREFIX = Regex("^№?\\s*\\d+\\s*/\\s*№?\\s*[\\d.\\s]+
 /** ALL-CAPS токен-организация сразу после номерного префикса (напр. «ЭЛЬТОН»). */
 private val LEADING_ORG_TOKEN = Regex("^[А-ЯЁA-Z]{3,}\\s+")
 
-private fun formatTaskTitle(task: Task, displayNumber: String): String {
+internal fun formatTaskTitle(task: Task, displayNumber: String): String {
     val escapedNumber = Regex.escape(displayNumber)
     val cleaned = task.title
         .trim()
@@ -358,7 +370,7 @@ fun CompactTaskCard(
                 modifier = Modifier
                     .fillMaxHeight()
                     .width(3.dp)
-                    .background(priorityColor.copy(alpha = 0.9f))
+                    .background(if (task.priority.isAttention()) priorityColor else Color.Transparent)
             )
 
             Row(

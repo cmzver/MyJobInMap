@@ -35,10 +35,14 @@ object AppColors {
     val Planned = Color(0xFF2F7D4B)
     val PlannedBg = Color(0xFFEAF6EC)
 
-    val StatusNew = Color(0xFFC94F4F)
-    val StatusInProgress = Color(0xFFCC7A1A)
-    val StatusDone = Color(0xFF2F7D4B)
-    val StatusCancelled = Color(0xFF7B8790)
+    // Цвет несёт СТАТУС (единственный источник — ui/utils/TaskColors.kt).
+    // Красный зарезервирован за аварийным приоритетом, поэтому «Новая» — синяя.
+    val StatusNew = Color(0xFF2563EB)
+    val StatusInProgress = Color(0xFFD97706)
+    val StatusDone = Color(0xFF16A34A)
+    val StatusCancelled = Color(0xFF6B7280)
+    val PriorityEmergency = Color(0xFFDC2626)
+    val PriorityNeutral = Color(0xFF8E8E93)
 
     val Background = Color(0xFFF6F7F3)
     val Surface = Color(0xFFFFFFFF)

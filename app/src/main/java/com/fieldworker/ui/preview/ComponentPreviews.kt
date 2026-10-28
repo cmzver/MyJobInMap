@@ -43,7 +43,7 @@ class StatusPreviewProvider : PreviewParameterProvider<TaskStatus> {
 
 @Preview(name = "TaskCard - Single", showBackground = true)
 @Composable
-private fun TaskCardPreview() {
+internal fun TaskCardPreview() {
     FieldWorkerTheme {
         Surface {
             TaskCard(
@@ -59,7 +59,7 @@ private fun TaskCardPreview() {
 
 @Preview(name = "TaskCard - Selected", showBackground = true)
 @Composable
-private fun TaskCardSelectedPreview() {
+internal fun TaskCardSelectedPreview() {
     FieldWorkerTheme {
         Surface {
             TaskCard(
@@ -75,7 +75,7 @@ private fun TaskCardSelectedPreview() {
 
 @Preview(name = "TaskCard - All Priorities", showBackground = true)
 @Composable
-private fun TaskCardAllPrioritiesPreview() {
+internal fun TaskCardAllPrioritiesPreview() {
     FieldWorkerTheme {
         Surface {
             Column(
@@ -109,7 +109,7 @@ private fun TaskCardAllPrioritiesPreview() {
 
 @Preview(name = "TaskCard - Dark Theme", showBackground = true)
 @Composable
-private fun TaskCardDarkPreview() {
+internal fun TaskCardDarkPreview() {
     FieldWorkerTheme(darkTheme = true) {
         Surface {
             TaskCard(
@@ -123,7 +123,7 @@ private fun TaskCardDarkPreview() {
 
 @Preview(name = "TaskCard - Variants", showBackground = true, backgroundColor = 0xFFF5F7FA)
 @Composable
-private fun TaskCardVariantsPreview() {
+internal fun TaskCardVariantsPreview() {
     FieldWorkerTheme {
         Surface {
             Column(
@@ -146,7 +146,7 @@ private fun TaskCardVariantsPreview() {
 
 @Preview(name = "TaskListScreen - Full", showBackground = true, showSystemUi = true)
 @Composable
-private fun TaskListScreenPreview() {
+internal fun TaskListScreenPreview() {
     FieldWorkerTheme {
         TaskListScreen(
             tasks = PreviewData.sampleTasks,
@@ -172,7 +172,7 @@ private fun TaskListScreenPreview() {
 
 @Preview(name = "TaskListScreen - Loading", showBackground = true, showSystemUi = true)
 @Composable
-private fun TaskListScreenLoadingPreview() {
+internal fun TaskListScreenLoadingPreview() {
     FieldWorkerTheme {
         TaskListScreen(
             tasks = emptyList(),
@@ -198,7 +198,7 @@ private fun TaskListScreenLoadingPreview() {
 
 @Preview(name = "TaskListScreen - Empty", showBackground = true, showSystemUi = true)
 @Composable
-private fun TaskListScreenEmptyPreview() {
+internal fun TaskListScreenEmptyPreview() {
     FieldWorkerTheme {
         TaskListScreen(
             tasks = emptyList(),
@@ -226,7 +226,7 @@ private fun TaskListScreenEmptyPreview() {
 
 @Preview(name = "FiltersPanel", showBackground = true)
 @Composable
-private fun FiltersPanelPreview() {
+internal fun FiltersPanelPreview() {
     FieldWorkerTheme {
         Surface {
             FiltersPanel(
@@ -244,7 +244,7 @@ private fun FiltersPanelPreview() {
 
 @Preview(name = "Priority Colors - All", showBackground = true)
 @Composable
-private fun PriorityBadgeAllPreview() {
+internal fun PriorityBadgeAllPreview() {
     FieldWorkerTheme {
         Surface {
             Row(
@@ -271,7 +271,7 @@ private fun PriorityBadgeAllPreview() {
 
 @Preview(name = "Status Colors - All", showBackground = true)
 @Composable
-private fun StatusColorsPreview() {
+internal fun StatusColorsPreview() {
     FieldWorkerTheme {
         Surface {
             Column(
@@ -300,7 +300,7 @@ private fun StatusColorsPreview() {
 
 @Preview(name = "StatusChangeDialog", showBackground = true)
 @Composable
-private fun StatusChangeDialogPreview() {
+internal fun StatusChangeDialogPreview() {
     FieldWorkerTheme {
         StatusChangeDialog(
             currentStatus = TaskStatus.NEW,
@@ -314,7 +314,7 @@ private fun StatusChangeDialogPreview() {
 
 @Preview(name = "TaskDetailBottomSheet", showBackground = true, showSystemUi = true)
 @Composable
-private fun TaskDetailBottomSheetPreview() {
+internal fun TaskDetailBottomSheetPreview() {
     FieldWorkerTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             TaskDetailBottomSheet(
@@ -329,11 +329,29 @@ private fun TaskDetailBottomSheetPreview() {
     }
 }
 
+@Preview(name = "TaskDetailContent", showBackground = true, showSystemUi = true)
+@Composable
+internal fun TaskDetailContentPreview() {
+    FieldWorkerTheme {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            TaskDetailContent(
+                task = PreviewData.taskEmergency,
+                comments = PreviewData.sampleComments,
+                isLoadingComments = false,
+                onStatusChange = {},
+                onAddComment = {},
+                onPlannedDateChange = {},
+                onAssignClick = {}
+            )
+        }
+    }
+}
+
 // ==================== Skeleton Previews ====================
 
 @Preview(name = "TaskListItemSkeleton", showBackground = true)
 @Composable
-private fun TaskListItemSkeletonPreview() {
+internal fun TaskListItemSkeletonPreview() {
     FieldWorkerTheme {
         Surface {
             TaskListItemSkeleton()
@@ -343,7 +361,7 @@ private fun TaskListItemSkeletonPreview() {
 
 @Preview(name = "TaskListSkeleton", showBackground = true)
 @Composable
-private fun TaskListSkeletonPreview() {
+internal fun TaskListSkeletonPreview() {
     FieldWorkerTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             TaskListSkeleton(count = 3)
@@ -355,7 +373,7 @@ private fun TaskListSkeletonPreview() {
 
 @Preview(name = "SearchBar - Empty", showBackground = true)
 @Composable
-private fun SearchBarEmptyPreview() {
+internal fun SearchBarEmptyPreview() {
     FieldWorkerTheme {
         Surface {
             SearchBar(
@@ -370,7 +388,7 @@ private fun SearchBarEmptyPreview() {
 
 @Preview(name = "SearchBar - With Query", showBackground = true)
 @Composable
-private fun SearchBarWithQueryPreview() {
+internal fun SearchBarWithQueryPreview() {
     FieldWorkerTheme {
         Surface {
             SearchBar(
@@ -391,7 +409,7 @@ private fun SearchBarWithQueryPreview() {
     showSystemUi = true
 )
 @Composable
-private fun PhonePreview() {
+internal fun PhonePreview() {
     FieldWorkerTheme {
         TaskListScreen(
             tasks = PreviewData.sampleTasks,
@@ -421,7 +439,7 @@ private fun PhonePreview() {
     showSystemUi = true
 )
 @Composable
-private fun TabletPreview() {
+internal fun TabletPreview() {
     FieldWorkerTheme {
         TaskListScreen(
             tasks = PreviewData.sampleTasks,
@@ -449,7 +467,7 @@ private fun TabletPreview() {
 
 @Preview(name = "Light Theme", showBackground = true)
 @Composable
-private fun LightThemePreview() {
+internal fun LightThemePreview() {
     FieldWorkerTheme(darkTheme = false) {
         Surface {
             Column(
@@ -473,7 +491,7 @@ private fun LightThemePreview() {
 
 @Preview(name = "Dark Theme", showBackground = true)
 @Composable
-private fun DarkThemePreview() {
+internal fun DarkThemePreview() {
     FieldWorkerTheme(darkTheme = true) {
         Surface {
             Column(

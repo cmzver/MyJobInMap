@@ -672,13 +672,7 @@ fun StatusChangeDialog(
     )
 }
 
-fun TaskStatus.toColor(): Color = when (this) {
-    TaskStatus.NEW -> Color(0xFFFF3B30)
-    TaskStatus.IN_PROGRESS -> Color(0xFFFF9500)
-    TaskStatus.DONE -> Color(0xFF34C759)
-    TaskStatus.CANCELLED -> Color(0xFF8E8E93)
-    TaskStatus.UNKNOWN -> Color(0xFF8E8E93)
-}
+fun TaskStatus.toColor(): Color = com.fieldworker.ui.utils.statusColor(this)
 
 fun TaskStatus.toIcon() = when (this) {
     TaskStatus.NEW -> Icons.Default.Star
