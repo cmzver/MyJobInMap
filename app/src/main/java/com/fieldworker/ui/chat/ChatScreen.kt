@@ -759,7 +759,6 @@ fun ChatScreen(
 
 @Composable
 private fun DateSeparatorChip(label: String) {
-    val useTelegramLightStyle = MaterialTheme.colorScheme.usesTelegramLightChatStyle()
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -770,8 +769,7 @@ private fun DateSeparatorChip(label: String) {
             text = label.uppercase(),
             modifier = Modifier
                 .background(
-                    color = if (useTelegramLightStyle) Color(0x40FFFFFF)
-                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                     shape = RoundedCornerShape(999.dp),
                 )
                 .padding(horizontal = 10.dp, vertical = 4.dp),
@@ -779,15 +777,13 @@ private fun DateSeparatorChip(label: String) {
                 letterSpacing = 0.6.sp,
                 fontWeight = FontWeight.Medium,
             ),
-            color = if (useTelegramLightStyle) Color(0xFF5F787A)
-            else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
 
 @Composable
 private fun UnreadSeparatorChip(count: Int) {
-    val useTelegramLightStyle = MaterialTheme.colorScheme.usesTelegramLightChatStyle()
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -796,12 +792,12 @@ private fun UnreadSeparatorChip(count: Int) {
     ) {
         Surface(
             shape = RoundedCornerShape(999.dp),
-            color = if (useTelegramLightStyle) Color(0xB8E2F3EE) else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
             tonalElevation = 0.dp,
             shadowElevation = 0.dp,
             border = androidx.compose.foundation.BorderStroke(
                 width = 1.dp,
-                color = if (useTelegramLightStyle) Color(0x6AB7CEC8) else MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
             ),
         ) {
             Row(
@@ -812,10 +808,10 @@ private fun UnreadSeparatorChip(count: Int) {
                 Text(
                     text = "Непрочитанные",
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (useTelegramLightStyle) Color(0xFF547072) else MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
                 Badge(
-                    containerColor = if (useTelegramLightStyle) Color(0xFF56A4D9) else MaterialTheme.colorScheme.primary,
+                    containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = Color.White,
                 ) {
                     Text(
@@ -1142,19 +1138,10 @@ private fun Modifier.chatWallpaperPattern(
     primaryColor: Color,
     secondaryColor: Color,
 ): Modifier = drawWithCache {
-    val useTelegramLightStyle = false
-    val patternPrimary = if (useTelegramLightStyle) {
-        Color(0xFF76A968).copy(alpha = 0.07f)
-    } else {
-        primaryColor.copy(alpha = 0.035f)
-    }
-    val patternSecondary = if (useTelegramLightStyle) {
-        Color(0xFF5D9771).copy(alpha = 0.06f)
-    } else {
-        secondaryColor.copy(alpha = 0.03f)
-    }
-    val spacing = if (useTelegramLightStyle) 140.dp.toPx() else 160.dp.toPx()
-    val symbol = if (useTelegramLightStyle) 8.dp.toPx() else 9.dp.toPx()
+    val patternPrimary = primaryColor.copy(alpha = 0.035f)
+    val patternSecondary = secondaryColor.copy(alpha = 0.03f)
+    val spacing = 160.dp.toPx()
+    val symbol = 9.dp.toPx()
     val stroke = 0.8.dp.toPx()
     val cols = (size.width / spacing).toInt() + 2
     val rows = (size.height / spacing).toInt() + 2
@@ -1549,7 +1536,6 @@ private fun MessageBubble(
         alpha = 0.30f + (swipeProgress * 0.28f)
     )
     val colorScheme = MaterialTheme.colorScheme
-    val useTelegramLightStyle = colorScheme.usesTelegramLightChatStyle()
     val reserveAvatarSlot = !isOwn && conversationType != ConversationType.DIRECT
     val showAvatar = reserveAvatarSlot && !groupedWithNext
     val senderAccent = senderAccentColor(message.senderId)
@@ -1557,19 +1543,19 @@ private fun MessageBubble(
     val bubbleStartPadding = if (!isOwn && !groupedWithPrevious) 14.dp else 12.dp
     val bubbleEndPadding = if (isOwn && !groupedWithNext) 14.dp else 12.dp
     val bubbleTextColor = if (isOwn) {
-        if (useTelegramLightStyle) Color(0xFF223124) else colorScheme.onSurface
+        colorScheme.onSurface
     } else {
-        if (useTelegramLightStyle) Color(0xFF1F2428) else colorScheme.onSurface
+        colorScheme.onSurface
     }
     val bubbleMetaColor = if (isOwn) {
-        if (useTelegramLightStyle) Color(0xFF8AA08D) else colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+        colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
     } else {
-        if (useTelegramLightStyle) Color(0xFF9CA8AE) else colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+        colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
     }
     val bubbleContainerColor = if (isOwn) {
-        if (useTelegramLightStyle) Color(0xFFE4F7C7) else colorScheme.primaryContainer.copy(alpha = 0.84f)
+        colorScheme.primaryContainer.copy(alpha = 0.84f)
     } else {
-        if (useTelegramLightStyle) Color(0xFFFEFEFD) else colorScheme.surface
+        colorScheme.surface
     }
     val canInlineMeta = !message.text.isNullOrBlank() &&
         message.attachments.isEmpty() &&
@@ -1681,16 +1667,11 @@ private fun MessageBubble(
                         shape = bubbleShape,
                         color = bubbleContainerColor,
                         tonalElevation = 0.dp,
-                        shadowElevation = if (useTelegramLightStyle) 1.2.dp else if (isOwn) 0.dp else 1.dp,
+                        shadowElevation = if (isOwn) 0.dp else 1.dp,
                         border = if (isHighlighted) {
                             androidx.compose.foundation.BorderStroke(
                                 1.dp,
                                 MaterialTheme.colorScheme.primary.copy(alpha = 0.24f),
-                            )
-                        } else if (useTelegramLightStyle) {
-                            androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (isOwn) Color(0x80CAE8AF) else Color(0x66E1E6E6),
                             )
                         } else {
                             null
@@ -1782,13 +1763,13 @@ private fun MessageBubble(
                     Surface(
                         shape = RoundedCornerShape(14.dp),
                         color = if (isOwn) {
-                            if (useTelegramLightStyle) Color(0xA7D6EBBB) else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f)
+                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f)
                         } else {
-                            if (useTelegramLightStyle) Color(0xFFF3F5F6) else MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
                         },
                         border = androidx.compose.foundation.BorderStroke(
                             width = 1.dp,
-                            color = if (useTelegramLightStyle) Color(0x66D5DCDE) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f),
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2551,17 +2532,12 @@ private fun ReactionSummaryItem(
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    val useTelegramLightStyle = MaterialTheme.colorScheme.usesTelegramLightChatStyle()
     val containerColor = when {
-        isSelected && useTelegramLightStyle -> Color(0xCCCFE9AF)
         isSelected -> MaterialTheme.colorScheme.primaryContainer
-        useTelegramLightStyle -> Color(0xCCFFFFFF)
         else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
     }
     val contentColor = when {
-        isSelected && useTelegramLightStyle -> Color(0xFF345F32)
         isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
-        useTelegramLightStyle -> Color(0xFF54707A)
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
@@ -2639,7 +2615,6 @@ private fun ChatInputBar(
                 .take(5)
         }
     }
-    val useTelegramLightStyle = MaterialTheme.colorScheme.usesTelegramLightChatStyle()
     val canSend = remember(text, pendingAttachmentUri, pendingAttachedTask) {
         text.trim().isNotEmpty() || pendingAttachmentUri != null || pendingAttachedTask != null
     }
@@ -2668,14 +2643,14 @@ private fun ChatInputBar(
     Surface(
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
-        color = if (useTelegramLightStyle) Color(0xDFF4F7EE) else MaterialTheme.colorScheme.surface,
+        color = MaterialTheme.colorScheme.surface,
     ) {
         Column(
             modifier = Modifier
                 .navigationBarsPadding(),
         ) {
             HorizontalDivider(
-                color = if (useTelegramLightStyle) Color(0x66C8D6C7) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
             )
             Column(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -2727,12 +2702,10 @@ private fun ChatInputBar(
                     pendingAttachmentUri?.let { uri ->
                         Surface(
                             shape = RoundedCornerShape(16.dp),
-                            color = if (useTelegramLightStyle) Color(0xFFF3F5F6)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
                             border = androidx.compose.foundation.BorderStroke(
                                 1.dp,
-                                if (useTelegramLightStyle) Color(0x66D4DCDD)
-                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                             ),
                         ) {
                             Row(
@@ -2827,10 +2800,10 @@ private fun ChatInputBar(
                     replyTo?.let { safeReply ->
                         Surface(
                             shape = RoundedCornerShape(16.dp),
-                            color = if (useTelegramLightStyle) Color(0xFFF3F5F6) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
                             border = androidx.compose.foundation.BorderStroke(
                                 1.dp,
-                                if (useTelegramLightStyle) Color(0x66D4DCDD) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                             ),
                         ) {
                             Row(
@@ -2876,10 +2849,10 @@ private fun ChatInputBar(
             ) {
                 Surface(
                     shape = RoundedCornerShape(24.dp),
-                    color = if (useTelegramLightStyle) Color(0xF4FFFFFF) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.44f),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.44f),
                     border = androidx.compose.foundation.BorderStroke(
                         width = 1.dp,
-                        color = if (useTelegramLightStyle) Color(0x66D1DAD8) else Color.Transparent,
+                        color = Color.Transparent,
                     ),
                     modifier = Modifier.weight(1f),
                 ) {
@@ -2998,8 +2971,6 @@ private fun ChatInputBar(
     }
 }
 
-private fun ColorScheme.usesTelegramLightChatStyle(): Boolean = false
-
 /**
  * Подложка под фото, пока оно грузится или если не загрузилось: иначе пузырь
  * с вложением выглядит пустым белым прямоугольником.
@@ -3021,19 +2992,8 @@ private fun BoxScope.ImageLoadingBackdrop() {
     }
 }
 
-private fun chatWallpaperBrush(colorScheme: ColorScheme): Brush {
-    return if (colorScheme.usesTelegramLightChatStyle()) {
-        Brush.linearGradient(
-            colors = listOf(
-                Color(0xFFE6EDB6),
-                Color(0xFFC7DFAE),
-                Color(0xFFF0E7BE),
-            )
-        )
-    } else {
-        SolidColor(colorScheme.background)
-    }
-}
+private fun chatWallpaperBrush(colorScheme: ColorScheme): Brush =
+    SolidColor(colorScheme.background)
 
 private fun List<Long>.lowerBound(target: Long): Int {
     var low = 0
