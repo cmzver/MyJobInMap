@@ -1,7 +1,7 @@
 # FieldWorker Makefile
 # Works on Windows (PowerShell), Linux, macOS
 
-.PHONY: help test test-rate test-auth lint format run-server seed clean
+.PHONY: help test test-rate test-auth lint format migrate run-server clean
 
 help:
 	@echo "FieldWorker - Available commands:"
@@ -16,8 +16,8 @@ help:
 	@echo "  make format         - Format code (black + isort)"
 	@echo ""
 	@echo "Development:"
+	@echo "  make migrate        - Apply database migrations"
 	@echo "  make run-server     - Start FastAPI server (port 8001)"
-	@echo "  make seed           - Create test data"
 	@echo "  make clean          - Clean cache and temp files"
 
 test:
@@ -46,9 +46,9 @@ run-server:
 	@echo "Starting FastAPI server on http://localhost:8001"
 	python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 
-seed:
-	@echo "Creating test data..."
-	python scripts/seed_dev.py
+migrate:
+	@echo "Applying database migrations..."
+	python -m app.migrate
 
 clean:
 	@echo "Cleaning cache..."

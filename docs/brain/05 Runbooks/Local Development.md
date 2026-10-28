@@ -4,7 +4,6 @@
 
 ```bash
 cd server
-make seed
 make run-server
 make test
 ```

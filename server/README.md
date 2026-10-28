@@ -20,8 +20,7 @@ REST API сервер для управления заявками выездн�
 
 ```bash
 cd server
-pip install -r requirements.txt
-make seed           # Тестовые данные (admin/admin)
+venv/Scripts/pip install -r requirements.txt -r requirements-dev.txt
 make run-server     # http://localhost:8001
 ```
 
@@ -100,7 +99,6 @@ server/
 ```bash
 make run-server     # Запуск на :8001
 make test           # Все тесты (490+)
-make seed           # Тестовые данные
 make format         # Black + isort
 make clean          # Очистка кэша
 make help           # Справка
@@ -109,7 +107,7 @@ make help           # Справка
 ## Конфигурация (.env)
 
 ```env
-DATABASE_URL=sqlite:///./tasks.db
+DATABASE_URL=postgresql+psycopg2://fieldworker:fieldworker_secret@localhost:5432/fieldworker_db
 SECRET_KEY=your-secret-key-here
 FIREBASE_CREDENTIALS=firebase-service-account.json
 HOST=0.0.0.0

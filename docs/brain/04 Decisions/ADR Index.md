@@ -13,7 +13,6 @@
 - multi-tenant изоляция данных
 - `basename=/portal` для веб-портала
 - offline-first подход Android клиента
-- выделение `mobile-next/` как новой мобильной линии
 
 ## Шаблон
 

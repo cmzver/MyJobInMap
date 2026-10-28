@@ -21,7 +21,6 @@
 ## Связанные заметки
 
 - [[01 Maps/Project Map]]
-- [[02 Areas/Mobile Next]]
 
 ## 2026-04-22 Reliability Fixes
 

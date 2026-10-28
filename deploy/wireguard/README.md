@@ -37,8 +37,7 @@
      -f docker-compose.wireguard.postgres.yml up -d server
    ```
    Overlay включает `BEWARD_WG_ENABLED=true`, `NET_ADMIN`, `/dev/net/tun`,
-   запускает контейнер как root и монтирует конфиг. Для legacy SQLite-стека
-   (`docker-compose.yml`, сервис `api`) есть аналог `docker-compose.wireguard.yml`.
+   запускает контейнер как root и монтирует конфиг.
 
 ## Важные моменты
 

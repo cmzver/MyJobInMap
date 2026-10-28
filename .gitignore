@@ -121,8 +121,10 @@ chat_results.txt
 .obsidian/
 **/.obsidian/
 
-# Playwright MCP artifacts
+# Playwright MCP/CLI artifacts
 .playwright-mcp/
+.playwright-cli/
+/output/
 
 # Generated OpenAPI intermediate (types are committed, this dump is not)
 server/openapi.json

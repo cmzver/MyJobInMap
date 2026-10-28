@@ -31,10 +31,8 @@ param(
 
     # Compose stack used on the server. Defaults to the PostgreSQL stack
     # (docker-compose.postgres.yml: db + redis + server + worker + telegram-bot),
-    # which is the production database. Pass docker-compose.yml for the legacy
-    # SQLite stack. $ApiService/$ApiContainer must match the chosen file's API
-    # service/container names (server/fieldworker_server for PG, api/fieldworker-api
-    # for SQLite).
+    # which is the production database. $ApiService/$ApiContainer must match the
+    # chosen file's API service/container names.
     [string]$ComposeFile = "docker-compose.postgres.yml",
     [string]$ApiService = "server",
     [string]$ApiContainer = "fieldworker_server",
@@ -659,7 +657,7 @@ function Set-RemoteFirewall {
     # NOTE: Docker publishes the API port (8001) straight into iptables and ufw does
     # NOT filter Docker-published ports. With the recommended Caddy setup that is fine
     # (8001 only needs to be reachable from localhost); to actually close it off, bind
-    # the port to 127.0.0.1 in docker-compose.yml.
+    # the port to 127.0.0.1 in docker-compose.postgres.yml.
     $cmd = @(
         "command -v ufw >/dev/null 2>&1 || { apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ufw; }"
         "ufw allow $SSHPort/tcp"
@@ -880,7 +878,7 @@ try {
         }
 
         # dist goes to two places: the standalone web root and the path the api
-        # container bind-mounts (./portal/dist in docker-compose.yml).
+        # container bind-mounts (./portal/dist in docker-compose.postgres.yml).
         $portalDestinations = @($PortalRemotePath, "$RemotePath/portal/dist")
 
         if ($DryRun) {
@@ -926,14 +924,11 @@ try {
             throw "Missing remote env files: $($missingRemoteFiles -join ', '). Use -IncludeServiceEnvFiles or create them manually on the server."
         }
 
-        # Decide whether a Docker image rebuild is actually needed. The api service
-        # bind-mounts ./server into the container (docker-compose.yml), so plain
-        # Python code changes are picked up by recreating the container from the
-        # existing image - no rebuild. A rebuild is only required when the image
-        # contents change: server/requirements.txt, server/Dockerfile, or any bot/
-        # file (the bot bakes its code into the image and has no bind mount).
+        # Decide whether a Docker image rebuild is actually needed. Both the API
+        # (docker-compose.postgres.yml has no ./server bind mount) and the bot bake
+        # their code into the image, so ANY server/ or bot/ change needs a rebuild.
+        # Only env-file changes take the fast path (recreate without rebuild).
         $rebuildRequired = $false
-        $apiCodeChanged = $false
 
         if ($ForceRebuild) {
             # Explicit full rebuild requested - skip change detection entirely.
@@ -943,12 +938,8 @@ try {
             $rebuildRequired = $true
         } else {
             foreach ($changed in $script:ChangedFiles) {
-                if ($changed -match '^server/requirements\.txt$' -or
-                    $changed -match '^server/Dockerfile$' -or
-                    $changed -match '^bot/') {
+                if ($changed -match '^(server|bot)/') {
                     $rebuildRequired = $true
-                } elseif ($changed -match '^server/') {
-                    $apiCodeChanged = $true
                 }
             }
         }
@@ -956,7 +947,7 @@ try {
         $serverEnvChanged = $script:ChangedEnvServices -contains "server"
         $botEnvChanged = $script:ChangedEnvServices -contains "bot"
 
-        # NOTE: no --remove-orphans here. Only docker-compose.yml (api, telegram-bot)
+        # NOTE: no --remove-orphans here. Only $ComposeFile (+ WireGuard overlay)
         # is loaded, but other services in this project (notably fieldworker-caddy,
         # defined in docker-compose.caddy.yml) run from separate compose files. With
         # --remove-orphans they would be treated as orphans and destroyed.
@@ -975,8 +966,8 @@ try {
         } else {
             # Fast path - no image rebuild. First ensure everything is up (this also
             # builds any missing image, e.g. on a first deploy), then force-recreate
-            # only the services whose bind-mounted code or env file changed.
-            $recreateApi = $apiCodeChanged -or $serverEnvChanged
+            # only the services whose env file changed.
+            $recreateApi = $serverEnvChanged
             $recreateBot = $botEnvChanged
 
             $fastCommand = "cd $RemotePath && $(Format-ComposeCommand 'up -d')"

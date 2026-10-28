@@ -56,11 +56,13 @@ MyJobInMap/
 ### 1. Backend
 
 ```bash
-cd server
-pip install -r requirements.txt
-make seed          # тестовые данные (admin/admin)
+docker compose -f docker-compose.postgres.yml up -d db   # PostgreSQL
+make install-deps  # server/venv + requirements(-dev).txt
 make run-server    # http://localhost:8001  (Swagger: /docs)
 ```
+
+В development сервер сам применяет миграции и создаёт admin/admin и user/user.
+Весь стек в Docker — `docker-up.cmd`. Подробнее — [GETTING_STARTED.md](GETTING_STARTED.md).
 
 ### 2. Web Portal
 
@@ -126,9 +128,10 @@ pytest (покрытие ≥ 50%) для сервера и tsc + build для п
 
 ```bash
 make run-server   # запуск сервера
+make migrate      # применить миграции БД
 make test         # тесты
-make seed         # тестовые данные
 make format       # black + isort
+make clean        # сборки, кэши, скриншоты
 make help         # справка
 ```
 
@@ -139,9 +142,8 @@ make help         # справка
 | Файл | Описание |
 |------|----------|
 | [GETTING_STARTED.md](GETTING_STARTED.md) | Быстрый старт |
-| [CHANGELOG.md](CHANGELOG.md) | История версий |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Развёртывание |
-| [docs/HTTPS_SETUP.md](docs/HTTPS_SETUP.md) | SSL-сертификаты |
+| [scripts/sync-update-server.ps1](scripts/sync-update-server.ps1) | Деплой на прод (`-Provision` — первичная настройка, Caddy + SSL) |
+| [deploy/wireguard/README.md](deploy/wireguard/README.md) | WireGuard для домофонов |
 | [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) | Push-уведомления |
 | [docs/brain/README.md](docs/brain/README.md) | Knowledge vault (Obsidian) |
 
@@ -156,7 +158,7 @@ make help         # справка
 `portal/src/App.tsx` → пункт меню в `portal/src/config/menuConfig.ts`.
 
 Обновить версию Android: `app/build.gradle.kts` → `versionCode` /
-`versionName`, затем запись в `CHANGELOG.md`.
+`versionName`. История изменений — `git log`.
 
 ---
 
