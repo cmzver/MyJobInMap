@@ -19,9 +19,8 @@ import SlaSection from '@/components/analytics/SlaSection'
 import { complianceColor, formatHours } from '@/components/analytics/analyticsUtils'
 import Button from '@/components/Button'
 import Card from '@/components/Card'
-import EmptyState from '@/components/EmptyState'
+import QueryStatePanel from '@/components/QueryStatePanel'
 import Select from '@/components/Select'
-import Spinner from '@/components/Spinner'
 import { downloadAnalyticsReport, useAnalytics } from '@/hooks/useAnalytics'
 import { useUsers } from '@/hooks/useUsers'
 import type { ReportPeriod } from '@/types/reports'
@@ -57,6 +56,12 @@ export default function AnalyticsPage() {
   })
 
   const { data, isLoading, isFetching, error, refetch } = useAnalytics(filters)
+  const pageHeader = (
+    <PageHeader
+      title="Аналитика"
+      description="Сводка по заявкам, исполнителям и соблюдению SLA за выбранный период."
+    />
+  )
 
   const handleExport = async () => {
     try {
@@ -70,19 +75,26 @@ export default function AnalyticsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[420px] items-center justify-center">
-        <Spinner size="lg" />
+      <div className="space-y-4">
+        {pageHeader}
+        <QueryStatePanel state="loading" title="Загружаем аналитику" />
       </div>
     )
   }
 
   if (error || !data) {
     return (
-      <EmptyState
-        icon={BarChart3}
-        title="Не удалось загрузить аналитику"
-        description="Проверьте подключение к серверу и попробуйте обновить данные."
-      />
+      <div className="space-y-4">
+        {pageHeader}
+        <QueryStatePanel
+          state="error"
+          icon={BarChart3}
+          title="Не удалось загрузить аналитику"
+          description="Проверьте подключение к серверу и попробуйте обновить данные."
+          onRetry={refetch}
+          isRetrying={isFetching}
+        />
+      </div>
     )
   }
 
@@ -135,10 +147,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="Аналитика"
-        description="Сводка по заявкам, исполнителям и соблюдению SLA за выбранный период."
-      />
+      {pageHeader}
 
       <Card>
         <div className="space-y-4 p-5">

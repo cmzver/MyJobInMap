@@ -14,7 +14,7 @@ import {
   User,
   X,
 } from 'lucide-react'
-import Spinner from '@/components/Spinner'
+import QueryStatePanel from '@/components/QueryStatePanel'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
 import Select from '@/components/Select'
@@ -293,7 +293,7 @@ export default function MapPage() {
         assigneeIds: assigneeFilter ? [Number(assigneeFilter)] : undefined,
       })
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['map-tasks', statusQuery, priorityQuery, isWorker ? user?.id : assigneeFilter],
     queryFn: async () => {
       const PAGE_SIZE = 200
@@ -530,9 +530,29 @@ export default function MapPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex h-full items-center justify-center rounded-xl border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
-          <Spinner size="lg" />
-        </div>
+        <QueryStatePanel
+          state="loading"
+          title="Загружаем заявки на карте"
+          className="h-full min-h-0 rounded-xl bg-gray-100 dark:bg-gray-800"
+        />
+      ) : error && !data ? (
+        <QueryStatePanel
+          state="error"
+          icon={MapPin}
+          title="Не удалось загрузить карту заявок"
+          description="Данные карты недоступны. Проверьте подключение и попробуйте ещё раз."
+          onRetry={refetch}
+          isRetrying={isFetching}
+          className="h-full min-h-0 rounded-xl bg-gray-100 dark:bg-gray-800"
+        />
+      ) : tasks.length === 0 ? (
+        <QueryStatePanel
+          state="empty"
+          icon={MapPin}
+          title="На карте нет заявок"
+          description="По выбранным фильтрам нет заявок с координатами. Измените фильтры или откройте список."
+          className="h-full min-h-0 rounded-xl bg-gray-100 dark:bg-gray-800"
+        />
       ) : (
         <MapContainer
           center={defaultCenter}

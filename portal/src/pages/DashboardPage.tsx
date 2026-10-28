@@ -15,6 +15,7 @@ import { format, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import Card from '@/components/Card'
 import PageHeader from '@/components/PageHeader'
+import QueryStatePanel from '@/components/QueryStatePanel'
 import Spinner from '@/components/Spinner'
 import { SkeletonStats, SkeletonTaskList } from '@/components/Skeleton'
 import PriorityBadge from '@/components/PriorityBadge'
@@ -67,7 +68,13 @@ interface RecentTask {
 }
 
 export default function DashboardPage() {
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    isFetching: statsFetching,
+    isError: statsError,
+    refetch: refetchStats,
+  } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
       const response = await apiClient.get<DashboardStats>('/dashboard/stats')
@@ -75,7 +82,13 @@ export default function DashboardPage() {
     },
   })
 
-  const { data: activity, isLoading: activityLoading } = useQuery({
+  const {
+    data: activity,
+    isLoading: activityLoading,
+    isFetching: activityFetching,
+    isError: activityError,
+    refetch: refetchActivity,
+  } = useQuery({
     queryKey: ['dashboard-activity'],
     queryFn: async () => {
       const response = await apiClient.get<DashboardActivity>('/dashboard/activity')
@@ -83,7 +96,13 @@ export default function DashboardPage() {
     },
   })
 
-  const { data: recentTasks, isLoading: tasksLoading } = useQuery({
+  const {
+    data: recentTasks,
+    isLoading: tasksLoading,
+    isFetching: tasksFetching,
+    isError: tasksError,
+    refetch: refetchTasks,
+  } = useQuery({
     queryKey: ['recent-tasks'],
     queryFn: async () => {
       const response = await apiClient.get<{ items: RecentTask[] }>('/tasks?size=4&sort=-created_at')
@@ -163,6 +182,14 @@ export default function DashboardPage() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]">
         {statsLoading ? (
           <SkeletonStats count={4} className="grid-cols-2 gap-3 lg:grid-cols-4" />
+        ) : statsError && !stats ? (
+          <QueryStatePanel
+            state="error"
+            title="Не удалось загрузить состояние очереди"
+            onRetry={refetchStats}
+            isRetrying={statsFetching}
+            className="min-h-[220px]"
+          />
         ) : (
           <Card compact>
             <div className="space-y-4">
@@ -209,6 +236,14 @@ export default function DashboardPage() {
 
         {statsLoading || activityLoading ? (
           <SkeletonStats count={3} className="grid-cols-1 gap-3" />
+        ) : (statsError && !stats) || (activityError && !activity) ? (
+          <QueryStatePanel
+            state="error"
+            title="Не удалось загрузить контроль смены"
+            onRetry={() => Promise.all([refetchStats(), refetchActivity()])}
+            isRetrying={statsFetching || activityFetching}
+            className="min-h-[220px]"
+          />
         ) : (
           <Card compact>
             <div className="space-y-4">
@@ -281,6 +316,14 @@ export default function DashboardPage() {
 
                 {tasksLoading ? (
                   <SkeletonTaskList count={3} />
+                ) : tasksError && !recentTasks ? (
+                  <QueryStatePanel
+                    state="error"
+                    title="Не удалось загрузить последние заявки"
+                    onRetry={refetchTasks}
+                    isRetrying={tasksFetching}
+                    className="min-h-[180px]"
+                  />
                 ) : recentPreview.length > 0 ? (
                   <div className="space-y-2">
                     {recentPreview.map((task) => (
@@ -334,6 +377,14 @@ export default function DashboardPage() {
                   <div className="flex justify-center py-10">
                     <Spinner />
                   </div>
+                ) : activityError && !activity ? (
+                  <QueryStatePanel
+                    state="error"
+                    title="Не удалось загрузить активность"
+                    onRetry={refetchActivity}
+                    isRetrying={activityFetching}
+                    className="min-h-[180px] border-0 px-4 py-6"
+                  />
                 ) : activity ? (
                   <>
                     <div className="mt-4 flex h-24 items-end justify-between gap-2">
@@ -416,6 +467,14 @@ export default function DashboardPage() {
             <div className="flex justify-center py-8">
               <Spinner />
             </div>
+          ) : activityError && !activity ? (
+            <QueryStatePanel
+              state="error"
+              title="Не удалось загрузить срочные заявки"
+              onRetry={refetchActivity}
+              isRetrying={activityFetching}
+              className="min-h-[160px] border-0 px-4 py-6"
+            />
           ) : urgentPreview.length > 0 ? (
             <div className="space-y-2">
               {urgentPreview.map((task) => (
