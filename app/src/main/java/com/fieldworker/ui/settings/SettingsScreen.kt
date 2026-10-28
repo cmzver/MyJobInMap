@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.fieldworker.data.preferences.AppPreferences
+import com.fieldworker.domain.model.AccessLevel
 import com.fieldworker.ui.utils.avatarInitials
 import com.fieldworker.ui.utils.resolveAvatarUrl
 import kotlinx.coroutines.launch
@@ -83,9 +84,10 @@ fun SettingsScreen(
     val appVersionCode = appVersionInfo.second
     val userName = preferences.getUserFullName() ?: preferences.getUsername() ?: "Пользователь"
     // Предпочитаем серверный role_label (поддерживает кастомные группы),
-    // иначе — маппинг встроенных ролей.
+    // иначе — встроенная роль, иначе — базовый уровень доступа.
     val userRole = preferences.getUserRoleLabel()?.takeIf { it.isNotBlank() }
-        ?: roleLabel(preferences.getUserRole())
+        ?: AccessLevel.builtinLabel(preferences.getUserRole())
+        ?: AccessLevel.resolve(preferences.getUserRole(), preferences.getBaseAccess()).displayName
     
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -469,15 +471,6 @@ private fun ProfileAvatar(
                 )
             }
         }
-    }
-}
-
-private fun roleLabel(role: String?): String {
-    return when (role) {
-        "admin" -> "Администратор"
-        "dispatcher" -> "Диспетчер"
-        "worker" -> "Работник"
-        else -> ""
     }
 }
 

@@ -17,7 +17,6 @@ import com.fieldworker.domain.model.LastMessagePreview
 import com.fieldworker.domain.model.MessageType
 import com.fieldworker.domain.model.ReplyPreview
 import com.fieldworker.domain.model.User
-import com.fieldworker.domain.model.UserRole
 import com.fieldworker.ui.chat.ChatScreen
 import com.fieldworker.ui.chat.ConversationListFilter
 import com.fieldworker.ui.chat.ConversationListScreen
@@ -33,7 +32,7 @@ private object ChatPreviewData {
         fullName = "Алексей Смирнов",
         email = "dispatcher@fieldworker.local",
         phone = "+7 999 111-22-33",
-        role = UserRole.DISPATCHER,
+        role = "dispatcher",
     )
 
     val colleague = User(
@@ -42,7 +41,7 @@ private object ChatPreviewData {
         fullName = "Иван Иванов",
         email = "ivanov@fieldworker.local",
         phone = "+7 999 222-33-44",
-        role = UserRole.WORKER,
+        role = "worker",
     )
 
     val manager = User(
@@ -51,7 +50,7 @@ private object ChatPreviewData {
         fullName = "Мария Кузнецова",
         email = "admin@fieldworker.local",
         phone = "+7 999 333-44-55",
-        role = UserRole.ADMIN,
+        role = "admin",
     )
 
     val listConversations = listOf(

@@ -73,6 +73,7 @@ import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.TaskCard
 import com.fieldworker.ui.map.StatusChangeDialog
+import com.fieldworker.ui.map.TaskScope
 import com.fieldworker.ui.map.toColor
 import com.fieldworker.ui.map.toIcon
 import com.fieldworker.ui.utils.extractAdditionalInfo
@@ -125,10 +126,14 @@ fun TaskListScreen(
     onAddPhotoClick: () -> Unit = {},
     onDeletePhoto: (Long) -> Unit = {},
     // Параметры для планируемой даты
-    onPlannedDateChange: ((Long, String?) -> Unit)? = null
+    onPlannedDateChange: ((Long, String?) -> Unit)? = null,
+    // Возможности диспетчера/админа (null — работник, UI скрыт)
+    taskScope: TaskScope? = null,
+    onTaskScopeChange: (TaskScope) -> Unit = {},
+    assignment: TaskAssignmentUi? = null
 ) {
     var showFilters by remember { mutableStateOf(false) }
-    val hasActiveFilters = statusFilter.isNotEmpty()
+    val hasActiveFilters = statusFilter.isNotEmpty() || (taskScope != null && taskScope != TaskScope.ALL)
     val hasSearchQuery = searchQuery.isNotBlank()
     val hasLocalTransforms = hasActiveFilters || hasSearchQuery || sortOrder != com.fieldworker.ui.utils.TaskSortOrder.BY_DATE_DESC
 
@@ -158,8 +163,11 @@ fun TaskListScreen(
                 onStatusFilterChange = onStatusFilterChange,
                 sortOrder = sortOrder,
                 onSortOrderChange = onSortOrderChange,
+                taskScope = taskScope,
+                onTaskScopeChange = onTaskScopeChange,
                 onClearFilters = {
                     onStatusFilterChange(emptySet())
+                    if (taskScope != null) onTaskScopeChange(TaskScope.ALL)
                 }
             )
         }
@@ -318,7 +326,19 @@ fun TaskListScreen(
             onDeletePhoto = onDeletePhoto,
             onPlannedDateChange = onPlannedDateChange?.let { callback ->
                 { date -> callback(selectedTask.id, date) }
-            }
+            },
+            onAssignClick = assignment?.onOpen
+        )
+    }
+
+    if (assignment != null && assignment.showDialog && selectedTask != null) {
+        AssigneePickerDialog(
+            workers = assignment.workers,
+            currentAssigneeId = selectedTask.assignedUserId,
+            isLoading = assignment.isLoadingWorkers,
+            isAssigning = assignment.isAssigning,
+            onAssign = { userId -> assignment.onAssign(selectedTask.id, userId) },
+            onDismiss = assignment.onDismiss
         )
     }
     
@@ -496,8 +516,11 @@ fun FiltersPanel(
     onStatusFilterChange: (Set<TaskStatus>) -> Unit,
     sortOrder: com.fieldworker.ui.utils.TaskSortOrder,
     onSortOrderChange: (com.fieldworker.ui.utils.TaskSortOrder) -> Unit,
-    onClearFilters: () -> Unit
+    onClearFilters: () -> Unit,
+    taskScope: TaskScope? = null,
+    onTaskScopeChange: (TaskScope) -> Unit = {}
 ) {
+    var scopeExpanded by remember { mutableStateOf(false) }
     var statusExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
 
@@ -526,7 +549,8 @@ fun FiltersPanel(
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold
                     )
-                    val selectedCount = statusFilter.size
+                    val selectedCount = statusFilter.size +
+                        if (taskScope != null && taskScope != TaskScope.ALL) 1 else 0
                     if (selectedCount > 0) {
                         Surface(
                             shape = CircleShape,
@@ -550,6 +574,32 @@ fun FiltersPanel(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
+
+            if (taskScope != null) {
+                FilterDropdownRow(
+                    title = "Заявки",
+                    summary = taskScope.displayName,
+                    expanded = scopeExpanded,
+                    onExpandedChange = { scopeExpanded = it }
+                ) {
+                    TaskScope.entries.forEach { scope ->
+                        DropdownMenuItem(
+                            text = { Text(scope.displayName) },
+                            onClick = {
+                                onTaskScopeChange(scope)
+                                scopeExpanded = false
+                            },
+                            trailingIcon = {
+                                if (scope == taskScope) {
+                                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             FilterDropdownRow(
                 title = "Статус",
@@ -701,7 +751,8 @@ fun TaskDetailBottomSheet(
     onAddComment: (String) -> Unit,
     onAddPhotoClick: () -> Unit = {},
     onDeletePhoto: (Long) -> Unit = {},
-    onPlannedDateChange: ((String?) -> Unit)? = null
+    onPlannedDateChange: ((String?) -> Unit)? = null,
+    onAssignClick: (() -> Unit)? = null
 ) {
     var commentText by remember { mutableStateOf("") }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -817,6 +868,7 @@ fun TaskDetailBottomSheet(
                     customerName = customerName,
                     phoneNumber = phoneNumber,
                     assignedUserName = assignedUserName,
+                    onAssignClick = onAssignClick,
                     priorityColor = priorityColor,
                     priorityBgColor = priorityBgColor,
                     accentColor = accentColor,
@@ -1077,6 +1129,7 @@ private fun TaskSummaryCard(
     customerName: String?,
     phoneNumber: String?,
     assignedUserName: String?,
+    onAssignClick: (() -> Unit)?,
     priorityColor: Color,
     priorityBgColor: Color,
     accentColor: Color,
@@ -1235,7 +1288,7 @@ private fun TaskSummaryCard(
             )
         }
 
-        if (customerName != null || phoneNumber != null || assignedUserName != null || task.isRemote || task.isPaid || task.systemType != null || task.defectType != null) {
+        if (customerName != null || phoneNumber != null || assignedUserName != null || onAssignClick != null || task.isRemote || task.isPaid || task.systemType != null || task.defectType != null) {
             Spacer(modifier = Modifier.height(14.dp))
             Surface(
                 shape = MaterialTheme.shapes.large,
@@ -1265,12 +1318,21 @@ private fun TaskSummaryCard(
                             onClick = onDialPhone
                         )
                     }
-                    assignedUserName?.let {
+                    if (onAssignClick != null) {
                         DetailInfoRow(
                             icon = Icons.Default.Person,
                             label = "Исполнитель",
-                            value = it
+                            value = assignedUserName ?: "Не назначен — нажмите, чтобы назначить",
+                            onClick = onAssignClick
                         )
+                    } else {
+                        assignedUserName?.let {
+                            DetailInfoRow(
+                                icon = Icons.Default.Person,
+                                label = "Исполнитель",
+                                value = it
+                            )
+                        }
                     }
                     if (task.isRemote) {
                         DetailInfoRow(

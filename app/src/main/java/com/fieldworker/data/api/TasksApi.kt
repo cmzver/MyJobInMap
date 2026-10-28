@@ -6,6 +6,7 @@ import com.fieldworker.data.remote.generated.DeviceRegister
 import com.fieldworker.data.remote.generated.PaginatedResponseTaskListResponse
 import com.fieldworker.data.remote.generated.PhotoResponse
 import com.fieldworker.data.remote.generated.PlannedDateUpdate
+import com.fieldworker.data.remote.generated.TaskAssignRequest
 import com.fieldworker.data.remote.generated.TaskListResponse
 import com.fieldworker.data.remote.generated.TaskResponse
 import com.fieldworker.data.remote.generated.TaskStatusUpdate
@@ -28,15 +29,14 @@ import retrofit2.http.Query
 interface TasksApi {
     
     /**
-     * Получить список всех задач
-     * @param assignedToMe если true - только назначенные текущему пользователю
+     * Получить список задач. Скоуп решает сервер: работник получает только свои,
+     * диспетчер/админ — все заявки организации.
      */
     @GET("api/tasks")
     suspend fun getTasks(
         @Query("page") page: Int = 1,
         @Query("size") size: Int = 100, // Грузим по 100 для обратной совместимости пока не внедрим Paging 3
-        @Query("status") status: String? = null,
-        @Query("assigned_to_me") assignedToMe: Boolean = true
+        @Query("status") status: String? = null
     ): Response<PaginatedResponseTaskListResponse>
     
     /**
@@ -67,6 +67,15 @@ interface TasksApi {
         @Body comment: CommentCreate
     ): Response<CommentResponse>
     
+    /**
+     * Назначить исполнителя (assignedUserId = null — снять). Требует права assign_tasks.
+     */
+    @PATCH("api/tasks/{id}/assign")
+    suspend fun assignTask(
+        @Path("id") id: Long,
+        @Body request: TaskAssignRequest
+    ): Response<TaskResponse>
+
     /**
      * Обновить планируемую дату выполнения
      */

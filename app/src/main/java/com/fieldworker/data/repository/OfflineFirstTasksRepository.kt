@@ -12,6 +12,7 @@ import com.fieldworker.data.image.ImageCompressor
 import com.fieldworker.data.local.LocalTransactionRunner
 import com.fieldworker.data.remote.generated.CommentCreate
 import com.fieldworker.data.remote.generated.PlannedDateUpdate
+import com.fieldworker.data.remote.generated.TaskAssignRequest
 import com.fieldworker.data.remote.generated.TaskStatusUpdate
 import com.fieldworker.data.remote.generated.TaskStatus as GenTaskStatus
 import com.fieldworker.data.local.dao.CommentDao
@@ -174,8 +175,7 @@ class OfflineFirstTasksRepository @Inject constructor(
         while (page <= totalPages) {
             val response = tasksApi.getTasks(
                 page = page,
-                size = PAGE_SIZE,
-                assignedToMe = true
+                size = PAGE_SIZE
             )
 
             if (!response.isSuccessful) {
@@ -440,6 +440,36 @@ class OfflineFirstTasksRepository @Inject constructor(
             throw e
         } catch (e: Exception) {
             Result.failure(Exception("Ошибка обновления даты: ${e.message}", e))
+        }
+    }
+
+    /**
+     * Назначить исполнителя (null — снять). Только онлайн: назначение — действие
+     * диспетчера, и офлайн-повтор поверх чужих изменений опаснее, чем явная ошибка.
+     */
+    suspend fun assignTask(taskId: Long, assigneeId: Long?): Result<Task> = withContext(Dispatchers.IO) {
+        if (!networkMonitor.isCurrentlyOnline()) {
+            return@withContext Result.failure(Exception("Назначение доступно только при подключении к сети"))
+        }
+        try {
+            val response = tasksApi.assignTask(taskId, TaskAssignRequest(assignedUserId = assigneeId))
+            val dto = response.body()
+            if (response.isSuccessful && dto != null) {
+                val task = dto.toDomain()
+                taskDao.upsertTask(TaskEntity.fromDomain(task))
+                Result.success(task)
+            } else {
+                val message = when (response.code()) {
+                    403 -> "Нет права назначать исполнителей"
+                    404 -> "Заявка или исполнитель не найдены"
+                    else -> "Ошибка назначения: ${response.code()}"
+                }
+                Result.failure(Exception(message))
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(Exception(e.toUserMessage(), e))
         }
     }
     

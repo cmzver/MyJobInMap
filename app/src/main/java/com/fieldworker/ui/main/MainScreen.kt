@@ -52,6 +52,7 @@ import com.fieldworker.ui.chat.ChatViewModel
 import com.fieldworker.ui.chat.ChatScreen
 import com.fieldworker.ui.chat.ConversationListFilter
 import com.fieldworker.ui.chat.ConversationListScreen
+import com.fieldworker.ui.list.TaskAssignmentUi
 import com.fieldworker.ui.list.TaskListScreen
 import com.fieldworker.ui.map.MapScreen
 import com.fieldworker.ui.map.MapViewModel
@@ -370,7 +371,23 @@ fun MainScreen(
                         },
                         onDeletePhoto = { photoId -> viewModel.deletePhoto(photoId) },
                         // Планируемая дата
-                        onPlannedDateChange = { taskId, date -> viewModel.updatePlannedDate(taskId, date) }
+                        onPlannedDateChange = { taskId, date -> viewModel.updatePlannedDate(taskId, date) },
+                        // Диспетчер/админ
+                        taskScope = uiState.taskScope.takeIf { uiState.canManageTasks },
+                        onTaskScopeChange = { viewModel.setTaskScope(it) },
+                        assignment = if (uiState.canAssignTasks) {
+                            TaskAssignmentUi(
+                                showDialog = uiState.showAssignDialog,
+                                workers = uiState.workers,
+                                isLoadingWorkers = uiState.isLoadingWorkers,
+                                isAssigning = uiState.isAssigning,
+                                onOpen = { viewModel.showAssignDialog() },
+                                onDismiss = { viewModel.hideAssignDialog() },
+                                onAssign = { taskId, userId -> viewModel.assignTask(taskId, userId) },
+                            )
+                        } else {
+                            null
+                        }
                     )
                 }
                 

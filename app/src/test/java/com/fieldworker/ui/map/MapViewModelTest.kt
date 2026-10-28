@@ -4,6 +4,7 @@ import com.fieldworker.data.network.NetworkMonitor
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.AddressRepository
 import com.fieldworker.data.repository.AuthRepository
+import com.fieldworker.data.repository.UsersRepository
 import com.fieldworker.data.sync.SyncManager
 import com.fieldworker.domain.model.*
 import com.fieldworker.domain.usecase.GetTasksUseCase
@@ -38,6 +39,7 @@ class MapViewModelTest {
     private lateinit var taskPhotosUseCase: TaskPhotosUseCase
     private lateinit var taskCommentsUseCase: TaskCommentsUseCase
     private lateinit var addressRepository: AddressRepository
+    private lateinit var usersRepository: UsersRepository
     private lateinit var networkMonitor: NetworkMonitor
     private lateinit var syncManager: SyncManager
     private lateinit var preferences: AppPreferences
@@ -120,6 +122,8 @@ class MapViewModelTest {
         preferences = createRealPreferences()
         
         authRepository = mockk(relaxed = true)
+        coEvery { authRepository.getMyPermissions() } returns Result.success(emptyMap())
+        usersRepository = mockk(relaxed = true)
     }
 
     @After
@@ -142,7 +146,7 @@ class MapViewModelTest {
      */
     private fun buildViewModel(): MapViewModel = MapViewModel(
         getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
-        taskCommentsUseCase, addressRepository, networkMonitor, syncManager, preferences, authRepository,
+        taskCommentsUseCase, addressRepository, usersRepository, networkMonitor, syncManager, preferences, authRepository,
         testDispatcher
     )
 
@@ -691,5 +695,33 @@ class MapViewModelTest {
 
         assertEquals(1, state.applyFilters().size)
         assertEquals(1L, state.applyFilters()[0].id)
+    }
+
+    // ==================== TaskScope (диспетчер/админ) ====================
+
+    @Test
+    fun `task scope MINE and UNASSIGNED filter for managers`() {
+        val tasks = listOf(
+            sampleTask(1).copy(assignedUserId = 7),
+            sampleTask(2).copy(assignedUserId = 8),
+            sampleTask(3).copy(assignedUserId = null)
+        )
+        val base = MapUiState(tasks = tasks, access = AccessLevel.DISPATCHER, currentUserId = 7)
+
+        assertEquals(3, base.applyFilters().size)
+        assertEquals(listOf(1L), base.copy(taskScope = TaskScope.MINE).applyFilters().map { it.id })
+        assertEquals(listOf(3L), base.copy(taskScope = TaskScope.UNASSIGNED).applyFilters().map { it.id })
+    }
+
+    @Test
+    fun `task scope is ignored for workers`() {
+        val state = MapUiState(
+            tasks = listOf(sampleTask(1).copy(assignedUserId = null)),
+            access = AccessLevel.WORKER,
+            currentUserId = 7,
+            taskScope = TaskScope.MINE
+        )
+
+        assertEquals(1, state.applyFilters().size)
     }
 }

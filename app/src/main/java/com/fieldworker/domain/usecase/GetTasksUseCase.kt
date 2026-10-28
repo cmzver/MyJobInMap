@@ -74,4 +74,11 @@ class GetTasksUseCase @Inject constructor(
     suspend fun updatePlannedDate(taskId: Long, plannedDate: String?): Result<Task> {
         return repository.updatePlannedDate(taskId, plannedDate)
     }
+
+    /**
+     * Назначить исполнителя заявки (null — снять назначение)
+     */
+    suspend fun assignTask(taskId: Long, assigneeId: Long?): Result<Task> {
+        return repository.assignTask(taskId, assigneeId)
+    }
 }

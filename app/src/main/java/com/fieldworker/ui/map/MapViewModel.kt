@@ -7,15 +7,18 @@ import androidx.paging.cachedIn
 import com.fieldworker.data.network.NetworkMonitor
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.AddressRepository
+import com.fieldworker.data.repository.UsersRepository
 import com.fieldworker.data.sync.SyncManager
 import com.fieldworker.di.IoDispatcher
 import android.net.Uri
+import com.fieldworker.domain.model.AccessLevel
 import com.fieldworker.domain.model.AddressDetails
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.TaskStatus
+import com.fieldworker.domain.model.User
 import com.fieldworker.domain.usecase.GetTasksUseCase
 import com.fieldworker.domain.usecase.TaskCommentsUseCase
 import com.fieldworker.domain.usecase.TaskPhotosUseCase
@@ -43,6 +46,16 @@ import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 import javax.inject.Inject
+
+/**
+ * Какие заявки показывать диспетчеру/админу. Работнику сервер и так отдаёт
+ * только его заявки, поэтому для него фильтр не применяется.
+ */
+enum class TaskScope(val displayName: String) {
+    ALL("Все"),
+    MINE("Мои"),
+    UNASSIGNED("Без исполнителя"),
+}
 
 /**
  * UI State для экрана карты и списка
@@ -78,13 +91,33 @@ data class MapUiState(
     // Offline режим
     val isOffline: Boolean = false,
     val pendingActionsCount: Int = 0,
-    val lastSyncTime: Long? = null
+    val lastSyncTime: Long? = null,
+    // Доступ текущего пользователя
+    val access: AccessLevel = AccessLevel.WORKER,
+    val currentUserId: Long = 0,
+    val canAssignTasks: Boolean = false,
+    val taskScope: TaskScope = TaskScope.ALL,
+    // Назначение исполнителя
+    val showAssignDialog: Boolean = false,
+    val workers: List<User> = emptyList(),
+    val isLoadingWorkers: Boolean = false,
+    val isAssigning: Boolean = false
 ) {
+    val canManageTasks: Boolean
+        get() = access.canManageTasks
+
     val newTasksCount: Int
         get() = tasks.count { it.status == TaskStatus.NEW }
 
     internal fun applyFilters(): List<Task> {
         var result = tasks
+        if (canManageTasks) {
+            result = when (taskScope) {
+                TaskScope.ALL -> result
+                TaskScope.MINE -> result.filter { it.assignedUserId == currentUserId }
+                TaskScope.UNASSIGNED -> result.filter { it.assignedUserId == null }
+            }
+        }
         if (hideTerminalTasks) {
             result = result.filter { it.status != TaskStatus.DONE && it.status != TaskStatus.CANCELLED }
         }
@@ -125,6 +158,7 @@ class MapViewModel @Inject constructor(
     private val taskPhotosUseCase: TaskPhotosUseCase,
     private val taskCommentsUseCase: TaskCommentsUseCase,
     private val addressRepository: AddressRepository,
+    private val usersRepository: UsersRepository,
     private val networkMonitor: NetworkMonitor,
     private val syncManager: SyncManager,
     val preferences: AppPreferences,
@@ -163,6 +197,7 @@ class MapViewModel @Inject constructor(
     init {
         // Загружаем сохранённые фильтры
         loadSavedFilters()
+        refreshAccess()
         
         // Подписываемся на изменения данных из Room
         observeTasksFromDatabase()
@@ -353,6 +388,10 @@ class MapViewModel @Inject constructor(
         
         // Сессия валидна или неизвестна (offline) - разрешаем показ данных
         sessionValidated = true
+
+        // validateCurrentUser() синхронизирует role/base_access — перечитываем доступ
+        refreshAccess()
+        loadPermissions()
         
         // Загружаем задачи
         loadTasksInternal()
@@ -697,6 +736,93 @@ class MapViewModel @Inject constructor(
         }
     }
     
+    private fun refreshAccess() {
+        val access = AccessLevel.resolve(preferences.getUserRole(), preferences.getBaseAccess())
+        _uiState.update {
+            it.copy(
+                access = access,
+                currentUserId = preferences.getUserId(),
+                // До ответа /auth/permissions — по уровню доступа
+                canAssignTasks = access.canManageTasks,
+            )
+        }
+    }
+
+    /**
+     * Тонкие права (матрица прав организации): кастомная группа диспетчеров
+     * может не иметь assign_tasks. Без сети остаёмся на оценке по уровню доступа.
+     */
+    private fun loadPermissions() {
+        if (!_uiState.value.canManageTasks) return
+        viewModelScope.launch {
+            authRepository.getMyPermissions().onSuccess { permissions ->
+                _uiState.update { state ->
+                    state.copy(canAssignTasks = permissions["assign_tasks"] ?: state.canManageTasks)
+                }
+            }
+        }
+    }
+
+    fun setTaskScope(scope: TaskScope) {
+        _uiState.update { it.copy(taskScope = scope) }
+    }
+
+    fun showAssignDialog() {
+        if (!_uiState.value.canAssignTasks) return
+        _uiState.update { it.copy(showAssignDialog = true) }
+        if (_uiState.value.workers.isNotEmpty() || _uiState.value.isLoadingWorkers) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingWorkers = true) }
+            usersRepository.getAssignableWorkers()
+                .onSuccess { workers ->
+                    _uiState.update { it.copy(workers = workers, isLoadingWorkers = false) }
+                }
+                .onFailure { exception ->
+                    _uiState.update {
+                        it.copy(
+                            isLoadingWorkers = false,
+                            showAssignDialog = false,
+                            error = exception.message ?: "Не удалось загрузить исполнителей"
+                        )
+                    }
+                }
+        }
+    }
+
+    fun hideAssignDialog() {
+        _uiState.update { it.copy(showAssignDialog = false) }
+    }
+
+    /**
+     * Назначить исполнителя (null — снять назначение)
+     */
+    fun assignTask(taskId: Long, assigneeId: Long?) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isAssigning = true) }
+            getTasksUseCase.assignTask(taskId, assigneeId)
+                .onSuccess { updatedTask ->
+                    _uiState.update { state ->
+                        state.copy(
+                            tasks = state.tasks.map { if (it.id == updatedTask.id) updatedTask else it },
+                            selectedTask = updatedTask.takeIf { state.selectedTask?.id == it.id }
+                                ?: state.selectedTask,
+                            isAssigning = false,
+                            showAssignDialog = false
+                        )
+                    }
+                    loadTaskDetails(taskId)
+                }
+                .onFailure { exception ->
+                    _uiState.update {
+                        it.copy(
+                            isAssigning = false,
+                            error = exception.message ?: "Ошибка назначения"
+                        )
+                    }
+                }
+        }
+    }
+
     /**
      * Очистить ошибку
      */

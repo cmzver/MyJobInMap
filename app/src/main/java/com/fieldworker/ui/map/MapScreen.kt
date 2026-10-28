@@ -73,6 +73,7 @@ import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.components.CompactTaskCard
 import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.PhotoUploadConfirmDialog
+import com.fieldworker.ui.list.AssigneePickerDialog
 import com.fieldworker.ui.list.TaskDetailBottomSheet
 import com.fieldworker.ui.utils.extractApartment
 import com.fieldworker.ui.utils.extractAdditionalInfo
@@ -369,8 +370,24 @@ fun MapScreen(
                 )
             },
             onDeletePhoto = { photoId -> viewModel.deletePhoto(photoId) },
-            onPlannedDateChange = { date -> viewModel.updatePlannedDate(uiState.selectedTask!!.id, date) }
+            onPlannedDateChange = { date -> viewModel.updatePlannedDate(uiState.selectedTask!!.id, date) },
+            onAssignClick = if (uiState.canAssignTasks) {
+                { viewModel.showAssignDialog() }
+            } else {
+                null
+            }
         )
+
+        if (uiState.showAssignDialog) {
+            AssigneePickerDialog(
+                workers = uiState.workers,
+                currentAssigneeId = uiState.selectedTask!!.assignedUserId,
+                isLoading = uiState.isLoadingWorkers,
+                isAssigning = uiState.isAssigning,
+                onAssign = { userId -> viewModel.assignTask(uiState.selectedTask!!.id, userId) },
+                onDismiss = { viewModel.hideAssignDialog() }
+            )
+        }
         
         // Диалог подтверждения загрузки фото
         selectedPhotoUri?.let { uri ->

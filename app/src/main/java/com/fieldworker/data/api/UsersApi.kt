@@ -8,4 +8,8 @@ interface UsersApi {
 
     @GET("/api/users")
     suspend fun getUsers(): Response<List<UserResponse>>
+
+    /** Исполнители для назначения заявок (только диспетчер/админ). */
+    @GET("/api/admin/workers")
+    suspend fun getWorkers(): Response<List<UserResponse>>
 }
