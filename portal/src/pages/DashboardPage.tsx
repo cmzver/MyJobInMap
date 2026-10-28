@@ -21,6 +21,7 @@ import PriorityBadge from '@/components/PriorityBadge'
 import StatusBadge from '@/components/StatusBadge'
 import apiClient from '@/api/client'
 import type { TaskPriority, TaskStatus } from '@/types/task'
+import { buildTaskListUrl } from '@/utils/taskListUrl'
 
 interface DashboardStats {
   totalTasks: number
@@ -103,24 +104,28 @@ export default function DashboardPage() {
       value: stats?.totalTasks ?? 0,
       meta: 'в работе системы',
       icon: ClipboardList,
+      to: buildTaskListUrl(),
     },
     {
       title: 'Новые',
       value: stats?.newTasks ?? 0,
       meta: 'ждут разбора',
       icon: AlertTriangle,
+      to: buildTaskListUrl({ statuses: ['NEW'] }),
     },
     {
       title: 'В работе',
       value: stats?.inProgressTasks ?? 0,
       meta: 'назначены в работу',
       icon: Clock,
+      to: buildTaskListUrl({ statuses: ['IN_PROGRESS'] }),
     },
     {
       title: 'Выполнено',
       value: stats?.completedTasks ?? 0,
       meta: 'закрыто',
       icon: CheckCircle2,
+      to: buildTaskListUrl({ statuses: ['DONE'] }),
     },
   ]
 
@@ -130,18 +135,21 @@ export default function DashboardPage() {
       value: activity?.urgentTasks.length ?? 0,
       meta: 'нуждаются в приоритете',
       icon: Zap,
+      to: buildTaskListUrl({ priorities: ['EMERGENCY', 'URGENT'] }),
     },
     {
       title: 'Активные исполнители',
       value: stats?.activeWorkers ?? 0,
       meta: `из ${stats?.totalWorkers ?? 0}`,
       icon: Users,
+      to: '/analytics',
     },
     {
       title: 'Отменено',
       value: stats?.cancelledTasks ?? 0,
       meta: 'снято с исполнения',
       icon: AlertTriangle,
+      to: buildTaskListUrl({ statuses: ['CANCELLED'] }),
     },
   ]
 
@@ -173,7 +181,15 @@ export default function DashboardPage() {
 
               <dl className="grid gap-px overflow-hidden rounded-lg border border-gray-200 bg-gray-200 dark:border-gray-700 dark:bg-gray-700 sm:grid-cols-2 xl:grid-cols-4">
                 {overviewCards.map((card) => (
-                  <div key={card.title} className="bg-white px-4 py-4 dark:bg-gray-800">
+                  <div
+                    key={card.title}
+                    className="group relative bg-white px-4 py-4 focus-within:z-10 focus-within:ring-2 focus-within:ring-primary-500 dark:bg-gray-800"
+                  >
+                    <Link
+                      to={card.to}
+                      aria-label={`${card.title}: ${card.value}. Открыть список`}
+                      className="absolute inset-0"
+                    />
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
                         <card.icon className="h-4.5 w-4.5" />
@@ -204,8 +220,13 @@ export default function DashboardPage() {
                 {controlCards.map((card) => (
                   <div
                     key={card.title}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-4 py-3 dark:border-gray-700"
+                    className="group relative flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-4 py-3 transition-colors hover:bg-gray-50 focus-within:ring-2 focus-within:ring-primary-500 dark:border-gray-700 dark:hover:bg-gray-800"
                   >
+                    <Link
+                      to={card.to}
+                      aria-label={`${card.title}: ${card.value}. Открыть подробности`}
+                      className="absolute inset-0 rounded-lg"
+                    />
                     <div className="flex min-w-0 items-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
                         <card.icon className="h-4.5 w-4.5" />
@@ -377,7 +398,7 @@ export default function DashboardPage() {
           compact
           action={
             <Link
-              to="/tasks"
+              to={buildTaskListUrl({ priorities: ['EMERGENCY', 'URGENT'] })}
               className="flex items-center gap-1 text-sm text-primary-600 transition hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
             >
               Открыть список <ArrowRight size={15} />

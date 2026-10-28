@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Activity,
+  ArrowRight,
   BarChart3,
   CheckCircle,
   Clock,
@@ -24,6 +26,7 @@ import { downloadAnalyticsReport, useAnalytics } from '@/hooks/useAnalytics'
 import { useUsers } from '@/hooks/useUsers'
 import type { ReportPeriod } from '@/types/reports'
 import { isAssignableRole } from '@/types/user'
+import { buildTaskListUrl } from '@/utils/taskListUrl'
 
 const periodOptions = [
   { value: 'today', label: 'Сегодня' },
@@ -48,6 +51,10 @@ export default function AnalyticsPage() {
     period,
     worker_id: selectedWorkerId ? Number(selectedWorkerId) : undefined,
   }
+  const activeTaskListUrl = buildTaskListUrl({
+    statuses: ['NEW', 'IN_PROGRESS'],
+    assigneeIds: selectedWorkerId ? [Number(selectedWorkerId)] : undefined,
+  })
 
   const { data, isLoading, isFetching, error, refetch } = useAnalytics(filters)
 
@@ -170,6 +177,13 @@ export default function AnalyticsPage() {
                     <Activity className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
                     Обновить
                   </Button>
+                  <Link
+                    to={activeTaskListUrl}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-4 py-2 text-base font-medium text-gray-900 transition-colors hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 dark:focus:ring-offset-gray-900"
+                  >
+                    Активные заявки
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
                   <Button variant="primary" onClick={handleExport}>
                     <Download className="h-4 w-4" />
                     Экспорт XLSX
