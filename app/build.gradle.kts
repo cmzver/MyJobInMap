@@ -53,6 +53,23 @@ android {
     
     kotlinOptions {
         jvmTarget = "17"
+        // Конфиг стабильности Compose (compiler 1.5.5+): List/Set/Map и java.time
+        // считаются стабильными — экраны с такими параметрами снова пропускают
+        // рекомпозицию, когда данные не менялись.
+        freeCompilerArgs += listOf(
+            "-P",
+            "plugin:androidx.compose.compiler.plugins.kotlin:stabilityConfigurationPath=" +
+                "${project.projectDir.absolutePath}/compose-stability.conf",
+        )
+        // Отчёты о стабильности/пропускаемости composable: ./gradlew :app:compileDebugKotlin -PcomposeReports
+        // → app/build/compose_reports/
+        if (project.hasProperty("composeReports")) {
+            val reportsDir = "${project.layout.buildDirectory.get().asFile.absolutePath}/compose_reports"
+            freeCompilerArgs += listOf(
+                "-P", "plugin:androidx.compose.compiler.plugins.kotlin:reportsDestination=$reportsDir",
+                "-P", "plugin:androidx.compose.compiler.plugins.kotlin:metricsDestination=$reportsDir",
+            )
+        }
     }
     
     buildFeatures {
@@ -181,4 +198,11 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+// Конфиг стабильности Compose — вход компиляции: правка файла должна
+// перекомпилировать код, а не оставаться незамеченной инкрементальной сборкой.
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    inputs.file(layout.projectDirectory.file("compose-stability.conf"))
+        .withPathSensitivity(PathSensitivity.RELATIVE)
 }

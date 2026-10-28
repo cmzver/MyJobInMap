@@ -39,6 +39,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -111,7 +112,44 @@ data class MapUiState(
     val newTasksCount: Int
         get() = tasks.count { it.status == TaskStatus.NEW }
 
-    internal fun applyFilters(): List<Task> {
+    /** Только то, от чего зависит отфильтрованный список (см. [MapViewModel.filteredTasks]). */
+    internal fun filterInput() = TaskFilterInput(
+        tasks = tasks,
+        statusFilter = statusFilter,
+        priorityFilter = priorityFilter,
+        searchQuery = searchQuery,
+        sortOrder = sortOrder,
+        // Координаты нужны только сортировке по расстоянию — иначе каждый GPS-фикс
+        // пересчитывал бы ленту впустую
+        myLocationLat = myLocationLat.takeIf { sortOrder == TaskSortOrder.BY_DISTANCE },
+        myLocationLon = myLocationLon.takeIf { sortOrder == TaskSortOrder.BY_DISTANCE },
+        hideTerminalTasks = hideTerminalTasks,
+        canManageTasks = canManageTasks,
+        taskScope = taskScope,
+        currentUserId = currentUserId,
+    )
+
+    internal fun applyFilters(): List<Task> = filterInput().apply()
+}
+
+/**
+ * Входы фильтрации ленты. Отдельный класс, чтобы пересчитывать список только
+ * при их изменении, а не на каждый isLoading/isOffline/фото в [MapUiState].
+ */
+internal data class TaskFilterInput(
+    val tasks: List<Task>,
+    val statusFilter: Set<TaskStatus>,
+    val priorityFilter: Set<Priority>,
+    val searchQuery: String,
+    val sortOrder: TaskSortOrder,
+    val myLocationLat: Double?,
+    val myLocationLon: Double?,
+    val hideTerminalTasks: Boolean,
+    val canManageTasks: Boolean,
+    val taskScope: TaskScope,
+    val currentUserId: Long,
+) {
+    fun apply(): List<Task> {
         var result = tasks
         if (canManageTasks) {
             result = when (taskScope) {
@@ -174,7 +212,10 @@ class MapViewModel @Inject constructor(
     // Фильтрация пересчитывается только при изменении задач/фильтров, а не при
     // изменении isLoading, selectedTask и прочих несвязанных полей.
     val filteredTasks: StateFlow<List<Task>> = _uiState
-        .map { it.applyFilters() }
+        .map { it.filterInput() }
+        .distinctUntilChanged()
+        .map { it.apply() }
+        .flowOn(Dispatchers.Default)
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     
