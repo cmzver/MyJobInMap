@@ -669,7 +669,7 @@ private fun mainTitleFor(screen: Screen): String {
 }
 
 @Composable
-private fun AppDrawer(
+internal fun AppDrawer(
     userName: String,
     roleLabel: String?,
     avatarUrl: String?,
@@ -844,7 +844,8 @@ private fun PortalDrawerItem(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
-                    .background(MaterialTheme.colorScheme.error)
+                    // Акцент, не error: красный в приложении — только аварийные заявки
+                    .background(MaterialTheme.colorScheme.primary)
                     .padding(horizontal = 8.dp, vertical = 2.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -852,7 +853,7 @@ private fun PortalDrawerItem(
                     text = if (badge > 99) "99+" else "$badge",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onError,
+                    color = MaterialTheme.colorScheme.onPrimary,
                 )
             }
         }

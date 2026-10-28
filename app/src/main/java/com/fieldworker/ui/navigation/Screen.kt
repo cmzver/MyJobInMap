@@ -31,7 +31,7 @@ sealed class Screen(
     /** Список заявок */
     data object TaskList : Screen(
         route = "task_list",
-        label = "Список",
+        label = "Заявки",
         icon = Icons.AutoMirrored.Filled.List
     )
     

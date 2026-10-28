@@ -360,11 +360,14 @@ fun SettingsScreen(
 
 @Composable
 private fun SectionLabel(text: String) {
+    // Нейтральный eyebrow, как в портале: акцент — только для действий
     Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 8.dp)
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.8.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 8.dp)
     )
 }
 
