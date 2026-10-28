@@ -1245,26 +1245,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/db/integrity": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check Database Integrity
-         * @description Проверить целостность БД (PRAGMA integrity_check).
-         */
-        get: operations["check_database_integrity_api_admin_db_integrity_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/admin/db/cleanup": {
         parameters: {
             query?: never;
@@ -1283,46 +1263,6 @@ export interface paths {
          *     - include_cancelled: удалять отменённые заявки
          */
         post: operations["cleanup_old_data_api_admin_db_cleanup_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/db/vacuum": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Vacuum Database
-         * @description Оптимизировать БД (VACUUM). Использует прямое sqlite3-подключение.
-         */
-        post: operations["vacuum_database_api_admin_db_vacuum_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/db/optimize": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Optimize Database
-         * @description Оптимизировать индексы БД (ANALYZE + VACUUM).
-         */
-        post: operations["optimize_database_api_admin_db_optimize_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9312,26 +9252,6 @@ export interface operations {
             };
         };
     };
-    check_database_integrity_api_admin_db_integrity_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
     cleanup_old_data_api_admin_db_cleanup_post: {
         parameters: {
             query?: {
@@ -9361,46 +9281,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    vacuum_database_api_admin_db_vacuum_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    optimize_database_api_admin_db_optimize_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
         };
