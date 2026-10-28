@@ -133,10 +133,13 @@ fun TaskCard(
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
+                            // fill = true: ярлык забирает всё свободное место, и дата
+                            // всегда прижата вправо (раньше делили пополам со Spacer).
+                            modifier = Modifier.weight(1f),
                         )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
-                    Spacer(modifier = Modifier.weight(1f))
                     Text(
                         text = ui.formattedDate,
                         style = MaterialTheme.typography.labelSmall,
@@ -287,7 +290,7 @@ private fun rememberTaskCardUi(
  * У title в этих данных лежит адрес, поэтому без описания заголовок совпадёт с
  * адресной строкой — это осознанный fallback, лучше чем пусто.
  */
-private fun taskHeadline(task: Task, displayNumber: String): String {
+internal fun taskHeadline(task: Task, displayNumber: String): String {
     val raw = task.description?.trim().orEmpty()
     if (raw.isBlank()) return formatTaskTitle(task, displayNumber)
 

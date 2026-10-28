@@ -68,7 +68,19 @@ private val DarkColorScheme = darkColorScheme(
     surfaceVariant = Color(0xFF243136),
     onSurface = Color(0xFFF1F4F5),
     onSurfaceVariant = Color(0xFFB6C0C4),
-    error = AppColors.Error
+    error = AppColors.Error,
+    // Ниже — роли, которые иначе берутся из фиолетовой baseline-палитры M3
+    // (лавандовые диалоги, меню, тональные кнопки, обводки).
+    secondaryContainer = Color(0xFF243136),
+    onSecondaryContainer = Color(0xFFF1F4F5),
+    surfaceTint = AppColors.PrimaryLight,
+    outline = Color(0xFF6E7B81),
+    outlineVariant = Color(0xFF34434A),
+    surfaceContainerLowest = Color(0xFF0B1012),
+    surfaceContainerLow = Color(0xFF131A1D),
+    surfaceContainer = Color(0xFF182124),
+    surfaceContainerHigh = Color(0xFF1E282C),
+    surfaceContainerHighest = Color(0xFF253136),
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -83,7 +95,19 @@ private val LightColorScheme = lightColorScheme(
     surfaceVariant = AppColors.SurfaceVariant,
     onSurface = AppColors.OnSurface,
     onSurfaceVariant = AppColors.OnSurfaceVariant,
-    error = AppColors.Error
+    error = AppColors.Error,
+    // Ниже — роли, которые иначе берутся из фиолетовой baseline-палитры M3
+    // (лавандовые диалоги, меню, тональные кнопки, обводки).
+    secondaryContainer = Color(0xFFEDF0F1),
+    onSecondaryContainer = AppColors.OnSurface,
+    surfaceTint = AppColors.Primary,
+    outline = Color(0xFF8A959B),
+    outlineVariant = Color(0xFFDDE2E4),
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Color(0xFFFAFBF9),
+    surfaceContainer = Color(0xFFF3F5F2),
+    surfaceContainerHigh = Color(0xFFFFFFFF),
+    surfaceContainerHighest = Color(0xFFE9ECEC),
 )
 
 @Composable

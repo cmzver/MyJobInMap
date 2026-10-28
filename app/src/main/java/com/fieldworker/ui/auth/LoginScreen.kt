@@ -63,6 +63,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fieldworker.BuildConfig
 import com.fieldworker.R
 import com.fieldworker.data.preferences.AppPreferences
 import kotlinx.coroutines.Dispatchers
@@ -289,13 +290,17 @@ fun LoginScreen(
                     }
                 }
 
-                Text(
-                    text = stringResource(id = R.string.login_demo_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Start,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // Дефолтные логины светим только в debug: в боевой сборке это
+                // подсказка злоумышленнику, а не пользователю.
+                if (BuildConfig.DEBUG) {
+                    Text(
+                        text = stringResource(id = R.string.login_demo_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Start,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         }
 

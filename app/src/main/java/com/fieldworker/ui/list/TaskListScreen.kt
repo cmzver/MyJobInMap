@@ -835,6 +835,12 @@ fun TaskDetailContent(
     val additionalInfo = remember(task) {
         extractAdditionalInfo(task)
     }
+    // Описание уже стоит заголовком (как в ленте) — не повторяем его отдельным блоком
+    val showDescription = remember(task, additionalInfo) {
+        val text = (additionalInfo ?: task.description).trim()
+        val headline = com.fieldworker.ui.components.taskHeadline(task, task.getDisplayNumber())
+        text.isNotBlank() && text.trimEnd('.') != headline.trim().trimEnd('.')
+    }
     
     // Форматированная дата создания
     val formattedDate = remember(task.createdAt) {
@@ -942,7 +948,7 @@ fun TaskDetailContent(
                 )
             }
 
-            if (additionalInfo != null || task.description.isNotBlank()) {
+            if (showDescription) {
                 item {
                     TaskDescriptionSection(
                         description = additionalInfo ?: task.description
@@ -1101,7 +1107,8 @@ private fun TaskDetailHeader(
     onStatusChange: () -> Unit
 ) {
     val displayNumber = remember(task) { task.getDisplayNumber() }
-    val title = remember(task) { com.fieldworker.ui.components.formatTaskTitle(task, displayNumber) }
+    // Тот же заголовок, что в ленте, — иначе одна заявка выглядит как две разные
+    val title = remember(task) { com.fieldworker.ui.components.taskHeadline(task, displayNumber) }
     Column(
         modifier = Modifier
             .fillMaxWidth()

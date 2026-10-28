@@ -131,7 +131,7 @@ fun MainScreen(
     val unreadChatCount = remember(chatListState.conversations) {
         chatListState.conversations.sumOf { it.unreadCount }
     }
-    val topTitle = mainTitleFor(currentScreen)
+    val topTitle = mainTitleFor(currentScreen, canManageTasks = uiState.canManageTasks)
     val isChatConversationOpen = remember(currentScreen, chatState.conversationId) {
         currentScreen == Screen.Chat && chatState.conversationId != null
     }
@@ -672,10 +672,11 @@ fun MainScreen(
     } // ModalNavigationDrawer
 }
 
-private fun mainTitleFor(screen: Screen): String {
+private fun mainTitleFor(screen: Screen, canManageTasks: Boolean): String {
     return when (screen) {
         Screen.Map -> "Карта выездов"
-        Screen.TaskList -> "Мои заявки"
+        // Диспетчер/админ видит все заявки организации, а не только свои
+        Screen.TaskList -> if (canManageTasks) "Заявки" else "Мои заявки"
         Screen.Chat -> "Чаты"
         Screen.Settings -> "Настройки и профиль"
         Screen.Developer -> "Режим разработчика"
