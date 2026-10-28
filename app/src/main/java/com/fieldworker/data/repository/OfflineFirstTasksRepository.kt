@@ -2,6 +2,7 @@ package com.fieldworker.data.repository
 
 import android.content.Context
 import android.net.Uri
+import android.os.SystemClock
 import android.util.Log
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
@@ -70,6 +71,12 @@ class OfflineFirstTasksRepository @Inject constructor(
     companion object {
         private const val TAG = "OfflineTasksRepo"
         private const val PAGE_SIZE = 100
+        /** Полная выгрузка — страховка от рассинхрона; между ними — только изменения. */
+        private const val FULL_SYNC_INTERVAL_MS = 60 * 60_000L
+        /** Перекрытие курсора: транзакция могла закоммититься позже с более ранним updated_at. */
+        private const val CURSOR_OVERLAP_MINUTES = 2L
+        /** Лимит параметров SQLite — 999 до API 30. */
+        private const val DELETE_CHUNK_SIZE = 500
         private const val PAGING_PAGE_SIZE = 30
         private const val MAX_PENDING_RETRIES = 5
     }
@@ -103,6 +110,9 @@ class OfflineFirstTasksRepository @Inject constructor(
      * Flow количества отложенных действий (для UI индикатора)
      */
     val pendingActionsCount: Flow<Int> = pendingActionDao.getPendingActionsCountFlow()
+
+    /** Монотонное время последней полной выгрузки; null — в этом процессе её не было. */
+    private var lastFullSyncAtMs: Long? = null
     
     /**
      * Загрузить задачи (сначала из кеша, потом обновить с сервера)
@@ -117,7 +127,13 @@ class OfflineFirstTasksRepository @Inject constructor(
 
         try {
             if (networkMonitor.isCurrentlyOnline()) {
-                val fetchResult = fetchAllTasksFromServer()
+                val now = SystemClock.elapsedRealtime()
+                val cursor = taskDao.getMaxUpdatedAt()
+                val lastFull = lastFullSyncAtMs
+                val isFullSync = cursor == null || lastFull == null || now - lastFull >= FULL_SYNC_INTERVAL_MS
+                val fetchResult = fetchAllTasksFromServer(
+                    updatedSince = if (isFullSync) null else cursor?.let(::cursorWithOverlap)
+                )
                 fetchResult.fold(
                     onSuccess = { tasks ->
                         val locallyModifiedIds = taskDao.getLocallyModifiedTasks()
@@ -127,10 +143,16 @@ class OfflineFirstTasksRepository @Inject constructor(
                             .map { TaskEntity.fromDomain(it) }
                         taskDao.upsertTasks(entities)
 
-                        val serverIds = tasks.map { it.id }
-                        taskDao.deleteTasksNotIn(serverIds)
+                        if (isFullSync) {
+                            pruneTasksNotIn(tasks.mapTo(HashSet()) { it.id })
+                            lastFullSyncAtMs = now
+                        } else {
+                            // Изменённые заявки не расскажут об удалённых и переназначенных —
+                            // сверяемся со списком видимых ID. Не получилось — не удаляем.
+                            fetchVisibleTaskIds()?.let { pruneTasksNotIn(it) }
+                        }
 
-                        Log.d(TAG, "Synced ${tasks.size} tasks from server")
+                        Log.d(TAG, "Synced ${tasks.size} tasks from server (full=$isFullSync)")
                         Result.success(getTasksFromCache())
                     },
                     onFailure = { error ->
@@ -167,7 +189,33 @@ class OfflineFirstTasksRepository @Inject constructor(
         return taskDao.getAllTasks().map { it.toDomain() }
     }
 
-    private suspend fun fetchAllTasksFromServer(): Result<List<Task>> {
+    /** Удалить из кеша синхронизированные задачи, которых больше нет на сервере. */
+    private suspend fun pruneTasksNotIn(visibleIds: Set<Long>) {
+        val stale = taskDao.getSyncedTaskIds().filterNot { it in visibleIds }
+        stale.chunked(DELETE_CHUNK_SIZE).forEach { taskDao.deleteSyncedTasksByIds(it) }
+        if (stale.isNotEmpty()) Log.d(TAG, "Pruned ${stale.size} tasks not visible on server")
+    }
+
+    private suspend fun fetchVisibleTaskIds(): Set<Long>? = try {
+        val response = tasksApi.getTaskIds()
+        response.body()?.takeIf { response.isSuccessful }?.ids?.toHashSet()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w(TAG, "Task ids fetch failed: ${e.message}")
+        null
+    }
+
+    /** Курсор минус перекрытие; формат как у сервера (ISO без зоны, naive UTC). */
+    private fun cursorWithOverlap(cursor: String): String = try {
+        java.time.LocalDateTime.parse(cursor.removeSuffix("Z").substringBefore('+'))
+            .minusMinutes(CURSOR_OVERLAP_MINUTES)
+            .toString()
+    } catch (_: Exception) {
+        cursor
+    }
+
+    private suspend fun fetchAllTasksFromServer(updatedSince: String? = null): Result<List<Task>> {
         val allTasks = mutableListOf<Task>()
         var page = 1
         var totalPages = 1
@@ -175,7 +223,8 @@ class OfflineFirstTasksRepository @Inject constructor(
         while (page <= totalPages) {
             val response = tasksApi.getTasks(
                 page = page,
-                size = PAGE_SIZE
+                size = PAGE_SIZE,
+                updatedSince = updatedSince
             )
 
             if (!response.isSuccessful) {

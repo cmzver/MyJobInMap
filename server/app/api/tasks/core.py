@@ -7,6 +7,7 @@ CRUD заявок, список с фильтрами/сортировкой, с
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -28,6 +29,7 @@ from app.schemas import (
     PlannedDateUpdate,
     TaskAssignRequest,
     TaskCreate,
+    TaskIdsResponse,
     TaskListResponse,
     TaskResponse,
     TaskStatusUpdate,
@@ -159,6 +161,13 @@ async def get_tasks(
     search: Optional[str] = None,
     address_id: Optional[int] = None,
     sort: Optional[str] = None,
+    updated_since: Optional[datetime] = Query(
+        None,
+        description=(
+            "Только заявки, изменённые не раньше этого момента (UTC) — для "
+            "инкрементальной синхронизации. Порядок: updated_at, id по возрастанию."
+        ),
+    ),
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("view_tasks")),
 ):
@@ -231,12 +240,19 @@ async def get_tasks(
         query = query.filter(TaskModel.assigned_user_id.in_(assignee_id))
     # else: admin/dispatcher without filter - show all
 
+    if updated_since is not None:
+        query = query.filter(TaskModel.updated_at >= _to_naive_utc(updated_since))
+
     # Считаем общее количество
     total = query.count()
 
     sort_value = (sort or "").strip().lower()
 
-    if sort_value == "created_at_asc":
+    if updated_since is not None:
+        # Стабильный порядок для курсора клиента: страницы не «плывут», если
+        # во время выгрузки кто-то поменял приоритет/статус.
+        order_by = [TaskModel.updated_at.asc(), TaskModel.id.asc()]
+    elif sort_value == "created_at_asc":
         # Явная сортировка по дате — без поднятия непрочитанных, чтобы
         # порядок соответствовал выбранному пользователем «по дате».
         order_by = [TaskModel.created_at.asc()]
@@ -285,6 +301,29 @@ async def get_tasks(
         size=size,
         pages=(total + size - 1) // size,
     )
+
+
+def _to_naive_utc(value: datetime) -> datetime:
+    """updated_at хранится как naive UTC; клиент может прислать время со смещением."""
+    if value.tzinfo is not None:
+        value = value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
+
+
+@router.get("/ids", response_model=TaskIdsResponse)
+def get_task_ids(
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(require_permission("view_tasks")),
+):
+    """ID всех видимых пользователю заявок (тот же скоуп, что у списка).
+
+    Дешёвая пара к ``updated_since``: по изменённым заявкам клиент не узнает об
+    удалённых и переназначенных — их он вычищает, сверяясь с этим списком.
+    """
+    query = TenantFilter(user).apply(db.query(TaskModel.id), TaskModel)
+    if is_worker_user(user):
+        query = query.filter(TaskModel.assigned_user_id == user.id)
+    return TaskIdsResponse(ids=[row[0] for row in query.all()])
 
 
 @router.get("/summary", response_model=TaskSummaryResponse)

@@ -451,6 +451,12 @@ class TaskPriorityCounts(BaseModel):
     EMERGENCY: int = 0
 
 
+class TaskIdsResponse(BaseModel):
+    """ID всех заявок, видимых пользователю (для удаления пропавших в офлайн-кеше)."""
+
+    ids: List[int]
+
+
 class TaskSummaryResponse(BaseModel):
     """Агрегированная сводка по заявкам для дашбордов"""
 

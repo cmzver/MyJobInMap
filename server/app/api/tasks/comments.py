@@ -4,6 +4,7 @@ Tasks API — comments
 Добавление и просмотр комментариев к заявке.
 """
 
+from datetime import datetime, timezone
 from typing import List
 
 from fastapi import APIRouter, Depends
@@ -36,6 +37,9 @@ async def add_comment(
         task_id=task_id, text=comment.text, author=author, author_id=user.id
     )
     db.add(db_comment)
+    # comments_count входит в список заявок — инкрементальная синхронизация
+    # (updated_since) должна увидеть заявку изменённой.
+    task.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(db_comment)
 

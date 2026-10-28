@@ -7,6 +7,7 @@ import com.fieldworker.data.remote.generated.PaginatedResponseTaskListResponse
 import com.fieldworker.data.remote.generated.PhotoResponse
 import com.fieldworker.data.remote.generated.PlannedDateUpdate
 import com.fieldworker.data.remote.generated.TaskAssignRequest
+import com.fieldworker.data.remote.generated.TaskIdsResponse
 import com.fieldworker.data.remote.generated.TaskListResponse
 import com.fieldworker.data.remote.generated.TaskResponse
 import com.fieldworker.data.remote.generated.TaskStatusUpdate
@@ -36,8 +37,16 @@ interface TasksApi {
     suspend fun getTasks(
         @Query("page") page: Int = 1,
         @Query("size") size: Int = 100, // Грузим по 100 для обратной совместимости пока не внедрим Paging 3
-        @Query("status") status: String? = null
+        @Query("status") status: String? = null,
+        @Query("updated_since") updatedSince: String? = null
     ): Response<PaginatedResponseTaskListResponse>
+
+    /**
+     * ID всех видимых задач — чтобы вычистить из кеша удалённые/переназначенные
+     * при инкрементальной синхронизации.
+     */
+    @GET("api/tasks/ids")
+    suspend fun getTaskIds(): Response<TaskIdsResponse>
     
     /**
      * Получить детальную информацию о задаче с комментариями

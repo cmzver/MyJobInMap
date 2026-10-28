@@ -12,6 +12,7 @@ import com.fieldworker.data.local.entity.ActionType
 import com.fieldworker.data.local.entity.PendingAction
 import com.fieldworker.data.network.NetworkMonitor
 import com.fieldworker.data.remote.generated.PaginatedResponseTaskListResponse
+import com.fieldworker.data.remote.generated.TaskIdsResponse
 import com.fieldworker.data.remote.generated.TaskListResponse
 import com.fieldworker.data.remote.generated.TaskResponse
 import com.fieldworker.data.remote.generated.TaskPriority as GenTaskPriority
@@ -116,6 +117,8 @@ class OfflineFirstTasksRepositoryTest {
         every { pendingActionDao.getPendingActionsCountFlow() } returns flowOf(0)
         coEvery { taskDao.getLocallyModifiedTasks() } returns emptyList()
         coEvery { taskDao.getAllTasks() } returns listOf(testTaskEntity)
+        coEvery { taskDao.getMaxUpdatedAt() } returns null
+        coEvery { taskDao.getSyncedTaskIds() } returns emptyList()
         coEvery { transactionRunner.run(any()) } coAnswers {
             firstArg<suspend () -> Unit>().invoke()
         }
@@ -140,11 +143,11 @@ class OfflineFirstTasksRepositoryTest {
     fun `refreshTasks returns data from server when online`() = runTest {
         // Given
         every { networkMonitor.isCurrentlyOnline() } returns true
-        coEvery { tasksApi.getTasks(any(), any(), any()) } returns Response.success(
+        coEvery { tasksApi.getTasks(any(), any(), any(), any()) } returns Response.success(
             PaginatedResponseTaskListResponse(items = listOf(testTaskDto), total = 1, page = 1, propertySize = 100, pages = 1)
         )
         coEvery { taskDao.upsertTasks(any()) } just Runs
-        coEvery { taskDao.deleteTasksNotIn(any()) } just Runs
+        coEvery { taskDao.getSyncedTaskIds() } returns emptyList()
         coEvery { pendingActionDao.getSyncablePendingActions(any()) } returns emptyList()
 
         // When
@@ -155,6 +158,51 @@ class OfflineFirstTasksRepositoryTest {
         assertEquals(1, result.getOrNull()?.size)
         assertEquals("Test Task", result.getOrNull()?.first()?.title)
         coVerify { taskDao.upsertTasks(any()) }
+    }
+
+    @Test
+    fun `second refresh is incremental and prunes tasks no longer visible`() = runTest {
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        coEvery { pendingActionDao.getSyncablePendingActions(any()) } returns emptyList()
+        coEvery { taskDao.upsertTasks(any()) } just Runs
+        coEvery { tasksApi.getTasks(any(), any(), any(), any()) } returns Response.success(
+            PaginatedResponseTaskListResponse(items = listOf(testTaskDto), total = 1, page = 1, propertySize = 100, pages = 1)
+        )
+        // 1-й проход — полный (курсора нет)
+        coEvery { taskDao.getMaxUpdatedAt() } returns null
+        coEvery { taskDao.getSyncedTaskIds() } returns emptyList()
+        repository.refreshTasks()
+        coVerify { tasksApi.getTasks(any(), any(), any(), isNull()) }
+
+        // 2-й проход — инкрементальный: с курсором и сверкой видимых ID
+        coEvery { taskDao.getMaxUpdatedAt() } returns "2026-10-28T10:00:00"
+        coEvery { tasksApi.getTaskIds() } returns Response.success(TaskIdsResponse(ids = listOf(1L)))
+        coEvery { taskDao.getSyncedTaskIds() } returns listOf(1L, 2L, 3L)
+        coEvery { taskDao.deleteSyncedTasksByIds(any()) } just Runs
+        repository.refreshTasks()
+
+        coVerify { tasksApi.getTasks(any(), any(), any(), eq("2026-10-28T09:58")) }
+        coVerify { taskDao.deleteSyncedTasksByIds(listOf(2L, 3L)) }
+    }
+
+    @Test
+    fun `incremental refresh keeps cache when ids fetch fails`() = runTest {
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        coEvery { pendingActionDao.getSyncablePendingActions(any()) } returns emptyList()
+        coEvery { taskDao.upsertTasks(any()) } just Runs
+        coEvery { tasksApi.getTasks(any(), any(), any(), any()) } returns Response.success(
+            PaginatedResponseTaskListResponse(items = emptyList(), total = 0, page = 1, propertySize = 100, pages = 1)
+        )
+        coEvery { taskDao.getMaxUpdatedAt() } returns null
+        coEvery { taskDao.getSyncedTaskIds() } returns emptyList()
+        repository.refreshTasks()
+
+        coEvery { taskDao.getMaxUpdatedAt() } returns "2026-10-28T10:00:00"
+        coEvery { tasksApi.getTaskIds() } throws Exception("timeout")
+        coEvery { taskDao.getSyncedTaskIds() } returns listOf(5L)
+        repository.refreshTasks()
+
+        coVerify(exactly = 0) { taskDao.deleteSyncedTasksByIds(any()) }
     }
 
     @Test
@@ -169,14 +217,14 @@ class OfflineFirstTasksRepositoryTest {
         // Then
         assertTrue(result.isSuccess)
         assertEquals(1, result.getOrNull()?.size)
-        coVerify(exactly = 0) { tasksApi.getTasks(any(), any(), any()) }
+        coVerify(exactly = 0) { tasksApi.getTasks(any(), any(), any(), any()) }
     }
 
     @Test
     fun `refreshTasks returns cached data on network error`() = runTest {
         // Given
         every { networkMonitor.isCurrentlyOnline() } returns true
-        coEvery { tasksApi.getTasks(any(), any(), any()) } throws Exception("Network error")
+        coEvery { tasksApi.getTasks(any(), any(), any(), any()) } throws Exception("Network error")
         coEvery { taskDao.getAllTasks() } returns listOf(testTaskEntity)
         coEvery { pendingActionDao.getSyncablePendingActions(any()) } returns emptyList()
 

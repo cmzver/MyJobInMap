@@ -410,3 +410,89 @@ class TestTaskStatusUpdate:
 
         assert response.status_code == 422
         assert "Комментарий обязателен" in response.json()["detail"]
+
+
+class TestIncrementalSync:
+    """updated_since + /api/tasks/ids — инкрементальная синхронизация клиента."""
+
+    def _create(self, client, token, title):
+        response = client.post(
+            "/api/tasks",
+            json={"title": title, "address": "Main St, 1"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200
+        return response.json()
+
+    def test_updated_since_returns_only_changed_tasks(
+        self, client, admin_token, db_session
+    ):
+        from app.models import TaskModel
+
+        old = self._create(client, admin_token, "Old")
+        fresh = self._create(client, admin_token, "Fresh")
+        past = datetime(2020, 1, 1)
+        db_session.query(TaskModel).filter(TaskModel.id == old["id"]).update(
+            {"updated_at": past}, synchronize_session=False
+        )
+        db_session.commit()
+
+        since = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+        response = client.get(
+            "/api/tasks",
+            params={"updated_since": since, "size": 100},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert response.status_code == 200
+        ids = [item["id"] for item in response.json()["items"]]
+        assert fresh["id"] in ids
+        assert old["id"] not in ids
+
+    def test_comment_bumps_updated_at(self, client, admin_token, db_session):
+        from app.models import TaskModel
+
+        task = self._create(client, admin_token, "With comment")
+        db_session.query(TaskModel).filter(TaskModel.id == task["id"]).update(
+            {"updated_at": datetime(2020, 1, 1)}, synchronize_session=False
+        )
+        db_session.commit()
+
+        client.post(
+            f"/api/tasks/{task['id']}/comments",
+            json={"text": "Привет"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        response = client.get(
+            "/api/tasks",
+            params={"updated_since": "2021-01-01T00:00:00Z"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        items = {item["id"]: item for item in response.json()["items"]}
+        assert task["id"] in items
+        assert items[task["id"]]["comments_count"] == 1
+
+    def test_task_ids_respects_worker_scope(
+        self, client, admin_token, worker_user, client_with_worker, db_session
+    ):
+        from app.models import RolePermissionModel
+
+        # В тестовой БД матрица прав не засеяна — по умолчанию не-админам запрещено
+        db_session.add(
+            RolePermissionModel(role="worker", permission="view_tasks", is_allowed=True)
+        )
+        db_session.commit()
+        mine = self._create(client, admin_token, "Mine")
+        other = self._create(client, admin_token, "Other")
+        client.patch(
+            f"/api/tasks/{mine['id']}/assign",
+            json={"assigned_user_id": worker_user.id},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+
+        admin_ids = client.get(
+            "/api/tasks/ids", headers={"Authorization": f"Bearer {admin_token}"}
+        ).json()["ids"]
+        assert {mine["id"], other["id"]} <= set(admin_ids)
+
+        worker_ids = client_with_worker.get("/api/tasks/ids").json()["ids"]
+        assert worker_ids == [mine["id"]]
