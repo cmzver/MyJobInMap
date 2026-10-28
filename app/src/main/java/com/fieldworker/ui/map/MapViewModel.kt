@@ -35,6 +35,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -193,6 +195,7 @@ class MapViewModel @Inject constructor(
     private var serverCheckFailures = 0
     private val serverCheckCircuitOpenThreshold = 5
     private val serverCheckCircuitOpenIntervalMs = 5 * 60_000L
+    private val appInForeground = MutableStateFlow(true)
     
     init {
         // Загружаем сохранённые фильтры
@@ -288,34 +291,44 @@ class MapViewModel @Inject constructor(
         viewModelScope.launch {
             // Начальная задержка 2с — дать UI загрузиться
             withContext(Dispatchers.IO) { delay(2_000L) }
-            while (isActive) {
-                val interval: Long
-                try {
-                    if (networkMonitor.isCurrentlyOnline()) {
-                        val reachable = checkServerReachable()
-                        val wasOffline = _uiState.value.isOffline
-                        _uiState.update { it.copy(isOffline = !reachable) }
-                        if (reachable) {
-                            serverCheckFailures = 0
-                            if (wasOffline) syncManager.triggerImmediateSync()
-                        } else {
-                            serverCheckFailures++
+            // Опрашиваем только пока приложение на экране: в фоне VM жива, и
+            // пинг раз в минуту зря будил бы радио. На возврате — сразу свежая проверка.
+            appInForeground.collectLatest { inForeground ->
+                if (!inForeground) return@collectLatest
+                while (currentCoroutineContext().isActive) {
+                    val interval: Long
+                    try {
+                        if (networkMonitor.isCurrentlyOnline()) {
+                            val reachable = checkServerReachable()
+                            val wasOffline = _uiState.value.isOffline
+                            _uiState.update { it.copy(isOffline = !reachable) }
+                            if (reachable) {
+                                serverCheckFailures = 0
+                                if (wasOffline) syncManager.triggerImmediateSync()
+                            } else {
+                                serverCheckFailures++
+                            }
                         }
+                        interval = when {
+                            serverCheckFailures >= serverCheckCircuitOpenThreshold -> serverCheckCircuitOpenIntervalMs
+                            _uiState.value.isOffline -> 15_000L
+                            else -> 60_000L
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Throwable) {
+                        // В тестах моки могут быть освобождены раньше жизненного цикла VM.
+                        break
                     }
-                    interval = when {
-                        serverCheckFailures >= serverCheckCircuitOpenThreshold -> serverCheckCircuitOpenIntervalMs
-                        _uiState.value.isOffline -> 15_000L
-                        else -> 60_000L
-                    }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Throwable) {
-                    // В тестах моки могут быть освобождены раньше жизненного цикла VM.
-                    break
+                    withContext(Dispatchers.IO) { delay(interval) }
                 }
-                withContext(Dispatchers.IO) { delay(interval) }
             }
         }
+    }
+
+    /** Вызывается из UI на ON_START/ON_STOP. */
+    fun setAppInForeground(inForeground: Boolean) {
+        appInForeground.value = inForeground
     }
 
     /**

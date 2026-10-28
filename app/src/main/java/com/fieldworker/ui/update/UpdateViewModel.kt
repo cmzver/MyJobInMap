@@ -1,5 +1,6 @@
 package com.fieldworker.ui.update
 
+import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -27,6 +28,9 @@ class UpdateViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "UpdateViewModel"
+
+        /** Автопроверка дёргается на каждый ON_RESUME (фото-пикер, звонок…) — не чаще. */
+        private const val AUTO_CHECK_INTERVAL_MS = 30 * 60_000L
     }
 
     private val _updateState = MutableStateFlow<UpdateState?>(null)
@@ -36,6 +40,8 @@ class UpdateViewModel @Inject constructor(
     val downloadedApk: StateFlow<File?> = _downloadedApk.asStateFlow()
 
     private var downloadJob: Job? = null
+    private var checkJob: Job? = null
+    private var lastAutoCheckAtMs = 0L
 
     /**
      * Проверить наличие обновления.
@@ -45,12 +51,19 @@ class UpdateViewModel @Inject constructor(
             return
         }
 
+        if (!isManualCheck) {
+            val now = SystemClock.elapsedRealtime()
+            val checkedRecently = lastAutoCheckAtMs != 0L && now - lastAutoCheckAtMs < AUTO_CHECK_INTERVAL_MS
+            if (checkJob?.isActive == true || checkedRecently) return
+            lastAutoCheckAtMs = now
+        }
+
         val dismissedVersionCode = appPreferences.getDismissedUpdateVersionCode()
         if (dismissedVersionCode != -1 && versionCode >= dismissedVersionCode) {
             appPreferences.clearDismissedUpdateVersionCode()
         }
 
-        viewModelScope.launch {
+        checkJob = viewModelScope.launch {
             if (isManualCheck) {
                 _updateState.value = UpdateState.Checking
             }
