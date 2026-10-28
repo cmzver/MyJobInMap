@@ -5,9 +5,10 @@ import { useTheme } from '@/hooks/useTheme'
 import { useConversations } from '@/hooks/useChat'
 import { useUnreadNotifications } from '@/hooks/useNotifications'
 import { useWebSocket } from '@/hooks/useWebSocket'
-import { getMenuForRole, type MenuSection, type MenuItem } from '@/config/menuConfig'
+import { getMenuForRole, getMobileMenuForRole, type MenuSection, type MenuItem } from '@/config/menuConfig'
 import { getRoleLabel, normalizeRoleForAccess } from '@/types/user'
 import UserAvatar from '@/components/UserAvatar'
+import WorkerMobileNavigation from '@/components/navigation/WorkerMobileNavigation'
 import portalPackage from '../../package.json'
 import { 
   LayoutDashboard, 
@@ -140,6 +141,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   // Получаем меню для роли пользователя
   const menuSections = user?.role ? getMenuForRole(user.role, user.organizationId, user.baseAccess) : []
+  const mobileMenuItems = user?.role ? getMobileMenuForRole(user.role, user.organizationId, user.baseAccess) : []
+  const isWorker = normalizeRoleForAccess(user?.role, user?.baseAccess) === 'worker'
 
   const themeOptions = [
     { value: 'light' as const, label: 'Светлая', icon: Sun },
@@ -255,7 +258,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
               </button>
               <Link
-                to={normalizeRoleForAccess(user?.role, user?.baseAccess) === 'worker' ? '/my-tasks' : '/dashboard'}
+                to={isWorker ? '/my-tasks' : '/dashboard'}
                 className="ml-2 flex min-w-0 items-center lg:ml-0"
               >
                 <div className="w-9 h-9 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/30">
@@ -479,12 +482,21 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         )}
 
         {/* Main content */}
-        <main className="flex-1 lg:pl-64 min-w-0">
+        <main className={`min-w-0 flex-1 lg:pl-64 ${isWorker ? 'pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0' : ''}`}>
           <div className="max-w-full px-4 py-6 sm:px-6 lg:px-8">
             {children}
           </div>
         </main>
       </div>
+
+      {isWorker && (
+        <WorkerMobileNavigation
+          items={mobileMenuItems}
+          unreadChatCount={unreadChatCount}
+          unreadTaskCount={unreadTaskCount}
+          mentionChatCount={mentionChatCount}
+        />
+      )}
     </div>
   )
 }

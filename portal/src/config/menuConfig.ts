@@ -24,6 +24,7 @@ export interface MenuItem {
   id: string
   path: string
   label: string
+  mobileLabel?: string
   icon: LucideIcon
   roles: AccessRole[]
   badge?: string
@@ -52,6 +53,7 @@ export const menuConfig: MenuSection[] = [
         id: 'my-tasks',
         path: '/my-tasks',
         label: 'Мои заявки',
+        mobileLabel: 'Заявки',
         icon: ClipboardList,
         roles: ['worker'],
       },
@@ -208,4 +210,25 @@ export function getHomePathForRole(role: UserRole, baseAccess?: string | null): 
     default:
       return '/my-tasks'
   }
+}
+
+const WORKER_MOBILE_MENU_IDS = ['my-tasks', 'map', 'calendar', 'chat', 'profile'] as const
+
+export function getMobileMenuForRole(
+  role: UserRole,
+  organizationId?: number | null,
+  baseAccess?: string | null,
+): MenuItem[] {
+  if (normalizeRoleForAccess(role, baseAccess) !== 'worker') return []
+
+  const itemsById = new globalThis.Map(
+    getMenuForRole(role, organizationId, baseAccess)
+      .flatMap((section) => section.items)
+      .map((item) => [item.id, item]),
+  )
+
+  return WORKER_MOBILE_MENU_IDS.flatMap((id) => {
+    const item = itemsById.get(id)
+    return item ? [item] : []
+  })
 }
