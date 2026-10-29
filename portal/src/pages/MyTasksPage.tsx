@@ -2,19 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
-import {
-  CheckCircle2,
-  Clock,
-  Filter,
-  MapPin,
-  Navigation,
-  Phone,
-  Search,
-  X,
-} from 'lucide-react'
+import { CheckCircle2, Clock, Filter, MapPin, Navigation, Phone, Search, X } from 'lucide-react'
 import Select from '@/components/Select'
 import Spinner from '@/components/Spinner'
 import PageHeader from '@/components/PageHeader'
+import StatusBadge from '@/components/StatusBadge'
 import { useAuthStore } from '@/store/authStore'
 import apiClient from '@/api/client'
 import { myTaskKeys } from '@/hooks/useTasks'
@@ -45,13 +37,6 @@ const priorityLabel: Record<Task['priority'], string> = {
   URGENT: 'Срочная',
   CURRENT: 'Текущая',
   PLANNED: 'Плановая',
-}
-
-const statusTone: Record<Task['status'], string> = {
-  NEW: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  IN_PROGRESS: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-  DONE: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-  CANCELLED: 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
 }
 
 const statusShort: Record<Task['status'], string> = {
@@ -109,9 +94,7 @@ export default function MyTasksPage() {
         params.append('size', String(pageSize))
         if (search) params.append('search', search)
 
-        const response = await apiClient.get<{ items: Task[]; pages: number }>(
-          `/tasks?${params}`,
-        )
+        const response = await apiClient.get<{ items: Task[]; pages: number }>(`/tasks?${params}`)
         all.push(...response.data.items)
 
         if (page >= (response.data.pages ?? 0) || response.data.items.length < pageSize) {
@@ -144,9 +127,17 @@ export default function MyTasksPage() {
 
   const openNavigation = (lat?: number, lon?: number, address?: string) => {
     if (lat != null && lon != null) {
-      window.open(`https://yandex.ru/maps/?rtext=~${lat},${lon}&rtt=auto`, '_blank', 'noopener,noreferrer')
+      window.open(
+        `https://yandex.ru/maps/?rtext=~${lat},${lon}&rtt=auto`,
+        '_blank',
+        'noopener,noreferrer'
+      )
     } else if (address) {
-      window.open(`https://yandex.ru/maps/?text=${encodeURIComponent(address)}`, '_blank', 'noopener,noreferrer')
+      window.open(
+        `https://yandex.ru/maps/?text=${encodeURIComponent(address)}`,
+        '_blank',
+        'noopener,noreferrer'
+      )
     }
   }
 
@@ -157,7 +148,7 @@ export default function MyTasksPage() {
       DONE: tasks.filter((task) => task.status === 'DONE').length,
       all: tasks.length,
     }),
-    [tasks],
+    [tasks]
   )
 
   const filteredTasks = useMemo(() => {
@@ -180,18 +171,24 @@ export default function MyTasksPage() {
     switch (sortBy) {
       case 'planned_date_asc':
         return tasksToSort.sort((left, right) => {
-          const leftTime = left.planned_date ? new Date(left.planned_date).getTime() : Number.POSITIVE_INFINITY
-          const rightTime = right.planned_date ? new Date(right.planned_date).getTime() : Number.POSITIVE_INFINITY
+          const leftTime = left.planned_date
+            ? new Date(left.planned_date).getTime()
+            : Number.POSITIVE_INFINITY
+          const rightTime = right.planned_date
+            ? new Date(right.planned_date).getTime()
+            : Number.POSITIVE_INFINITY
           if (leftTime !== rightTime) return leftTime - rightTime
           return priorityOrder[right.priority] - priorityOrder[left.priority]
         })
       case 'created_at_asc':
         return tasksToSort.sort(
-          (left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime(),
+          (left, right) =>
+            new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
         )
       case 'created_at_desc':
         return tasksToSort.sort(
-          (left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+          (left, right) =>
+            new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
         )
       case 'priority_desc':
       default:
@@ -199,8 +196,12 @@ export default function MyTasksPage() {
           const byPriority = priorityOrder[right.priority] - priorityOrder[left.priority]
           if (byPriority !== 0) return byPriority
 
-          const leftTime = left.planned_date ? new Date(left.planned_date).getTime() : Number.POSITIVE_INFINITY
-          const rightTime = right.planned_date ? new Date(right.planned_date).getTime() : Number.POSITIVE_INFINITY
+          const leftTime = left.planned_date
+            ? new Date(left.planned_date).getTime()
+            : Number.POSITIVE_INFINITY
+          const rightTime = right.planned_date
+            ? new Date(right.planned_date).getTime()
+            : Number.POSITIVE_INFINITY
           if (leftTime !== rightTime) return leftTime - rightTime
 
           return new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
@@ -257,12 +258,14 @@ export default function MyTasksPage() {
                   'inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors',
                   statusFilter === 'default'
                     ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
-                    : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700',
+                    : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700'
                 )}
               >
                 <Filter size={16} />
                 <span>Активные</span>
-                <span className="text-xs opacity-80">{filterCounts.NEW + filterCounts.IN_PROGRESS}</span>
+                <span className="text-xs opacity-80">
+                  {filterCounts.NEW + filterCounts.IN_PROGRESS}
+                </span>
               </button>
 
               {statusFilters.map((filter) => {
@@ -278,7 +281,7 @@ export default function MyTasksPage() {
                       'inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors',
                       isActive
                         ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
-                        : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700',
+                        : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700'
                     )}
                   >
                     <Icon size={16} />
@@ -332,7 +335,7 @@ export default function MyTasksPage() {
                 title={cardTitle}
                 className={cn(
                   'group relative rounded-lg border border-l-4 border-gray-200 bg-white px-3 py-2.5 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60',
-                  priorityStripe[task.priority],
+                  priorityStripe[task.priority]
                 )}
               >
                 <Link
@@ -347,14 +350,7 @@ export default function MyTasksPage() {
                       <span className="font-semibold tabular-nums text-gray-700 dark:text-gray-200">
                         №{taskNumber}
                       </span>
-                      <span
-                        className={cn(
-                          'rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide',
-                          statusTone[task.status],
-                        )}
-                      >
-                        {statusShort[task.status]}
-                      </span>
+                      <StatusBadge status={task.status} />
                       {task.planned_date && (
                         <span
                           title={`Срок: ${formatDate(task.planned_date)}`}
@@ -389,7 +385,11 @@ export default function MyTasksPage() {
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation()
-                        openNavigation(task.lat ?? undefined, task.lon ?? undefined, task.raw_address)
+                        openNavigation(
+                          task.lat ?? undefined,
+                          task.lon ?? undefined,
+                          task.raw_address
+                        )
                       }}
                       disabled={!hasNavigation}
                       aria-label="Маршрут"
@@ -398,7 +398,7 @@ export default function MyTasksPage() {
                         'inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-colors',
                         hasNavigation
                           ? 'border-gray-200 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700'
-                          : 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500',
+                          : 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500'
                       )}
                     >
                       <Navigation size={15} />

@@ -30,6 +30,7 @@ describe('buildTaskDispatchOverview', () => {
 
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({
+      assigneeId: 7,
       assigneeName: 'Анна',
       active: 1,
       urgent: 0,
@@ -58,8 +59,8 @@ describe('buildTaskDispatchOverview', () => {
     ])
 
     expect(rows.map((row) => row.key)).toEqual(['unassigned', '4'])
-    expect(rows[0]).toMatchObject({ active: 1, urgent: 1 })
-    expect(rows[1]).toMatchObject({ active: 1, urgent: 1, total: 2 })
+    expect(rows[0]).toMatchObject({ assigneeId: null, active: 1, urgent: 1 })
+    expect(rows[1]).toMatchObject({ assigneeId: 4, active: 1, urgent: 1, total: 2 })
   })
 
   it('orders assigned users by active workload', () => {

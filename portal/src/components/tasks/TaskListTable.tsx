@@ -185,9 +185,9 @@ export default function TaskListTable({
         role="separator"
         aria-orientation="vertical"
         onMouseDown={(event) => onResizeStart(key, event)}
-        className="group absolute right-0 top-0 z-10 flex h-full w-3 cursor-col-resize touch-none items-center justify-center"
+        className="group absolute bottom-1.5 right-0 top-1.5 z-10 flex w-2 cursor-col-resize touch-none items-center justify-center"
       >
-        <span className="h-[calc(100%-0.875rem)] w-px rounded-full bg-gray-200 transition-colors group-hover:bg-primary-400 dark:bg-gray-600 dark:group-hover:bg-primary-400" />
+        <span className="h-full w-px bg-transparent transition-colors group-hover:bg-primary-400" />
       </div>
     )
   }
@@ -253,7 +253,7 @@ export default function TaskListTable({
           )}
         </div>
       </div>
-      <div ref={onMeasureContainer} className="overflow-x-auto">
+      <div ref={onMeasureContainer} className="tasks-table-scroll overflow-x-auto">
         <table
           ref={tableRef}
           className={`divide-y divide-gray-200 dark:divide-gray-700 ${isResizableEnabled ? 'table-fixed' : 'min-w-full'}`}
@@ -288,9 +288,11 @@ export default function TaskListTable({
               {visibleDataColumns.map(({ key }) => (
                 <th
                   key={key}
-                  className={`relative overflow-hidden ${cellPadding} text-left text-sm font-medium text-gray-500 dark:text-gray-400`}
+                  className={`relative overflow-hidden whitespace-nowrap ${cellPadding} text-left text-sm font-medium text-gray-500 dark:text-gray-400`}
                 >
-                  {columnLabels[key]}
+                  <span className="block truncate pr-2" title={columnLabels[key]}>
+                    {columnLabels[key]}
+                  </span>
                   {renderResizeHandle(key)}
                 </th>
               ))}

@@ -396,6 +396,32 @@ code {
   min-width: 0;
 }
 
+.tasks-table-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #9ca3af transparent;
+}
+
+.tasks-table-scroll::-webkit-scrollbar {
+  height: 7px;
+}
+
+.tasks-table-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tasks-table-scroll::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: #9ca3af;
+}
+
+.dark .tasks-table-scroll {
+  scrollbar-color: #4b5563 transparent;
+}
+
+.dark .tasks-table-scroll::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
 @container (max-width: 92px) {
   .tasks-badge-cell .badge-adaptive {
     justify-content: center;

@@ -28,7 +28,9 @@ import TaskFiltersPanel, { type ActiveTaskFilter } from '@/components/tasks/Task
 import TaskBulkActions from '@/components/tasks/TaskBulkActions'
 import TaskListTable from '@/components/tasks/TaskListTable'
 import TaskMobileList from '@/components/tasks/TaskMobileList'
-import TaskDispatchOverview from '@/components/tasks/TaskDispatchOverview'
+import TaskDispatchOverview, {
+  type TaskDispatchSelection,
+} from '@/components/tasks/TaskDispatchOverview'
 import type { TaskListGroup } from '@/components/tasks/taskListTypes'
 import {
   defaultVisibleTaskTableColumns as defaultVisibleColumns,
@@ -67,16 +69,16 @@ const defaultColumnWidths: Record<ColumnKey, number> = {
 }
 
 const columnMinWidths: Record<ColumnKey, number> = {
-  select: 28,
-  number: 54,
-  title: 88,
-  address: 96,
-  status: 72,
-  priority: 72,
-  assignee: 88,
-  creator: 88,
-  date: 84,
-  sla: 72,
+  select: 44,
+  number: 88,
+  title: 180,
+  address: 190,
+  status: 132,
+  priority: 132,
+  assignee: 140,
+  creator: 140,
+  date: 132,
+  sla: 110,
 }
 
 const columnMaxWidths: Record<ColumnKey, number> = {
@@ -478,6 +480,14 @@ export default function TasksPage() {
   const handleAssigneeFilterChange = (values: string[]) => {
     setAssigneeFilter(sanitizeAssigneeFilters(values))
     setPage(1)
+  }
+
+  const applyDispatchSelection = ({ assigneeId, statuses, priorities }: TaskDispatchSelection) => {
+    setAssigneeFilter([String(assigneeId)])
+    if (statuses) setStatusFilter(statuses)
+    if (priorities) setPriorityFilter(priorities)
+    setPage(1)
+    setDisplayMode('list')
   }
 
   const handleSortChange = (value: string) => {
@@ -1500,7 +1510,11 @@ export default function TasksPage() {
             </Modal>
 
             {displayMode === 'dispatch' ? (
-              <TaskDispatchOverview tasks={data.items} total={data.total} />
+              <TaskDispatchOverview
+                tasks={data.items}
+                total={data.total}
+                onSelect={applyDispatchSelection}
+              />
             ) : (
               <>
                 <TaskMobileList

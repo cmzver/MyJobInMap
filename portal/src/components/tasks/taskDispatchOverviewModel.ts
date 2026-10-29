@@ -5,6 +5,7 @@ export const dispatchStatuses: TaskStatus[] = ['NEW', 'IN_PROGRESS', 'DONE', 'CA
 
 export interface TaskDispatchRow {
   key: string
+  assigneeId: number | null
   assigneeName: string
   counts: Record<TaskStatus, number>
   active: number
@@ -26,6 +27,7 @@ export function buildTaskDispatchOverview(tasks: readonly Task[]): TaskDispatchR
     const key = task.assigned_user_id ? String(task.assigned_user_id) : 'unassigned'
     const row = rows.get(key) ?? {
       key,
+      assigneeId: task.assigned_user_id ?? null,
       assigneeName: task.assigned_user_name || 'Не назначен',
       counts: emptyStatusCounts(),
       active: 0,
