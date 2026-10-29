@@ -54,7 +54,7 @@ fun SettingsScreen(
     baseUrl: String? = null,
     authToken: String? = null,
     onLogout: () -> Unit = {},
-    onOpenMenu: (() -> Unit)? = null
+    onOpenMyAddresses: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var serverUrl by remember { mutableStateOf(preferences.getServerUrl()) }
@@ -101,14 +101,7 @@ fun SettingsScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Настройки") },
-                navigationIcon = {
-                    if (onOpenMenu != null) {
-                        IconButton(onClick = onOpenMenu) {
-                            Icon(Icons.Default.Menu, contentDescription = "Меню")
-                        }
-                    }
-                },
+                title = { Text("Ещё") },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 )
@@ -158,6 +151,16 @@ fun SettingsScreen(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+
+            // === Разделы === (второстепенные — раньше жили в боковом меню)
+            SectionLabel("Разделы")
+            SettingsGroup {
+                NavRow(
+                    icon = Icons.Default.Home,
+                    title = "Мои адреса",
+                    onClick = onOpenMyAddresses
+                )
             }
 
             // === Отображение ===

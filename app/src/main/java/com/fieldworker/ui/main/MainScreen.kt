@@ -15,22 +15,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -42,13 +39,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.paging.compose.collectAsLazyPagingItems
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.fieldworker.BuildConfig
 import com.fieldworker.ui.addresses.MyAddressesScreen
 import com.fieldworker.ui.chat.ChatScreen
 import com.fieldworker.ui.chat.ChatViewModel
-import com.fieldworker.ui.chat.ConversationListFilter
 import com.fieldworker.ui.chat.ConversationListScreen
 import com.fieldworker.ui.components.FailedActionsDialog
 import com.fieldworker.ui.components.OfflineBanner
@@ -62,10 +55,6 @@ import com.fieldworker.ui.objectcard.ObjectDetailsScreen
 import com.fieldworker.ui.settings.DeveloperScreen
 import com.fieldworker.ui.settings.SettingsScreen
 import com.fieldworker.ui.settings.UserSettingsScreen
-import com.fieldworker.ui.theme.AppColors
-import com.fieldworker.ui.theme.AppShape
-import com.fieldworker.ui.utils.avatarInitials
-import com.fieldworker.ui.utils.resolveAvatarUrl
 import kotlinx.coroutines.launch
 
 /**
@@ -95,8 +84,6 @@ fun MainScreen(
     val chatViewModel: ChatViewModel = hiltViewModel()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val drawerScope = rememberCoroutineScope()
     
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showSendTaskToChat by remember { mutableStateOf(false) }
@@ -128,6 +115,9 @@ fun MainScreen(
         Screen.Developer.route -> Screen.Developer
         Screen.ObjectCard.route -> Screen.ObjectCard
         Screen.MyAddresses.route -> Screen.MyAddresses
+        // Без этой ветки профиль считался «Картой»: над ним рисовались шапка
+        // «Карта выездов» и нижняя панель
+        Screen.UserSettings.route -> Screen.UserSettings
         else -> Screen.Map
     }
     val unreadChatCount = remember(chatListState.conversations) {
@@ -219,16 +209,12 @@ fun MainScreen(
         }
     }
     
-    // Полностью боковая навигация: разделы живут в drawer, нижней панели нет.
-    val topLevelScreens = setOf(
-        Screen.Map, Screen.TaskList, Screen.Chat, Screen.Settings, Screen.MyAddresses
-    )
-    val isTopLevel = currentScreen in topLevelScreens && !isChatConversationOpen
-    // Единый верхний бар (бургер + заголовок) — только для экранов без своей шапки.
+    // Нижняя навигация: разделы — одно касание под большим пальцем (раньше
+    // два касания через бургер в верхнем углу). Во вложенных экранах её нет.
+    val showBottomBar = currentScreen in Screen.bottomNavItems && !isChatConversationOpen
+    // Единый верхний бар (заголовок) — только для экранов без своей шапки.
     val showUnifiedTopBar = currentScreen == Screen.Map || currentScreen == Screen.TaskList
-    val openDrawer: () -> Unit = { drawerScope.launch { drawerState.open() } }
     val navigateTab: (String) -> Unit = { route ->
-        drawerScope.launch { drawerState.close() }
         navController.navigate(route) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
             launchSingleTop = true
@@ -262,39 +248,19 @@ fun MainScreen(
         onNotificationChatHandled()
     }
     
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = isTopLevel || drawerState.isOpen,
-        drawerContent = {
-            AppDrawer(
-                userName = viewModel.preferences.getUserFullName()
-                    ?: viewModel.preferences.getUsername()
-                    ?: "Профиль",
-                roleLabel = viewModel.preferences.getUserRoleLabel(),
-                avatarUrl = viewModel.preferences.getUserAvatarUrl(),
-                baseUrl = baseUrl,
-                authToken = authToken,
-                currentScreen = currentScreen,
-                newTasksCount = uiState.newTasksCount,
-                unreadChatCount = unreadChatCount,
-                onMap = { navigateTab(Screen.Map.route) },
-                onTaskList = { navigateTab(Screen.TaskList.route) },
-                onChat = { navigateTab(Screen.Chat.route) },
-                onMyAddresses = {
-                    drawerScope.launch { drawerState.close() }
-                    navController.navigate(Screen.MyAddresses.route) { launchSingleTop = true }
-                },
-                onSettings = { navigateTab(Screen.Settings.route) },
-                onProfile = {
-                    drawerScope.launch { drawerState.close() }
-                    navController.navigate(Screen.UserSettings.route) { launchSingleTop = true }
-                },
-            )
-        },
-    ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = {
+            if (showBottomBar) {
+                AppBottomBar(
+                    currentScreen = currentScreen,
+                    newTasksCount = uiState.newTasksCount,
+                    unreadChatCount = unreadChatCount,
+                    onSelect = { navigateTab(it.route) },
+                )
+            }
+        },
         topBar = {
             if (showUnifiedTopBar) {
                 TopAppBar(
@@ -304,11 +270,6 @@ fun MainScreen(
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                         )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = openDrawer) {
-                            Icon(Icons.Default.Menu, contentDescription = "Меню")
-                        }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background
@@ -544,7 +505,6 @@ fun MainScreen(
                             onCreateDirectConversation = { chatViewModel.createDirectConversation(it) },
                             onCreateGroupConversation = { name, userIds -> chatViewModel.createGroupConversation(name, userIds) },
                             onRefresh = { chatViewModel.loadConversations() },
-                            onOpenMenu = openDrawer,
                         )
                     }
                     }
@@ -566,7 +526,9 @@ fun MainScreen(
                         baseUrl = baseUrl,
                         authToken = authToken,
                         onLogout = { showLogoutDialog = true },
-                        onOpenMenu = openDrawer
+                        onOpenMyAddresses = {
+                            navController.navigate(Screen.MyAddresses.route) { launchSingleTop = true }
+                        }
                     )
                 }
 
@@ -598,7 +560,7 @@ fun MainScreen(
                 }
 
                 composable(Screen.MyAddresses.route) {
-                    MyAddressesScreen(onOpenDrawer = openDrawer)
+                    MyAddressesScreen(onBack = { navController.popBackStack() })
                 }
             }
             } // Box(weight)
@@ -681,7 +643,6 @@ fun MainScreen(
             }
         }
     }
-    } // ModalNavigationDrawer
 }
 
 private fun mainTitleFor(screen: Screen, canManageTasks: Boolean): String {
@@ -698,192 +659,54 @@ private fun mainTitleFor(screen: Screen, canManageTasks: Boolean): String {
     }
 }
 
+/**
+ * Нижняя навигация: четыре раздела, счётчики новых заявок и непрочитанных
+ * чатов видны всегда. «Ещё» подсвечен и во вложенных разделах настроек.
+ */
 @Composable
-internal fun AppDrawer(
-    userName: String,
-    roleLabel: String?,
-    avatarUrl: String?,
-    baseUrl: String?,
-    authToken: String?,
+internal fun AppBottomBar(
     currentScreen: Screen,
     newTasksCount: Int,
     unreadChatCount: Int,
-    onMap: () -> Unit,
-    onTaskList: () -> Unit,
-    onChat: () -> Unit,
-    onMyAddresses: () -> Unit,
-    onSettings: () -> Unit,
-    onProfile: () -> Unit,
+    onSelect: (Screen) -> Unit,
 ) {
-    ModalDrawerSheet(
-        modifier = Modifier.width(296.dp),
-        drawerContainerColor = MaterialTheme.colorScheme.surface,
-        drawerTonalElevation = 0.dp,
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Бренд + профиль (как шапка/лого портала)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .clickable(onClick = onProfile)
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                val context = LocalContext.current
-                val resolvedAvatarUrl = remember(avatarUrl, baseUrl) {
-                    resolveAvatarUrl(avatarUrl, baseUrl)
+    Column {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+        NavigationBar(
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 0.dp,
+        ) {
+            Screen.bottomNavItems.forEach { screen ->
+                val badge = when (screen) {
+                    Screen.TaskList -> newTasksCount
+                    Screen.Chat -> unreadChatCount
+                    else -> 0
                 }
-                // Bearer-токен подставляет AuthHeaderInterceptor в общем Coil ImageLoader.
-                val avatarRequest = remember(resolvedAvatarUrl) {
-                    resolvedAvatarUrl?.let { url ->
-                        ImageRequest.Builder(context)
-                            .data(url)
-                            .crossfade(true)
-                            .build()
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(AppShape.md)
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    AppColors.PrimaryDark,
-                                )
-                            )
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (avatarRequest != null) {
-                        AsyncImage(
-                            model = avatarRequest,
-                            contentDescription = "Аватар",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.matchParentSize(),
-                        )
-                    } else {
-                        Text(
-                            text = avatarInitials(userName).ifEmpty { "?" },
-                            style = MaterialTheme.typography.titleLarge,
-                            color = Color.White,
-                        )
-                    }
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = userName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                    )
-                    if (!roleLabel.isNullOrBlank()) {
-                        Text(
-                            text = roleLabel,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                        )
-                    }
-                }
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-            Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                DrawerSectionTitle("Основное")
-                PortalDrawerItem(Screen.Map, currentScreen == Screen.Map, 0, onMap)
-                PortalDrawerItem(Screen.TaskList, currentScreen == Screen.TaskList, newTasksCount, onTaskList)
-                PortalDrawerItem(Screen.Chat, currentScreen == Screen.Chat, unreadChatCount, onChat)
-
-                DrawerSectionTitle("Управление")
-                PortalDrawerItem(Screen.MyAddresses, currentScreen == Screen.MyAddresses, 0, onMyAddresses)
-
-                DrawerSectionTitle("Личное")
-                // «Профиль» намеренно не дублируем пунктом меню — переход туда
-                // уже даёт клик по шапке с аватаром выше.
-                PortalDrawerItem(Screen.Settings, currentScreen == Screen.Settings, 0, onSettings)
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Text(
-                text = "FieldWorker • v${BuildConfig.VERSION_NAME}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun DrawerSectionTitle(title: String) {
-    Text(
-        text = title.uppercase(),
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        letterSpacing = 0.8.sp,
-        modifier = Modifier.padding(start = 28.dp, end = 16.dp, top = 10.dp, bottom = 4.dp),
-    )
-}
-
-@Composable
-private fun PortalDrawerItem(
-    screen: Screen,
-    selected: Boolean,
-    badge: Int,
-    onClick: () -> Unit,
-) {
-    val accent = MaterialTheme.colorScheme.primary
-    val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-    val contentColor = if (selected) accent else MaterialTheme.colorScheme.onSurface
-    val iconColor = if (selected) accent else MaterialTheme.colorScheme.onSurfaceVariant
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 1.dp)
-            .clip(AppShape.md)
-            .background(bg)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        screen.icon?.let {
-            Icon(it, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
-        }
-        Text(
-            text = screen.label,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-            color = contentColor,
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 14.dp),
-        )
-        if (badge > 0) {
-            Box(
-                modifier = Modifier
-                    .clip(AppShape.pill)
-                    // Акцент, не error: красный в приложении — только аварийные заявки
-                    .background(MaterialTheme.colorScheme.primary)
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = if (badge > 99) "99+" else "$badge",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimary,
+                NavigationBarItem(
+                    selected = currentScreen == screen,
+                    onClick = { onSelect(screen) },
+                    icon = {
+                        BadgedBox(
+                            badge = {
+                                if (badge > 0) {
+                                    Badge(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                                    ) { Text(if (badge > 99) "99+" else "$badge") }
+                                }
+                            }
+                        ) {
+                            screen.icon?.let { Icon(it, contentDescription = null) }
+                        }
+                    },
+                    label = { Text(screen.label, style = MaterialTheme.typography.labelMedium) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
                 )
             }
         }

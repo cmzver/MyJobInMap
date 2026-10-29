@@ -66,7 +66,7 @@ class ScreenshotTest(
             "map_legend" to { FullLegendPreview() },
             "addresses" to { MyAddressesListPreview() },
             "address_detail" to { AddressDetailPreview() },
-            "drawer" to { DrawerPreview() },
+            "bottom_bar" to { BottomBarPreview() },
             "settings" to { SettingsPreview() },
             "profile" to { ProfilePreview() },
             "chat_list" to { ChatListLightPreview() },

@@ -8,31 +8,21 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.domain.model.FailedAction
 import com.fieldworker.ui.components.FailedActionsDialog
-import com.fieldworker.ui.main.AppDrawer
+import com.fieldworker.ui.main.AppBottomBar
 import com.fieldworker.ui.navigation.Screen
 import com.fieldworker.ui.settings.ConnectionStatus
 import com.fieldworker.ui.settings.SettingsScreen
 import com.fieldworker.ui.theme.FieldWorkerTheme
 
-@Preview(name = "Drawer", showBackground = true, showSystemUi = true)
+@Preview(name = "Bottom bar", showBackground = true)
 @Composable
-internal fun DrawerPreview() {
+internal fun BottomBarPreview() {
     FieldWorkerTheme {
-        AppDrawer(
-            userName = "Иван Полевой",
-            roleLabel = "Работник",
-            avatarUrl = null,
-            baseUrl = null,
-            authToken = null,
+        AppBottomBar(
             currentScreen = Screen.TaskList,
             newTasksCount = 3,
             unreadChatCount = 12,
-            onMap = {},
-            onTaskList = {},
-            onChat = {},
-            onMyAddresses = {},
-            onSettings = {},
-            onProfile = {},
+            onSelect = {},
         )
     }
 }
