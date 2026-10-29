@@ -7,6 +7,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.domain.model.FailedAction
+import com.fieldworker.ui.auth.LoginContent
+import com.fieldworker.ui.auth.LoginState
 import com.fieldworker.ui.components.FailedActionsDialog
 import com.fieldworker.ui.main.AppBottomBar
 import com.fieldworker.ui.navigation.Screen
@@ -77,6 +79,34 @@ internal fun ProfilePreview() {
             onPickAvatar = {},
             onSaveName = {},
             onChangePassword = { _, _, _, _ -> },
+        )
+    }
+}
+
+@Preview(name = "Login", showBackground = true, showSystemUi = true)
+@Composable
+internal fun LoginPreview() {
+    FieldWorkerTheme {
+        LoginContent(
+            state = LoginState(username = "ivan.polevoy", password = "secret", error = "Неверный логин или пароль"),
+            onUsernameChange = {},
+            onPasswordChange = {},
+            onLogin = {},
+            onOpenServerSettings = {},
+        )
+    }
+}
+
+@Preview(name = "Login - Dark", showBackground = true, showSystemUi = true)
+@Composable
+internal fun LoginDarkPreview() {
+    FieldWorkerTheme(darkTheme = true) {
+        LoginContent(
+            state = LoginState(),
+            onUsernameChange = {},
+            onPasswordChange = {},
+            onLogin = {},
+            onOpenServerSettings = {},
         )
     }
 }

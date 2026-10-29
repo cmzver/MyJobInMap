@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -55,6 +56,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -65,6 +67,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.fieldworker.BuildConfig
 import com.fieldworker.R
 import com.fieldworker.data.preferences.AppPreferences
+import com.fieldworker.ui.utils.accentTextColor
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
@@ -80,10 +83,7 @@ fun LoginScreen(
     viewModel: LoginViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    var passwordVisible by remember { mutableStateOf(false) }
     var showServerSettings by remember { mutableStateOf(false) }
-    val passwordFocusRequester = remember { FocusRequester() }
-    val focusManager = LocalFocusManager.current
 
     LaunchedEffect(state.isLoggedIn) {
         if (state.isLoggedIn) {
@@ -91,13 +91,44 @@ fun LoginScreen(
         }
     }
 
+    LoginContent(
+        state = state,
+        onUsernameChange = viewModel::onUsernameChange,
+        onPasswordChange = viewModel::onPasswordChange,
+        onLogin = viewModel::login,
+        onOpenServerSettings = { showServerSettings = true },
+    )
+
+    if (showServerSettings) {
+        ServerSettingsDialog(
+            preferences = viewModel.preferences,
+            onDismiss = { showServerSettings = false }
+        )
+    }
+}
+
+/** Разметка экрана входа без ViewModel — для превью и скриншот-тестов. */
+@Composable
+internal fun LoginContent(
+    state: LoginState,
+    onUsernameChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onLogin: () -> Unit,
+    onOpenServerSettings: () -> Unit,
+) {
+    var passwordVisible by remember { mutableStateOf(false) }
+    val passwordFocusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
+                // Непрозрачные цвета: полупрозрачный верх градиента пропускал
+                // подложку окна — в тёмной теме сверху была светло-серая дымка
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+                        MaterialTheme.colorScheme.primaryContainer,
                         MaterialTheme.colorScheme.background,
                         MaterialTheme.colorScheme.background
                     )
@@ -113,7 +144,7 @@ fun LoginScreen(
             tonalElevation = 0.dp,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
-            IconButton(onClick = { showServerSettings = true }) {
+            IconButton(onClick = onOpenServerSettings) {
                 Icon(
                     imageVector = Icons.Default.Settings,
                     contentDescription = stringResource(id = R.string.login_server_settings),
@@ -162,7 +193,8 @@ fun LoginScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
                             text = stringResource(id = R.string.login_title),
-                            style = MaterialTheme.typography.displayMedium,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
@@ -175,7 +207,7 @@ fun LoginScreen(
 
                 OutlinedTextField(
                     value = state.username,
-                    onValueChange = viewModel::onUsernameChange,
+                    onValueChange = onUsernameChange,
                     label = { Text(stringResource(id = R.string.login_username_label)) },
                     leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                     singleLine = true,
@@ -200,11 +232,15 @@ fun LoginScreen(
 
                 OutlinedTextField(
                     value = state.password,
-                    onValueChange = viewModel::onPasswordChange,
+                    onValueChange = onPasswordChange,
                     label = { Text(stringResource(id = R.string.login_password_label)) },
                     leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
                     trailingIcon = {
-                        TextButton(onClick = { passwordVisible = !passwordVisible }) {
+                        // Короткая подпись: «Показать пароль» съедала полполя ввода
+                        TextButton(
+                            onClick = { passwordVisible = !passwordVisible },
+                            colors = ButtonDefaults.textButtonColors(contentColor = accentTextColor())
+                        ) {
                             Text(
                                 text = stringResource(
                                     id = if (passwordVisible) {
@@ -228,7 +264,7 @@ fun LoginScreen(
                     keyboardActions = KeyboardActions(
                         onDone = {
                             focusManager.clearFocus()
-                            viewModel.login()
+                            onLogin()
                         }
                     ),
                     enabled = !state.isLoading,
@@ -255,7 +291,7 @@ fun LoginScreen(
                 Button(
                     onClick = {
                         focusManager.clearFocus()
-                        viewModel.login()
+                        onLogin()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -289,13 +325,6 @@ fun LoginScreen(
                     )
                 }
             }
-        }
-
-        if (showServerSettings) {
-            ServerSettingsDialog(
-                preferences = viewModel.preferences,
-                onDismiss = { showServerSettings = false }
-            )
         }
     }
 }

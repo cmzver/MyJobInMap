@@ -70,6 +70,8 @@ class ScreenshotTest(
             "bottom_bar" to { BottomBarPreview() },
             "settings" to { SettingsPreview() },
             "profile" to { ProfilePreview() },
+            "login" to { LoginPreview() },
+            "login_dark" to { LoginDarkPreview() },
             "chat_list" to { ChatListLightPreview() },
             "chat_list_dark" to { ChatListDarkPreview() },
             "chat_list_offline" to { ChatListOfflinePreview() },
