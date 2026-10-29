@@ -9,7 +9,9 @@ import android.content.Intent
 import android.net.Uri
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -22,6 +24,9 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -1165,13 +1170,14 @@ private fun TaskDetailHeader(
 /** Чип статуса; нажатие открывает смену статуса (в т.ч. отмену). */
 @Composable
 private fun StatusPill(status: TaskStatus, onClick: () -> Unit) {
-    val color = status.contentColor()
+    val color by animateColorAsState(status.contentColor(), label = "status-color")
+    val container by animateColorAsState(status.containerColor(), label = "status-container")
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(status.containerColor())
+            .background(container)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
@@ -1436,7 +1442,17 @@ private fun TaskActionBar(
                         .weight(1f)
                         .height(52.dp)
                 ) {
-                    Text(nextActionLabel, style = MaterialTheme.typography.titleSmall)
+                    // «Взять в работу» → «Завершить» — перетекание, а не подмена
+                    AnimatedContent(
+                        targetState = nextActionLabel,
+                        transitionSpec = {
+                            (fadeIn() + slideInVertically { it / 2 }) togetherWith
+                                (fadeOut() + slideOutVertically { -it / 2 })
+                        },
+                        label = "next-action"
+                    ) { label ->
+                        Text(label, style = MaterialTheme.typography.titleSmall)
+                    }
                 }
             }
         }
@@ -2021,6 +2037,8 @@ private fun LazyListScope.listTaskItems(
                 onClick = { onTaskClick(task) },
                 userLat = userLat,
                 userLon = userLon,
+                // Смена статуса/фильтра/сортировки — карточки переезжают, а не прыгают
+                modifier = Modifier.animateItem(),
             )
         }
         return
@@ -2042,6 +2060,8 @@ private fun LazyListScope.listTaskItems(
                 onClick = { onTaskClick(task) },
                 userLat = userLat,
                 userLon = userLon,
+                // Смена статуса/фильтра/сортировки — карточки переезжают, а не прыгают
+                modifier = Modifier.animateItem(),
             )
         }
     }
@@ -2076,6 +2096,7 @@ private fun LazyListScope.pagedTaskItems(
                     onClick = { onTaskClick(task) },
                     userLat = userLat,
                     userLon = userLon,
+                    modifier = Modifier.animateItem(),
                 )
             }
         }
