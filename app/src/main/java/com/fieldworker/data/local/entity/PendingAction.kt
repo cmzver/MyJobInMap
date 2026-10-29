@@ -19,6 +19,9 @@ data class PendingAction(
     val plannedDate: String? = null,
     val comment: String? = null,
     val tempId: String? = null,
+    /** Снимок в личных файлах приложения — для [ActionType.UPLOAD_PHOTO]. */
+    val filePath: String? = null,
+    val photoType: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val retryCount: Int = 0,
     val lastError: String? = null,
@@ -36,5 +39,6 @@ data class PendingAction(
 enum class ActionType {
     UPDATE_STATUS,
     ADD_COMMENT,
-    UPDATE_PLANNED_DATE
+    UPDATE_PLANNED_DATE,
+    UPLOAD_PHOTO
 }

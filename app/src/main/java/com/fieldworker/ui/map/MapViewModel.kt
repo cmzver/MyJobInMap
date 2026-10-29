@@ -15,6 +15,7 @@ import com.fieldworker.domain.model.AccessLevel
 import com.fieldworker.domain.model.AddressDetails
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.FailedAction
+import com.fieldworker.domain.model.PendingPhoto
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskPhoto
@@ -30,6 +31,7 @@ import com.fieldworker.ui.utils.sortedBy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +42,8 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -85,6 +89,8 @@ data class MapUiState(
     val photos: List<TaskPhoto> = emptyList(),
     val isLoadingPhotos: Boolean = false,
     val isUploadingPhoto: Boolean = false,
+    // Снимки выбранной заявки, ещё не дошедшие до сервера
+    val pendingPhotos: List<PendingPhoto> = emptyList(),
     // Разделы карточки, не загруженные без связи (≠ «пусто» и ≠ «не найдено»)
     val unavailableDetails: Set<TaskDetailSection> = emptySet(),
     // Фильтры для списка
@@ -121,6 +127,10 @@ data class MapUiState(
 
     val newTasksCount: Int
         get() = tasks.count { it.status == TaskStatus.NEW }
+
+    /** Очередь подписана на выбранную заявку, но при смене карточки чужие снимки не показываем. */
+    val selectedTaskPendingPhotos: List<PendingPhoto>
+        get() = pendingPhotos.filter { it.taskId == selectedTask?.id }
 
     /** Только то, от чего зависит отфильтрованный список (см. [MapViewModel.filteredTasks]). */
     internal fun filterInput() = TaskFilterInput(
@@ -269,6 +279,7 @@ class MapViewModel @Inject constructor(
 
         // Подписываемся на pending actions
         observePendingActions()
+        observePendingPhotos()
 
         // Слушаем изменения фильтров из настроек
         observePreferencesChanges()
@@ -740,29 +751,62 @@ class MapViewModel @Inject constructor(
         if (unavailable) this + section else this - section
 
     /**
-     * Загрузить фото к заявке
+     * Снимки выбранной заявки из очереди отправки. Когда снимок уходит на
+     * сервер, перечитываем фото — локальную миниатюру сменяет серверная.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observePendingPhotos() {
+        viewModelScope.launch {
+            _uiState.map { it.selectedTask?.id }
+                .distinctUntilChanged()
+                .flatMapLatest { taskId ->
+                    if (taskId == null) {
+                        flowOf(emptyList())
+                    } else {
+                        taskPhotosUseCase.pendingPhotos(taskId)
+                    }
+                }
+                .collect { pending ->
+                    val state = _uiState.value
+                    val taskId = state.selectedTask?.id
+                    val left = state.pendingPhotos.any { old ->
+                        old.taskId == taskId && pending.none { it.id == old.id }
+                    }
+                    _uiState.update { it.copy(pendingPhotos = pending) }
+                    if (taskId != null && left && !state.isOffline) loadTaskPhotos(taskId)
+                }
+        }
+    }
+
+    /**
+     * Добавить фото к заявке: снимок встаёт в очередь (переживёт отсутствие
+     * связи и перезапуск) и, если сервер доступен, сразу уходит.
      */
     fun uploadPhoto(taskId: Long, imageUri: Uri, photoType: String = "completion") {
         viewModelScope.launch {
             _uiState.update { it.copy(isUploadingPhoto = true) }
 
-            taskPhotosUseCase.uploadPhoto(taskId, imageUri, photoType)
-                .onSuccess { photo ->
-                    _uiState.update {
-                        it.copy(
-                            photos = it.photos + photo,
-                            isUploadingPhoto = false
-                        )
-                    }
+            taskPhotosUseCase.enqueuePhoto(taskId, imageUri, photoType)
+                .onSuccess {
+                    _uiState.update { it.copy(isUploadingPhoto = false) }
+                    // Без сервера не тратим попытки очереди — отправит возврат связи
+                    if (!_uiState.value.isOffline) taskPhotosUseCase.sendPending()
                 }
                 .onFailure { exception ->
                     _uiState.update {
                         it.copy(
                             isUploadingPhoto = false,
-                            error = exception.message ?: "Ошибка загрузки фото"
+                            error = exception.message ?: "Не удалось сохранить фото"
                         )
                     }
                 }
+        }
+    }
+
+    /** Отказаться от снимка, который ещё не ушёл на сервер. */
+    fun cancelPendingPhoto(pendingPhotoId: Long) {
+        viewModelScope.launch {
+            taskPhotosUseCase.cancelPendingPhoto(pendingPhotoId)
         }
     }
 

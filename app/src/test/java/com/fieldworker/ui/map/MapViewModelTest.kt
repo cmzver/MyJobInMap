@@ -58,6 +58,7 @@ class MapViewModelTest {
     private val networkOnlineFlow = MutableStateFlow(true)
     private val tasksFlow = MutableStateFlow<List<Task>>(emptyList())
     private val pendingCountFlow = MutableStateFlow(0)
+    private val pendingPhotosFlow = MutableStateFlow<List<PendingPhoto>>(emptyList())
 
     private fun sampleTask(
         id: Long = 1L,
@@ -121,6 +122,8 @@ class MapViewModelTest {
         
         updateTaskStatusUseCase = mockk(relaxed = true)
         taskPhotosUseCase = mockk(relaxed = true)
+        pendingPhotosFlow.value = emptyList()
+        every { taskPhotosUseCase.pendingPhotos(any()) } returns pendingPhotosFlow
         taskCommentsUseCase = mockk(relaxed = true)
         addressRepository = mockk(relaxed = true)
         coEvery { addressRepository.findAddressForTask(any()) } returns Result.success(null)
@@ -684,6 +687,60 @@ class MapViewModelTest {
         advanceUntilIdle()
 
         assertEquals("Фото не найдено", viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun `uploadPhoto queues the shot and sends it at once when server answers`() = runTest {
+        serverReachable = true
+        val uri = mockk<android.net.Uri>()
+        coEvery { taskPhotosUseCase.enqueuePhoto(1L, uri, "before") } returns Result.success(Unit)
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        viewModel.uploadPhoto(1L, uri, "before")
+        advanceUntilIdle()
+
+        coVerify { taskPhotosUseCase.enqueuePhoto(1L, uri, "before") }
+        coVerify { taskPhotosUseCase.sendPending() }
+        assertFalse(viewModel.uiState.value.isUploadingPhoto)
+        assertNull(viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun `uploadPhoto without server keeps the shot queued without spending retries`() = runTest {
+        val uri = mockk<android.net.Uri>()
+        coEvery { taskPhotosUseCase.enqueuePhoto(any(), any(), any()) } returns Result.success(Unit)
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        viewModel.uploadPhoto(1L, uri, "after")
+        advanceUntilIdle()
+
+        coVerify { taskPhotosUseCase.enqueuePhoto(1L, uri, "after") }
+        coVerify(exactly = 0) { taskPhotosUseCase.sendPending() }
+    }
+
+    @Test
+    fun `sent pending photo is replaced with the server copy`() = runTest {
+        serverReachable = true
+        val task = sampleTask()
+        coEvery { getTasksUseCase.getTaskDetail(1L) } returns Result.success(Pair(task, emptyList()))
+        coEvery { taskPhotosUseCase.getPhotos(1L) } returns Result.success(emptyList())
+        val queued = PendingPhoto(id = 7L, taskId = 1L, filePath = "/x.jpg", photoType = "after", isFailed = false)
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        viewModel.selectTask(task)
+        pendingPhotosFlow.value = listOf(queued)
+        advanceUntilIdle()
+        assertEquals(listOf(queued), viewModel.uiState.value.selectedTaskPendingPhotos)
+
+        // Очередь отправила снимок
+        pendingPhotosFlow.value = emptyList()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.selectedTaskPendingPhotos.isEmpty())
+        coVerify(exactly = 2) { taskPhotosUseCase.getPhotos(1L) }
     }
 
     // ==================== ForceSync ====================

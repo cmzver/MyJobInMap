@@ -74,6 +74,7 @@ import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.components.CompactTaskCard
 import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.PhotoUploadConfirmDialog
+import com.fieldworker.ui.components.rememberTakePhotoLauncher
 import com.fieldworker.ui.list.AssigneePickerDialog
 import com.fieldworker.ui.list.TaskDetailBottomSheet
 import com.fieldworker.ui.utils.extractApartment
@@ -196,6 +197,8 @@ fun MapScreen(
             }
         }
     )
+
+    val takePhoto = rememberTakePhotoLauncher { uri -> selectedPhotoUri = uri }
 
     var hasLocationPermission by remember {
         mutableStateOf(
@@ -362,6 +365,7 @@ fun MapScreen(
             photos = uiState.photos,
             isLoadingPhotos = uiState.isLoadingPhotos,
             isUploadingPhoto = uiState.isUploadingPhoto,
+            pendingPhotos = uiState.selectedTaskPendingPhotos,
             unavailableDetails = uiState.unavailableDetails,
             baseUrl = baseUrl,
             authToken = authToken,
@@ -375,6 +379,8 @@ fun MapScreen(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
             },
+            onTakePhotoClick = takePhoto,
+            onCancelPendingPhoto = { id -> viewModel.cancelPendingPhoto(id) },
             onDeletePhoto = { photoId -> viewModel.deletePhoto(photoId) },
             onPlannedDateChange = { date -> viewModel.updatePlannedDate(uiState.selectedTask!!.id, date) },
             onAssignClick = if (uiState.canAssignTasks) {
@@ -403,7 +409,8 @@ fun MapScreen(
                 onUpload = { photoType ->
                     viewModel.uploadPhoto(uiState.selectedTask!!.id, uri, photoType)
                 },
-                onDismiss = { selectedPhotoUri = null }
+                onDismiss = { selectedPhotoUri = null },
+                isOffline = uiState.isOffline
             )
         }
     }

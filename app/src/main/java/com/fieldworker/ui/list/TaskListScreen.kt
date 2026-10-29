@@ -75,6 +75,7 @@ import com.fieldworker.domain.model.AddressDetails
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
+import com.fieldworker.domain.model.PendingPhoto
 import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.components.AppSearchField
@@ -135,11 +136,14 @@ fun TaskListScreen(
     photos: List<TaskPhoto> = emptyList(),
     isLoadingPhotos: Boolean = false,
     isUploadingPhoto: Boolean = false,
+    pendingPhotos: List<PendingPhoto> = emptyList(),
     unavailableDetails: Set<TaskDetailSection> = emptySet(),
     baseUrl: String = "",
     authToken: String? = null,
     onOpenObjectCard: () -> Unit = {},
     onAddPhotoClick: () -> Unit = {},
+    onTakePhotoClick: (() -> Unit)? = null,
+    onCancelPendingPhoto: (Long) -> Unit = {},
     onDeletePhoto: (Long) -> Unit = {},
     // Параметры для планируемой даты
     onPlannedDateChange: ((Long, String?) -> Unit)? = null,
@@ -323,6 +327,7 @@ fun TaskListScreen(
             photos = photos,
             isLoadingPhotos = isLoadingPhotos,
             isUploadingPhoto = isUploadingPhoto,
+            pendingPhotos = pendingPhotos,
             unavailableDetails = unavailableDetails,
             baseUrl = baseUrl,
             authToken = authToken,
@@ -332,6 +337,8 @@ fun TaskListScreen(
             onOpenObjectCard = onOpenObjectCard,
             onAddComment = { text -> onAddComment(selectedTask.id, text) },
             onAddPhotoClick = onAddPhotoClick,
+            onTakePhotoClick = onTakePhotoClick,
+            onCancelPendingPhoto = onCancelPendingPhoto,
             onDeletePhoto = onDeletePhoto,
             onPlannedDateChange = onPlannedDateChange?.let { callback ->
                 { date -> callback(selectedTask.id, date) }
@@ -800,6 +807,7 @@ fun TaskDetailBottomSheet(
     photos: List<TaskPhoto> = emptyList(),
     isLoadingPhotos: Boolean = false,
     isUploadingPhoto: Boolean = false,
+    pendingPhotos: List<PendingPhoto> = emptyList(),
     unavailableDetails: Set<TaskDetailSection> = emptySet(),
     baseUrl: String = "",
     authToken: String? = null,
@@ -809,6 +817,8 @@ fun TaskDetailBottomSheet(
     onOpenObjectCard: () -> Unit = {},
     onAddComment: (String) -> Unit,
     onAddPhotoClick: () -> Unit = {},
+    onTakePhotoClick: (() -> Unit)? = null,
+    onCancelPendingPhoto: (Long) -> Unit = {},
     onDeletePhoto: (Long) -> Unit = {},
     onPlannedDateChange: ((String?) -> Unit)? = null,
     onAssignClick: (() -> Unit)? = null
@@ -830,6 +840,7 @@ fun TaskDetailBottomSheet(
             photos = photos,
             isLoadingPhotos = isLoadingPhotos,
             isUploadingPhoto = isUploadingPhoto,
+            pendingPhotos = pendingPhotos,
             unavailableDetails = unavailableDetails,
             baseUrl = baseUrl,
             authToken = authToken,
@@ -838,6 +849,8 @@ fun TaskDetailBottomSheet(
             onOpenObjectCard = onOpenObjectCard,
             onAddComment = onAddComment,
             onAddPhotoClick = onAddPhotoClick,
+            onTakePhotoClick = onTakePhotoClick,
+            onCancelPendingPhoto = onCancelPendingPhoto,
             onDeletePhoto = onDeletePhoto,
             onPlannedDateChange = onPlannedDateChange,
             onAssignClick = onAssignClick
@@ -861,6 +874,7 @@ fun TaskDetailContent(
     photos: List<TaskPhoto> = emptyList(),
     isLoadingPhotos: Boolean = false,
     isUploadingPhoto: Boolean = false,
+    pendingPhotos: List<PendingPhoto> = emptyList(),
     unavailableDetails: Set<TaskDetailSection> = emptySet(),
     baseUrl: String = "",
     authToken: String? = null,
@@ -871,6 +885,8 @@ fun TaskDetailContent(
     onOpenObjectCard: () -> Unit = {},
     onAddComment: (String) -> Unit,
     onAddPhotoClick: () -> Unit = {},
+    onTakePhotoClick: (() -> Unit)? = null,
+    onCancelPendingPhoto: (Long) -> Unit = {},
     onDeletePhoto: (Long) -> Unit = {},
     onPlannedDateChange: ((String?) -> Unit)? = null,
     onAssignClick: (() -> Unit)? = null
@@ -1038,12 +1054,15 @@ fun TaskDetailContent(
                     isExpanded = isPhotosExpanded,
                     isLoadingPhotos = isLoadingPhotos,
                     isUploadingPhoto = isUploadingPhoto,
+                    pendingPhotos = pendingPhotos,
                     isUnavailable = TaskDetailSection.PHOTOS in unavailableDetails,
                     accentColor = accentColor,
                     baseUrl = baseUrl,
                     authToken = authToken,
                     onToggleExpanded = { isPhotosExpanded = !isPhotosExpanded },
                     onAddPhotoClick = onAddPhotoClick,
+                    onTakePhotoClick = onTakePhotoClick,
+                    onCancelPendingPhoto = onCancelPendingPhoto,
                     onDeletePhoto = onDeletePhoto
                 )
             }
@@ -1531,14 +1550,19 @@ private fun TaskPhotosSection(
     isExpanded: Boolean,
     isLoadingPhotos: Boolean,
     isUploadingPhoto: Boolean,
+    pendingPhotos: List<PendingPhoto>,
     isUnavailable: Boolean,
     accentColor: Color,
     baseUrl: String,
     authToken: String?,
     onToggleExpanded: () -> Unit,
     onAddPhotoClick: () -> Unit,
+    onTakePhotoClick: (() -> Unit)?,
+    onCancelPendingPhoto: (Long) -> Unit,
     onDeletePhoto: (Long) -> Unit
 ) {
+    val failedCount = pendingPhotos.count { it.isFailed }
+    val queuedCount = pendingPhotos.size - failedCount
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
@@ -1574,12 +1598,28 @@ private fun TaskPhotosSection(
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
-                    if (photos.isNotEmpty()) {
-                        SheetHeaderChip(text = photos.size.toString())
+                    val total = photos.size + pendingPhotos.size
+                    if (total > 0) {
+                        SheetHeaderChip(text = total.toString())
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (isLoadingPhotos) {
+                    // Свёрнутая секция всё равно говорит, что снимки ещё не ушли
+                    if (failedCount > 0) {
+                        Text(
+                            text = "не отправлено: $failedCount",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                    } else if (queuedCount > 0) {
+                        Text(
+                            text = "в очереди: $queuedCount",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                    } else if (isLoadingPhotos) {
                         SectionSpinner()
                         Spacer(modifier = Modifier.width(8.dp))
                     } else if (isUnavailable && photos.isEmpty()) {
@@ -1604,14 +1644,17 @@ private fun TaskPhotosSection(
                         photos = photos,
                         isLoading = isLoadingPhotos,
                         isUploading = isUploadingPhoto,
-                        emptyText = if (isUnavailable) {
-                            "Фото загрузятся, когда появится связь."
-                        } else {
-                            "Нет фотографий. Нажмите +, чтобы добавить."
+                        pendingPhotos = pendingPhotos,
+                        emptyText = when {
+                            isUnavailable -> "Фото с сервера загрузятся, когда появится связь."
+                            pendingPhotos.isNotEmpty() -> null
+                            else -> "Нет фотографий — снимите или выберите из галереи."
                         },
                         baseUrl = baseUrl,
                         authToken = authToken,
                         onAddPhotoClick = onAddPhotoClick,
+                        onTakePhotoClick = onTakePhotoClick,
+                        onCancelPendingPhoto = onCancelPendingPhoto,
                         onDeletePhoto = onDeletePhoto
                     )
                 }

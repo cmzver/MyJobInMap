@@ -58,6 +58,8 @@ class ScreenshotTest(
             "task_detail" to { TaskDetailContentPreview() },
             "task_detail_dark" to { TaskDetailContentDarkPreview() },
             "task_detail_offline" to { TaskDetailContentOfflinePreview() },
+            "photo_queue" to { PhotoGalleryQueuePreview() },
+            "photo_queue_dark" to { PhotoGalleryQueueDarkPreview() },
             "task_list_dark" to { TaskListScreenDarkPreview() },
             "object_details" to { ObjectDetailsPreview() },
             "task_card_variants" to { TaskCardVariantsPreview() },

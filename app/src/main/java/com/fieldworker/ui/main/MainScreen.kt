@@ -46,6 +46,7 @@ import com.fieldworker.ui.chat.ConversationListScreen
 import com.fieldworker.ui.components.FailedActionsDialog
 import com.fieldworker.ui.components.OfflineBanner
 import com.fieldworker.ui.components.PhotoUploadConfirmDialog
+import com.fieldworker.ui.components.rememberTakePhotoLauncher
 import com.fieldworker.ui.list.TaskAssignmentUi
 import com.fieldworker.ui.list.TaskListScreen
 import com.fieldworker.ui.map.MapScreen
@@ -154,6 +155,8 @@ fun MainScreen(
             }
         }
     )
+
+    val takePhoto = rememberTakePhotoLauncher { uri -> selectedPhotoUri = uri }
 
     val chatAttachmentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
@@ -343,6 +346,7 @@ fun MainScreen(
                         photos = uiState.photos,
                         isLoadingPhotos = uiState.isLoadingPhotos,
                         isUploadingPhoto = uiState.isUploadingPhoto,
+                        pendingPhotos = uiState.selectedTaskPendingPhotos,
                         unavailableDetails = uiState.unavailableDetails,
                         baseUrl = baseUrl,
                         authToken = authToken,
@@ -354,6 +358,8 @@ fun MainScreen(
                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                             )
                         },
+                        onTakePhotoClick = takePhoto,
+                        onCancelPendingPhoto = { id -> viewModel.cancelPendingPhoto(id) },
                         onDeletePhoto = { photoId -> viewModel.deletePhoto(photoId) },
                         // Планируемая дата
                         onPlannedDateChange = { taskId, date -> viewModel.updatePlannedDate(taskId, date) },
@@ -644,7 +650,8 @@ fun MainScreen(
                     onUpload = { photoType ->
                         viewModel.uploadPhoto(uiState.selectedTask!!.id, selectedPhotoUri!!, photoType)
                     },
-                    onDismiss = { selectedPhotoUri = null }
+                    onDismiss = { selectedPhotoUri = null },
+                    isOffline = uiState.isOffline
                 )
             }
         }

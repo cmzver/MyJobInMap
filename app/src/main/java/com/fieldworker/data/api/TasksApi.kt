@@ -142,7 +142,8 @@ interface TasksApi {
     suspend fun uploadTaskPhoto(
         @Path("id") taskId: Long,
         @Part file: MultipartBody.Part,
-        @Query("photo_type") photoType: String = "completion"
+        @Query("photo_type") photoType: String = "completion",
+        @Header("Idempotency-Key") idempotencyKey: String? = null
     ): Response<PhotoResponse>
     
     /**

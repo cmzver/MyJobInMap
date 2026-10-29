@@ -4,4 +4,8 @@
     <cache-path
         name="updates"
         path="updates/" />
+    <!-- Снимки камеры для фото к заявке -->
+    <files-path
+        name="camera"
+        path="camera/" />
 </paths>

@@ -1,15 +1,15 @@
 package com.fieldworker.data.repository
 
-import android.content.Context
 import android.net.Uri
 import android.os.SystemClock
 import android.util.Log
+import android.webkit.MimeTypeMap
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
 import com.fieldworker.data.api.TasksApi
-import com.fieldworker.data.image.ImageCompressor
+import com.fieldworker.data.image.PendingPhotoStore
 import com.fieldworker.data.local.LocalTransactionRunner
 import com.fieldworker.data.remote.generated.CommentCreate
 import com.fieldworker.data.remote.generated.PlannedDateUpdate
@@ -32,10 +32,11 @@ import com.fieldworker.data.network.NetworkMonitor
 import com.fieldworker.data.network.toUserMessage
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.FailedAction
+import com.fieldworker.domain.model.PendingPhoto
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.TaskStatus
-import dagger.hilt.android.qualifiers.ApplicationContext
+import com.fieldworker.domain.model.photoTypeDisplayName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -47,7 +48,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
-import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -67,8 +69,7 @@ class OfflineFirstTasksRepository @Inject constructor(
     private val pendingActionDao: PendingActionDao,
     private val transactionRunner: LocalTransactionRunner,
     private val networkMonitor: NetworkMonitor,
-    private val imageCompressor: ImageCompressor,
-    @ApplicationContext private val context: Context
+    private val pendingPhotoStore: PendingPhotoStore
 ) {
     companion object {
         private const val TAG = "OfflineTasksRepo"
@@ -81,6 +82,7 @@ class OfflineFirstTasksRepository @Inject constructor(
         private const val DELETE_CHUNK_SIZE = 500
         private const val PAGING_PAGE_SIZE = 30
         private const val MAX_PENDING_RETRIES = 5
+        private const val DEFAULT_PHOTO_TYPE = "completion"
     }
 
     private val pendingSyncMutex = Mutex()
@@ -672,6 +674,33 @@ class OfflineFirstTasksRepository @Inject constructor(
                             recordHttpFailure(action, response.code())
                         }
                     }
+
+                    ActionType.UPLOAD_PHOTO -> {
+                        val file = action.filePath?.let(::File)?.takeIf { it.exists() }
+                        if (file == null) {
+                            pendingActionDao.markAsFailed(
+                                action.id, "Photo file is missing", MAX_PENDING_RETRIES
+                            )
+                            permanentFailures++
+                            continue
+                        }
+                        val response = tasksApi.uploadTaskPhoto(
+                            taskId = action.taskId,
+                            file = photoPart(file),
+                            photoType = action.photoType ?: DEFAULT_PHOTO_TYPE,
+                            idempotencyKey = action.operationId.ifBlank { null }
+                        )
+                        if (response.isSuccessful && response.body() != null) {
+                            pendingActionDao.deletePendingActionById(action.id)
+                            pendingPhotoStore.delete(action.filePath)
+                            SyncOutcome.SUCCESS
+                        } else if (response.isSuccessful) {
+                            pendingActionDao.incrementRetryCount(action.id, "Empty response body")
+                            SyncOutcome.RETRYABLE_FAILURE
+                        } else {
+                            recordHttpFailure(action, response.code())
+                        }
+                    }
                 }
                 
                 when (outcome) {
@@ -681,11 +710,11 @@ class OfflineFirstTasksRepository @Inject constructor(
                     }
                     SyncOutcome.RETRYABLE_FAILURE -> {
                         retryableFailures++
-                        blockedTaskIds += action.taskId
+                        if (action.blocksLaterActions) blockedTaskIds += action.taskId
                     }
                     SyncOutcome.PERMANENT_FAILURE -> {
                         permanentFailures++
-                        blockedTaskIds += action.taskId
+                        if (action.blocksLaterActions) blockedTaskIds += action.taskId
                     }
                     SyncOutcome.AUTH_REQUIRED -> {
                         requiresAuthentication = true
@@ -698,7 +727,7 @@ class OfflineFirstTasksRepository @Inject constructor(
                 Log.e(TAG, "Failed to sync action ${action.id}: ${e.message}", e)
                 pendingActionDao.incrementRetryCount(action.id, e.message)
                 retryableFailures++
-                blockedTaskIds += action.taskId
+                if (action.blocksLaterActions) blockedTaskIds += action.taskId
             }
         }
         
@@ -709,6 +738,13 @@ class OfflineFirstTasksRepository @Inject constructor(
             requiresAuthentication = requiresAuthentication
         )
     }
+
+    /**
+     * Сбой действия задерживает следующие по той же заявке — порядок изменений
+     * сохраняется. Фото заявку не меняет, поэтому статус за ним не ждёт.
+     */
+    private val PendingAction.blocksLaterActions: Boolean
+        get() = actionType != ActionType.UPLOAD_PHOTO
 
     private suspend fun recordHttpFailure(action: PendingAction, code: Int): SyncOutcome {
         val message = "Server error: $code"
@@ -744,7 +780,11 @@ class OfflineFirstTasksRepository @Inject constructor(
             action.tempId?.let { commentDao.deleteByTempId(it) }
             restoreTask = pendingActionDao.getPendingActionsForTask(action.taskId).isEmpty()
         }
-        if (restoreTask) restoreTaskFromServer(action.taskId)
+        pendingPhotoStore.delete(action.filePath)
+        // Фото не меняет заявку локально — восстанавливать нечего
+        if (restoreTask && action.actionType != ActionType.UPLOAD_PHOTO) {
+            restoreTaskFromServer(action.taskId)
+        }
     }
 
     private suspend fun restoreTaskFromServer(taskId: Long) {
@@ -792,6 +832,7 @@ class OfflineFirstTasksRepository @Inject constructor(
             ActionType.ADD_COMMENT -> "Комментарий: «${comment.orEmpty().take(60)}»"
             ActionType.UPDATE_PLANNED_DATE ->
                 "Плановая дата → ${plannedDate?.substringBefore('T') ?: "снять"}"
+            ActionType.UPLOAD_PHOTO -> "Фото «${photoTypeDisplayName(photoType)}»"
         }
         return FailedAction(
             id = id,
@@ -820,6 +861,7 @@ class OfflineFirstTasksRepository @Inject constructor(
     suspend fun clearCache() = withContext(Dispatchers.IO) {
         taskDao.deleteAllTasks()
         pendingActionDao.deleteAllPendingActions()
+        pendingPhotoStore.clear()
         Log.d(TAG, "Cache cleared")
     }
     
@@ -861,53 +903,65 @@ class OfflineFirstTasksRepository @Inject constructor(
         }
     
     /**
-     * Загрузить фото к заявке
+     * Поставить фото в очередь отправки. Снимок сразу копируется в файлы
+     * приложения, поэтому отправка переживёт отсутствие связи и перезапуск;
+     * повтор после потерянного ответа не создаст дубль (Idempotency-Key).
      */
-    suspend fun uploadTaskPhoto(
+    suspend fun enqueueTaskPhoto(
         taskId: Long,
         imageUri: Uri,
-        photoType: String = "completion"
-    ): Result<TaskPhoto> = withContext(Dispatchers.IO) {
+        photoType: String = DEFAULT_PHOTO_TYPE
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        val operationId = UUID.randomUUID().toString()
+        val file = pendingPhotoStore.save(imageUri, name = operationId)
+            ?: return@withContext Result.failure(Exception("Не удалось прочитать фото"))
         try {
-            // Сжимаем перед отправкой (ресайз до 1920px, JPEG q85). При неудаче
-            // декодирования (например, HEIC на старых API) — отправим как есть.
-            val compressed = imageCompressor.compress(imageUri, fileNamePrefix = "photo")
-
-            val bytes: ByteArray
-            val mimeType: String
-            val fileName: String
-            if (compressed != null) {
-                bytes = compressed.bytes
-                mimeType = compressed.mimeType
-                fileName = compressed.fileName
-            } else {
-                val inputStream = context.contentResolver.openInputStream(imageUri)
-                    ?: return@withContext Result.failure(Exception("Не удалось открыть файл"))
-                bytes = inputStream.use { it.readBytes() }
-                mimeType = context.contentResolver.getType(imageUri) ?: "image/jpeg"
-                fileName = "photo_${System.currentTimeMillis()}.jpg"
-            }
-
-            val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
-            val filePart = MultipartBody.Part.createFormData("file", fileName, requestBody)
-            
-            val response = tasksApi.uploadTaskPhoto(taskId, filePart, photoType)
-            
-            if (response.isSuccessful) {
-                val dto = response.body()
-                if (dto != null) {
-                    Result.success(dto.toDomain())
-                } else {
-                    Result.failure(Exception("Пустой ответ"))
-                }
-            } else {
-                Result.failure(Exception("Ошибка: ${response.code()}"))
-            }
+            pendingActionDao.insertPendingAction(
+                PendingAction(
+                    taskId = taskId,
+                    actionType = ActionType.UPLOAD_PHOTO,
+                    filePath = file.absolutePath,
+                    photoType = photoType,
+                    operationId = operationId
+                )
+            )
+            Result.success(Unit)
         } catch (e: CancellationException) {
+            pendingPhotoStore.delete(file.absolutePath)
             throw e
         } catch (e: Exception) {
-            Result.failure(Exception("Ошибка загрузки: ${e.message}", e))
+            pendingPhotoStore.delete(file.absolutePath)
+            Result.failure(Exception("Не удалось сохранить фото: ${e.message}", e))
         }
+    }
+
+    /** Фото заявки, ждущие отправки (включая те, что очередь перестала повторять). */
+    fun pendingPhotosFlow(taskId: Long): Flow<List<PendingPhoto>> =
+        pendingActionDao.getPendingPhotosFlow(taskId)
+            .map { actions ->
+                actions.mapNotNull { action ->
+                    val path = action.filePath ?: return@mapNotNull null
+                    PendingPhoto(
+                        id = action.id,
+                        taskId = action.taskId,
+                        filePath = path,
+                        photoType = action.photoType ?: DEFAULT_PHOTO_TYPE,
+                        isFailed = action.retryCount >= MAX_PENDING_RETRIES
+                    )
+                }
+            }
+            .flowOn(Dispatchers.IO)
+
+    private fun photoPart(file: File): MultipartBody.Part {
+        val mimeType = if (file.extension.equals("jpg", ignoreCase = true)) {
+            "image/jpeg"
+        } else {
+            MimeTypeMap.getSingleton().getMimeTypeFromExtension(file.extension)
+                ?: "image/jpeg"
+        }
+        return MultipartBody.Part.createFormData(
+            "file", file.name, file.asRequestBody(mimeType.toMediaTypeOrNull())
+        )
     }
     
     /**

@@ -13,9 +13,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
+import com.fieldworker.domain.model.PendingPhoto
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskStatus
+import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.TaskCard
 import com.fieldworker.ui.list.*
 import com.fieldworker.ui.map.StatusChangeDialog
@@ -576,11 +578,47 @@ internal fun TaskDetailContentOfflinePreview() {
                 comments = emptyList(),
                 isLoadingComments = false,
                 unavailableDetails = com.fieldworker.ui.map.TaskDetailSection.entries.toSet(),
+                pendingPhotos = previewPendingPhotos.take(1),
                 onStatusChange = {},
                 onAddComment = {},
             )
         }
     }
+}
+
+private val previewPendingPhotos = listOf(
+    PendingPhoto(id = 1, taskId = 1, filePath = "/preview/1.jpg", photoType = "before", isFailed = false),
+    PendingPhoto(id = 2, taskId = 1, filePath = "/preview/2.jpg", photoType = "after", isFailed = true),
+)
+
+@Composable
+private fun PhotoGalleryQueueSample() {
+    Surface(color = MaterialTheme.colorScheme.surface) {
+        PhotoGallery(
+            photos = emptyList(),
+            isLoading = false,
+            isUploading = false,
+            baseUrl = "",
+            onAddPhotoClick = {},
+            onDeletePhoto = {},
+            pendingPhotos = previewPendingPhotos,
+            onTakePhotoClick = {},
+            emptyText = null,
+            modifier = Modifier.padding(16.dp)
+        )
+    }
+}
+
+@Preview(name = "PhotoGallery - Queue", showBackground = true)
+@Composable
+internal fun PhotoGalleryQueuePreview() {
+    FieldWorkerTheme(darkTheme = false) { PhotoGalleryQueueSample() }
+}
+
+@Preview(name = "PhotoGallery - Queue Dark", showBackground = true)
+@Composable
+internal fun PhotoGalleryQueueDarkPreview() {
+    FieldWorkerTheme(darkTheme = true) { PhotoGalleryQueueSample() }
 }
 
 @Preview(name = "ObjectDetails", showBackground = true, showSystemUi = true)

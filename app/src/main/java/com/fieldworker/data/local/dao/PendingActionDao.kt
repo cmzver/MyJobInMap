@@ -25,6 +25,8 @@ interface PendingActionDao {
               SELECT 1 FROM pending_actions AS failed
               WHERE failed.taskId = pending_actions.taskId
                 AND failed.retryCount >= :maxRetries
+                -- Фото не меняет заявку: застрявший снимок не держит статус и комментарии
+                AND failed.actionType != 'UPLOAD_PHOTO'
                 AND (
                     failed.createdAt < pending_actions.createdAt
                     OR (failed.createdAt = pending_actions.createdAt AND failed.id < pending_actions.id)
@@ -51,7 +53,15 @@ interface PendingActionDao {
      */
     @Query("SELECT * FROM pending_actions WHERE taskId = :taskId ORDER BY createdAt ASC")
     suspend fun getPendingActionsForTask(taskId: Long): List<PendingAction>
-    
+
+    /** Фото заявки, ещё не дошедшие до сервера. */
+    @Query("""
+        SELECT * FROM pending_actions
+        WHERE taskId = :taskId AND actionType = 'UPLOAD_PHOTO'
+        ORDER BY createdAt ASC, id ASC
+    """)
+    fun getPendingPhotosFlow(taskId: Long): Flow<List<PendingAction>>
+
     /**
      * Вставить отложенное действие
      */

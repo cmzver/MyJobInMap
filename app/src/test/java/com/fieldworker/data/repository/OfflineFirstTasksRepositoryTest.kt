@@ -1,8 +1,8 @@
 package com.fieldworker.data.repository
 
 import com.fieldworker.data.api.TasksApi
-import android.content.Context
-import com.fieldworker.data.image.ImageCompressor
+import android.net.Uri
+import com.fieldworker.data.image.PendingPhotoStore
 import com.fieldworker.data.local.LocalTransactionRunner
 import com.fieldworker.data.local.dao.CommentDao
 import com.fieldworker.data.local.dao.PendingActionDao
@@ -12,6 +12,7 @@ import com.fieldworker.data.local.entity.ActionType
 import com.fieldworker.data.local.entity.PendingAction
 import com.fieldworker.data.network.NetworkMonitor
 import com.fieldworker.data.remote.generated.PaginatedResponseTaskListResponse
+import com.fieldworker.data.remote.generated.PhotoResponse
 import com.fieldworker.data.remote.generated.TaskIdsResponse
 import com.fieldworker.data.remote.generated.TaskListResponse
 import com.fieldworker.data.remote.generated.TaskResponse
@@ -27,7 +28,9 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.BeforeClass
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import okhttp3.ResponseBody.Companion.toResponseBody
 import retrofit2.Response
 
@@ -71,10 +74,10 @@ class OfflineFirstTasksRepositoryTest {
     private lateinit var networkMonitor: NetworkMonitor
 
     @MockK
-    private lateinit var imageCompressor: ImageCompressor
+    private lateinit var pendingPhotoStore: PendingPhotoStore
 
-    @MockK
-    private lateinit var context: Context
+    @get:Rule
+    val tempFolder = TemporaryFolder()
 
     private lateinit var repository: OfflineFirstTasksRepository
 
@@ -131,8 +134,7 @@ class OfflineFirstTasksRepositoryTest {
             pendingActionDao = pendingActionDao,
             transactionRunner = transactionRunner,
             networkMonitor = networkMonitor,
-            imageCompressor = imageCompressor,
-            context = context
+            pendingPhotoStore = pendingPhotoStore
         )
     }
 
@@ -331,6 +333,118 @@ class OfflineFirstTasksRepositoryTest {
     }
 
     @Test
+    fun `enqueueTaskPhoto stores the shot and queues an upload under the same key`() = runTest {
+        val uri = mockk<Uri>()
+        val stored = tempFolder.newFile("op.jpg")
+        val name = slot<String>()
+        val queued = slot<PendingAction>()
+        coEvery { pendingPhotoStore.save(uri, capture(name)) } returns stored
+        coEvery { pendingActionDao.insertPendingAction(capture(queued)) } returns 1L
+
+        val result = repository.enqueueTaskPhoto(taskId = 1L, imageUri = uri, photoType = "before")
+
+        assertTrue(result.isSuccess)
+        assertEquals(ActionType.UPLOAD_PHOTO, queued.captured.actionType)
+        assertEquals(stored.absolutePath, queued.captured.filePath)
+        assertEquals("before", queued.captured.photoType)
+        // Имя файла и Idempotency-Key — один идентификатор операции
+        assertEquals(name.captured, queued.captured.operationId)
+    }
+
+    @Test
+    fun `enqueueTaskPhoto fails without queueing when the shot cannot be read`() = runTest {
+        coEvery { pendingPhotoStore.save(any(), any()) } returns null
+
+        val result = repository.enqueueTaskPhoto(taskId = 1L, imageUri = mockk(), photoType = "before")
+
+        assertTrue(result.isFailure)
+        coVerify(exactly = 0) { pendingActionDao.insertPendingAction(any()) }
+    }
+
+    @Test
+    fun `syncPendingActions uploads queued photo once and drops the local copy`() = runTest {
+        val file = tempFolder.newFile("op-7.jpg").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        val action = PendingAction(
+            id = 20L,
+            taskId = 1L,
+            actionType = ActionType.UPLOAD_PHOTO,
+            filePath = file.absolutePath,
+            photoType = "after",
+            operationId = "op-7"
+        )
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(action)
+        coEvery { tasksApi.uploadTaskPhoto(any(), any(), any(), any()) } returns Response.success(
+            PhotoResponse(
+                id = 5L,
+                taskId = 1L,
+                filename = "x.jpg",
+                originalName = "op-7.jpg",
+                fileSize = 3L,
+                mimeType = "image/jpeg",
+                photoType = "after",
+                url = "/api/photos/x.jpg",
+                createdAt = "2026-10-30T10:00:00"
+            )
+        )
+
+        val result = repository.syncPendingActions()
+
+        assertEquals(1, result.synced)
+        coVerify { tasksApi.uploadTaskPhoto(1L, any(), "after", "op-7") }
+        coVerify { pendingActionDao.deletePendingActionById(20L) }
+        verify { pendingPhotoStore.delete(file.absolutePath) }
+    }
+
+    @Test
+    fun `failed photo upload does not hold back status change of the same task`() = runTest {
+        val file = tempFolder.newFile("op-8.jpg").apply { writeBytes(byteArrayOf(1)) }
+        val photo = PendingAction(
+            id = 30L,
+            taskId = 1L,
+            actionType = ActionType.UPLOAD_PHOTO,
+            filePath = file.absolutePath,
+            photoType = "after"
+        )
+        val status = PendingAction(
+            id = 31L,
+            taskId = 1L,
+            actionType = ActionType.UPDATE_STATUS,
+            newStatus = "DONE"
+        )
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(photo, status)
+        coEvery { tasksApi.uploadTaskPhoto(any(), any(), any(), any()) } returns
+            Response.error(503, "unavailable".toResponseBody())
+        coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } returns
+            Response.error(503, "unavailable".toResponseBody())
+
+        repository.syncPendingActions()
+
+        // Статус ушёл на сервер, хотя фото перед ним не отправилось
+        coVerify { tasksApi.updateTaskStatus(1L, any(), any()) }
+    }
+
+    @Test
+    fun `syncPendingActions dead letters photo whose file is gone`() = runTest {
+        val action = PendingAction(
+            id = 21L,
+            taskId = 1L,
+            actionType = ActionType.UPLOAD_PHOTO,
+            filePath = tempFolder.root.resolve("missing.jpg").absolutePath,
+            photoType = "after"
+        )
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(action)
+
+        val result = repository.syncPendingActions()
+
+        assertEquals(1, result.permanentFailures)
+        coVerify { pendingActionDao.markAsFailed(21L, any(), 5) }
+        coVerify(exactly = 0) { tasksApi.uploadTaskPhoto(any(), any(), any(), any()) }
+    }
+
+    @Test
     fun `syncPendingActions dead letters permanent client errors`() = runTest {
         val action = PendingAction(
             id = 11L,
@@ -477,5 +591,6 @@ class OfflineFirstTasksRepositoryTest {
         // Then
         coVerify { taskDao.deleteAllTasks() }
         coVerify { pendingActionDao.deleteAllPendingActions() }
+        verify { pendingPhotoStore.clear() }
     }
 }
