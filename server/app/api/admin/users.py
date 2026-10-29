@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/admin", tags=["Admin - Users"])
 
 
 @router.get("/users", response_model=List[UserResponse])
-async def get_users(
+def get_users(
     admin: UserModel = Depends(get_current_admin),
     service: UserService = Depends(get_user_service),
 ):
@@ -33,7 +33,7 @@ async def get_users(
 
 
 @router.get("/workers", response_model=List[UserResponse])
-async def get_workers(
+def get_workers(
     user: UserModel = Depends(get_current_dispatcher_or_admin),
     service: UserService = Depends(get_user_service),
 ):
@@ -42,7 +42,7 @@ async def get_workers(
 
 
 @router.get("/users/{user_id}/stats", response_model=UserStatsResponse)
-async def get_user_stats(
+def get_user_stats(
     user_id: int,
     admin: UserModel = Depends(get_current_admin),
     service: UserService = Depends(get_user_service),
@@ -55,7 +55,7 @@ async def get_user_stats(
 
 
 @router.post("/users", response_model=UserResponse)
-async def create_user(
+def create_user(
     user_data: UserCreate,
     admin: UserModel = Depends(get_current_admin),
     service: UserService = Depends(get_user_service),
@@ -69,7 +69,7 @@ async def create_user(
 
 
 @router.patch("/users/{user_id}", response_model=UserResponse)
-async def update_user(
+def update_user(
     user_id: int,
     user_data: UserUpdate,
     admin: UserModel = Depends(get_current_admin),
@@ -84,7 +84,7 @@ async def update_user(
 
 
 @router.delete("/users/{user_id}")
-async def delete_user(
+def delete_user(
     user_id: int,
     admin: UserModel = Depends(get_current_admin),
     service: UserService = Depends(get_user_service),

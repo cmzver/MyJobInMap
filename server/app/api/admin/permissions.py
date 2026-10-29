@@ -46,7 +46,7 @@ def _effective_org(admin: UserModel, organization_id: Optional[int]) -> Optional
 
 
 @router.get("/permissions", response_model=RolePermissionsResponse)
-async def get_permissions(
+def get_permissions(
     organization_id: Optional[int] = Query(default=None),
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_admin),
@@ -79,7 +79,7 @@ async def get_permissions(
 
 
 @router.patch("/permissions/{role}")
-async def update_role_permission(
+def update_role_permission(
     role: str,
     update: UpdateRolePermissionRequest,
     organization_id: Optional[int] = Query(default=None),
@@ -138,7 +138,7 @@ async def update_role_permission(
 
 
 @router.get("/groups", response_model=List[UserGroupResponse])
-async def list_groups(
+def list_groups(
     organization_id: Optional[int] = Query(default=None),
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_admin),
@@ -148,7 +148,7 @@ async def list_groups(
 
 
 @router.post("/groups", response_model=UserGroupResponse, status_code=201)
-async def create_group(
+def create_group(
     data: UserGroupCreate,
     organization_id: Optional[int] = Query(default=None),
     db: Session = Depends(get_db),
@@ -164,7 +164,7 @@ async def create_group(
 
 
 @router.patch("/groups/{name}", response_model=UserGroupResponse)
-async def update_group(
+def update_group(
     name: str,
     data: UserGroupUpdate,
     organization_id: Optional[int] = Query(default=None),
@@ -181,7 +181,7 @@ async def update_group(
 
 
 @router.delete("/groups/{name}")
-async def delete_group(
+def delete_group(
     name: str,
     organization_id: Optional[int] = Query(default=None),
     db: Session = Depends(get_db),

@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
 
 @router.get("/devices", response_model=List[DeviceResponse])
-async def get_devices(
+def get_devices(
     db: Session = Depends(get_db), admin: UserModel = Depends(get_current_superadmin)
 ):
     """Получить список устройств"""
@@ -47,7 +47,7 @@ async def get_devices(
 
 
 @router.delete("/devices/{device_id}")
-async def delete_device(
+def delete_device(
     device_id: int,
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),

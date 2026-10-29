@@ -65,7 +65,7 @@ class DashboardActivityResponse(BaseModel):
 
 
 @router.get("/stats", response_model=DashboardStatsResponse)
-async def get_dashboard_stats(
+def get_dashboard_stats(
     period: str = Query(
         "today",
         description="Period: today, week, month (currently unused, returns all tasks)",
@@ -117,7 +117,7 @@ async def get_dashboard_stats(
 
 
 @router.get("/activity", response_model=DashboardActivityResponse)
-async def get_dashboard_activity(
+def get_dashboard_activity(
     db: Session = Depends(get_db), user: UserModel = Depends(get_current_user_required)
 ):
     """

@@ -27,7 +27,7 @@ router = APIRouter(prefix="/api/updates", tags=["Updates"])
 
 
 @router.get("/check", response_model=AppUpdateCheck)
-async def check_update(
+def check_update(
     version_code: int = 0,
     version_name: str = "",
     service: UpdateService = Depends(get_update_service),
@@ -45,7 +45,7 @@ async def check_update(
 
 
 @router.get("/download")
-async def download_latest_apk(
+def download_latest_apk(
     service: UpdateService = Depends(get_update_service),
 ):
     """
@@ -100,7 +100,7 @@ async def upload_apk(
 
 
 @router.get("/history", response_model=list[AppUpdateInfo])
-async def list_updates(
+def list_updates(
     admin: UserModel = Depends(get_current_superadmin),
     service: UpdateService = Depends(get_update_service),
 ):
@@ -113,7 +113,7 @@ async def list_updates(
 
 
 @router.delete("/{version_code}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_update(
+def delete_update(
     version_code: int,
     admin: UserModel = Depends(get_current_superadmin),
     service: UpdateService = Depends(get_update_service),

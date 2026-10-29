@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
 
 
 @router.get("", response_model=List[NotificationResponse])
-async def get_notifications(
+def get_notifications(
     is_read: Optional[bool] = Query(None, description="Filter by read status"),
     current_user: UserModel = Depends(get_current_user_required),
     service: NotificationService = Depends(get_notification_service),
@@ -28,7 +28,7 @@ async def get_notifications(
 
 
 @router.patch("/{notification_id}/read")
-async def mark_notification_as_read(
+def mark_notification_as_read(
     notification_id: int,
     current_user: UserModel = Depends(get_current_user_required),
     service: NotificationService = Depends(get_notification_service),
@@ -41,7 +41,7 @@ async def mark_notification_as_read(
 
 
 @router.patch("/read-all")
-async def mark_all_notifications_as_read(
+def mark_all_notifications_as_read(
     current_user: UserModel = Depends(get_current_user_required),
     service: NotificationService = Depends(get_notification_service),
 ):
@@ -50,7 +50,7 @@ async def mark_all_notifications_as_read(
 
 
 @router.patch("/support-ticket/{ticket_id}/read")
-async def mark_support_ticket_notifications_as_read(
+def mark_support_ticket_notifications_as_read(
     ticket_id: int,
     current_user: UserModel = Depends(get_current_user_required),
     service: NotificationService = Depends(get_notification_service),
@@ -63,7 +63,7 @@ async def mark_support_ticket_notifications_as_read(
 
 
 @router.patch("/task/{task_id}/read")
-async def mark_task_notifications_as_read(
+def mark_task_notifications_as_read(
     task_id: int,
     current_user: UserModel = Depends(get_current_user_required),
     service: NotificationService = Depends(get_notification_service),
@@ -76,7 +76,7 @@ async def mark_task_notifications_as_read(
 
 
 @router.delete("/{notification_id}")
-async def delete_notification(
+def delete_notification(
     notification_id: int,
     current_user: UserModel = Depends(get_current_user_required),
     service: NotificationService = Depends(get_notification_service),

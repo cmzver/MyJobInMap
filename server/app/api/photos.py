@@ -47,7 +47,7 @@ async def upload_task_photo(
 
 
 @router.get("/api/tasks/{task_id}/photos", response_model=List[PhotoResponse])
-async def get_task_photos(
+def get_task_photos(
     task_id: int,
     access: TaskAccess = Depends(
         require_task_access("view_photos", worker_detail="Нет доступа к этой заявке")
@@ -59,7 +59,7 @@ async def get_task_photos(
 
 
 @router.get("/api/photos/{filename}")
-async def get_photo(
+def get_photo(
     filename: str,
     current_user: UserModel = Depends(require_permission("view_photos")),
     service: PhotoService = Depends(get_photo_service),
@@ -74,7 +74,7 @@ async def get_photo(
 
 
 @router.delete("/api/photos/{photo_id}")
-async def delete_photo(
+def delete_photo(
     photo_id: int,
     current_user: UserModel = Depends(get_current_user_required),
     service: PhotoService = Depends(get_photo_service),

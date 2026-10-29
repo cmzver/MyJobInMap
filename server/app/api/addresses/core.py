@@ -44,7 +44,7 @@ def get_tenant_address_or_404(
 
 
 @router.post("/parse", response_model=AddressParseResponse)
-async def parse_address_endpoint(
+def parse_address_endpoint(
     data: AddressParseRequest, user: UserModel = Depends(get_current_user_required)
 ):
     """Парсит полный адрес на составные части (город, улица, дом, корпус, подъезд)"""
@@ -59,7 +59,7 @@ async def parse_address_endpoint(
 
 
 @router.post("/compose", response_model=AddressComposeResponse)
-async def compose_address_endpoint(
+def compose_address_endpoint(
     data: AddressComposeRequest, user: UserModel = Depends(get_current_user_required)
 ):
     """Собирает полный адрес из составных частей"""
@@ -74,7 +74,7 @@ async def compose_address_endpoint(
 
 
 @router.get("", response_model=AddressListResponse)
-async def get_addresses(
+def get_addresses(
     search: Optional[str] = Query(None, description="Поиск по адресу"),
     city: Optional[str] = Query(None, description="Фильтр по городу"),
     is_active: Optional[bool] = Query(None, description="Фильтр по активности"),
@@ -125,7 +125,7 @@ async def get_addresses(
 
 
 @router.get("/my", response_model=AddressListResponse)
-async def get_my_addresses(
+def get_my_addresses(
     search: Optional[str] = Query(None, description="Поиск по адресу"),
     page: int = Query(1, ge=1, description="Номер страницы"),
     size: int = Query(50, ge=1, le=100, description="Размер страницы"),
@@ -176,7 +176,7 @@ async def get_my_addresses(
 
 
 @router.get("/search", response_model=list[AddressSearchResponse])
-async def search_addresses(
+def search_addresses(
     q: str = Query(..., min_length=2, description="Поисковый запрос"),
     limit: int = Query(10, ge=1, le=50, description="Лимит результатов"),
     db: Session = Depends(get_db),
@@ -205,7 +205,7 @@ async def search_addresses(
 
 
 @router.get("/find-by-components", response_model=Optional[AddressSearchResponse])
-async def find_by_components(
+def find_by_components(
     city: str = Query(..., description="Город"),
     street: str = Query(..., description="Улица"),
     building: str = Query(..., description="Дом"),
@@ -239,7 +239,7 @@ async def find_by_components(
 
 
 @router.get("/{address_id}", response_model=AddressResponse)
-async def get_address(
+def get_address(
     address_id: int,
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user_required),
@@ -250,7 +250,7 @@ async def get_address(
 
 
 @router.post("", response_model=AddressResponse, status_code=201)
-async def create_address(
+def create_address(
     data: AddressCreate,
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_dispatcher_or_admin),
@@ -302,7 +302,7 @@ async def create_address(
 
 
 @router.patch("/{address_id}", response_model=AddressResponse)
-async def update_address(
+def update_address(
     address_id: int,
     data: AddressUpdate,
     db: Session = Depends(get_db),
@@ -355,7 +355,7 @@ async def update_address(
 
 
 @router.delete("/{address_id}", status_code=204)
-async def delete_address(
+def delete_address(
     address_id: int,
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_dispatcher_or_admin),
@@ -370,7 +370,7 @@ async def delete_address(
 
 
 @router.post("/{address_id}/deactivate", response_model=AddressResponse)
-async def deactivate_address(
+def deactivate_address(
     address_id: int,
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user_required),
@@ -392,7 +392,7 @@ async def deactivate_address(
 
 
 @router.get("/autocomplete/cities", response_model=List[str])
-async def autocomplete_cities(
+def autocomplete_cities(
     q: str = Query("", description="Поисковый запрос"),
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
@@ -419,7 +419,7 @@ async def autocomplete_cities(
 
 
 @router.get("/autocomplete/streets", response_model=List[str])
-async def autocomplete_streets(
+def autocomplete_streets(
     q: str = Query("", description="Поисковый запрос"),
     city: Optional[str] = Query(None, description="Фильтр по городу"),
     limit: int = Query(10, ge=1, le=50),
@@ -462,7 +462,7 @@ async def autocomplete_streets(
 
 
 @router.get("/autocomplete/buildings", response_model=List[str])
-async def autocomplete_buildings(
+def autocomplete_buildings(
     q: str = Query("", description="Поисковый запрос"),
     city: Optional[str] = Query(None, description="Фильтр по городу"),
     street: Optional[str] = Query(None, description="Фильтр по улице"),
@@ -496,7 +496,7 @@ async def autocomplete_buildings(
 
 
 @router.get("/autocomplete/full", response_model=List[AddressSearchResponse])
-async def autocomplete_full_address(
+def autocomplete_full_address(
     q: str = Query("", description="Поисковый запрос по полному адресу"),
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
@@ -523,7 +523,7 @@ async def autocomplete_full_address(
 
 
 @router.get("/autocomplete/corpus", response_model=List[str])
-async def autocomplete_corpus(
+def autocomplete_corpus(
     city: str = Query(..., description="Город"),
     street: str = Query(..., description="Улица"),
     building: str = Query(..., description="Дом"),
@@ -551,7 +551,7 @@ async def autocomplete_corpus(
 
 
 @router.get("/autocomplete/entrance", response_model=List[str])
-async def autocomplete_entrance(
+def autocomplete_entrance(
     city: str = Query(..., description="Город"),
     street: str = Query(..., description="Улица"),
     building: str = Query(..., description="Дом"),

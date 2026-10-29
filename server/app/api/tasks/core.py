@@ -153,7 +153,7 @@ def create_task(
 
 
 @router.get("", response_model=PaginatedResponse[TaskListResponse])
-async def get_tasks(
+def get_tasks(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     status: List[TaskStatus] = Query(default=[]),
@@ -328,7 +328,7 @@ def get_task_ids(
 
 
 @router.get("/summary", response_model=TaskSummaryResponse)
-async def get_tasks_summary(
+def get_tasks_summary(
     status: Optional[TaskStatus] = None,
     assignee_id: Optional[int] = None,
     service: TaskService = Depends(get_task_service),
@@ -343,7 +343,7 @@ async def get_tasks_summary(
 
 
 @router.get("/{task_id}", response_model=TaskResponse)
-async def get_task(
+def get_task(
     task_id: int,
     access: TaskAccess = Depends(
         require_task_access("view_tasks", worker_detail="Нет доступа к этой заявке")
@@ -459,7 +459,7 @@ async def delete_task(
 
 
 @router.patch("/{task_id}/planned-date", response_model=TaskListResponse)
-async def update_planned_date(
+def update_planned_date(
     task_id: int,
     planned_date_update: PlannedDateUpdate,
     access: TaskAccess = Depends(

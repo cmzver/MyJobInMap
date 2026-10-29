@@ -64,7 +64,7 @@ def get_period_start(period: Optional[str]) -> Optional[datetime]:
 
 
 @router.get("/stats", response_model=FinanceStatsResponse)
-async def get_finance_stats(
+def get_finance_stats(
     period: Optional[str] = Query(None, description="Period: all, week, month"),
     user_id: Optional[int] = Query(None, description="Filter by user ID"),
     db: Session = Depends(get_db),
@@ -108,7 +108,7 @@ async def get_finance_stats(
 
 
 @router.get("/workers", response_model=List[WorkerStatsResponse])
-async def get_workers_stats(
+def get_workers_stats(
     period: Optional[str] = Query(None, description="Period: all, week, month"),
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_dispatcher_or_admin),

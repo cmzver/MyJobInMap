@@ -37,7 +37,7 @@ router = APIRouter(prefix="/api/chat", tags=["Chat"])
 
 
 @router.get("/conversations/{conv_id}/messages", response_model=MessageListResponse)
-async def get_messages(
+def get_messages(
     conv_id: int,
     before_id: Optional[int] = Query(
         None, description="Cursor: ID сообщения (загрузить старше)"
@@ -226,7 +226,7 @@ async def delete_message(
 @router.post(
     "/conversations/{conv_id}/messages/search", response_model=List[MessageResponse]
 )
-async def search_messages(
+def search_messages(
     conv_id: int,
     data: MessageSearchRequest,
     current_user: UserModel = Depends(get_current_user_required),
@@ -237,7 +237,7 @@ async def search_messages(
 
 
 @router.post("/messages/search", response_model=List[MessageResponse])
-async def search_all_messages(
+def search_all_messages(
     data: MessageSearchRequest,
     current_user: UserModel = Depends(get_current_user_required),
     db: Session = Depends(get_db),

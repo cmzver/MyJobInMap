@@ -133,7 +133,7 @@ def _require_export_format(requested: str, expected: str) -> None:
 
 
 @router.get("", response_model=ReportsResponse)
-async def get_reports(
+def get_reports(
     period: str = Query(
         "month",
         description="Period: today, yesterday, week, month, quarter, year, all, custom",
@@ -349,7 +349,7 @@ async def get_reports(
 
 
 @router.get("/export")
-async def export_report(
+def export_report(
     period: str = Query("month", description="Period"),
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
@@ -429,7 +429,7 @@ async def export_report(
 
 
 @router.get("/export/excel")
-async def export_report_excel(
+def export_report_excel(
     status: Optional[str] = None,
     priority: Optional[str] = None,
     assignee_id: Optional[int] = None,

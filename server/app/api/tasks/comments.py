@@ -74,7 +74,7 @@ async def add_comment(
 
 
 @router.get("/{task_id}/comments", response_model=List[CommentResponse])
-async def get_comments(
+def get_comments(
     task_id: int,
     access: TaskAccess = Depends(
         require_task_access("view_comments", worker_detail="Нет доступа к этой заявке")

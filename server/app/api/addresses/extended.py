@@ -139,7 +139,7 @@ def build_task_filters_for_address(address: AddressModel):
 
 
 @router.get("/{address_id}/full", response_model=AddressFullResponse)
-async def get_address_full(
+def get_address_full(
     address_id: int,
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user_required),
@@ -242,7 +242,7 @@ async def get_address_full(
 
 
 @router.get("/{address_id}/systems", response_model=list[AddressSystemResponse])
-async def get_address_systems(
+def get_address_systems(
     address_id: int,
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user_required),
@@ -261,7 +261,7 @@ async def get_address_systems(
 @router.post(
     "/{address_id}/systems", response_model=AddressSystemResponse, status_code=201
 )
-async def create_address_system(
+def create_address_system(
     address_id: int,
     data: AddressSystemCreate,
     db: Session = Depends(get_db),
@@ -287,7 +287,7 @@ async def create_address_system(
 
 
 @router.patch("/{address_id}/systems/{system_id}", response_model=AddressSystemResponse)
-async def update_address_system(
+def update_address_system(
     address_id: int,
     system_id: int,
     data: AddressSystemUpdate,
@@ -326,7 +326,7 @@ async def update_address_system(
 
 
 @router.delete("/{address_id}/systems/{system_id}", status_code=204)
-async def delete_address_system(
+def delete_address_system(
     address_id: int,
     system_id: int,
     db: Session = Depends(get_db),
@@ -366,7 +366,7 @@ async def delete_address_system(
 
 
 @router.get("/{address_id}/equipment", response_model=list[AddressEquipmentResponse])
-async def get_address_equipment(
+def get_address_equipment(
     address_id: int,
     system_id: Optional[int] = Query(None, description="Фильтр по системе"),
     db: Session = Depends(get_db),
@@ -389,7 +389,7 @@ async def get_address_equipment(
 @router.post(
     "/{address_id}/equipment", response_model=AddressEquipmentResponse, status_code=201
 )
-async def create_address_equipment(
+def create_address_equipment(
     address_id: int,
     data: AddressEquipmentCreate,
     db: Session = Depends(get_db),
@@ -432,7 +432,7 @@ async def create_address_equipment(
 @router.patch(
     "/{address_id}/equipment/{equipment_id}", response_model=AddressEquipmentResponse
 )
-async def update_address_equipment(
+def update_address_equipment(
     address_id: int,
     equipment_id: int,
     data: AddressEquipmentUpdate,
@@ -471,7 +471,7 @@ async def update_address_equipment(
 
 
 @router.delete("/{address_id}/equipment/{equipment_id}", status_code=204)
-async def delete_address_equipment(
+def delete_address_equipment(
     address_id: int,
     equipment_id: int,
     db: Session = Depends(get_db),
@@ -511,7 +511,7 @@ async def delete_address_equipment(
 
 
 @router.get("/{address_id}/panels", response_model=list[IntercomPanelResponse])
-async def get_address_panels(
+def get_address_panels(
     address_id: int,
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user_required),
@@ -530,7 +530,7 @@ async def get_address_panels(
 @router.post(
     "/{address_id}/panels", response_model=IntercomPanelResponse, status_code=201
 )
-async def create_address_panel(
+def create_address_panel(
     address_id: int,
     data: IntercomPanelCreate,
     db: Session = Depends(get_db),
@@ -556,7 +556,7 @@ async def create_address_panel(
 
 
 @router.patch("/{address_id}/panels/{panel_id}", response_model=IntercomPanelResponse)
-async def update_address_panel(
+def update_address_panel(
     address_id: int,
     panel_id: int,
     data: IntercomPanelUpdate,
@@ -595,7 +595,7 @@ async def update_address_panel(
 
 
 @router.delete("/{address_id}/panels/{panel_id}", status_code=204)
-async def delete_address_panel(
+def delete_address_panel(
     address_id: int,
     panel_id: int,
     db: Session = Depends(get_db),
@@ -657,7 +657,7 @@ def _assignee_to_response(
 
 
 @router.get("/{address_id}/assignees", response_model=list[AddressAssigneeResponse])
-async def get_address_assignees(
+def get_address_assignees(
     address_id: int,
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_dispatcher_or_admin),
@@ -678,7 +678,7 @@ async def get_address_assignees(
     response_model=AddressAssigneeResponse,
     status_code=201,
 )
-async def add_address_assignee(
+def add_address_assignee(
     address_id: int,
     data: AddressAssigneeCreate,
     db: Session = Depends(get_db),
@@ -727,7 +727,7 @@ async def add_address_assignee(
 
 
 @router.delete("/{address_id}/assignees/{user_id}", status_code=204)
-async def remove_address_assignee(
+def remove_address_assignee(
     address_id: int,
     user_id: int,
     db: Session = Depends(get_db),
@@ -770,7 +770,7 @@ async def remove_address_assignee(
 
 
 @router.get("/{address_id}/documents", response_model=list[AddressDocumentResponse])
-async def get_address_documents(
+def get_address_documents(
     address_id: int,
     doc_type: Optional[str] = Query(None, description="Фильтр по типу"),
     db: Session = Depends(get_db),
@@ -904,7 +904,7 @@ async def upload_address_document(
 
 
 @router.get("/{address_id}/documents/{document_id}/download")
-async def download_address_document(
+def download_address_document(
     address_id: int,
     document_id: int,
     db: Session = Depends(get_db),
@@ -937,7 +937,7 @@ async def download_address_document(
 
 
 @router.delete("/{address_id}/documents/{document_id}", status_code=204)
-async def delete_address_document(
+def delete_address_document(
     address_id: int,
     document_id: int,
     db: Session = Depends(get_db),
@@ -985,7 +985,7 @@ async def delete_address_document(
 
 
 @router.get("/{address_id}/contacts", response_model=list[AddressContactResponse])
-async def get_address_contacts(
+def get_address_contacts(
     address_id: int,
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user_required),
@@ -1004,7 +1004,7 @@ async def get_address_contacts(
 @router.post(
     "/{address_id}/contacts", response_model=AddressContactResponse, status_code=201
 )
-async def create_address_contact(
+def create_address_contact(
     address_id: int,
     data: AddressContactCreate,
     db: Session = Depends(get_db),
@@ -1039,7 +1039,7 @@ async def create_address_contact(
 @router.patch(
     "/{address_id}/contacts/{contact_id}", response_model=AddressContactResponse
 )
-async def update_address_contact(
+def update_address_contact(
     address_id: int,
     contact_id: int,
     data: AddressContactUpdate,
@@ -1086,7 +1086,7 @@ async def update_address_contact(
 
 
 @router.delete("/{address_id}/contacts/{contact_id}", status_code=204)
-async def delete_address_contact(
+def delete_address_contact(
     address_id: int,
     contact_id: int,
     db: Session = Depends(get_db),
@@ -1126,7 +1126,7 @@ async def delete_address_contact(
 
 
 @router.get("/{address_id}/history", response_model=list[AddressHistoryResponse])
-async def get_address_history(
+def get_address_history(
     address_id: int,
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
@@ -1166,7 +1166,7 @@ async def get_address_history(
 
 
 @router.get("/{address_id}/tasks")
-async def get_address_tasks(
+def get_address_tasks(
     address_id: int,
     status: Optional[str] = Query(None, description="Фильтр по статусу"),
     limit: int = Query(20, ge=1, le=100),

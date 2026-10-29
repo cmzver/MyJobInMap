@@ -131,7 +131,7 @@ def _org_to_response(org: OrganizationModel, db: Session) -> OrganizationRespons
 
 
 @router.get("", response_model=List[OrganizationResponse])
-async def list_organizations(
+def list_organizations(
     include_inactive: bool = False,
     db: Session = Depends(get_db),
     user: UserModel = Depends(_require_superadmin),
@@ -143,7 +143,7 @@ async def list_organizations(
 
 
 @router.post("", status_code=201, response_model=OrganizationResponse)
-async def create_organization(
+def create_organization(
     data: OrganizationCreate,
     db: Session = Depends(get_db),
     user: UserModel = Depends(_require_superadmin),
@@ -172,7 +172,7 @@ async def create_organization(
 
 
 @router.get("/{org_id}", response_model=OrganizationResponse)
-async def get_organization(
+def get_organization(
     org_id: int,
     db: Session = Depends(get_db),
     user: UserModel = Depends(_require_superadmin),
@@ -186,7 +186,7 @@ async def get_organization(
 
 
 @router.patch("/{org_id}", response_model=OrganizationResponse)
-async def update_organization(
+def update_organization(
     org_id: int,
     data: OrganizationUpdate,
     db: Session = Depends(get_db),
@@ -202,7 +202,7 @@ async def update_organization(
 
 
 @router.delete("/{org_id}")
-async def deactivate_organization(
+def deactivate_organization(
     org_id: int,
     db: Session = Depends(get_db),
     user: UserModel = Depends(_require_superadmin),
@@ -219,7 +219,7 @@ async def deactivate_organization(
 
 
 @router.post("/assign-user")
-async def assign_user_to_organization(
+def assign_user_to_organization(
     data: AssignUserRequest,
     user: UserModel = Depends(_require_superadmin),
     tenant_service: TenantService = Depends(get_tenant_service),
@@ -234,7 +234,7 @@ async def assign_user_to_organization(
 
 
 @router.post("/{org_id}/activate", response_model=OrganizationResponse)
-async def activate_organization(
+def activate_organization(
     org_id: int,
     db: Session = Depends(get_db),
     user: UserModel = Depends(_require_superadmin),
@@ -251,7 +251,7 @@ async def activate_organization(
 
 
 @router.post("/{org_id}/unassign-user")
-async def unassign_user_from_organization(
+def unassign_user_from_organization(
     org_id: int,
     data: dict,
     db: Session = Depends(get_db),
@@ -279,7 +279,7 @@ async def unassign_user_from_organization(
 
 
 @router.get("/{org_id}/users")
-async def get_organization_users(
+def get_organization_users(
     org_id: int,
     db: Session = Depends(get_db),
     user: UserModel = Depends(_require_superadmin),
