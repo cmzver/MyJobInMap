@@ -56,23 +56,23 @@ import javax.inject.Inject
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    
+
     companion object {
         private const val TAG = "MainActivity"
         const val EXTRA_TASK_ID = "task_id"
         const val EXTRA_CHAT_ID = "chat_id"
         const val EXTRA_CHAT_MESSAGE_ID = "chat_message_id"
     }
-    
+
     @Inject
     lateinit var appPreferences: AppPreferences
-    
+
     @Inject
     lateinit var tasksRepository: OfflineFirstTasksRepository
-    
+
     @Inject
     lateinit var authRepository: AuthRepository
-    
+
     @Inject
     lateinit var networkMonitor: NetworkMonitor
 
@@ -81,15 +81,15 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var chatRepository: ChatRepository
-    
+
     private val updateViewModel: UpdateViewModel by viewModels()
-    
+
     // Флаг готовности приложения (используется для Splash Screen)
     private var isAppReady = false
     private var pendingNotificationTaskId by mutableStateOf<Long?>(null)
     private var pendingNotificationChatId by mutableStateOf<Long?>(null)
     private var pendingNotificationChatMessageId by mutableStateOf<Long?>(null)
-    
+
     // Запрос разрешения на уведомления для Android 13+
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -100,25 +100,25 @@ class MainActivity : ComponentActivity() {
             Log.w(TAG, "Notification permission denied")
         }
     }
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Устанавливаем Splash Screen ПЕРЕД super.onCreate()
         val splashScreen = installSplashScreen()
-        
+
         super.onCreate(savedInstanceState)
         pendingNotificationTaskId = extractTaskIdFromIntent(intent)
         pendingNotificationChatId = extractChatIdFromIntent(intent)
         pendingNotificationChatMessageId = extractChatMessageIdFromIntent(intent)
-        
+
         // Контролируем, когда скрыть Splash Screen
         splashScreen.setKeepOnScreenCondition { !isAppReady }
-        
+
         // Запрашиваем разрешение на уведомления для Android 13+
         askNotificationPermission()
-        
+
         // Приложение готово к работе
         isAppReady = true
-        
+
         setContent {
             FieldWorkerTheme {
                 Surface(
@@ -127,11 +127,11 @@ class MainActivity : ComponentActivity() {
                 ) {
                     // Состояния авторизации
                     var authState by remember { mutableStateOf<AuthState>(AuthState.Loading) }
-                    
+
                     // Проверяем сессию при запуске
                     LaunchedEffect(Unit) {
                         Log.d(TAG, "========== SESSION VALIDATION START ==========")
-                        
+
                         // Проверяем флаг принудительного logout
                         if (appPreferences.forcedLogoutRequested) {
                             Log.w(TAG, "Forced logout flag detected, clearing")
@@ -140,56 +140,28 @@ class MainActivity : ComponentActivity() {
                             authState = AuthState.NotLoggedIn
                             return@LaunchedEffect
                         }
-                        
+
                         // Проверяем наличие токена
                         val token = appPreferences.getAuthToken()
                         Log.d(TAG, "Token present: ${token != null}, token prefix: ${token?.take(30)}...")
                         Log.d(TAG, "Server URL: ${appPreferences.getFullServerUrl()}")
                         Log.d(TAG, "Username in prefs: ${appPreferences.getUsername()}")
-                        
+
                         if (token == null) {
                             Log.d(TAG, "No token found, showing login")
                             authState = AuthState.NotLoggedIn
                             return@LaunchedEffect
                         }
-                        
-                        // Быстрая проверка: если нет сети — сразу в офлайн-режим
-                        if (!networkMonitor.isCurrentlyOnline()) {
-                            Log.w(TAG, "No network detected, skipping validation → offline cached mode")
-                            authState = AuthState.LoggedIn
-                            return@LaunchedEffect
-                        }
-                        
-                        // Есть токен и сеть - проверяем сессию с таймаутом 5с
-                        Log.d(TAG, "Token found, validating session on server...")
-                        val validationResult = withTimeoutOrNull(5_000L) {
-                            authRepository.validateCurrentUser()
-                        } ?: run {
-                            Log.w(TAG, "Validation timed out (5s), allowing cached mode")
-                            AuthRepository.ValidationResult.UNKNOWN
-                        }
-                        Log.d(TAG, "Validation result: $validationResult")
-                        
-                        when (validationResult) {
-                            AuthRepository.ValidationResult.VALID -> {
-                                Log.d(TAG, "Session VALID, showing main screen")
-                                authState = AuthState.LoggedIn
-                            }
-                            AuthRepository.ValidationResult.INVALID -> {
-                                Log.w(TAG, "Session INVALID (user deleted?), clearing and logout")
-                                tasksRepository.clearCache(); chatRepository.clearChatCache()
-                                appPreferences.logout()
-                                authState = AuthState.NotLoggedIn
-                            }
-                            AuthRepository.ValidationResult.UNKNOWN -> {
-                                // Ошибка сети - разрешаем работать с кешем
-                                Log.w(TAG, "Validation UNKNOWN (network error), allowing cached mode")
-                                authState = AuthState.LoggedIn
-                            }
-                        }
-                        Log.d(TAG, "========== SESSION VALIDATION END ==========")
+
+                        // Offline-first: есть токен — сразу открываем приложение с кешем.
+                        // Сессию проверяет MapViewModel в фоне (с таймаутом); если она
+                        // недействительна — triggerLogout() вернёт сюда через logoutEvent.
+                        // Раньше старт ждал сервер (здесь до 5 с + ещё раз в VM без
+                        // таймаута) — при недоступном сервере офлайн открывался минуту.
+                        authState = AuthState.LoggedIn
+                        Log.d(TAG, "========== SESSION VALIDATION END (deferred) ==========")
                     }
-                    
+
                     // Подписываемся на событие принудительного логаута (401 Unauthorized)
                     LaunchedEffect(Unit) {
                         appPreferences.logoutEvent.collectLatest {
@@ -199,7 +171,7 @@ class MainActivity : ComponentActivity() {
                             authState = AuthState.NotLoggedIn
                         }
                     }
-                    
+
                     // Отображаем UI в зависимости от состояния
                     when (authState) {
                         AuthState.Loading -> {
@@ -244,7 +216,7 @@ class MainActivity : ComponentActivity() {
                                     lifecycleOwner.lifecycle.removeObserver(observer)
                                 }
                             }
-                            
+
                             MainScreen(
                                 notificationTaskId = pendingNotificationTaskId,
                                 onNotificationTaskHandled = {
@@ -290,7 +262,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             )
-                            
+
                             // Диалог обновления
                             if (updateState != null) {
                                 UpdateDialog(
@@ -326,7 +298,7 @@ class MainActivity : ComponentActivity() {
         pendingNotificationChatId = extractChatIdFromIntent(intent)
         pendingNotificationChatMessageId = extractChatMessageIdFromIntent(intent)
     }
-    
+
     /**
      * Состояние авторизации
      */
@@ -335,7 +307,7 @@ class MainActivity : ComponentActivity() {
         data object LoggedIn : AuthState()
         data object NotLoggedIn : AuthState()
     }
-    
+
     private fun askNotificationPermission() {
         // Для Android 13+ (API 33+) нужно запрашивать разрешение
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -353,7 +325,7 @@ class MainActivity : ComponentActivity() {
             Log.d(TAG, "Notification permission not required (API < 33)")
         }
     }
-    
+
     /**
      * Запуск установки APK через FileProvider
      */

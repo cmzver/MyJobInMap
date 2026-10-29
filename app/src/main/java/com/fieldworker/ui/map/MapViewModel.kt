@@ -32,6 +32,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -187,7 +188,7 @@ internal data class TaskFilterInput(
  * ViewModel для экрана карты с заявками.
  * Управляет загрузкой задач и состоянием UI.
  * Поддерживает offline-режим с кешированием в Room.
- * 
+ *
  * Использует UseCase классы для бизнес-логики:
  * - GetTasksUseCase: загрузка и кеширование задач
  * - UpdateTaskStatusUseCase: изменение статуса
@@ -208,7 +209,7 @@ class MapViewModel @Inject constructor(
     val authRepository: com.fieldworker.data.repository.AuthRepository,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
-    
+
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState: StateFlow<MapUiState> = _uiState.asStateFlow()
 
@@ -221,53 +222,59 @@ class MapViewModel @Inject constructor(
         .flowOn(Dispatchers.Default)
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    
+
     /**
      * Paging 3 Flow задач для TaskListScreen.
      * cachedIn(viewModelScope) сохраняет данные при смене конфигурации.
      */
     val tasksPagingFlow: kotlinx.coroutines.flow.Flow<PagingData<Task>> =
         getTasksUseCase.tasksPagingFlow.cachedIn(viewModelScope)
-    
+
     private val _connectionStatus = MutableStateFlow<ConnectionStatus>(ConnectionStatus.IDLE)
     val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
-    
-    // Флаг: сессия проверена (блокирует отображение кеша до валидации)
-    private var sessionValidated = false
+
 
     // Circuit breaker для checkServerReachable: после 5 подряд неудач интервал растёт до 5 минут
     private var serverCheckFailures = 0
     private val serverCheckCircuitOpenThreshold = 5
     private val serverCheckCircuitOpenIntervalMs = 5 * 60_000L
-    private val appInForeground = MutableStateFlow(true)
-    
+    // Видимость знает только UI: MainScreen шлёт ON_START/ON_STOP, причём
+    // наблюдатель сразу получает ON_START при подписке. До этого (и в юнит-тестах,
+    // где UI нет) бесконечный опрос /health не запускается.
+    private val appInForeground = MutableStateFlow(false)
+
+    private companion object {
+        /** Сколько ждём проверку сессии, прежде чем считать сервер недоступным. */
+        const val SESSION_CHECK_TIMEOUT_MS = 8_000L
+    }
+
     init {
         // Загружаем сохранённые фильтры
         loadSavedFilters()
         refreshAccess()
-        
+
         // Подписываемся на изменения данных из Room
         observeTasksFromDatabase()
-        
+
         // Подписываемся на состояние сети + доступность сервера
         observeNetworkStatus()
         startServerReachabilityCheck()
-        
+
         // Подписываемся на pending actions
         observePendingActions()
-        
+
         // Слушаем изменения фильтров из настроек
         observePreferencesChanges()
-        
+
         // Запускаем периодическую синхронизацию
         syncManager.startPeriodicSync()
-        
+
         // Валидируем сессию пользователя при запуске, потом загружаем данные
         viewModelScope.launch {
             validateUserSessionAndLoadTasks()
         }
     }
-    
+
     private fun observePreferencesChanges() {
         viewModelScope.launch {
             combine(
@@ -287,7 +294,7 @@ class MapViewModel @Inject constructor(
             }.collect {}
         }
     }
-    
+
     /**
      * Подписаться на изменения задач из Room
      * ВАЖНО: Не показываем данные из кеша пока сессия не проверена!
@@ -297,13 +304,13 @@ class MapViewModel @Inject constructor(
             getTasksUseCase.tasksFlow
                 .distinctUntilChanged()
                 .collect { tasks ->
-                    if (sessionValidated) {
-                        _uiState.update { it.copy(tasks = tasks) }
-                    }
+                    // Offline-first: кеш показываем сразу, не дожидаясь сервера.
+                    // Недействительная сессия очистит его (validateUserSession…).
+                    _uiState.update { it.copy(tasks = tasks) }
                 }
         }
     }
-    
+
     /**
      * Отслеживать состояние сети
      */
@@ -333,12 +340,13 @@ class MapViewModel @Inject constructor(
      */
     private fun startServerReachabilityCheck() {
         viewModelScope.launch {
-            // Начальная задержка 2с — дать UI загрузиться
-            withContext(Dispatchers.IO) { delay(2_000L) }
             // Опрашиваем только пока приложение на экране: в фоне VM жива, и
-            // пинг раз в минуту зря будил бы радио. На возврате — сразу свежая проверка.
+            // пинг раз в минуту зря будил бы радио. Сворачивание отменяет и
+            // стартовую паузу, и цикл — фоновой работы не остаётся.
             appInForeground.collectLatest { inForeground ->
                 if (!inForeground) return@collectLatest
+                // Пауза 2с — дать UI загрузиться (и после возврата из фона)
+                withContext(Dispatchers.IO) { delay(2_000L) }
                 while (currentCoroutineContext().isActive) {
                     val interval: Long
                     try {
@@ -396,7 +404,7 @@ class MapViewModel @Inject constructor(
             false
         }
     }
-    
+
     /**
      * Отслеживать количество отложенных действий
      */
@@ -441,7 +449,7 @@ class MapViewModel @Inject constructor(
             getTasksUseCase.discardFailedAction(actionId)
         }
     }
-    
+
     private fun loadSavedFilters() {
         _uiState.update {
             it.copy(
@@ -452,7 +460,7 @@ class MapViewModel @Inject constructor(
             )
         }
     }
-    
+
     /**
      * Валидация сессии пользователя и загрузка данных.
      * Сначала проверяем сессию, потом загружаем задачи.
@@ -460,8 +468,17 @@ class MapViewModel @Inject constructor(
      */
     private suspend fun validateUserSessionAndLoadTasks() {
         _uiState.update { it.copy(isLoading = true) }
-        
-        when (authRepository.validateCurrentUser()) {
+
+        // Без сети спрашивать сервер бессмысленно; с сетью — не дольше
+        // SESSION_CHECK_TIMEOUT_MS: недоступный сервер не должен держать экран.
+        val validation = if (!networkMonitor.isCurrentlyOnline()) {
+            com.fieldworker.data.repository.AuthRepository.ValidationResult.UNKNOWN
+        } else {
+            withTimeoutOrNull(SESSION_CHECK_TIMEOUT_MS) { authRepository.validateCurrentUser() }
+                ?: com.fieldworker.data.repository.AuthRepository.ValidationResult.UNKNOWN
+        }
+
+        when (validation) {
             com.fieldworker.data.repository.AuthRepository.ValidationResult.INVALID -> {
                 android.util.Log.w("MapViewModel", "User session invalid, clearing cache and triggering logout")
                 getTasksUseCase.clearCache()
@@ -476,18 +493,15 @@ class MapViewModel @Inject constructor(
                 android.util.Log.d("MapViewModel", "User session is valid")
             }
         }
-        
-        // Сессия валидна или неизвестна (offline) - разрешаем показ данных
-        sessionValidated = true
 
         // validateCurrentUser() синхронизирует role/base_access — перечитываем доступ
         refreshAccess()
         loadPermissions()
-        
+
         // Загружаем задачи
         loadTasksInternal()
     }
-    
+
     /**
      * Внутренняя функция загрузки задач (без проверки сессии)
      */
@@ -495,7 +509,7 @@ class MapViewModel @Inject constructor(
         getTasksUseCase.refreshTasks()
             .onSuccess { tasks ->
                 val lastSync = getTasksUseCase.getLastSyncTime()
-                _uiState.update { 
+                _uiState.update {
                     it.copy(
                         tasks = tasks,
                         isLoading = false,
@@ -506,14 +520,14 @@ class MapViewModel @Inject constructor(
             }
             .onFailure { exception ->
                 val errorMessage = exception.message ?: "Неизвестная ошибка"
-                
+
                 // Если сессия истекла - вызываем logout
                 if (errorMessage.contains("Сессия истекла") || errorMessage.contains("401")) {
                     android.util.Log.w("MapViewModel", "Session expired during loadTasks, triggering logout")
                     preferences.triggerLogout()
                 }
-                
-                _uiState.update { 
+
+                _uiState.update {
                     it.copy(
                         isLoading = false,
                         error = errorMessage
@@ -521,7 +535,7 @@ class MapViewModel @Inject constructor(
                 }
             }
     }
-    
+
     /**
      * Загрузить список задач (из кеша или сервера)
      */
@@ -531,7 +545,7 @@ class MapViewModel @Inject constructor(
             loadTasksInternal()
         }
     }
-    
+
     /**
      * Принудительная синхронизация
      */
@@ -539,7 +553,7 @@ class MapViewModel @Inject constructor(
         syncManager.triggerImmediateSync()
         loadTasks()
     }
-    
+
     /**
      * Выбрать задачу и загрузить её детали
      */
@@ -554,8 +568,8 @@ class MapViewModel @Inject constructor(
                 hasAttemptedAddressLookup = false
             )
         }
-        
-        task?.let { 
+
+        task?.let {
             loadTaskDetails(it.id)
             loadTaskPhotos(it.id)
             loadAddressDetails(it)
@@ -613,14 +627,14 @@ class MapViewModel @Inject constructor(
                 }
         }
     }
-    
+
     /**
      * Загрузить детали задачи с комментариями
      */
     private fun loadTaskDetails(taskId: Long) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingComments = true) }
-            
+
             getTasksUseCase.getTaskDetail(taskId)
                 .onSuccess { (task, comments) ->
                     _uiState.update {
@@ -663,14 +677,14 @@ class MapViewModel @Inject constructor(
                 }
         }
     }
-    
+
     /**
      * Загрузить фотографии задачи
      */
     private fun loadTaskPhotos(taskId: Long) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingPhotos = true) }
-            
+
             taskPhotosUseCase.getPhotos(taskId)
                 .onSuccess { photos ->
                     _uiState.update {
@@ -685,14 +699,14 @@ class MapViewModel @Inject constructor(
                 }
         }
     }
-    
+
     /**
      * Загрузить фото к заявке
      */
     fun uploadPhoto(taskId: Long, imageUri: Uri, photoType: String = "completion") {
         viewModelScope.launch {
             _uiState.update { it.copy(isUploadingPhoto = true) }
-            
+
             taskPhotosUseCase.uploadPhoto(taskId, imageUri, photoType)
                 .onSuccess { photo ->
                     _uiState.update {
@@ -712,7 +726,7 @@ class MapViewModel @Inject constructor(
                 }
         }
     }
-    
+
     /**
      * Удалить фото
      */
@@ -731,28 +745,28 @@ class MapViewModel @Inject constructor(
                 }
         }
     }
-    
+
     /**
      * Показать диалог выбора статуса
      */
     fun showStatusDialog() {
         _uiState.update { it.copy(showStatusDialog = true) }
     }
-    
+
     /**
      * Скрыть диалог выбора статуса
      */
     fun hideStatusDialog() {
         _uiState.update { it.copy(showStatusDialog = false) }
     }
-    
+
     /**
      * Обновить статус задачи с комментарием
      */
     fun updateTaskStatus(taskId: Long, newStatus: TaskStatus, comment: String = "") {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, showStatusDialog = false) }
-            
+
             updateTaskStatusUseCase(taskId, newStatus, comment)
                 .onSuccess { updatedTask ->
                     _uiState.update { state ->
@@ -779,13 +793,13 @@ class MapViewModel @Inject constructor(
                 }
         }
     }
-    
+
     /**
      * Добавить комментарий к задаче
      */
     fun addComment(taskId: Long, text: String) {
         if (text.isBlank()) return
-        
+
         viewModelScope.launch {
             taskCommentsUseCase.addComment(taskId, text)
                 .onSuccess {
@@ -799,7 +813,7 @@ class MapViewModel @Inject constructor(
                 }
         }
     }
-    
+
     /**
      * Обновить планируемую дату выполнения задачи
      */
@@ -826,7 +840,7 @@ class MapViewModel @Inject constructor(
                 }
         }
     }
-    
+
     private fun refreshAccess() {
         val access = AccessLevel.resolve(preferences.getUserRole(), preferences.getBaseAccess())
         _uiState.update {
@@ -920,14 +934,14 @@ class MapViewModel @Inject constructor(
     fun clearError() {
         _uiState.update { it.copy(error = null) }
     }
-    
+
     /**
      * Сбросить флаг успешного обновления
      */
     fun clearStatusUpdateSuccess() {
         _uiState.update { it.copy(statusUpdateSuccess = false) }
     }
-    
+
     // ================== Фильтрация / Сортировка / Местоположение ==================
 
     fun setStatusFilter(filter: Set<TaskStatus>) {
@@ -953,7 +967,7 @@ class MapViewModel @Inject constructor(
     fun setSortOrder(order: TaskSortOrder) {
         _uiState.update { it.copy(sortOrder = order) }
     }
-    
+
     /**
      * Обновить моё местоположение
      */
@@ -967,16 +981,16 @@ class MapViewModel @Inject constructor(
 
     fun getSavedMapPosition(): Triple<Double, Double, Double>? =
         preferences.getSavedMapPosition()
-    
+
     // ================== Подключение ==================
-    
+
     /**
      * Тестировать подключение к серверу
      */
     fun testConnection(url: String) {
         viewModelScope.launch {
             _connectionStatus.value = ConnectionStatus.TESTING
-            
+
             try {
                 val result = withContext(Dispatchers.IO) {
                     val baseUrl = url.trimEnd('/')
@@ -985,7 +999,7 @@ class MapViewModel @Inject constructor(
                     connection.connectTimeout = 5000
                     connection.readTimeout = 5000
                     connection.requestMethod = "GET"
-                    
+
                     try {
                         connection.connect()
                         connection.responseCode == HttpURLConnection.HTTP_OK
@@ -993,7 +1007,7 @@ class MapViewModel @Inject constructor(
                         connection.disconnect()
                     }
                 }
-                
+
                 _connectionStatus.value = if (result) {
                     ConnectionStatus.SUCCESS
                 } else {

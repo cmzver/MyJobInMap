@@ -47,19 +47,25 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
-    
+
     private const val TAG = "NetworkModule"
     private const val TIMEOUT_SECONDS = 30L
-    
+
+    /**
+     * Подключение к серверу: недоступный сервер должен выясняться быстро.
+     * Чтение/запись — дольше (загрузка фото на медленной мобильной сети).
+     */
+    private const val CONNECT_TIMEOUT_SECONDS = 10L
+
     /**
      * Certificate pinning для production серверов.
-     * 
+     *
      * Для добавления пинов вашего сервера:
      * 1. Получите SHA-256 pin сертификата:
      *    openssl s_client -connect your-server.com:443 | openssl x509 -pubkey -noout | \
      *    openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | openssl enc -base64
      * 2. Добавьте полученный pin ниже
-     * 
+     *
      * В dev-сборке certificate pinning отключён (localhost/10.0.2.2).
      */
     private val PINNED_DOMAINS: Map<String, List<String>> = mapOf(
@@ -69,13 +75,13 @@ object NetworkModule {
         //     "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="   // Backup
         // )
     )
-    
+
     @Provides
     @Singleton
     fun provideAppPreferences(@ApplicationContext context: Context): AppPreferences {
         return AppPreferences(context)
     }
-    
+
     @Provides
     @Singleton
     fun provideLoggingInterceptor(): HttpLoggingInterceptor {
@@ -87,7 +93,7 @@ object NetworkModule {
             }
         }
     }
-    
+
     /**
      * Создать CertificatePinner для production серверов.
      * Пустой если PINNED_DOMAINS не настроены (dev-режим).
@@ -96,17 +102,17 @@ object NetworkModule {
     @Singleton
     fun provideCertificatePinner(): CertificatePinner {
         val builder = CertificatePinner.Builder()
-        
+
         PINNED_DOMAINS.forEach { (domain, pins) ->
             pins.forEach { pin ->
                 builder.add(domain, pin)
                 Log.d(TAG, "Certificate pin added for $domain")
             }
         }
-        
+
         return builder.build()
     }
-    
+
     /**
      * Интерцептор для динамической смены базового URL
      */
@@ -116,12 +122,12 @@ object NetworkModule {
         return Interceptor { chain ->
             val originalRequest = chain.request()
             val originalUrl = originalRequest.url
-            
+
             // Получаем актуальный URL из настроек
             val newBaseUrl = appPreferences.getFullServerUrl().let { url ->
                 if (url.endsWith("/")) url else "$url/"
             }.toHttpUrlOrNull()
-            
+
             val newUrl = if (newBaseUrl != null) {
                 originalUrl.newBuilder()
                     .scheme(newBaseUrl.scheme)
@@ -131,7 +137,7 @@ object NetworkModule {
             } else {
                 originalUrl
             }
-            
+
             // Добавляем токен авторизации, если есть
             val token = appPreferences.getAuthToken()
             val newRequest = originalRequest.newBuilder()
@@ -142,11 +148,11 @@ object NetworkModule {
                     }
                 }
                 .build()
-            
+
             chain.proceed(newRequest)
         }
     }
-    
+
     @Provides
     @Singleton
     fun provideOkHttpClient(
@@ -164,7 +170,7 @@ object NetworkModule {
             .addInterceptor(dynamicUrlInterceptor) // Add token & dynamic URL
             .addInterceptor(authInterceptor) // Handle 401 after refresh failure
             .addInterceptor(loggingInterceptor) // Logging last
-            .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .build()
@@ -196,13 +202,13 @@ object NetworkModule {
         return OkHttpClient.Builder()
             .certificatePinner(certificatePinner)
             .addInterceptor(loggingInterceptor)
-            .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.MILLISECONDS)
             .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .pingInterval(30, TimeUnit.SECONDS)
             .build()
     }
-    
+
     /**
      * Общий kotlinx.serialization Json. SnakeCase-стратегия снимает нужду в
      * ручных @SerialName на DTO; ignoreUnknownKeys/explicitNulls/coerceInputValues
@@ -235,13 +241,13 @@ object NetworkModule {
             .addConverterFactory(json.asConverterFactory(contentType))
             .build()
     }
-    
+
     @Provides
     @Singleton
     fun provideTasksApi(retrofit: Retrofit): TasksApi {
         return retrofit.create(TasksApi::class.java)
     }
-    
+
     @Provides
     @Singleton
     fun provideAuthApi(retrofit: Retrofit): AuthApi {

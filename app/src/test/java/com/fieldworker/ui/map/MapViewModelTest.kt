@@ -118,6 +118,7 @@ class MapViewModelTest {
         
         networkMonitor = mockk(relaxed = true)
         every { networkMonitor.isOnline } returns networkOnlineFlow
+        every { networkMonitor.isCurrentlyOnline() } returns true
         
         syncManager = mockk(relaxed = true)
         
@@ -141,10 +142,10 @@ class MapViewModelTest {
     }
 
     /**
-     * Конструирует VM с тестовым диспетчером. Фоновый `startServerReachabilityCheck`
-     * паркуется на реальном Dispatchers.IO; благодаря свежему планировщику на каждый
-     * тест (см. [setup]) его поздний резюм попадает на заброшенный планировщик и
-     * не задевает следующий тест.
+     * Конструирует VM с тестовым диспетчером. Фоновый опрос /health
+     * (`startServerReachabilityCheck`) стартует только по ON_START от UI
+     * (`setAppInForeground(true)`), поэтому в юнит-тестах не запускается и не
+     * течёт в соседние тесты.
      */
     private fun buildViewModel(): MapViewModel = MapViewModel(
         getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
@@ -193,6 +194,21 @@ class MapViewModelTest {
         coVerify { getTasksUseCase.clearCache() }
         assertTrue(preferences.forcedLogoutRequested)
         assertTrue(viewModel.uiState.value.tasks.isEmpty())
+    }
+
+    @Test
+    fun `offline start shows cache immediately without asking server`() = runTest {
+        every { networkMonitor.isCurrentlyOnline() } returns false
+        val cached = listOf(sampleTask(1), sampleTask(2))
+        tasksFlow.value = cached
+        coEvery { getTasksUseCase.refreshTasks() } returns Result.success(cached)
+
+        val viewModel = buildViewModel()
+        advanceUntilIdle()
+
+        // Раньше кеш прятался до ответа сервера — офлайн открывался минуту
+        assertEquals(2, viewModel.uiState.value.tasks.size)
+        coVerify(exactly = 0) { authRepository.validateCurrentUser() }
     }
 
     @Test
