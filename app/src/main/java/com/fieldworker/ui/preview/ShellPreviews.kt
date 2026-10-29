@@ -70,3 +70,23 @@ internal fun FailedActionsPreview() {
         )
     }
 }
+
+@Preview(name = "Profile", showBackground = true, showSystemUi = true)
+@Composable
+internal fun ProfilePreview() {
+    FieldWorkerTheme {
+        com.fieldworker.ui.settings.UserSettingsContent(
+            state = com.fieldworker.ui.settings.UserSettingsUiState(
+                fullName = "Иван Полевой",
+                username = "ivan.polevoy",
+            ),
+            baseUrl = null,
+            authToken = null,
+            snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() },
+            onBack = {},
+            onPickAvatar = {},
+            onSaveName = {},
+            onChangePassword = { _, _, _, _ -> },
+        )
+    }
+}

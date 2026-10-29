@@ -68,6 +68,7 @@ class ScreenshotTest(
             "address_detail" to { AddressDetailPreview() },
             "drawer" to { DrawerPreview() },
             "settings" to { SettingsPreview() },
+            "profile" to { ProfilePreview() },
             "chat_list" to { ChatListLightPreview() },
             "chat_list_dark" to { ChatListDarkPreview() },
             "chat_screen" to { ChatScreenFullPreview() },

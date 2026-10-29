@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,20 +27,22 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -100,6 +103,35 @@ fun UserSettingsScreen(
         onResult = { uri: Uri? -> uri?.let(viewModel::uploadAvatar) }
     )
 
+    UserSettingsContent(
+        state = state,
+        baseUrl = baseUrl,
+        authToken = authToken,
+        snackbarHostState = snackbarHostState,
+        onBack = onBack,
+        onPickAvatar = {
+            avatarPickerLauncher.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+        },
+        onSaveName = viewModel::saveName,
+        onChangePassword = viewModel::changePassword,
+    )
+}
+
+/** Содержимое профиля без ViewModel — для превью и скриншотов. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun UserSettingsContent(
+    state: UserSettingsUiState,
+    baseUrl: String?,
+    authToken: String?,
+    snackbarHostState: SnackbarHostState,
+    onBack: () -> Unit,
+    onPickAvatar: () -> Unit,
+    onSaveName: (String) -> Unit,
+    onChangePassword: (current: String, new: String, confirm: String, onSuccess: () -> Unit) -> Unit,
+) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -132,40 +164,54 @@ fun UserSettingsScreen(
                 baseUrl = baseUrl,
                 authToken = authToken,
                 isUploading = state.isUploadingAvatar,
-                onPick = {
-                    avatarPickerLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                },
+                onPick = onPickAvatar,
             )
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
 
+            // Кто это: имя крупно, логин приглушённо
             Text(
-                text = state.username.ifBlank { "—" },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = state.fullName.ifBlank { state.username.ifBlank { "—" } },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
+            if (state.fullName.isNotBlank() && state.username.isNotBlank()) {
+                Text(
+                    text = "@${state.username}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             Spacer(Modifier.height(24.dp))
-            HorizontalDivider(Modifier.padding(horizontal = 20.dp))
 
             NameSection(
                 currentName = state.fullName,
                 isSaving = state.isSavingName,
-                onSave = viewModel::saveName,
+                onSave = onSaveName,
             )
-
-            HorizontalDivider(Modifier.padding(horizontal = 20.dp))
 
             PasswordSection(
                 isChanging = state.isChangingPassword,
-                onChange = viewModel::changePassword,
+                onChange = onChangePassword,
             )
 
             Spacer(Modifier.height(32.dp))
         }
     }
+}
+
+/** Нейтральный eyebrow-заголовок секции — как в настройках. */
+@Composable
+private fun SectionEyebrow(text: String) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.8.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
@@ -279,11 +325,7 @@ private fun NameSection(
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            "Имя",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        SectionEyebrow("Имя")
         OutlinedTextField(
             value = draft,
             onValueChange = { draft = it },
@@ -292,16 +334,20 @@ private fun NameSection(
             modifier = Modifier.fillMaxWidth(),
             enabled = !isSaving,
         )
-        Button(
-            onClick = { onSave(draft) },
-            enabled = !isSaving && draft.trim().isNotEmpty() && draft.trim() != currentName,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            if (isSaving) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                Spacer(Modifier.width(8.dp))
+        // Кнопка появляется, только когда есть что сохранять
+        val changed = draft.trim().isNotEmpty() && draft.trim() != currentName
+        AnimatedVisibility(visible = changed || isSaving) {
+            Button(
+                onClick = { onSave(draft) },
+                enabled = !isSaving && changed,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text("Сохранить имя")
             }
-            Text("Сохранить имя")
         }
     }
 }
@@ -316,6 +362,8 @@ private fun PasswordSection(
     var confirm by remember { mutableStateOf("") }
     var showCurrent by remember { mutableStateOf(false) }
     var showNew by remember { mutableStateOf(false) }
+    // Пароль меняют редко — три поля не висят на экране постоянно
+    var expanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -323,57 +371,83 @@ private fun PasswordSection(
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            "Пароль",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        PasswordField(
-            value = current,
-            onChange = { current = it },
-            label = "Текущий пароль",
-            visible = showCurrent,
-            onToggleVisible = { showCurrent = !showCurrent },
-            enabled = !isChanging,
-        )
-        PasswordField(
-            value = newPwd,
-            onChange = { newPwd = it },
-            label = "Новый пароль",
-            visible = showNew,
-            onToggleVisible = { showNew = !showNew },
-            enabled = !isChanging,
-        )
-        PasswordField(
-            value = confirm,
-            onChange = { confirm = it },
-            label = "Повторите новый пароль",
-            visible = showNew,
-            onToggleVisible = { showNew = !showNew },
-            enabled = !isChanging,
-        )
-        Text(
-            text = "Минимум 6 символов",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Start,
-        )
-        Button(
-            onClick = {
-                onChange(current, newPwd, confirm) {
-                    current = ""
-                    newPwd = ""
-                    confirm = ""
-                }
-            },
-            enabled = !isChanging && current.isNotBlank() && newPwd.isNotBlank() && confirm.isNotBlank(),
-            modifier = Modifier.fillMaxWidth(),
+        SectionEyebrow("Безопасность")
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (isChanging) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                Spacer(Modifier.width(8.dp))
+            Icon(
+                Icons.Default.Lock,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = "Сменить пароль",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = if (expanded) "Свернуть" else "Развернуть",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        AnimatedVisibility(visible = expanded) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                PasswordField(
+                    value = current,
+                    onChange = { current = it },
+                    label = "Текущий пароль",
+                    visible = showCurrent,
+                    onToggleVisible = { showCurrent = !showCurrent },
+                    enabled = !isChanging,
+                )
+                PasswordField(
+                    value = newPwd,
+                    onChange = { newPwd = it },
+                    label = "Новый пароль",
+                    visible = showNew,
+                    onToggleVisible = { showNew = !showNew },
+                    enabled = !isChanging,
+                )
+                PasswordField(
+                    value = confirm,
+                    onChange = { confirm = it },
+                    label = "Повторите новый пароль",
+                    visible = showNew,
+                    onToggleVisible = { showNew = !showNew },
+                    enabled = !isChanging,
+                )
+                Text(
+                    text = "Минимум 6 символов",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Start,
+                )
+                Button(
+                    onClick = {
+                        onChange(current, newPwd, confirm) {
+                            current = ""
+                            newPwd = ""
+                            confirm = ""
+                        }
+                    },
+                    enabled = !isChanging && current.isNotBlank() && newPwd.isNotBlank() && confirm.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (isChanging) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text("Сменить пароль")
+                }
             }
-            Text("Сменить пароль")
         }
     }
 }
