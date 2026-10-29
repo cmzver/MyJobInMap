@@ -18,9 +18,13 @@ import androidx.core.view.WindowCompat
 
 // Базовая палитра: нейтральные поверхности + оранжевый акцент (как в портале).
 object AppColors {
-    // Оранжевый акцент портала (tailwind primary: 500 #ff9800, 600 #fb8c00, 700 #f57c00).
+    // Оранжевый акцент портала (tailwind primary: 500 #ff9800, 600 #fb8c00, 700 #f57c00) —
+    // фирменный цвет: иконка приложения, уведомления, сплэш.
     val Primary = Color(0xFFF57C00)
     val PrimaryLight = Color(0xFFFFB74D)
+    // Акцент светлой темы в интерфейсе. Белый на #F57C00 — 2.7:1: не дотягивал
+    // даже до 3:1 для иконок/переключателей, а подпись кнопки на солнце не
+    // читалась. #E65100 — тот же оранжевый на ступень глубже: 3.8:1.
     val PrimaryDark = Color(0xFFE65100)
     // Светлая подложка активного пункта (portal primary-50).
     val PrimaryContainerLight = Color(0xFFFFF3E0)
@@ -28,9 +32,8 @@ object AppColors {
     // коричневый — контейнер акцента там нейтрально-тёплый.
     val PrimaryContainerDark = Color(0xFF2E2A26)
 
-    // Оранжевый для текста-ссылки на светлом фоне: бренд #F57C00 даёт 2.7:1
-    // (WCAG AA — 4.5:1), на улице такой текст не читается. Тот же оттенок,
-    // темнее: 4.6:1. Заливки кнопок остаются брендовыми.
+    // Оранжевый для мелкого текста-ссылки на светлом фоне: обычному тексту
+    // нужно 4.5:1 (WCAG AA), акцент #E65100 даёт 3.8:1. Тот же оттенок, темнее: 4.6:1.
     val AccentText = Color(0xFFC25400)
 
     val Emergency = Color(0xFFC94F4F)
@@ -110,7 +113,7 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = AppColors.Primary,
+    primary = AppColors.PrimaryDark,
     onPrimary = Color.White,
     primaryContainer = AppColors.PrimaryContainerLight,
     onPrimaryContainer = AppColors.PrimaryDark,
@@ -130,7 +133,7 @@ private val LightColorScheme = lightColorScheme(
     onTertiaryContainer = AppColors.Planned,
     errorContainer = AppColors.EmergencyBg,
     onErrorContainer = Color(0xFF8A1C1C),
-    surfaceTint = AppColors.Primary,
+    surfaceTint = AppColors.PrimaryDark,
     outline = Color(0xFF8A959B),
     outlineVariant = Color(0xFFDDE2E4),
     surfaceContainerLowest = Color.White,
