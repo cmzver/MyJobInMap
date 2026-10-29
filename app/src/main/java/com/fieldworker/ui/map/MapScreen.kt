@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.Point
 import android.graphics.Rect
@@ -80,6 +81,7 @@ import com.fieldworker.ui.utils.extractAdditionalInfo
 import com.fieldworker.ui.utils.extractPhoneNumber
 import com.fieldworker.ui.utils.contentColor
 import com.fieldworker.ui.utils.priorityColor
+import com.fieldworker.ui.utils.isDarkPalette
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
@@ -704,6 +706,31 @@ fun TaskStatus.toIcon() = when (this) {
 }
 
 /**
+ * «Ночная» подложка карты: яркость инвертируется, а поворот оттенка на 180°
+ * возвращает цвета (вода остаётся синей, парки — зелёными). Контраст слегка
+ * снижен, чтобы подписи не были чисто белыми, а суша — чёрной.
+ */
+private val DarkMapTilesFilter: ColorMatrixColorFilter by lazy {
+    // Поворот оттенка на 180° (матрица hue-rotate из CSS Filter Effects, cos = -1, sin = 0)
+    val hue = floatArrayOf(
+        -0.574f, 1.430f, 0.144f,
+        0.426f, 0.430f, 0.144f,
+        0.426f, 1.430f, -0.856f,
+    )
+    val contrast = 0.85f
+    // Строки hue в сумме дают 1, поэтому k·hue·(255 − c) + 20 = −k·hue·c + (255k + 20)
+    val offset = 255f * contrast + 20f
+    ColorMatrixColorFilter(
+        floatArrayOf(
+            -contrast * hue[0], -contrast * hue[1], -contrast * hue[2], 0f, offset,
+            -contrast * hue[3], -contrast * hue[4], -contrast * hue[5], 0f, offset,
+            -contrast * hue[6], -contrast * hue[7], -contrast * hue[8], 0f, offset,
+            0f, 0f, 0f, 1f, 0f,
+        )
+    )
+}
+
+/**
  * Composable обертка для osmdroid MapView через AndroidView.
  */
 @Composable
@@ -736,6 +763,14 @@ private fun OsmMapView(
                 controller.setCenter(GeoPoint(55.7558, 37.6173))
             }
         }
+    }
+
+    // Тёмная тема: белая подложка OSM слепит рядом с тёмным интерфейсом.
+    // Фильтр — только на тайлы; маркеры отдельными оверлеями его не получают.
+    val darkMap = isDarkPalette()
+    LaunchedEffect(darkMap) {
+        mapView.overlayManager.tilesOverlay.setColorFilter(if (darkMap) DarkMapTilesFilter else null)
+        mapView.invalidate()
     }
 
     // Если есть сохранённая позиция — карта уже спозиционирована при создании mapView
