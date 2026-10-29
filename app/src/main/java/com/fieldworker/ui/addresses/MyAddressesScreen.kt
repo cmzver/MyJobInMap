@@ -74,6 +74,7 @@ import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.theme.AppColors
 import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.TaskUtils
+import com.fieldworker.ui.utils.accentTextColor
 import com.fieldworker.ui.utils.contentColor
 import com.fieldworker.ui.utils.formatPhoneForDisplay
 import com.fieldworker.ui.utils.normalizePhoneForDial
@@ -463,7 +464,7 @@ private fun HeaderCard(details: AddressDetails) {
                         text = code,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = accentTextColor(),
                     )
                 }
             }
@@ -617,7 +618,7 @@ private fun ContactRow(contact: AddressContact, context: android.content.Context
                 Text(
                     text = email,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = accentTextColor(),
                 )
             }
         }
@@ -800,7 +801,7 @@ private fun PhoneLine(phone: String, onClick: () -> Unit) {
         Text(
             text = formatPhoneForDisplay(phone),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
+            color = accentTextColor(),
         )
     }
 }

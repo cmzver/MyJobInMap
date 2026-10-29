@@ -24,7 +24,14 @@ object AppColors {
     val PrimaryDark = Color(0xFFE65100)
     // Светлая подложка активного пункта (portal primary-50).
     val PrimaryContainerLight = Color(0xFFFFF3E0)
-    val PrimaryContainerDark = Color(0xFF4A2A00)
+    // Тёмная тема: оранжевые подложки на почти чёрном фоне читаются как
+    // коричневый — контейнер акцента там нейтрально-тёплый.
+    val PrimaryContainerDark = Color(0xFF2E2A26)
+
+    // Оранжевый для текста-ссылки на светлом фоне: бренд #F57C00 даёт 2.7:1
+    // (WCAG AA — 4.5:1), на улице такой текст не читается. Тот же оттенок,
+    // темнее: 4.6:1. Заливки кнопок остаются брендовыми.
+    val AccentText = Color(0xFFC25400)
 
     val Emergency = Color(0xFFC94F4F)
     val EmergencyBg = Color(0xFFFCECEC)
@@ -49,6 +56,13 @@ object AppColors {
     val StatusInProgressDark = Color(0xFFFBBF24)
     val StatusDoneDark = Color(0xFF4ADE80)
     val StatusCancelledDark = Color(0xFF9CA3AF)
+
+    // Текст статуса на светлом чипе — на ступень темнее точки (шкала 700):
+    // 600-е оттенки давали 2.8:1 для «В работе»/«Выполнена».
+    val StatusNewText = Color(0xFF1D4ED8)
+    val StatusInProgressText = Color(0xFFB45309)
+    val StatusDoneText = Color(0xFF15803D)
+    val StatusCancelledText = Color(0xFF4B5563)
     val PriorityEmergencyDark = Color(0xFFF87171)
     val PriorityNeutral = Color(0xFF8E8E93)
 
@@ -83,6 +97,8 @@ private val DarkColorScheme = darkColorScheme(
     onSecondaryContainer = Color(0xFFF1F4F5),
     tertiaryContainer = Color(0xFF1E3A2A),
     onTertiaryContainer = Color(0xFFBDE5C8),
+    errorContainer = Color(0xFF3B1F1F),
+    onErrorContainer = Color(0xFFF2B8B5),
     surfaceTint = AppColors.PrimaryLight,
     outline = Color(0xFF6E7B81),
     outlineVariant = Color(0xFF34434A),
@@ -112,6 +128,8 @@ private val LightColorScheme = lightColorScheme(
     onSecondaryContainer = AppColors.OnSurface,
     tertiaryContainer = AppColors.PlannedBg,
     onTertiaryContainer = AppColors.Planned,
+    errorContainer = AppColors.EmergencyBg,
+    onErrorContainer = Color(0xFF8A1C1C),
     surfaceTint = AppColors.Primary,
     outline = Color(0xFF8A959B),
     outlineVariant = Color(0xFFDDE2E4),

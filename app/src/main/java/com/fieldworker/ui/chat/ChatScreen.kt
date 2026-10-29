@@ -95,6 +95,7 @@ import com.fieldworker.ui.chat.components.BubbleShape
 import com.fieldworker.ui.chat.components.ChatAvatar
 import com.fieldworker.ui.chat.components.swipeToReply
 import com.fieldworker.ui.theme.AppShape
+import com.fieldworker.ui.utils.accentTextColor
 import com.fieldworker.ui.utils.isDarkPalette
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -912,7 +913,7 @@ private fun PinnedMessagesBar(
                     Text(
                         text = label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = accentTextColor(),
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
@@ -1085,7 +1086,7 @@ private fun EmptyChatState(
                         Text(
                             text = "Новый старт",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = accentTextColor(),
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         )
                     }
@@ -2669,7 +2670,7 @@ private fun ChatInputBar(
                     Text(
                         text = typingText.orEmpty(),
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = accentTextColor(),
                         fontStyle = FontStyle.Italic,
                         modifier = Modifier.padding(horizontal = 6.dp),
                     )
@@ -2776,7 +2777,7 @@ private fun ChatInputBar(
                                         text = "Заявка",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary,
+                                        color = accentTextColor(),
                                     )
                                     Text(
                                         text = listOfNotNull(
@@ -2829,7 +2830,7 @@ private fun ChatInputBar(
                                         text = safeReply.senderName ?: "",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary,
+                                        color = accentTextColor(),
                                     )
                                     Text(
                                         text = safeReply.text ?: "",

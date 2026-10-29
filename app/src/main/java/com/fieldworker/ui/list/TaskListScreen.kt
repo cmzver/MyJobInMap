@@ -76,12 +76,14 @@ import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.TaskStatus
+import com.fieldworker.ui.components.AppSearchField
 import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.TaskCard
 import com.fieldworker.ui.map.StatusChangeDialog
 import com.fieldworker.ui.map.TaskScope
 import com.fieldworker.ui.map.toIcon
 import com.fieldworker.ui.theme.AppShape
+import com.fieldworker.ui.utils.accentTextColor
 import com.fieldworker.ui.utils.containerColor
 import com.fieldworker.ui.utils.contentColor
 import com.fieldworker.ui.utils.extractAdditionalInfo
@@ -419,71 +421,23 @@ fun SearchBar(
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Поле поиска
-        Surface(
-            modifier = Modifier.weight(1f),
-            shape = AppShape.md,
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 0.dp,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.Search,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                
-                androidx.compose.foundation.text.BasicTextField(
-                    value = localQuery,
-                    onValueChange = { localQuery = it },
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(
-                        color = MaterialTheme.colorScheme.onSurface
-                    ),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                    decorationBox = { innerTextField ->
-                        if (localQuery.isEmpty()) {
-                            Text(
-                                text = stringResource(id = R.string.search_placeholder),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        innerTextField()
-                    }
-                )
-                
-                if (localQuery.isNotEmpty()) {
-                    IconButton(
-                        onClick = { 
-                            localQuery = ""
-                            onQueryChange("") 
-                        },
-                        modifier = Modifier.size(20.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Clear, 
-                            contentDescription = "Очистить",
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-            }
-        }
-        
+        // Поле поиска — общий компонент (тот же, что в чатах)
+        AppSearchField(
+            value = localQuery,
+            onValueChange = {
+                localQuery = it
+                // Очистка — сразу, без задержки debounce
+                if (it.isEmpty()) onQueryChange("")
+            },
+            placeholder = stringResource(id = R.string.search_placeholder),
+            modifier = Modifier.weight(1f)
+        )
+
         Spacer(modifier = Modifier.width(6.dp))
 
-        // Кнопка фильтров
+        // Кнопка фильтров — в высоту поля поиска
         Surface(
-            modifier = Modifier.size(38.dp),
+            modifier = Modifier.size(40.dp),
             shape = AppShape.md,
             color = if (hasActiveFilters)
                 MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
@@ -571,7 +525,7 @@ fun FiltersPanel(
                                 text = selectedCount.toString(),
                                 style = MaterialTheme.typography.labelSmall,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                color = MaterialTheme.colorScheme.primary
+                                color = accentTextColor()
                             )
                         }
                     }
@@ -1366,7 +1320,7 @@ private fun TaskFactsCard(
 @Composable
 private fun FactCell(fact: TaskFact, modifier: Modifier = Modifier) {
     val valueColor = when {
-        fact.onClick != null -> MaterialTheme.colorScheme.primary
+        fact.onClick != null -> accentTextColor()
         fact.isPlaceholder -> MaterialTheme.colorScheme.onSurfaceVariant
         else -> MaterialTheme.colorScheme.onSurface
     }

@@ -45,17 +45,40 @@ fun isDarkPalette(): Boolean = MaterialTheme.colorScheme.background.luminance() 
  */
 @Composable
 @ReadOnlyComposable
-fun TaskStatus.contentColor(): Color = if (!isDarkPalette()) statusColor(this) else when (this) {
-    TaskStatus.NEW -> AppColors.StatusNewDark
-    TaskStatus.IN_PROGRESS -> AppColors.StatusInProgressDark
-    TaskStatus.DONE -> AppColors.StatusDoneDark
-    TaskStatus.CANCELLED, TaskStatus.UNKNOWN -> AppColors.StatusCancelledDark
+fun TaskStatus.contentColor(): Color = if (!isDarkPalette()) {
+    when (this) {
+        TaskStatus.NEW -> AppColors.StatusNewText
+        TaskStatus.IN_PROGRESS -> AppColors.StatusInProgressText
+        TaskStatus.DONE -> AppColors.StatusDoneText
+        TaskStatus.CANCELLED, TaskStatus.UNKNOWN -> AppColors.StatusCancelledText
+    }
+} else {
+    when (this) {
+        TaskStatus.NEW -> AppColors.StatusNewDark
+        TaskStatus.IN_PROGRESS -> AppColors.StatusInProgressDark
+        TaskStatus.DONE -> AppColors.StatusDoneDark
+        TaskStatus.CANCELLED, TaskStatus.UNKNOWN -> AppColors.StatusCancelledDark
+    }
 }
 
-/** Подложка чипа статуса с учётом темы. */
+/** Подложка чипа статуса: светлый тон базового цвета (текст на ней — ≥4.4:1). */
 @Composable
 @ReadOnlyComposable
-fun TaskStatus.containerColor(): Color = contentColor().copy(alpha = if (isDarkPalette()) 0.18f else 0.14f)
+fun TaskStatus.containerColor(): Color = if (isDarkPalette()) {
+    contentColor().copy(alpha = 0.18f)
+} else {
+    statusColor(this).copy(alpha = 0.10f)
+}
+
+/** Зелёный для текста «успешно» (сервер доступен и т.п.) с учётом темы. */
+@Composable
+@ReadOnlyComposable
+fun successTextColor(): Color = if (isDarkPalette()) AppColors.StatusDoneDark else AppColors.StatusDoneText
+
+/** Оранжевый для текста-ссылки (телефон, «Установить», «Назначить»…) с учётом темы. */
+@Composable
+@ReadOnlyComposable
+fun accentTextColor(): Color = if (isDarkPalette()) MaterialTheme.colorScheme.primary else AppColors.AccentText
 
 @Composable
 @ReadOnlyComposable

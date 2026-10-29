@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fieldworker.data.remote.generated.AppUpdateInfo
+import com.fieldworker.ui.utils.accentTextColor
 import java.util.Locale
 
 /**
@@ -81,7 +82,7 @@ fun UpdateDialog(
                         Text(
                             text = "Версия ${state.info.versionName}",
                             style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary
+                            color = accentTextColor()
                         )
                         
                         if (state.info.fileSize != null && state.info.fileSize > 0) {

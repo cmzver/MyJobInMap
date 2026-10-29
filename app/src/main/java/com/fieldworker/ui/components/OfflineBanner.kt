@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
@@ -70,14 +71,18 @@ fun OfflineBanner(
         exit = shrinkVertically(shrinkTowards = Alignment.Top),
         modifier = modifier
     ) {
+        // Офлайн для полевого работника — штатный режим, а не авария: спокойный
+        // нейтрал. Красный — только для действий, которые не удалось отправить.
         val backgroundColor = when {
-            isOffline || hasFailedActions -> MaterialTheme.colorScheme.errorContainer
+            hasFailedActions -> MaterialTheme.colorScheme.errorContainer
+            isOffline -> MaterialTheme.colorScheme.surfaceContainerHighest
             hasPendingActions -> MaterialTheme.colorScheme.secondaryContainer
             else -> Color(0xFF2E7D32)
         }
 
         val contentColor = when {
-            isOffline || hasFailedActions -> MaterialTheme.colorScheme.onErrorContainer
+            hasFailedActions -> MaterialTheme.colorScheme.onErrorContainer
+            isOffline -> MaterialTheme.colorScheme.onSurface
             hasPendingActions -> MaterialTheme.colorScheme.onSecondaryContainer
             else -> Color.White
         }
@@ -92,7 +97,8 @@ fun OfflineBanner(
         ) {
             Icon(
                 imageVector = when {
-                    isOffline || hasFailedActions -> Icons.Default.Warning
+                    hasFailedActions -> Icons.Default.Warning
+                    isOffline -> Icons.Default.Info
                     hasPendingActions -> Icons.Default.Refresh
                     else -> Icons.Default.CheckCircle
                 },

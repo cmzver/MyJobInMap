@@ -36,6 +36,7 @@ import com.fieldworker.domain.model.AccessLevel
 import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.avatarInitials
 import com.fieldworker.ui.utils.resolveAvatarUrl
+import com.fieldworker.ui.utils.successTextColor
 import kotlinx.coroutines.launch
 
 /**
@@ -101,7 +102,13 @@ fun SettingsScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Ещё") },
+                title = {
+                    Text(
+                        "Ещё",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 )
@@ -312,7 +319,7 @@ fun SettingsScreen(
                     if (connectionStatus != ConnectionStatus.IDLE) {
                         val (statusText, statusColor) = when (connectionStatus) {
                             ConnectionStatus.TESTING -> "Проверяем..." to MaterialTheme.colorScheme.onSurfaceVariant
-                            ConnectionStatus.SUCCESS -> "Сервер доступен" to MaterialTheme.colorScheme.primary
+                            ConnectionStatus.SUCCESS -> "Сервер доступен" to successTextColor()
                             is ConnectionStatus.ERROR -> connectionStatus.message to MaterialTheme.colorScheme.error
                             else -> "" to MaterialTheme.colorScheme.onSurfaceVariant
                         }
@@ -422,7 +429,7 @@ private fun RowIcon(icon: ImageVector?) {
         modifier = Modifier
             .size(30.dp)
             .clip(AppShape.sm)
-            .background(if (icon != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent),
+            .background(if (icon != null) MaterialTheme.colorScheme.primaryContainer else Color.Transparent),
         contentAlignment = Alignment.Center
     ) {
         if (icon != null) {

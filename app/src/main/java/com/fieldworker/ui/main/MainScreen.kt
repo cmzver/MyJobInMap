@@ -284,14 +284,6 @@ fun MainScreen(
                 .padding(paddingValues)
         ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Баннер офлайн-режима (занимает место сверху, сдвигает контент)
-            OfflineBanner(
-                isOffline = uiState.isOffline,
-                pendingActionsCount = uiState.pendingActionsCount,
-                onSyncClick = { viewModel.forceSync() },
-                failedActionsCount = uiState.failedActions.size,
-                onReviewFailed = { viewModel.showFailedActions() }
-            )
             if (uiState.showFailedActions) {
                 FailedActionsDialog(
                     actions = uiState.failedActions,
@@ -564,6 +556,15 @@ fun MainScreen(
                 }
             }
             } // Box(weight)
+            // Баннер офлайна/неотправленного — всегда над нижней панелью: у экранов
+            // со своей шапкой (чаты, «Ещё») он раньше оказывался над заголовком.
+            OfflineBanner(
+                isOffline = uiState.isOffline,
+                pendingActionsCount = uiState.pendingActionsCount,
+                onSyncClick = { viewModel.forceSync() },
+                failedActionsCount = uiState.failedActions.size,
+                onReviewFailed = { viewModel.showFailedActions() }
+            )
         } // Column
 
         // Диалог «Отправить заявку в чат» из карточки объекта
@@ -703,7 +704,7 @@ internal fun AppBottomBar(
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = MaterialTheme.colorScheme.primary,
                         selectedTextColor = MaterialTheme.colorScheme.primary,
-                        indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                         unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
