@@ -45,6 +45,7 @@ import { isAssignableRole } from '@/types/user'
 import {
   areTaskViewSettingsEqual,
   useTaskSavedViews,
+  type TaskDisplayMode,
   type TaskSavedView,
   type TaskSavedViewSettings,
 } from '@/hooks/useTaskSavedViews'
@@ -291,7 +292,9 @@ export default function TasksPage() {
   const [visibleColumns, setVisibleColumns] =
     useState<Record<ToggleableColumnKey, boolean>>(loadVisibleColumns)
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false)
-  const [displayMode, setDisplayMode] = useState<'list' | 'dispatch'>('list')
+  const [displayMode, setDisplayMode] = useState<TaskDisplayMode>(() =>
+    searchParams.get('view') === 'dispatch' ? 'dispatch' : 'list'
+  )
   const resizeState = useRef<{
     key: ColumnKey
     startX: number
@@ -367,11 +370,13 @@ export default function TasksPage() {
       addressTitle: addressTitleFilter,
       sort: sortBy,
       groupBy,
+      displayMode,
     }),
     [
       addressIdFilter,
       addressTitleFilter,
       assigneeFilter,
+      displayMode,
       groupBy,
       priorityFilter,
       search,
@@ -519,6 +524,7 @@ export default function TasksPage() {
     setAddressTitleFilter(view.settings.addressTitle)
     setSortBy(view.settings.sort)
     setGroupBy(view.settings.groupBy)
+    setDisplayMode(view.settings.displayMode)
     setCollapsedGroups(new Set())
     setPage(1)
     toast.success(`Применён вид «${view.name}»`)
@@ -1245,6 +1251,7 @@ export default function TasksPage() {
     if (addressTitleFilter) nextParams.set('address_title', addressTitleFilter)
     if (sortBy !== 'created_at_desc') nextParams.set('sort', sortBy)
     if (groupBy) nextParams.set('group', groupBy)
+    if (displayMode === 'dispatch') nextParams.set('view', 'dispatch')
     if (page > 1) nextParams.set('page', String(page))
     if (pageSize !== defaultPageSize) nextParams.set('size', String(pageSize))
 
@@ -1263,6 +1270,7 @@ export default function TasksPage() {
     addressTitleFilter,
     sortBy,
     groupBy,
+    displayMode,
     page,
     pageSize,
     defaultPageSize,
@@ -1286,6 +1294,8 @@ export default function TasksPage() {
       searchParams.get('sort') === 'created_at_asc' ? 'created_at_asc' : 'created_at_desc'
     const rawGroup = searchParams.get('group') || ''
     const urlGroup = ['status', 'assignee', 'priority'].includes(rawGroup) ? rawGroup : ''
+    const urlDisplayMode: TaskDisplayMode =
+      searchParams.get('view') === 'dispatch' ? 'dispatch' : 'list'
     const rawPage = Number(searchParams.get('page') || 1)
     const urlPage = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
     const rawSize = Number(searchParams.get('size') || defaultPageSize)
@@ -1300,6 +1310,7 @@ export default function TasksPage() {
     setAddressTitleFilter((prev) => (prev === urlAddressTitle ? prev : urlAddressTitle))
     setSortBy((prev) => (prev === urlSort ? prev : urlSort))
     setGroupBy((prev) => (prev === urlGroup ? prev : urlGroup))
+    setDisplayMode((prev) => (prev === urlDisplayMode ? prev : urlDisplayMode))
     setPage((prev) => (prev === urlPage ? prev : urlPage))
     setPageSize((prev) => (prev === urlSize ? prev : urlSize))
   }, [searchParams, defaultPageSize])

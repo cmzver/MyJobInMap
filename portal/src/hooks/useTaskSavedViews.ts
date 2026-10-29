@@ -6,6 +6,9 @@ const VALID_STATUSES: TaskStatus[] = ['NEW', 'IN_PROGRESS', 'DONE', 'CANCELLED']
 const VALID_PRIORITIES: TaskPriority[] = ['EMERGENCY', 'URGENT', 'CURRENT', 'PLANNED']
 const VALID_SORTS: TaskSort[] = ['created_at_desc', 'created_at_asc']
 const VALID_GROUPS = ['', 'status', 'assignee', 'priority']
+const VALID_DISPLAY_MODES: TaskDisplayMode[] = ['list', 'dispatch']
+
+export type TaskDisplayMode = 'list' | 'dispatch'
 
 export interface TaskSavedViewSettings {
   search: string
@@ -16,6 +19,7 @@ export interface TaskSavedViewSettings {
   addressTitle: string
   sort: TaskSort
   groupBy: string
+  displayMode: TaskDisplayMode
 }
 
 export interface TaskSavedView {
@@ -29,22 +33,33 @@ const normalizeSettings = (value: unknown): TaskSavedViewSettings | null => {
   const candidate = value as Partial<TaskSavedViewSettings>
   const search = typeof candidate.search === 'string' ? candidate.search.slice(0, 200) : ''
   const statuses = Array.isArray(candidate.statuses)
-    ? candidate.statuses.filter((item): item is TaskStatus => VALID_STATUSES.includes(item as TaskStatus))
+    ? candidate.statuses.filter((item): item is TaskStatus =>
+        VALID_STATUSES.includes(item as TaskStatus)
+      )
     : []
   const priorities = Array.isArray(candidate.priorities)
-    ? candidate.priorities.filter((item): item is TaskPriority => VALID_PRIORITIES.includes(item as TaskPriority))
+    ? candidate.priorities.filter((item): item is TaskPriority =>
+        VALID_PRIORITIES.includes(item as TaskPriority)
+      )
     : []
   const assignees = Array.isArray(candidate.assignees)
-    ? candidate.assignees.filter((item): item is string => typeof item === 'string' && /^\d+$/.test(item))
+    ? candidate.assignees.filter(
+        (item): item is string => typeof item === 'string' && /^\d+$/.test(item)
+      )
     : []
-  const addressId = typeof candidate.addressId === 'string' && /^\d+$/.test(candidate.addressId)
-    ? candidate.addressId
-    : ''
-  const addressTitle = typeof candidate.addressTitle === 'string' ? candidate.addressTitle.slice(0, 200) : ''
+  const addressId =
+    typeof candidate.addressId === 'string' && /^\d+$/.test(candidate.addressId)
+      ? candidate.addressId
+      : ''
+  const addressTitle =
+    typeof candidate.addressTitle === 'string' ? candidate.addressTitle.slice(0, 200) : ''
   const sort = VALID_SORTS.includes(candidate.sort as TaskSort)
-    ? candidate.sort as TaskSort
+    ? (candidate.sort as TaskSort)
     : 'created_at_desc'
-  const groupBy = VALID_GROUPS.includes(candidate.groupBy ?? '') ? candidate.groupBy ?? '' : ''
+  const groupBy = VALID_GROUPS.includes(candidate.groupBy ?? '') ? (candidate.groupBy ?? '') : ''
+  const displayMode = VALID_DISPLAY_MODES.includes(candidate.displayMode as TaskDisplayMode)
+    ? (candidate.displayMode as TaskDisplayMode)
+    : 'list'
 
   return {
     search,
@@ -55,6 +70,7 @@ const normalizeSettings = (value: unknown): TaskSavedViewSettings | null => {
     addressTitle,
     sort,
     groupBy,
+    displayMode,
   }
 }
 
@@ -82,8 +98,8 @@ const sorted = (values: readonly string[]) => [...values].sort()
 
 export const areTaskViewSettingsEqual = (
   left: TaskSavedViewSettings,
-  right: TaskSavedViewSettings,
-) => (
+  right: TaskSavedViewSettings
+) =>
   left.search === right.search &&
   JSON.stringify(sorted(left.statuses)) === JSON.stringify(sorted(right.statuses)) &&
   JSON.stringify(sorted(left.priorities)) === JSON.stringify(sorted(right.priorities)) &&
@@ -91,8 +107,8 @@ export const areTaskViewSettingsEqual = (
   left.addressId === right.addressId &&
   left.addressTitle === right.addressTitle &&
   left.sort === right.sort &&
-  left.groupBy === right.groupBy
-)
+  left.groupBy === right.groupBy &&
+  left.displayMode === right.displayMode
 
 const loadViews = (storageKey: string) => {
   if (typeof window === 'undefined') return []
@@ -114,24 +130,33 @@ export function useTaskSavedViews(scope = 'default') {
     setViews(loadViews(storageKey))
   }, [storageKey])
 
-  const persist = useCallback((nextViews: TaskSavedView[]) => {
-    window.localStorage.setItem(storageKey, JSON.stringify(nextViews))
-    setViews(nextViews)
-  }, [storageKey])
+  const persist = useCallback(
+    (nextViews: TaskSavedView[]) => {
+      window.localStorage.setItem(storageKey, JSON.stringify(nextViews))
+      setViews(nextViews)
+    },
+    [storageKey]
+  )
 
-  const saveView = useCallback((name: string, settings: TaskSavedViewSettings) => {
-    const nextView: TaskSavedView = {
-      id: createViewId(),
-      name: name.trim().slice(0, 40),
-      settings,
-    }
-    persist([...views, nextView])
-    return nextView
-  }, [persist, views])
+  const saveView = useCallback(
+    (name: string, settings: TaskSavedViewSettings) => {
+      const nextView: TaskSavedView = {
+        id: createViewId(),
+        name: name.trim().slice(0, 40),
+        settings,
+      }
+      persist([...views, nextView])
+      return nextView
+    },
+    [persist, views]
+  )
 
-  const deleteView = useCallback((id: string) => {
-    persist(views.filter((view) => view.id !== id))
-  }, [persist, views])
+  const deleteView = useCallback(
+    (id: string) => {
+      persist(views.filter((view) => view.id !== id))
+    },
+    [persist, views]
+  )
 
   return { views, saveView, deleteView }
 }
