@@ -75,7 +75,7 @@ import com.fieldworker.ui.theme.AppColors
 import com.fieldworker.ui.utils.TaskUtils
 import com.fieldworker.ui.utils.formatPhoneForDisplay
 import com.fieldworker.ui.utils.normalizePhoneForDial
-import com.fieldworker.ui.utils.statusColor
+import com.fieldworker.ui.utils.contentColor
 
 /**
  * Раздел «Мои адреса»: список назначенных адресов и полная карточка объекта —
@@ -479,10 +479,10 @@ private fun TaskStatsCard(stats: AddressTaskStats) {
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             StatPill("Всего", stats.total, MaterialTheme.colorScheme.onSurfaceVariant)
-            if (stats.newCount > 0) StatPill("Новые", stats.newCount, statusColor(TaskStatus.NEW))
-            if (stats.inProgress > 0) StatPill("В работе", stats.inProgress, statusColor(TaskStatus.IN_PROGRESS))
-            if (stats.done > 0) StatPill("Выполнено", stats.done, statusColor(TaskStatus.DONE))
-            if (stats.cancelled > 0) StatPill("Отменено", stats.cancelled, statusColor(TaskStatus.CANCELLED))
+            if (stats.newCount > 0) StatPill("Новые", stats.newCount, TaskStatus.NEW.contentColor())
+            if (stats.inProgress > 0) StatPill("В работе", stats.inProgress, TaskStatus.IN_PROGRESS.contentColor())
+            if (stats.done > 0) StatPill("Выполнено", stats.done, TaskStatus.DONE.contentColor())
+            if (stats.cancelled > 0) StatPill("Отменено", stats.cancelled, TaskStatus.CANCELLED.contentColor())
         }
     }
 }

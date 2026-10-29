@@ -518,3 +518,77 @@ internal fun DarkThemePreview() {
         }
     }
 }
+
+@Preview(name = "TaskListScreen - Dark", showBackground = true, showSystemUi = true)
+@Composable
+internal fun TaskListScreenDarkPreview() {
+    FieldWorkerTheme(darkTheme = true) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            TaskListScreen(
+                tasks = PreviewData.sampleTasks,
+                comments = emptyList(),
+                isLoading = false,
+                isLoadingComments = false,
+                selectedTask = null,
+                showStatusDialog = false,
+                onRefresh = {},
+                onTaskClick = {},
+                onTaskDismiss = {},
+                onStatusChange = {},
+                onHideStatusDialog = {},
+                onStatusSelected = { _, _, _ -> },
+                onAddComment = { _, _ -> },
+                statusFilter = emptySet(),
+                searchQuery = "",
+                onStatusFilterChange = {},
+                onSearchQueryChange = {}
+            )
+        }
+    }
+}
+
+@Preview(name = "TaskDetailContent - Dark", showBackground = true, showSystemUi = true)
+@Composable
+internal fun TaskDetailContentDarkPreview() {
+    FieldWorkerTheme(darkTheme = true) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            TaskDetailContent(
+                task = PreviewData.taskEmergency,
+                comments = PreviewData.sampleComments,
+                isLoadingComments = false,
+                onStatusChange = {},
+                onAddComment = {},
+                onPlannedDateChange = {},
+                onAssignClick = {}
+            )
+        }
+    }
+}
+
+@Preview(name = "ObjectDetails", showBackground = true, showSystemUi = true)
+@Composable
+internal fun ObjectDetailsPreview() {
+    FieldWorkerTheme {
+        com.fieldworker.ui.objectcard.ObjectDetailsScreen(
+            task = PreviewData.taskEmergency,
+            addressDetails = com.fieldworker.domain.model.AddressDetails(
+                id = 1,
+                address = "Ленинский проспект, д.82, корп.3",
+                city = "Санкт-Петербург",
+                entranceCount = 6,
+                floorCount = 16,
+                apartmentCount = 384,
+                hasElevator = true,
+                hasIntercom = true,
+                intercomCode = "К1234",
+                managementCompany = "УК «Южный дом»",
+                managementPhone = "88124567890",
+                taskStats = com.fieldworker.domain.model.AddressTaskStats(total = 12, newCount = 2, inProgress = 1, done = 8, cancelled = 1),
+            ),
+            isLoading = false,
+            hasAttemptedLookup = true,
+            onBack = {},
+            comments = PreviewData.sampleComments,
+        )
+    }
+}

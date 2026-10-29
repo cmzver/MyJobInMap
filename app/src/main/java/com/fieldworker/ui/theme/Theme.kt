@@ -42,6 +42,14 @@ object AppColors {
     val StatusDone = Color(0xFF16A34A)
     val StatusCancelled = Color(0xFF6B7280)
     val PriorityEmergency = Color(0xFFDC2626)
+
+    // Тёмная тема: те же оттенки на шаг светлее (шкала 400) — тёмный фон
+    // съедает контраст базовых (600), «Новая» синим почти не читалась.
+    val StatusNewDark = Color(0xFF60A5FA)
+    val StatusInProgressDark = Color(0xFFFBBF24)
+    val StatusDoneDark = Color(0xFF4ADE80)
+    val StatusCancelledDark = Color(0xFF9CA3AF)
+    val PriorityEmergencyDark = Color(0xFFF87171)
     val PriorityNeutral = Color(0xFF8E8E93)
 
     val Background = Color(0xFFF6F7F3)

@@ -41,11 +41,11 @@ import androidx.compose.ui.unit.dp
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskStatus
-import com.fieldworker.ui.map.toColor
 import com.fieldworker.ui.map.toIcon
 import com.fieldworker.ui.utils.TaskUtils
+import com.fieldworker.ui.utils.containerColor
+import com.fieldworker.ui.utils.contentColor
 import com.fieldworker.ui.utils.isAttention
-import com.fieldworker.ui.utils.priorityColor
 
 /** Дальше этого расстояние считаем недостоверным и не показываем. */
 private const val MAX_DISTANCE_METERS = 300_000f
@@ -64,7 +64,8 @@ fun TaskCard(
     val ui = rememberTaskCardUi(task, userLat, userLon)
     val priorityIsAttention = task.priority.isAttention()
     // Полоса — только у аварийной: единственный красный сигнал в ленте
-    val barColor = if (priorityIsAttention) ui.priorityColor else Color.Transparent
+    val priorityColor = task.priority.contentColor()
+    val barColor = if (priorityIsAttention) priorityColor else Color.Transparent
     val showPriorityLabel = priorityIsAttention || task.priority == Priority.URGENT
 
     Surface(
@@ -122,14 +123,14 @@ fun TaskCard(
                             Icon(
                                 imageVector = Icons.Default.Warning,
                                 contentDescription = null,
-                                tint = ui.priorityColor,
+                                tint = priorityColor,
                                 modifier = Modifier.size(14.dp),
                             )
                         }
                         Text(
                             text = task.priority.displayName,
                             style = MaterialTheme.typography.labelMedium,
-                            color = ui.priorityColor,
+                            color = priorityColor,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -224,13 +225,13 @@ private fun BulletDot() {
  */
 @Composable
 private fun StatusChip(task: Task) {
-    val color = task.status.toColor()
+    val color = task.status.contentColor()
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(color.copy(alpha = 0.12f))
+            .background(task.status.containerColor())
             .padding(horizontal = 7.dp, vertical = 2.dp),
     ) {
         Box(
@@ -250,7 +251,6 @@ private fun StatusChip(task: Task) {
 }
 
 private data class TaskCardUi(
-    val priorityColor: Color,
     val distance: String?,
     val formattedDate: String,
     val formattedPlannedDate: String?,
@@ -267,7 +267,6 @@ private fun rememberTaskCardUi(
 ): TaskCardUi = remember(task, userLat, userLon) {
     val displayNumber = task.getDisplayNumber()
     TaskCardUi(
-        priorityColor = priorityColor(task.priority),
         // Прячем неправдоподобную дистанцию: нет фикса геолокации или кривые
         // координаты дают сотни/тысячи км — это мусор, а не полезный ориентир.
         distance = TaskUtils.calculateDistance(userLat, userLon, task.lat, task.lon)
@@ -348,8 +347,8 @@ fun CompactTaskCard(
     onClick: () -> Unit
 ) {
     val view = LocalView.current
-    val priorityColor = priorityColor(task.priority)
-    val statusColor = task.status.toColor()
+    val priorityColor = task.priority.contentColor()
+    val statusColor = task.status.contentColor()
     val statusIcon = task.status.toIcon()
     val displayNumber = remember(task.taskNumber, task.id, task.title) { task.getDisplayNumber() }
 

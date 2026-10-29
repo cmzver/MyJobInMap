@@ -55,9 +55,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -74,8 +75,9 @@ import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.TaskCard
 import com.fieldworker.ui.map.StatusChangeDialog
 import com.fieldworker.ui.map.TaskScope
-import com.fieldworker.ui.map.toColor
 import com.fieldworker.ui.map.toIcon
+import com.fieldworker.ui.utils.containerColor
+import com.fieldworker.ui.utils.contentColor
 import com.fieldworker.ui.utils.extractAdditionalInfo
 import com.fieldworker.ui.utils.extractApartment
 import com.fieldworker.ui.utils.extractPhoneNumber
@@ -181,8 +183,10 @@ fun TaskListScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             val displayCount = activePagingItems?.itemCount ?: tasks.size
+            // «0 заявок» над пустым состоянием — дубль, его и так видно
             Text(
-                text = "$displayCount ${com.fieldworker.ui.utils.TaskUtils.pluralizeTasks(displayCount)}",
+                text = if (displayCount == 0) "" else
+                    "$displayCount ${com.fieldworker.ui.utils.TaskUtils.pluralizeTasks(displayCount)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 letterSpacing = 0.4.sp,
@@ -216,7 +220,7 @@ fun TaskListScreen(
                 // Пустое состояние
                 displayEmpty -> {
                     EmptyState(
-                        message = if (hasFilters) "Задачи не найдены" else "Нет задач",
+                        message = if (hasFilters) "Заявки не найдены" else "Заявок нет",
                         isFiltered = hasFilters,
                         onReset = {
                             onStatusFilterChange(emptySet())
@@ -1121,7 +1125,7 @@ private fun TaskDetailHeader(
         ) {
             StatusPill(status = task.status, onClick = onStatusChange)
             if (task.priority == Priority.EMERGENCY || task.priority == Priority.URGENT) {
-                val color = com.fieldworker.ui.utils.priorityColor(task.priority)
+                val color = task.priority.contentColor()
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -1161,13 +1165,13 @@ private fun TaskDetailHeader(
 /** Чип статуса; нажатие открывает смену статуса (в т.ч. отмену). */
 @Composable
 private fun StatusPill(status: TaskStatus, onClick: () -> Unit) {
-    val color = status.toColor()
+    val color = status.contentColor()
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(com.fieldworker.ui.utils.statusBackground(status))
+            .background(status.containerColor())
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
@@ -1760,7 +1764,7 @@ private fun HistoryTimelineItem(
     comment: Comment,
     isLast: Boolean
 ) {
-    val statusColor = comment.newStatus?.toColor() ?: MaterialTheme.colorScheme.primary
+    val statusColor = comment.newStatus?.contentColor() ?: MaterialTheme.colorScheme.primary
 
     val formattedDate = remember(comment.createdAt) {
         com.fieldworker.ui.utils.TaskUtils.formatShortDate(comment.createdAt)
@@ -1861,8 +1865,9 @@ fun EmptyState(
             Icon(
                 imageVector = if (isFiltered) Icons.Default.Search else Icons.Default.CheckCircle,
                 contentDescription = null,
-                modifier = Modifier.size(80.dp),
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                modifier = Modifier.size(56.dp),
+                // Пустое состояние — спокойный нейтрал, акцент только для действий
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
@@ -1870,18 +1875,21 @@ fun EmptyState(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            if (isFiltered) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Попробуйте изменить параметры поиска",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
-                if (onReset != null) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedButton(onClick = onReset) {
-                        Text("Сбросить фильтры")
-                    }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = if (isFiltered) {
+                    "Попробуйте изменить параметры поиска"
+                } else {
+                    "Новые заявки появятся здесь автоматически"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                textAlign = TextAlign.Center
+            )
+            if (isFiltered && onReset != null) {
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedButton(onClick = onReset) {
+                    Text("Сбросить фильтры")
                 }
             }
         }

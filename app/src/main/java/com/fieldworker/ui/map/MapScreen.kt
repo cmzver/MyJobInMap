@@ -78,6 +78,7 @@ import com.fieldworker.ui.list.TaskDetailBottomSheet
 import com.fieldworker.ui.utils.extractApartment
 import com.fieldworker.ui.utils.extractAdditionalInfo
 import com.fieldworker.ui.utils.extractPhoneNumber
+import com.fieldworker.ui.utils.contentColor
 import com.fieldworker.ui.utils.priorityColor
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
@@ -487,9 +488,9 @@ fun TasksStatsBar(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatItem(count = newCount, label = stringResource(id = R.string.stat_new), color = TaskStatus.NEW.toColor())
-            StatItem(count = inProgressCount, label = stringResource(id = R.string.stat_in_progress), color = TaskStatus.IN_PROGRESS.toColor())
-            StatItem(count = doneCount, label = stringResource(id = R.string.stat_done), color = TaskStatus.DONE.toColor())
+            StatItem(count = newCount, label = stringResource(id = R.string.stat_new), color = TaskStatus.NEW.contentColor())
+            StatItem(count = inProgressCount, label = stringResource(id = R.string.stat_in_progress), color = TaskStatus.IN_PROGRESS.contentColor())
+            StatItem(count = doneCount, label = stringResource(id = R.string.stat_done), color = TaskStatus.DONE.contentColor())
         }
     }
 }
@@ -626,7 +627,7 @@ fun StatusChangeDialog(
                                 modifier = Modifier
                                     .size(10.dp)
                                     .clip(CircleShape)
-                                    .background(status.toColor())
+                                    .background(status.contentColor())
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
