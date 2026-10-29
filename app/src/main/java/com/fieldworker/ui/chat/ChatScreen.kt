@@ -351,20 +351,12 @@ fun ChatScreen(
             }
     }
 
-    val colorScheme = MaterialTheme.colorScheme
-    val chatWallpaperBrush = remember(colorScheme) {
-        chatWallpaperBrush(colorScheme)
-    }
-
+    // Фон переписки — просто фон темы. Узор из кружков и крестиков (наследие
+    // «телеграм-обоев») при прозрачности 3% читался как мусор отрисовки.
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(chatWallpaperBrush)
-            .chatWallpaperPattern(
-                backgroundColor = colorScheme.background,
-                primaryColor = colorScheme.primary,
-                secondaryColor = colorScheme.onSurfaceVariant,
-            )
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Scaffold(
             containerColor = Color.Transparent,
@@ -1133,52 +1125,6 @@ private suspend fun scrollToMessage(
     }
     if (targetIndex >= 0) {
         listState.animateScrollToItem(targetIndex)
-    }
-}
-
-private fun Modifier.chatWallpaperPattern(
-    backgroundColor: Color,
-    primaryColor: Color,
-    secondaryColor: Color,
-): Modifier = drawWithCache {
-    val patternPrimary = primaryColor.copy(alpha = 0.035f)
-    val patternSecondary = secondaryColor.copy(alpha = 0.03f)
-    val spacing = 160.dp.toPx()
-    val symbol = 9.dp.toPx()
-    val stroke = 0.8.dp.toPx()
-    val cols = (size.width / spacing).toInt() + 2
-    val rows = (size.height / spacing).toInt() + 2
-    val primaryStrokePath = Path()
-    val secondaryStrokePath = Path()
-
-    for (row in 0 until rows) {
-        for (col in 0 until cols) {
-            val shiftX = if (row % 2 == 0) spacing * 0.5f else 0f
-            val center = Offset(
-                x = (col * spacing) + shiftX - (spacing * 0.2f),
-                y = (row * spacing) + symbol,
-            )
-            if ((row + col) % 2 == 0) {
-                primaryStrokePath.addOval(
-                    Rect(
-                        left = center.x - symbol,
-                        top = center.y - symbol,
-                        right = center.x + symbol,
-                        bottom = center.y + symbol,
-                    )
-                )
-            } else {
-                secondaryStrokePath.moveTo(center.x - symbol, center.y - symbol)
-                secondaryStrokePath.lineTo(center.x + symbol, center.y + symbol)
-                secondaryStrokePath.moveTo(center.x + symbol, center.y - symbol)
-                secondaryStrokePath.lineTo(center.x - symbol, center.y + symbol)
-            }
-        }
-    }
-
-    onDrawBehind {
-        drawPath(primaryStrokePath, color = patternPrimary, style = Stroke(width = stroke))
-        drawPath(secondaryStrokePath, color = patternSecondary, style = Stroke(width = stroke))
     }
 }
 
@@ -2997,9 +2943,6 @@ private fun BoxScope.ImageLoadingBackdrop() {
         )
     }
 }
-
-private fun chatWallpaperBrush(colorScheme: ColorScheme): Brush =
-    SolidColor(colorScheme.background)
 
 private fun List<Long>.lowerBound(target: Long): Int {
     var low = 0

@@ -75,9 +75,10 @@ import com.fieldworker.ui.theme.AppColors
 import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.TaskUtils
 import com.fieldworker.ui.utils.accentTextColor
+import com.fieldworker.ui.utils.containerColor
 import com.fieldworker.ui.utils.contentColor
+import com.fieldworker.ui.utils.dialPhone
 import com.fieldworker.ui.utils.formatPhoneForDisplay
-import com.fieldworker.ui.utils.normalizePhoneForDial
 
 /**
  * Раздел «Мои адреса»: список назначенных адресов и полная карточка объекта —
@@ -336,7 +337,7 @@ internal fun AddressDetailContent(
                         )
                     }
                     details.managementPhone?.takeIf { it.isNotBlank() }?.let { phone ->
-                        PhoneLine(phone) { dial(context, phone) }
+                        PhoneLine(phone) { dialPhone(context, phone) }
                     }
                 }
             }
@@ -433,7 +434,10 @@ private fun HeaderCard(details: AddressDetails) {
             details.apartmentCount?.let { add("Квартиры" to it.toString()) }
             details.entrance?.takeIf { it.isNotBlank() }?.let { add("Подъезд" to it) }
             if (details.hasElevator != null) add("Лифт" to if (details.hasElevator) "есть" else "нет")
-            if (details.hasIntercom != null) add("Домофон" to if (details.hasIntercom) "есть" else "нет")
+            // Код домофона выделен ниже отдельной плашкой — «Домофон: есть» над ним лишнее
+            if (details.hasIntercom != null && details.intercomCode.isNullOrBlank()) {
+                add("Домофон" to if (details.hasIntercom) "есть" else "нет")
+            }
         }
         if (facts.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -474,28 +478,33 @@ private fun HeaderCard(details: AddressDetails) {
 
 @Composable
 private fun TaskStatsCard(stats: AddressTaskStats) {
-    SectionCard(title = "Заявки") {
+    // «Всего» — в заголовке, статусы — четыре равные плашки в ширину карточки:
+    // раньше пятая уезжала за край и выглядела обрезанной. Нули тоже видны —
+    // раскладка не прыгает от адреса к адресу (как в сводке на карте).
+    SectionCard(title = "Заявки · ${stats.total}") {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            StatPill("Всего", stats.total, MaterialTheme.colorScheme.onSurfaceVariant)
-            if (stats.newCount > 0) StatPill("Новые", stats.newCount, TaskStatus.NEW.contentColor())
-            if (stats.inProgress > 0) StatPill("В работе", stats.inProgress, TaskStatus.IN_PROGRESS.contentColor())
-            if (stats.done > 0) StatPill("Выполнено", stats.done, TaskStatus.DONE.contentColor())
-            if (stats.cancelled > 0) StatPill("Отменено", stats.cancelled, TaskStatus.CANCELLED.contentColor())
+            StatPill("Новые", stats.newCount, TaskStatus.NEW, Modifier.weight(1f))
+            StatPill("В работе", stats.inProgress, TaskStatus.IN_PROGRESS, Modifier.weight(1f))
+            StatPill("Готово", stats.done, TaskStatus.DONE, Modifier.weight(1f))
+            StatPill("Отменено", stats.cancelled, TaskStatus.CANCELLED, Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun StatPill(label: String, count: Int, base: Color) {
+private fun StatPill(label: String, count: Int, status: TaskStatus, modifier: Modifier = Modifier) {
+    val active = count > 0
+    val tone = if (active) status.contentColor() else MaterialTheme.colorScheme.onSurfaceVariant
     Column(
-        modifier = Modifier
-            .background(base.copy(alpha = 0.12f), AppShape.md)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+        modifier = modifier
+            .background(
+                if (active) status.containerColor() else MaterialTheme.colorScheme.surfaceContainerHigh,
+                AppShape.md
+            )
+            .padding(horizontal = 4.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -503,12 +512,13 @@ private fun StatPill(label: String, count: Int, base: Color) {
             text = count.toString(),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = base,
+            color = tone,
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
         )
     }
 }
@@ -601,7 +611,7 @@ private fun ContactRow(contact: AddressContact, context: android.content.Context
         ).joinToString(" • ")
         if (role.isNotBlank()) Eyebrow(role)
         contact.phone?.takeIf { it.isNotBlank() }?.let { phone ->
-            PhoneLine(phone) { dial(context, phone) }
+            PhoneLine(phone) { dialPhone(context, phone) }
         }
         contact.email?.takeIf { it.isNotBlank() }?.let { email ->
             Row(
@@ -843,14 +853,6 @@ private fun StatusChip(label: String, tone: StatusTone) {
  */
 private fun cityHint(address: String, city: String?): String =
     city?.takeIf { it.isNotBlank() && !address.contains(it, ignoreCase = true) }.orEmpty()
-
-private fun dial(context: android.content.Context, phone: String) {
-    runCatching {
-        context.startActivity(
-            Intent(Intent.ACTION_DIAL, Uri.parse("tel:${normalizePhoneForDial(phone)}")),
-        )
-    }
-}
 
 private fun mail(context: android.content.Context, email: String) {
     runCatching {

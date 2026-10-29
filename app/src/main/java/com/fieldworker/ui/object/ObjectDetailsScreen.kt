@@ -2,6 +2,7 @@ package com.fieldworker.ui.objectcard
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,8 +47,10 @@ import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
 import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.TaskUtils
+import com.fieldworker.ui.utils.accentTextColor
 import com.fieldworker.ui.utils.containerColor
 import com.fieldworker.ui.utils.contentColor
+import com.fieldworker.ui.utils.dialPhone
 import com.fieldworker.ui.utils.extractAdditionalInfo
 import com.fieldworker.ui.utils.formatPhoneForDisplay
 
@@ -105,12 +109,14 @@ fun ObjectDetailsScreen(
 
                 if (comments.isNotEmpty()) {
                     item {
+                        // Название и формат времени — как в карточке заявки
                         ObjectInsightList(
-                            title = "Комментарии",
+                            title = "Лента работ",
                             items = comments.map { comment ->
                                 comment.text to listOfNotNull(
                                     comment.author,
-                                    TaskUtils.formatShortDate(comment.createdAt),
+                                    TaskUtils.formatShortDate(comment.createdAt) + " " +
+                                        TaskUtils.formatShortTime(comment.createdAt),
                                 ).filter { it.isNotBlank() }.joinToString(" • ")
                             }
                         )
@@ -301,16 +307,27 @@ private fun TaskBadgeRow(task: Task) {
     }
 }
 
+/** Факт карточки: подпись, значение и действие по тапу (у телефонов — набор номера). */
+private data class ObjectFact(
+    val label: String,
+    val value: String,
+    val onClick: (() -> Unit)? = null,
+)
+
 @Composable
 private fun TaskDetailsSection(task: Task) {
+    val context = LocalContext.current
     val description = remember(task) { extractAdditionalInfo(task) ?: task.description.trim() }
     val facts = buildList {
-        task.customerName?.takeIf { it.isNotBlank() }?.let { add("Заказчик" to it) }
-        task.customerPhone?.takeIf { it.isNotBlank() }?.let { add("Телефон" to formatPhoneForDisplay(it)) }
-        task.assignedUserName?.takeIf { it.isNotBlank() }?.let { add("Исполнитель" to it) }
-        task.plannedDate?.takeIf { it.isNotBlank() }?.let { add("Срок" to TaskUtils.formatShortDate(it)) }
-        task.systemType?.takeIf { it.isNotBlank() }?.let { add("Система" to it) }
-        task.defectType?.takeIf { it.isNotBlank() }?.let { add("Неисправность" to it) }
+        // Подписи — те же, что в карточке заявки («Клиент», а не «Заказчик»)
+        task.customerName?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Клиент", it)) }
+        task.customerPhone?.takeIf { it.isNotBlank() }?.let { phone ->
+            add(ObjectFact("Телефон", formatPhoneForDisplay(phone)) { dialPhone(context, phone) })
+        }
+        task.assignedUserName?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Исполнитель", it)) }
+        task.plannedDate?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Срок", TaskUtils.formatShortDate(it))) }
+        task.systemType?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Система", it)) }
+        task.defectType?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Неисправность", it)) }
     }
     ObjectSectionCard(title = "Заявка") {
         if (description.isNotBlank()) {
@@ -326,18 +343,21 @@ private fun TaskDetailsSection(task: Task) {
 
 @Composable
 private fun ObjectOverviewCard(addressDetails: AddressDetails) {
+    val context = LocalContext.current
     val facts = buildList {
-        addressDetails.entranceCount?.let { add("Подъезды" to it.toString()) }
-        addressDetails.floorCount?.let { add("Этажи" to it.toString()) }
-        addressDetails.apartmentCount?.let { add("Квартиры" to it.toString()) }
-        addressDetails.entrance?.takeIf { it.isNotBlank() }?.let { add("Подъезд" to it) }
-        addressDetails.hasElevator?.let { add("Лифт" to if (it) "есть" else "нет") }
+        addressDetails.entranceCount?.let { add(ObjectFact("Подъезды", it.toString())) }
+        addressDetails.floorCount?.let { add(ObjectFact("Этажи", it.toString())) }
+        addressDetails.apartmentCount?.let { add(ObjectFact("Квартиры", it.toString())) }
+        addressDetails.entrance?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Подъезд", it)) }
+        addressDetails.hasElevator?.let { add(ObjectFact("Лифт", if (it) "есть" else "нет")) }
         if (addressDetails.hasIntercom == true) {
-            add("Домофон" to (addressDetails.intercomCode?.takeIf { it.isNotBlank() } ?: "есть"))
+            val code = addressDetails.intercomCode?.takeIf { it.isNotBlank() }
+            add(if (code != null) ObjectFact("Код домофона", code) else ObjectFact("Домофон", "есть"))
         }
-        addressDetails.managementCompany?.takeIf { it.isNotBlank() }?.let { add("УК" to it) }
-        addressDetails.managementPhone?.takeIf { it.isNotBlank() }
-            ?.let { add("Телефон УК" to formatPhoneForDisplay(it)) }
+        addressDetails.managementCompany?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("УК", it)) }
+        addressDetails.managementPhone?.takeIf { it.isNotBlank() }?.let { phone ->
+            add(ObjectFact("Телефон УК", formatPhoneForDisplay(phone)) { dialPhone(context, phone) })
+        }
     }
     if (facts.isEmpty()) return
     ObjectSectionCard(title = "Объект") {
@@ -347,27 +367,38 @@ private fun ObjectOverviewCard(addressDetails: AddressDetails) {
 
 /** Факты сеткой в две колонки с eyebrow-лейблами — как в карточке заявки. */
 @Composable
-private fun ObjectFactsGrid(facts: List<Pair<String, String>>) {
+private fun ObjectFactsGrid(facts: List<ObjectFact>) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         facts.chunked(2).forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                row.forEach { (label, value) ->
-                    Column(modifier = Modifier.weight(1f)) {
+                row.forEach { fact ->
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .then(
+                                if (fact.onClick != null) {
+                                    Modifier.clip(AppShape.sm).clickable(onClick = fact.onClick)
+                                } else {
+                                    Modifier
+                                }
+                            )
+                    ) {
                         Text(
-                            text = label.uppercase(),
+                            text = fact.label.uppercase(),
                             style = MaterialTheme.typography.labelSmall,
                             letterSpacing = 0.6.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = value,
+                            text = fact.value,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface
+                            // Нажимаемое значение — цветом ссылки, как в карточке заявки
+                            color = if (fact.onClick != null) accentTextColor() else MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }

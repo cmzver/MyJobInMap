@@ -343,3 +343,15 @@ fun normalizePhoneForDial(phone: String): String {
         else -> compact
     }
 }
+
+/** Открыть набор номера (без звонка — пользователь подтверждает сам). */
+fun dialPhone(context: android.content.Context, phone: String) {
+    runCatching {
+        context.startActivity(
+            android.content.Intent(
+                android.content.Intent.ACTION_DIAL,
+                android.net.Uri.parse("tel:${normalizePhoneForDial(phone)}"),
+            ),
+        )
+    }
+}
