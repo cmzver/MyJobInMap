@@ -1,5 +1,5 @@
 import { Fragment, type MouseEvent as ReactMouseEvent, type RefObject } from 'react'
-import { Calendar, ChevronDown, Clock, MapPin, SlidersHorizontal, User } from 'lucide-react'
+import { ChevronDown, SlidersHorizontal } from 'lucide-react'
 
 import Button from '@/components/Button'
 import PriorityBadge from '@/components/PriorityBadge'
@@ -84,58 +84,43 @@ function renderTaskCell(task: Task, key: ToggleableTaskTableColumnKey, unreadCou
       )
     case 'address':
       return (
-        <div className="flex min-w-0 items-start gap-1.5">
-          <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
-          <span className="min-w-0 line-clamp-2 text-sm text-gray-600 dark:text-gray-300">
-            {task.raw_address || '-'}
-          </span>
-        </div>
+        <span className="min-w-0 line-clamp-2 text-sm text-gray-600 dark:text-gray-300">
+          {task.raw_address || '-'}
+        </span>
       )
     case 'status':
       return (
-        <div className="tasks-badge-cell max-w-full overflow-hidden">
+        <div className="max-w-full overflow-hidden">
           <StatusBadge status={task.status} className="max-w-full truncate" />
         </div>
       )
     case 'priority':
       return (
-        <div className="tasks-badge-cell max-w-full overflow-hidden">
+        <div className="max-w-full overflow-hidden">
           <PriorityBadge priority={task.priority} className="max-w-full truncate" />
         </div>
       )
     case 'assignee':
       return (
-        <div className="flex min-w-0 items-center gap-1.5">
-          <User className="h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
-          <span className="min-w-0 truncate text-sm text-gray-600 dark:text-gray-300">
-            {task.assigned_user_name || '-'}
-          </span>
-        </div>
+        <span className="block min-w-0 truncate text-sm text-gray-600 dark:text-gray-300">
+          {task.assigned_user_name || '-'}
+        </span>
       )
     case 'creator':
       return (
-        <div className="flex min-w-0 items-center gap-1.5">
-          <User className="h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
-          <span className="min-w-0 truncate text-sm text-gray-600 dark:text-gray-300">
-            {task.created_by_name || '-'}
-          </span>
-        </div>
+        <span className="block min-w-0 truncate text-sm text-gray-600 dark:text-gray-300">
+          {task.created_by_name || '-'}
+        </span>
       )
     case 'date':
       return (
-        <div className="flex min-w-0 items-center gap-1.5">
-          <Calendar className="h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
-          <span className="min-w-0 truncate text-sm text-gray-500 dark:text-gray-400">
-            {formatDateTime(task.created_at)}
-          </span>
-        </div>
+        <span className="block min-w-0 truncate text-sm text-gray-500 dark:text-gray-400">
+          {formatDateTime(task.created_at)}
+        </span>
       )
     case 'sla':
       return (
-        <div className="flex min-w-0 items-center gap-1.5">
-          <Clock className="h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
-          <span className={`min-w-0 truncate text-sm ${sla.tone}`}>{sla.label}</span>
-        </div>
+        <span className={`block min-w-0 truncate text-sm ${sla.tone}`}>{sla.label}</span>
       )
     default:
       return null
