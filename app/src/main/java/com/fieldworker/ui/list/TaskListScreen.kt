@@ -188,28 +188,17 @@ fun TaskListScreen(
             )
         }
         
-        // Счётчик результатов
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val displayCount = activePagingItems?.itemCount ?: tasks.size
+        // Быстрые фильтры + счётчик результатов. Чаще всего нужно «только новые»
+        // или «только в работе» — одно касание вместо панели; сочетания — в панели.
+        val displayCount = activePagingItems?.itemCount ?: tasks.size
+        QuickStatusFilters(
+            statusFilter = statusFilter,
+            onStatusFilterChange = onStatusFilterChange,
             // «0 заявок» над пустым состоянием — дубль, его и так видно
-            Text(
-                text = if (displayCount == 0) "" else
-                    "$displayCount ${com.fieldworker.ui.utils.TaskUtils.pluralizeTasks(displayCount)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                letterSpacing = 0.4.sp,
-                modifier = Modifier.weight(1f)
-            )
-
-            if (isLoading && tasks.isNotEmpty()) {
-                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 1.5.dp)
-            }
-        }
+            countText = if (displayCount == 0) "" else
+                "$displayCount ${com.fieldworker.ui.utils.TaskUtils.pluralizeTasks(displayCount)}",
+            isRefreshing = isLoading && tasks.isNotEmpty()
+        )
         
         // Список задач с FAB и Pull-to-Refresh
         Box(modifier = Modifier.weight(1f)) {
@@ -479,6 +468,101 @@ fun SearchBar(
                     )
                 }
             }
+        }
+    }
+}
+
+/** Быстрые фильтры ленты: набор статусов на чип (пустой — «все»). */
+private val QuickStatusFilterOptions: List<Pair<String, Set<TaskStatus>>> = listOf(
+    "Все" to emptySet(),
+    "Новые" to setOf(TaskStatus.NEW),
+    "В работе" to setOf(TaskStatus.IN_PROGRESS),
+)
+
+@Composable
+private fun QuickStatusFilters(
+    statusFilter: Set<TaskStatus>,
+    onStatusFilterChange: (Set<TaskStatus>) -> Unit,
+    countText: String,
+    isRefreshing: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp, end = 16.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        QuickStatusFilterOptions.forEach { (label, filter) ->
+            // Сочетание, выбранное в панели (например, «новые + отменённые»),
+            // не подсвечивает ни один чип — оно видно по кнопке фильтров
+            QuickFilterChip(
+                label = label,
+                dotColor = filter.singleOrNull()?.contentColor(),
+                selected = statusFilter == filter,
+                onClick = { onStatusFilterChange(filter) }
+            )
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        if (isRefreshing) {
+            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 1.5.dp)
+            Spacer(modifier = Modifier.width(6.dp))
+        }
+        Text(
+            text = countText,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            letterSpacing = 0.4.sp,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun QuickFilterChip(
+    label: String,
+    dotColor: Color?,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val container by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+        else MaterialTheme.colorScheme.surface,
+        label = "quick-filter-bg"
+    )
+    Surface(
+        onClick = onClick,
+        shape = AppShape.pill,
+        color = container,
+        border = BorderStroke(
+            1.dp,
+            if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .height(32.dp)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            // Статус несёт цвет — точка та же, что в чипе статуса карточки
+            if (dotColor != null) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(dotColor)
+                )
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                color = if (selected) accentTextColor() else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
         }
     }
 }
