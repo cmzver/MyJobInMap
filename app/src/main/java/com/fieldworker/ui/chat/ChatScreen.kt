@@ -102,6 +102,7 @@ import okhttp3.Headers
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.fieldworker.ui.chat.components.BubbleShape
+import com.fieldworker.ui.utils.isDarkPalette
 
 /**
  * Экран чата — список сообщений с полем ввода.
@@ -1542,21 +1543,13 @@ private fun MessageBubble(
     val bubbleShape = BubbleShape(isOwn = isOwn, groupedWithNext = groupedWithNext)
     val bubbleStartPadding = if (!isOwn && !groupedWithPrevious) 14.dp else 12.dp
     val bubbleEndPadding = if (isOwn && !groupedWithNext) 14.dp else 12.dp
-    val bubbleTextColor = if (isOwn) {
-        colorScheme.onSurface
-    } else {
-        colorScheme.onSurface
-    }
+    val bubbleTextColor = colorScheme.onSurface
     val bubbleMetaColor = if (isOwn) {
         colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
     } else {
         colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
     }
-    val bubbleContainerColor = if (isOwn) {
-        colorScheme.primaryContainer.copy(alpha = 0.84f)
-    } else {
-        colorScheme.surface
-    }
+    val bubbleContainerColor = if (isOwn) ownBubbleColor() else colorScheme.surface
     val canInlineMeta = !message.text.isNullOrBlank() &&
         message.attachments.isEmpty() &&
         message.replyTo == null &&
@@ -1763,7 +1756,7 @@ private fun MessageBubble(
                     Surface(
                         shape = RoundedCornerShape(14.dp),
                         color = if (isOwn) {
-                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f)
+                            ownQuoteColor()
                         } else {
                             MaterialTheme.colorScheme.surface.copy(alpha = 0.55f)
                         },
@@ -2532,11 +2525,15 @@ private fun ReactionSummaryItem(
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
+    val dark = isDarkPalette()
     val containerColor = when {
+        // В тёмной теме любой оранжевый фон даёт коричневый — нейтраль + обводка
+        isSelected && dark -> MaterialTheme.colorScheme.surfaceVariant
         isSelected -> MaterialTheme.colorScheme.primaryContainer
         else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
     }
     val contentColor = when {
+        isSelected && dark -> MaterialTheme.colorScheme.primary
         isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
@@ -2545,6 +2542,13 @@ private fun ReactionSummaryItem(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
             .background(containerColor)
+            .then(
+                if (isSelected && dark) {
+                    Modifier.border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(999.dp))
+                } else {
+                    Modifier
+                }
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 3.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
@@ -3011,3 +3015,24 @@ private fun List<Long>.lowerBound(target: Long): Int {
 
 private val timeOnlyFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 private val systemMessageFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM HH:mm")
+
+/**
+ * Пузырь своих сообщений: в светлой теме — бледно-оранжевый, в тёмной —
+ * нейтральный приподнятый слой (primaryContainer там мутно-коричневый).
+ */
+@Composable
+@ReadOnlyComposable
+private fun ownBubbleColor(): Color = if (isDarkPalette()) {
+    MaterialTheme.colorScheme.surfaceContainerHighest
+} else {
+    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.84f)
+}
+
+/** Подложка цитаты внутри своего пузыря. */
+@Composable
+@ReadOnlyComposable
+private fun ownQuoteColor(): Color = if (isDarkPalette()) {
+    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)
+} else {
+    MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f)
+}

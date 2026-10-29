@@ -6,6 +6,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +27,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.fieldworker.domain.model.ConversationType
 import com.fieldworker.ui.utils.avatarInitials
+import com.fieldworker.ui.utils.isDarkPalette
 import com.fieldworker.ui.utils.resolveAvatarUrl
 import kotlin.math.abs
 
@@ -80,6 +84,14 @@ fun ChatAvatar(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.matchParentSize(),
             )
+        } else if (type == ConversationType.TASK) {
+            // Чат заявки: инициалы «Заявка 1138996» = «З1» читались как число «31»
+            Icon(
+                imageVector = Icons.Default.Build,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size((size * 0.45f).dp),
+            )
         } else {
             Text(
                 text = initials,
@@ -103,7 +115,11 @@ private fun getAvatarColor(id: Long, type: ConversationType): Color {
     )
     return when (type) {
         ConversationType.DIRECT, ConversationType.GROUP -> palette[(abs(id) % palette.size).toInt()]
-        ConversationType.TASK -> MaterialTheme.colorScheme.tertiaryContainer
+        ConversationType.TASK -> if (isDarkPalette()) {
+            MaterialTheme.colorScheme.surfaceVariant
+        } else {
+            MaterialTheme.colorScheme.primaryContainer
+        }
         ConversationType.ORG_GENERAL -> MaterialTheme.colorScheme.surfaceVariant
     }
 }

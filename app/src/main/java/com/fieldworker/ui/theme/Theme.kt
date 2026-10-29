@@ -81,6 +81,8 @@ private val DarkColorScheme = darkColorScheme(
     // (лавандовые диалоги, меню, тональные кнопки, обводки).
     secondaryContainer = Color(0xFF243136),
     onSecondaryContainer = Color(0xFFF1F4F5),
+    tertiaryContainer = Color(0xFF1E3A2A),
+    onTertiaryContainer = Color(0xFFBDE5C8),
     surfaceTint = AppColors.PrimaryLight,
     outline = Color(0xFF6E7B81),
     outlineVariant = Color(0xFF34434A),
@@ -108,6 +110,8 @@ private val LightColorScheme = lightColorScheme(
     // (лавандовые диалоги, меню, тональные кнопки, обводки).
     secondaryContainer = Color(0xFFEDF0F1),
     onSecondaryContainer = AppColors.OnSurface,
+    tertiaryContainer = AppColors.PlannedBg,
+    onTertiaryContainer = AppColors.Planned,
     surfaceTint = AppColors.Primary,
     outline = Color(0xFF8A959B),
     outlineVariant = Color(0xFFDDE2E4),
