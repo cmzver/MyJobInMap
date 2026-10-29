@@ -7932,7 +7932,10 @@ export interface operations {
             query?: {
                 photo_type?: string;
             };
-            header?: never;
+            header?: {
+                /** @description Повтор с тем же ключом вернёт сохранённый ответ (Android-outbox). */
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 task_id: number;
             };

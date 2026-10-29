@@ -68,6 +68,42 @@ class TestUploadPhoto:
 
         cleanup_photos.append(data["filename"])
 
+    def test_upload_retry_with_same_idempotency_key_returns_same_photo(
+        self,
+        client: TestClient,
+        admin_token: str,
+        test_task,
+        cleanup_photos,
+        db_session: Session,
+    ):
+        """Повтор из офлайн-очереди после потерянного ответа не создаёт дубль."""
+        headers = {
+            "Authorization": f"Bearer {admin_token}",
+            "Idempotency-Key": "photo-op-1",
+        }
+
+        def upload():
+            return client.post(
+                f"/api/tasks/{test_task.id}/photos",
+                files={"file": ("test.jpg", create_test_jpeg(), "image/jpeg")},
+                params={"photo_type": "before"},
+                headers=headers,
+            )
+
+        first = upload()
+        second = upload()
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert second.json()["id"] == first.json()["id"]
+        cleanup_photos.append(first.json()["filename"])
+        count = (
+            db_session.query(TaskPhotoModel)
+            .filter(TaskPhotoModel.task_id == test_task.id)
+            .count()
+        )
+        assert count == 1
+
     def test_upload_photo_task_not_found(self, client: TestClient, admin_token: str):
         """Заявка не найдена."""
         jpeg_content = create_test_jpeg()
