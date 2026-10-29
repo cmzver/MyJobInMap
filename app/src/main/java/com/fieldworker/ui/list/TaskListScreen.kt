@@ -1025,8 +1025,6 @@ fun TaskDetailContent(
 
         TaskActionBar(
             status = task.status,
-            onDialPhone = dialPhone,
-            onOpenNavigation = openNavigation,
             onStatusChange = onStatusChange
         )
     }
@@ -1388,73 +1386,43 @@ private fun FactCell(fact: TaskFact, modifier: Modifier = Modifier) {
 }
 
 /**
- * Закреплённая панель главных действий: звонок, маршрут и следующий шаг по
- * статусу (большая кнопка под пальцем). Для закрытых заявок — без кнопки статуса.
+ * Закреплённая кнопка следующего шага по статусу — крупно, под пальцем.
+ * Звонок и маршрут сюда не выносим: телефон и адрес и так нажимаются в
+ * карточке. У закрытых заявок шага нет — и панели нет.
  */
 @Composable
 private fun TaskActionBar(
     status: TaskStatus,
-    onDialPhone: (() -> Unit)?,
-    onOpenNavigation: () -> Unit,
     onStatusChange: () -> Unit
 ) {
     val nextActionLabel = when (status) {
         TaskStatus.NEW -> "Взять в работу"
         TaskStatus.IN_PROGRESS -> "Завершить"
         else -> null
-    }
+    } ?: return
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 8.dp
     ) {
-        Row(
+        Button(
+            onClick = onStatusChange,
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .height(52.dp)
         ) {
-            val secondaryActionColors = IconButtonDefaults.filledTonalIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                contentColor = MaterialTheme.colorScheme.onSurface
-            )
-            if (onDialPhone != null) {
-                FilledTonalIconButton(
-                    onClick = onDialPhone,
-                    colors = secondaryActionColors,
-                    modifier = Modifier.size(52.dp)
-                ) {
-                    Icon(Icons.Default.Phone, contentDescription = "Позвонить")
-                }
-            }
-            FilledTonalIconButton(
-                onClick = onOpenNavigation,
-                colors = secondaryActionColors,
-                modifier = Modifier.size(52.dp)
-            ) {
-                Icon(Icons.Default.LocationOn, contentDescription = "Маршрут")
-            }
-            if (nextActionLabel != null) {
-                Button(
-                    onClick = onStatusChange,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(52.dp)
-                ) {
-                    // «Взять в работу» → «Завершить» — перетекание, а не подмена
-                    AnimatedContent(
-                        targetState = nextActionLabel,
-                        transitionSpec = {
-                            (fadeIn() + slideInVertically { it / 2 }) togetherWith
-                                (fadeOut() + slideOutVertically { -it / 2 })
-                        },
-                        label = "next-action"
-                    ) { label ->
-                        Text(label, style = MaterialTheme.typography.titleSmall)
-                    }
-                }
+            // «Взять в работу» → «Завершить» — перетекание, а не подмена
+            AnimatedContent(
+                targetState = nextActionLabel,
+                transitionSpec = {
+                    (fadeIn() + slideInVertically { it / 2 }) togetherWith
+                        (fadeOut() + slideOutVertically { -it / 2 })
+                },
+                label = "next-action"
+            ) { label ->
+                Text(label, style = MaterialTheme.typography.titleSmall)
             }
         }
     }
