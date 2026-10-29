@@ -32,6 +32,7 @@ interface TaskFiltersPanelProps {
   searchInput: string
   onSearchChange: (value: string) => void
   onSearchCommit: () => void
+  onSearchClear: () => void
   isNewQuickView: boolean
   isInProgressQuickView: boolean
   isUrgentQuickView: boolean
@@ -88,6 +89,7 @@ export default function TaskFiltersPanel({
   searchInput,
   onSearchChange,
   onSearchCommit,
+  onSearchClear,
   isNewQuickView,
   isInProgressQuickView,
   isUrgentQuickView,
@@ -138,8 +140,18 @@ export default function TaskFiltersPanel({
                     onSearchCommit()
                   }
                 }}
-                className="h-9 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-500"
+                className="h-9 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-10 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-500"
               />
+              {searchInput && (
+                <button
+                  type="button"
+                  aria-label="Очистить поиск"
+                  onClick={onSearchClear}
+                  className="absolute right-1.5 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:hover:bg-gray-600 dark:hover:text-gray-100"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </div>
 

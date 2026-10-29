@@ -52,7 +52,7 @@ import {
 
 const PAGE_SIZE = 20
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
-const SEARCH_DEBOUNCE_MS = 700
+const SEARCH_DEBOUNCE_MS = 350
 const COLUMN_STORAGE_KEY = 'tasks-table-column-widths'
 const COLUMN_VISIBILITY_STORAGE_KEY = 'tasks-table-visible-columns'
 
@@ -1221,6 +1221,11 @@ export default function TasksPage() {
     [search]
   )
 
+  const clearSearch = useCallback(() => {
+    setSearchInput('')
+    commitSearch('')
+  }, [commitSearch])
+
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       commitSearch(searchInput)
@@ -1347,6 +1352,7 @@ export default function TasksPage() {
         searchInput={searchInput}
         onSearchChange={handleSearchChange}
         onSearchCommit={() => commitSearch(searchInput)}
+        onSearchClear={clearSearch}
         isNewQuickView={isNewQuickView}
         isInProgressQuickView={isInProgressQuickView}
         isUrgentQuickView={isUrgentQuickView}
