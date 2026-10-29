@@ -33,12 +33,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -65,11 +65,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.fieldworker.BuildConfig
 import com.fieldworker.R
 import com.fieldworker.data.preferences.AppPreferences
+import java.net.HttpURLConnection
+import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
  * Экран авторизации
@@ -110,7 +110,7 @@ fun LoginScreen(
                 .padding(20.dp),
             shape = CircleShape,
             color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp,
+            tonalElevation = 0.dp,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
             IconButton(onClick = { showServerSettings = true }) {

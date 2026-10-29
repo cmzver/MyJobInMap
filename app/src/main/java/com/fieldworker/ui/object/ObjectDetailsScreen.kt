@@ -1,5 +1,6 @@
 package com.fieldworker.ui.objectcard
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,6 +43,7 @@ import com.fieldworker.domain.model.AddressDetails
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
+import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.TaskUtils
 import com.fieldworker.ui.utils.containerColor
 import com.fieldworker.ui.utils.contentColor
@@ -265,7 +267,7 @@ private fun TaskBadgeRow(task: Task) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
+                .clip(AppShape.pill)
                 .background(task.status.containerColor())
                 .padding(horizontal = 10.dp, vertical = 4.dp)
         ) {
@@ -514,7 +516,8 @@ private fun ObjectSectionCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         shape = MaterialTheme.shapes.large
     ) {
         Column(

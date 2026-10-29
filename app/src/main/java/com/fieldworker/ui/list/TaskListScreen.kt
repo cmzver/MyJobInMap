@@ -81,6 +81,7 @@ import com.fieldworker.ui.components.TaskCard
 import com.fieldworker.ui.map.StatusChangeDialog
 import com.fieldworker.ui.map.TaskScope
 import com.fieldworker.ui.map.toIcon
+import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.containerColor
 import com.fieldworker.ui.utils.contentColor
 import com.fieldworker.ui.utils.extractAdditionalInfo
@@ -421,7 +422,7 @@ fun SearchBar(
         // Поле поиска
         Surface(
             modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(12.dp),
+            shape = AppShape.md,
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
@@ -483,7 +484,7 @@ fun SearchBar(
         // Кнопка фильтров
         Surface(
             modifier = Modifier.size(38.dp),
-            shape = RoundedCornerShape(12.dp),
+            shape = AppShape.md,
             color = if (hasActiveFilters)
                 MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
             else
@@ -541,7 +542,7 @@ fun FiltersPanel(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
         ),
-        shape = RoundedCornerShape(14.dp)
+        shape = AppShape.md
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             // Заголовок с кнопкой сброса
@@ -681,7 +682,7 @@ private fun FilterDropdownRow(
     Box(modifier = Modifier.fillMaxWidth()) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(10.dp),
+            shape = AppShape.sm,
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
@@ -1176,7 +1177,7 @@ private fun StatusPill(status: TaskStatus, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(AppShape.pill)
             .background(container)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 5.dp)
@@ -1206,7 +1207,7 @@ private fun TaskSectionCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = MaterialTheme.shapes.large,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
     ) {
@@ -1237,7 +1238,7 @@ private fun TaskSectionCard(
 @Composable
 private fun SheetHeaderChip(text: String) {
     Surface(
-        shape = RoundedCornerShape(999.dp),
+        shape = AppShape.pill,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
     ) {
         Text(
@@ -1485,7 +1486,7 @@ private fun TaskPhotosSection(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = MaterialTheme.shapes.large,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
         modifier = Modifier.fillMaxWidth()
@@ -1574,11 +1575,11 @@ private fun TaskCommentComposer(
                 modifier = Modifier
                     .weight(1f)
                     .height(44.dp)
-                    .background(Color.Transparent, RoundedCornerShape(22.dp))
+                    .background(Color.Transparent, AppShape.xl)
                     .border(
                         width = 1.dp,
                         color = if (commentText.isNotEmpty()) accentColor else MaterialTheme.colorScheme.outline,
-                        shape = RoundedCornerShape(22.dp)
+                        shape = AppShape.xl
                     ),
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
@@ -1678,7 +1679,7 @@ private fun TaskHistorySection(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(AppShape.sm)
                         .clickable(onClick = onToggleExpanded)
                         .background(MaterialTheme.colorScheme.background)
                         .padding(12.dp),
@@ -1940,7 +1941,7 @@ fun TaskListItemSkeleton() {
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = AppShape.md,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
     ) {

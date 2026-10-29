@@ -51,6 +51,7 @@ import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.map.toIcon
+import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.TaskUtils
 import com.fieldworker.ui.utils.containerColor
 import com.fieldworker.ui.utils.contentColor
@@ -100,7 +101,7 @@ fun TaskCard(
                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 onClick()
             },
-        shape = RoundedCornerShape(12.dp),
+        shape = AppShape.md,
         color = if (isSelected) {
             MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)
         } else {
@@ -256,7 +257,7 @@ private fun StatusChip(task: Task) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(AppShape.pill)
             .background(container)
             .padding(horizontal = 7.dp, vertical = 2.dp),
     ) {

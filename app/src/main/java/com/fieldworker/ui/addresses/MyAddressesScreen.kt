@@ -3,6 +3,7 @@ package com.fieldworker.ui.addresses
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -72,10 +73,11 @@ import com.fieldworker.domain.model.AddressSystem
 import com.fieldworker.domain.model.AddressTaskStats
 import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.theme.AppColors
+import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.TaskUtils
+import com.fieldworker.ui.utils.contentColor
 import com.fieldworker.ui.utils.formatPhoneForDisplay
 import com.fieldworker.ui.utils.normalizePhoneForDial
-import com.fieldworker.ui.utils.contentColor
 
 /**
  * Раздел «Мои адреса»: список назначенных адресов и полная карточка объекта —
@@ -187,7 +189,8 @@ private fun AddressRowCard(address: AddressSummary, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         shape = MaterialTheme.shapes.large,
     ) {
         Row(
@@ -451,7 +454,7 @@ private fun HeaderCard(details: AddressDetails) {
                     .fillMaxWidth()
                     .background(
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-                        RoundedCornerShape(10.dp),
+                        AppShape.sm,
                     )
                     .padding(horizontal = 12.dp, vertical = 10.dp),
             ) {
@@ -491,7 +494,7 @@ private fun TaskStatsCard(stats: AddressTaskStats) {
 private fun StatPill(label: String, count: Int, base: Color) {
     Column(
         modifier = Modifier
-            .background(base.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+            .background(base.copy(alpha = 0.12f), AppShape.md)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -731,7 +734,8 @@ private fun SectionCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         shape = MaterialTheme.shapes.large,
     ) {
         Column(
@@ -817,7 +821,7 @@ private fun StatusChip(label: String, tone: StatusTone) {
     val base = tone.color()
     Box(
         modifier = Modifier
-            .background(base.copy(alpha = 0.14f), RoundedCornerShape(8.dp))
+            .background(base.copy(alpha = 0.14f), AppShape.sm)
             .padding(horizontal = 8.dp, vertical = 3.dp),
     ) {
         Text(

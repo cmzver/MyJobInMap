@@ -1,5 +1,8 @@
 package com.fieldworker.ui.chat
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +17,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -28,13 +38,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,25 +50,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import com.fieldworker.domain.model.ConversationDetail
-import com.fieldworker.domain.model.ConversationMember
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.fieldworker.domain.model.ConversationDetail
+import com.fieldworker.domain.model.ConversationMember
 import com.fieldworker.domain.model.ConversationType
 import com.fieldworker.domain.model.User
 import com.fieldworker.ui.chat.components.ChatAvatar
+import com.fieldworker.ui.theme.AppShape
 
 private data class PendingRoleChange(
     val member: ConversationMember,
@@ -600,7 +601,7 @@ private fun SelectableUserRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(AppShape.lg)
             .background(containerColor)
             .toggleable(
                 value = selected,
@@ -694,7 +695,7 @@ private fun SoftTextField(
         },
         singleLine = true,
         enabled = enabled,
-        shape = RoundedCornerShape(14.dp),
+        shape = AppShape.md,
         colors = TextFieldDefaults.colors(
             focusedContainerColor = fill,
             unfocusedContainerColor = fill,
@@ -728,7 +729,7 @@ private fun MemberManagementRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(AppShape.md)
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -826,7 +827,7 @@ private fun RolePill(role: String) {
     }
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
+            .clip(AppShape.sm)
             .background(background)
             .padding(horizontal = 6.dp, vertical = 1.dp),
     ) {

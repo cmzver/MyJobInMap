@@ -62,6 +62,7 @@ import com.fieldworker.domain.model.Conversation
 import com.fieldworker.domain.model.ConversationType
 import com.fieldworker.domain.model.User
 import com.fieldworker.ui.chat.components.ChatAvatar
+import com.fieldworker.ui.theme.AppShape
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -270,7 +271,7 @@ private fun ConversationListHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
-                .clip(RoundedCornerShape(14.dp)),
+                .clip(AppShape.md),
             placeholder = {
                 Text(
                     "Поиск",
@@ -485,7 +486,7 @@ private fun ConversationItem(
                         modifier = Modifier
                             .background(
                                 MaterialTheme.colorScheme.surfaceVariant,
-                                RoundedCornerShape(6.dp),
+                                AppShape.sm,
                             )
                             .padding(horizontal = 6.dp, vertical = 2.dp),
                     ) {

@@ -33,6 +33,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.domain.model.AccessLevel
+import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.avatarInitials
 import com.fieldworker.ui.utils.resolveAvatarUrl
 import kotlinx.coroutines.launch
@@ -394,7 +395,7 @@ private fun SettingsGroup(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = AppShape.lg,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
@@ -417,7 +418,7 @@ private fun RowIcon(icon: ImageVector?) {
     Box(
         modifier = Modifier
             .size(30.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(AppShape.sm)
             .background(if (icon != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent),
         contentAlignment = Alignment.Center
     ) {
