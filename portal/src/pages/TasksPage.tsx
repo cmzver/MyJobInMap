@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { showApiError } from '@/utils/apiError'
-import { Plus, RefreshCw, AlertTriangle } from 'lucide-react'
+import { Plus, RefreshCw, AlertTriangle, List, TableProperties } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useUnreadTaskNotifications } from '@/hooks/useNotifications'
 import { useTasks } from '@/hooks/useTasks'
@@ -28,6 +28,7 @@ import TaskFiltersPanel, { type ActiveTaskFilter } from '@/components/tasks/Task
 import TaskBulkActions from '@/components/tasks/TaskBulkActions'
 import TaskListTable from '@/components/tasks/TaskListTable'
 import TaskMobileList from '@/components/tasks/TaskMobileList'
+import TaskDispatchOverview from '@/components/tasks/TaskDispatchOverview'
 import type { TaskListGroup } from '@/components/tasks/taskListTypes'
 import {
   defaultVisibleTaskTableColumns as defaultVisibleColumns,
@@ -288,6 +289,7 @@ export default function TasksPage() {
   const [visibleColumns, setVisibleColumns] =
     useState<Record<ToggleableColumnKey, boolean>>(loadVisibleColumns)
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false)
+  const [displayMode, setDisplayMode] = useState<'list' | 'dispatch'>('list')
   const resizeState = useRef<{
     key: ColumnKey
     startX: number
@@ -1399,6 +1401,30 @@ export default function TasksPage() {
       ) : (
         data && (
           <>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="text-sm text-gray-500 dark:text-gray-400">Представление</span>
+              <div className="inline-flex rounded-lg border border-gray-300 bg-white p-0.5 dark:border-gray-600 dark:bg-gray-800">
+                <button
+                  type="button"
+                  aria-pressed={displayMode === 'list'}
+                  onClick={() => setDisplayMode('list')}
+                  className={`flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors ${displayMode === 'list' ? 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white' : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'}`}
+                >
+                  <List className="h-4 w-4" />
+                  Список
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={displayMode === 'dispatch'}
+                  onClick={() => setDisplayMode('dispatch')}
+                  className={`flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors ${displayMode === 'dispatch' ? 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white' : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'}`}
+                >
+                  <TableProperties className="h-4 w-4" />
+                  Сводка
+                </button>
+              </div>
+            </div>
+
             {selectedCount > 0 && (
               <TaskBulkActions
                 selectedCount={selectedCount}
@@ -1473,44 +1499,50 @@ export default function TasksPage() {
               </div>
             </Modal>
 
-            <TaskMobileList
-              groups={groupedTasks}
-              groupBy={groupBy}
-              collapsedGroups={collapsedGroups}
-              selectedIds={selectedIds}
-              unreadByTaskId={unreadByTaskId}
-              onToggleGroup={toggleGroup}
-              onToggleSelection={toggleSelection}
-              onOpenTask={handleRowClick}
-            />
+            {displayMode === 'dispatch' ? (
+              <TaskDispatchOverview tasks={data.items} total={data.total} />
+            ) : (
+              <>
+                <TaskMobileList
+                  groups={groupedTasks}
+                  groupBy={groupBy}
+                  collapsedGroups={collapsedGroups}
+                  selectedIds={selectedIds}
+                  unreadByTaskId={unreadByTaskId}
+                  onToggleGroup={toggleGroup}
+                  onToggleSelection={toggleSelection}
+                  onOpenTask={handleRowClick}
+                />
 
-            <TaskListTable
-              groups={groupedTasks}
-              groupBy={groupBy}
-              collapsedGroups={collapsedGroups}
-              selectedIds={selectedIds}
-              unreadByTaskId={unreadByTaskId}
-              visibleColumns={visibleColumns}
-              effectiveColumnWidths={effectiveColumnWidths}
-              visibleColumnCount={visibleColumnCount}
-              visibleDataColumnCount={visibleDataColumnCount}
-              isResizableEnabled={isResizableEnabled}
-              isCompactView={isCompactView}
-              tableWidth={resizableTableWidth}
-              allSelectedOnPage={allSelectedOnPage}
-              isColumnMenuOpen={isColumnMenuOpen}
-              tableRef={tableRef}
-              columnMenuRef={columnMenuRef}
-              onMeasureContainer={measureTableContainer}
-              onColumnMenuToggle={() => setIsColumnMenuOpen((current) => !current)}
-              onColumnVisibilityToggle={toggleColumnVisibility}
-              onResetVisibleColumns={() => setVisibleColumns(defaultVisibleColumns)}
-              onResizeStart={startResize}
-              onToggleSelectAll={toggleSelectAllOnPage}
-              onToggleSelection={toggleSelection}
-              onToggleGroup={toggleGroup}
-              onOpenTask={handleRowClick}
-            />
+                <TaskListTable
+                  groups={groupedTasks}
+                  groupBy={groupBy}
+                  collapsedGroups={collapsedGroups}
+                  selectedIds={selectedIds}
+                  unreadByTaskId={unreadByTaskId}
+                  visibleColumns={visibleColumns}
+                  effectiveColumnWidths={effectiveColumnWidths}
+                  visibleColumnCount={visibleColumnCount}
+                  visibleDataColumnCount={visibleDataColumnCount}
+                  isResizableEnabled={isResizableEnabled}
+                  isCompactView={isCompactView}
+                  tableWidth={resizableTableWidth}
+                  allSelectedOnPage={allSelectedOnPage}
+                  isColumnMenuOpen={isColumnMenuOpen}
+                  tableRef={tableRef}
+                  columnMenuRef={columnMenuRef}
+                  onMeasureContainer={measureTableContainer}
+                  onColumnMenuToggle={() => setIsColumnMenuOpen((current) => !current)}
+                  onColumnVisibilityToggle={toggleColumnVisibility}
+                  onResetVisibleColumns={() => setVisibleColumns(defaultVisibleColumns)}
+                  onResizeStart={startResize}
+                  onToggleSelectAll={toggleSelectAllOnPage}
+                  onToggleSelection={toggleSelection}
+                  onToggleGroup={toggleGroup}
+                  onOpenTask={handleRowClick}
+                />
+              </>
+            )}
 
             {/* Pagination */}
             <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
