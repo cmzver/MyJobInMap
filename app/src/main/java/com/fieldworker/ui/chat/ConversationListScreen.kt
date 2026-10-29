@@ -81,9 +81,16 @@ fun ConversationListScreen(
     onCreateDirectConversation: (Long) -> Unit,
     onCreateGroupConversation: (String, List<Long>) -> Unit,
     onRefresh: () -> Unit,
+    // Сервер недоступен / последняя загрузка не удалась — пустой список
+    // означает «не загрузили», а не «чатов нет»
+    isOffline: Boolean = false,
+    loadFailed: Boolean = false,
 ) {
-    LaunchedEffect(conversations.isEmpty(), isLoading) {
-        if (conversations.isEmpty() && !isLoading) {
+    // Пустой список — одна попытка при входе и при возврате связи. Раньше эффект
+    // перезапускался после каждой неудачной загрузки: без сети это был
+    // бесконечный цикл запросов и вечный индикатор обновления.
+    LaunchedEffect(isOffline) {
+        if (!isOffline && conversations.isEmpty() && !isLoading) {
             onRefresh()
         }
     }
@@ -142,6 +149,8 @@ fun ConversationListScreen(
                     EmptyConversationState(
                         selectedFilter = selectedFilter,
                         searchQuery = searchQuery,
+                        isUnavailable = conversations.isEmpty() && (isOffline || loadFailed),
+                        onRetry = onRefresh,
                         onCreateClick = {
                             showCreateDialog = true
                             onLoadUsers(false)
@@ -459,6 +468,8 @@ private fun ConversationItem(
 private fun EmptyConversationState(
     selectedFilter: ConversationListFilter,
     searchQuery: String,
+    isUnavailable: Boolean,
+    onRetry: () -> Unit,
     onCreateClick: () -> Unit,
     onClearSearch: () -> Unit,
 ) {
@@ -466,11 +477,13 @@ private fun EmptyConversationState(
     val isArchive = selectedFilter == ConversationListFilter.ARCHIVED
 
     val title = when {
+        isUnavailable -> "Нет подключения"
         isSearching -> "Ничего не найдено"
         isArchive -> "Архив пуст"
         else -> "Нет активных чатов"
     }
     val description = when {
+        isUnavailable -> "Чаты загрузятся, когда появится связь"
         isSearching -> "Попробуйте изменить запрос"
         isArchive -> "Архивированные диалоги появятся здесь"
         else -> "Создайте первый диалог с коллегой"
@@ -512,7 +525,9 @@ private fun EmptyConversationState(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(24.dp))
-        if (isSearching) {
+        if (isUnavailable) {
+            TextButton(onClick = onRetry) { Text("Повторить") }
+        } else if (isSearching) {
             TextButton(onClick = onClearSearch) { Text("Очистить поиск") }
         } else if (!isArchive) {
             TextButton(onClick = onCreateClick) { Text("Новый чат") }

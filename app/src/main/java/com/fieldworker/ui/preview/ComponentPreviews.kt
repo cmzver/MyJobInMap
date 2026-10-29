@@ -565,6 +565,24 @@ internal fun TaskDetailContentDarkPreview() {
     }
 }
 
+@Preview(name = "TaskDetailContent - Offline", showBackground = true, showSystemUi = true)
+@Composable
+internal fun TaskDetailContentOfflinePreview() {
+    FieldWorkerTheme {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            TaskDetailContent(
+                task = PreviewData.taskEmergency,
+                hasAttemptedAddressLookup = true,
+                comments = emptyList(),
+                isLoadingComments = false,
+                unavailableDetails = com.fieldworker.ui.map.TaskDetailSection.entries.toSet(),
+                onStatusChange = {},
+                onAddComment = {},
+            )
+        }
+    }
+}
+
 @Preview(name = "ObjectDetails", showBackground = true, showSystemUi = true)
 @Composable
 internal fun ObjectDetailsPreview() {

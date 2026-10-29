@@ -5,11 +5,11 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.fieldworker.data.network.NetworkMonitor
+import com.fieldworker.data.network.ServerHealthCheck
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.AddressRepository
 import com.fieldworker.data.repository.UsersRepository
 import com.fieldworker.data.sync.SyncManager
-import com.fieldworker.di.IoDispatcher
 import android.net.Uri
 import com.fieldworker.domain.model.AccessLevel
 import com.fieldworker.domain.model.AddressDetails
@@ -28,7 +28,6 @@ import com.fieldworker.ui.settings.ConnectionStatus
 import com.fieldworker.ui.utils.TaskSortOrder
 import com.fieldworker.ui.utils.sortedBy
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
@@ -62,6 +61,9 @@ enum class TaskScope(val displayName: String) {
     UNASSIGNED("Без исполнителя"),
 }
 
+/** Разделы карточки заявки, которые подгружаются с сервера отдельно от неё. */
+enum class TaskDetailSection { OBJECT, PHOTOS, HISTORY }
+
 /**
  * UI State для экрана карты и списка
  */
@@ -76,11 +78,15 @@ data class MapUiState(
     val comments: List<Comment> = emptyList(),
     val isLoadingComments: Boolean = false,
     val showStatusDialog: Boolean = false,
+    // Переход уже выбран кнопкой следующего шага — диалог только подтверждает
+    val statusDialogTarget: TaskStatus? = null,
     val statusUpdateSuccess: Boolean = false,
     // Фотографии
     val photos: List<TaskPhoto> = emptyList(),
     val isLoadingPhotos: Boolean = false,
     val isUploadingPhoto: Boolean = false,
+    // Разделы карточки, не загруженные без связи (≠ «пусто» и ≠ «не найдено»)
+    val unavailableDetails: Set<TaskDetailSection> = emptySet(),
     // Фильтры для списка
     val statusFilter: Set<TaskStatus> = emptySet(),
     val priorityFilter: Set<Priority> = emptySet(),
@@ -207,7 +213,7 @@ class MapViewModel @Inject constructor(
     private val syncManager: SyncManager,
     val preferences: AppPreferences,
     val authRepository: com.fieldworker.data.repository.AuthRepository,
-    @IoDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val serverHealthCheck: ServerHealthCheck,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MapUiState())
@@ -234,7 +240,7 @@ class MapViewModel @Inject constructor(
     val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
 
 
-    // Circuit breaker для checkServerReachable: после 5 подряд неудач интервал растёт до 5 минут
+    // Circuit breaker для проверки /health: после 5 подряд неудач интервал растёт до 5 минут
     private var serverCheckFailures = 0
     private val serverCheckCircuitOpenThreshold = 5
     private val serverCheckCircuitOpenIntervalMs = 5 * 60_000L
@@ -259,6 +265,7 @@ class MapViewModel @Inject constructor(
         // Подписываемся на состояние сети + доступность сервера
         observeNetworkStatus()
         startServerReachabilityCheck()
+        reloadDetailsWhenBackOnline()
 
         // Подписываемся на pending actions
         observePendingActions()
@@ -323,7 +330,7 @@ class MapViewModel @Inject constructor(
                 } else {
                     // Сеть появилась — проверяем доступность сервера
                     val wasOffline = _uiState.value.isOffline
-                    val reachable = checkServerReachable()
+                    val reachable = serverHealthCheck.isReachable()
                     _uiState.update { it.copy(isOffline = !reachable) }
                     if (reachable || wasOffline) {
                         syncManager.triggerImmediateSync()
@@ -351,7 +358,7 @@ class MapViewModel @Inject constructor(
                     val interval: Long
                     try {
                         if (networkMonitor.isCurrentlyOnline()) {
-                            val reachable = checkServerReachable()
+                            val reachable = serverHealthCheck.isReachable()
                             val wasOffline = _uiState.value.isOffline
                             _uiState.update { it.copy(isOffline = !reachable) }
                             if (reachable) {
@@ -381,28 +388,6 @@ class MapViewModel @Inject constructor(
     /** Вызывается из UI на ON_START/ON_STOP. */
     fun setAppInForeground(inForeground: Boolean) {
         appInForeground.value = inForeground
-    }
-
-    /**
-     * Быстрая проверка доступности сервера через /health (таймаут 3с).
-     */
-    private suspend fun checkServerReachable(): Boolean = withContext(ioDispatcher) {
-        try {
-            val baseUrl = preferences.getFullServerUrl().trimEnd('/')
-            val healthUrl = "$baseUrl/health"
-            val connection = URL(healthUrl).openConnection() as HttpURLConnection
-            connection.connectTimeout = 3_000
-            connection.readTimeout = 3_000
-            connection.requestMethod = "GET"
-            try {
-                connection.connect()
-                connection.responseCode == HttpURLConnection.HTTP_OK
-            } finally {
-                connection.disconnect()
-            }
-        } catch (_: Exception) {
-            false
-        }
     }
 
     /**
@@ -565,7 +550,8 @@ class MapViewModel @Inject constructor(
                 photos = emptyList(),
                 addressDetails = null,
                 isLoadingAddress = task != null,
-                hasAttemptedAddressLookup = false
+                hasAttemptedAddressLookup = false,
+                unavailableDetails = emptySet()
             )
         }
 
@@ -588,7 +574,8 @@ class MapViewModel @Inject constructor(
                     isLoadingComments = true,
                     isLoadingPhotos = true,
                     isLoadingAddress = true,
-                    hasAttemptedAddressLookup = false
+                    hasAttemptedAddressLookup = false,
+                    unavailableDetails = emptySet()
                 )
             }
 
@@ -629,22 +616,38 @@ class MapViewModel @Inject constructor(
     }
 
     /**
-     * Загрузить детали задачи с комментариями
+     * Загрузить детали задачи с комментариями.
+     *
+     * Без связи с сервером — сразу из кеша: раньше карточка ждала таймауты
+     * подключения, чтобы показать тот же сохранённый список. Ответ, пришедший
+     * после закрытия карточки (или открытия другой), отбрасывается — иначе
+     * поздний ответ заново открывал шторку.
      */
     private fun loadTaskDetails(taskId: Long) {
         viewModelScope.launch {
+            val offline = _uiState.value.isOffline
             _uiState.update { it.copy(isLoadingComments = true) }
 
-            getTasksUseCase.getTaskDetail(taskId)
+            val result = if (offline) {
+                getTasksUseCase.getCachedTaskDetail(taskId)
+            } else {
+                getTasksUseCase.getTaskDetail(taskId)
+            }
+            val shown = _uiState.value.selectedTask
+            if (shown == null || shown.id != taskId) return@launch
+
+            result
                 .onSuccess { (task, comments) ->
                     _uiState.update {
                         it.copy(
                             selectedTask = task,
                             comments = comments,
-                            isLoadingComments = false
+                            isLoadingComments = false,
+                            unavailableDetails = it.unavailableDetails.mark(TaskDetailSection.HISTORY, offline)
                         )
                     }
-                    loadAddressDetails(task)
+                    // Объект ищем по адресу — перезапрашиваем, только если он уточнился
+                    if (task.address != shown.address) loadAddressDetails(task)
                 }
                 .onFailure {
                     _uiState.update { it.copy(isLoadingComments = false) }
@@ -654,27 +657,32 @@ class MapViewModel @Inject constructor(
 
     private fun loadAddressDetails(task: Task) {
         viewModelScope.launch {
+            if (_uiState.value.isOffline) {
+                // Адресная база живёт только на сервере: без связи честно
+                // «недоступно», а не «объект не найден» после минуты ожидания.
+                _uiState.update {
+                    it.copy(
+                        addressDetails = null,
+                        isLoadingAddress = false,
+                        hasAttemptedAddressLookup = true,
+                        unavailableDetails = it.unavailableDetails + TaskDetailSection.OBJECT
+                    )
+                }
+                return@launch
+            }
             _uiState.update { it.copy(isLoadingAddress = true, hasAttemptedAddressLookup = true) }
 
-            addressRepository.findAddressForTask(task)
-                .onSuccess { addressDetails ->
-                    _uiState.update {
-                        it.copy(
-                            addressDetails = addressDetails,
-                            isLoadingAddress = false,
-                            hasAttemptedAddressLookup = true
-                        )
-                    }
-                }
-                .onFailure {
-                    _uiState.update {
-                        it.copy(
-                            addressDetails = null,
-                            isLoadingAddress = false,
-                            hasAttemptedAddressLookup = true
-                        )
-                    }
-                }
+            val result = addressRepository.findAddressForTask(task)
+            if (_uiState.value.selectedTask?.id != task.id) return@launch
+            _uiState.update {
+                it.copy(
+                    addressDetails = result.getOrNull(),
+                    isLoadingAddress = false,
+                    hasAttemptedAddressLookup = true,
+                    // success(null) — объекта в базе нет; failure — не смогли спросить
+                    unavailableDetails = it.unavailableDetails.mark(TaskDetailSection.OBJECT, result.isFailure)
+                )
+            }
         }
     }
 
@@ -683,22 +691,53 @@ class MapViewModel @Inject constructor(
      */
     private fun loadTaskPhotos(taskId: Long) {
         viewModelScope.launch {
+            if (_uiState.value.isOffline) {
+                // Фото не кешируются — без связи не ждём таймаут, а помечаем раздел
+                _uiState.update {
+                    it.copy(
+                        isLoadingPhotos = false,
+                        unavailableDetails = it.unavailableDetails + TaskDetailSection.PHOTOS
+                    )
+                }
+                return@launch
+            }
             _uiState.update { it.copy(isLoadingPhotos = true) }
 
-            taskPhotosUseCase.getPhotos(taskId)
-                .onSuccess { photos ->
-                    _uiState.update {
-                        it.copy(
-                            photos = photos,
-                            isLoadingPhotos = false
-                        )
-                    }
-                }
-                .onFailure {
-                    _uiState.update { it.copy(isLoadingPhotos = false) }
+            val result = taskPhotosUseCase.getPhotos(taskId)
+            // Фото прошлой заявки не должны попасть в карточку новой
+            if (_uiState.value.selectedTask?.id != taskId) return@launch
+            _uiState.update {
+                it.copy(
+                    photos = result.getOrNull() ?: it.photos,
+                    isLoadingPhotos = false,
+                    unavailableDetails = it.unavailableDetails.mark(TaskDetailSection.PHOTOS, result.isFailure)
+                )
+            }
+        }
+    }
+
+    /**
+     * Связь вернулась, а открытая карточка показывает «нет подключения» —
+     * догружаем эти разделы, не заставляя переоткрывать заявку.
+     */
+    private fun reloadDetailsWhenBackOnline() {
+        viewModelScope.launch {
+            _uiState.map { it.isOffline }
+                .distinctUntilChanged()
+                .collect { offline ->
+                    val state = _uiState.value
+                    val task = state.selectedTask
+                    if (offline || task == null) return@collect
+                    val missing = state.unavailableDetails
+                    if (TaskDetailSection.HISTORY in missing) loadTaskDetails(task.id)
+                    if (TaskDetailSection.PHOTOS in missing) loadTaskPhotos(task.id)
+                    if (TaskDetailSection.OBJECT in missing) loadAddressDetails(task)
                 }
         }
     }
+
+    private fun Set<TaskDetailSection>.mark(section: TaskDetailSection, unavailable: Boolean) =
+        if (unavailable) this + section else this - section
 
     /**
      * Загрузить фото к заявке
@@ -747,17 +786,18 @@ class MapViewModel @Inject constructor(
     }
 
     /**
-     * Показать диалог выбора статуса
+     * Показать диалог смены статуса. [target] задан, когда переход уже выбран
+     * кнопкой следующего шага: диалог не предлагает варианты, а подтверждает.
      */
-    fun showStatusDialog() {
-        _uiState.update { it.copy(showStatusDialog = true) }
+    fun showStatusDialog(target: TaskStatus? = null) {
+        _uiState.update { it.copy(showStatusDialog = true, statusDialogTarget = target) }
     }
 
     /**
      * Скрыть диалог выбора статуса
      */
     fun hideStatusDialog() {
-        _uiState.update { it.copy(showStatusDialog = false) }
+        _uiState.update { it.copy(showStatusDialog = false, statusDialogTarget = null) }
     }
 
     /**
@@ -765,7 +805,7 @@ class MapViewModel @Inject constructor(
      */
     fun updateTaskStatus(taskId: Long, newStatus: TaskStatus, comment: String = "") {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, showStatusDialog = false) }
+            _uiState.update { it.copy(isLoading = true, showStatusDialog = false, statusDialogTarget = null) }
 
             updateTaskStatusUseCase(taskId, newStatus, comment)
                 .onSuccess { updatedTask ->

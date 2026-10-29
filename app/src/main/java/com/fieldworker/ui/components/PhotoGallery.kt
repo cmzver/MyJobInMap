@@ -71,7 +71,8 @@ fun PhotoGallery(
     authToken: String? = null,
     onAddPhotoClick: () -> Unit,
     onDeletePhoto: (Long) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    emptyText: String = "Нет фотографий. Нажмите +, чтобы добавить."
 ) {
     var selectedPhoto by remember { mutableStateOf<TaskPhoto?>(null) }
     
@@ -140,7 +141,7 @@ fun PhotoGallery(
         if (photos.isEmpty() && !isLoading) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Нет фотографий. Нажмите +, чтобы добавить.",
+                text = emptyText,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

@@ -318,10 +318,12 @@ fun MainScreen(
                         isLoadingAddress = uiState.isLoadingAddress,
                         hasAttemptedAddressLookup = uiState.hasAttemptedAddressLookup,
                         showStatusDialog = uiState.showStatusDialog,
+                        statusDialogTarget = uiState.statusDialogTarget,
                         onRefresh = { viewModel.loadTasks() },
                         onTaskClick = { task -> viewModel.selectTask(task) },
                         onTaskDismiss = { viewModel.selectTask(null) },
                         onStatusChange = { viewModel.showStatusDialog() },
+                        onAdvanceStatus = { target -> viewModel.showStatusDialog(target) },
                         onHideStatusDialog = { viewModel.hideStatusDialog() },
                         onStatusSelected = { taskId: Long, status, comment ->
                             viewModel.updateTaskStatus(taskId, status, comment)
@@ -341,6 +343,7 @@ fun MainScreen(
                         photos = uiState.photos,
                         isLoadingPhotos = uiState.isLoadingPhotos,
                         isUploadingPhoto = uiState.isUploadingPhoto,
+                        unavailableDetails = uiState.unavailableDetails,
                         baseUrl = baseUrl,
                         authToken = authToken,
                         onOpenObjectCard = {
@@ -497,6 +500,8 @@ fun MainScreen(
                             onCreateDirectConversation = { chatViewModel.createDirectConversation(it) },
                             onCreateGroupConversation = { name, userIds -> chatViewModel.createGroupConversation(name, userIds) },
                             onRefresh = { chatViewModel.loadConversations() },
+                            isOffline = uiState.isOffline,
+                            loadFailed = listState.error != null,
                         )
                     }
                     }

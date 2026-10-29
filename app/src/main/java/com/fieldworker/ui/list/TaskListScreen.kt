@@ -44,6 +44,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator
@@ -80,6 +81,7 @@ import com.fieldworker.ui.components.AppSearchField
 import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.TaskCard
 import com.fieldworker.ui.map.StatusChangeDialog
+import com.fieldworker.ui.map.TaskDetailSection
 import com.fieldworker.ui.map.TaskScope
 import com.fieldworker.ui.map.toIcon
 import com.fieldworker.ui.theme.AppShape
@@ -109,10 +111,12 @@ fun TaskListScreen(
     isLoadingAddress: Boolean = false,
     hasAttemptedAddressLookup: Boolean = false,
     showStatusDialog: Boolean,
+    statusDialogTarget: TaskStatus? = null,
     onRefresh: () -> Unit,
     onTaskClick: (Task) -> Unit,
     onTaskDismiss: () -> Unit,
     onStatusChange: () -> Unit,
+    onAdvanceStatus: ((TaskStatus) -> Unit)? = null,
     onHideStatusDialog: () -> Unit,
     onStatusSelected: (Long, TaskStatus, String) -> Unit,
     onAddComment: (Long, String) -> Unit,
@@ -131,6 +135,7 @@ fun TaskListScreen(
     photos: List<TaskPhoto> = emptyList(),
     isLoadingPhotos: Boolean = false,
     isUploadingPhoto: Boolean = false,
+    unavailableDetails: Set<TaskDetailSection> = emptySet(),
     baseUrl: String = "",
     authToken: String? = null,
     onOpenObjectCard: () -> Unit = {},
@@ -329,10 +334,12 @@ fun TaskListScreen(
             photos = photos,
             isLoadingPhotos = isLoadingPhotos,
             isUploadingPhoto = isUploadingPhoto,
+            unavailableDetails = unavailableDetails,
             baseUrl = baseUrl,
             authToken = authToken,
             onDismiss = onTaskDismiss,
             onStatusChange = onStatusChange,
+            onAdvanceStatus = onAdvanceStatus,
             onOpenObjectCard = onOpenObjectCard,
             onAddComment = { text -> onAddComment(selectedTask.id, text) },
             onAddPhotoClick = onAddPhotoClick,
@@ -359,6 +366,7 @@ fun TaskListScreen(
     if (showStatusDialog && selectedTask != null) {
         StatusChangeDialog(
             currentStatus = selectedTask.status,
+            targetStatus = statusDialogTarget,
             onDismiss = onHideStatusDialog,
             onStatusSelected = { status, comment ->
                 onStatusSelected(selectedTask.id, status, comment)
@@ -708,10 +716,12 @@ fun TaskDetailBottomSheet(
     photos: List<TaskPhoto> = emptyList(),
     isLoadingPhotos: Boolean = false,
     isUploadingPhoto: Boolean = false,
+    unavailableDetails: Set<TaskDetailSection> = emptySet(),
     baseUrl: String = "",
     authToken: String? = null,
     onDismiss: () -> Unit,
     onStatusChange: () -> Unit,
+    onAdvanceStatus: ((TaskStatus) -> Unit)? = null,
     onOpenObjectCard: () -> Unit = {},
     onAddComment: (String) -> Unit,
     onAddPhotoClick: () -> Unit = {},
@@ -736,9 +746,11 @@ fun TaskDetailBottomSheet(
             photos = photos,
             isLoadingPhotos = isLoadingPhotos,
             isUploadingPhoto = isUploadingPhoto,
+            unavailableDetails = unavailableDetails,
             baseUrl = baseUrl,
             authToken = authToken,
             onStatusChange = onStatusChange,
+            onAdvanceStatus = onAdvanceStatus,
             onOpenObjectCard = onOpenObjectCard,
             onAddComment = onAddComment,
             onAddPhotoClick = onAddPhotoClick,
@@ -765,9 +777,13 @@ fun TaskDetailContent(
     photos: List<TaskPhoto> = emptyList(),
     isLoadingPhotos: Boolean = false,
     isUploadingPhoto: Boolean = false,
+    unavailableDetails: Set<TaskDetailSection> = emptySet(),
     baseUrl: String = "",
     authToken: String? = null,
     onStatusChange: () -> Unit,
+    // Кнопка следующего шага: переход уже известен — сразу подтверждение.
+    // null — открыть общий выбор статуса, как по тапу на статус.
+    onAdvanceStatus: ((TaskStatus) -> Unit)? = null,
     onOpenObjectCard: () -> Unit = {},
     onAddComment: (String) -> Unit,
     onAddPhotoClick: () -> Unit = {},
@@ -926,6 +942,7 @@ fun TaskDetailContent(
                         addressDetails = addressDetails,
                         isLoading = isLoadingAddress,
                         hasAttemptedLookup = hasAttemptedAddressLookup,
+                        isUnavailable = TaskDetailSection.OBJECT in unavailableDetails,
                         onOpenObjectCard = onOpenObjectCard
                     )
                 }
@@ -937,6 +954,7 @@ fun TaskDetailContent(
                     isExpanded = isPhotosExpanded,
                     isLoadingPhotos = isLoadingPhotos,
                     isUploadingPhoto = isUploadingPhoto,
+                    isUnavailable = TaskDetailSection.PHOTOS in unavailableDetails,
                     accentColor = accentColor,
                     baseUrl = baseUrl,
                     authToken = authToken,
@@ -966,6 +984,7 @@ fun TaskDetailContent(
                     hiddenComments = hiddenComments,
                     photos = photos,
                     isLoadingComments = isLoadingComments,
+                    isUnavailable = TaskDetailSection.HISTORY in unavailableDetails,
                     isExpanded = isHistoryExpanded,
                     accentColor = accentColor,
                     onToggleExpanded = { isHistoryExpanded = !isHistoryExpanded }
@@ -979,7 +998,36 @@ fun TaskDetailContent(
 
         TaskActionBar(
             status = task.status,
-            onStatusChange = onStatusChange
+            onAdvance = { target -> onAdvanceStatus?.invoke(target) ?: onStatusChange() }
+        )
+    }
+}
+
+/** Индикатор загрузки раздела карточки — один размер на все разделы. */
+@Composable
+private fun SectionSpinner() {
+    CircularProgressIndicator(
+        modifier = Modifier.size(18.dp),
+        strokeWidth = 2.dp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+/** «Нет связи» вместо пустого состояния: данных нет не потому, что их нет. */
+@Composable
+private fun OfflineSectionNote(text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = Icons.Default.Info,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -989,18 +1037,14 @@ private fun TaskObjectPreviewSection(
     addressDetails: AddressDetails?,
     isLoading: Boolean,
     hasAttemptedLookup: Boolean,
+    isUnavailable: Boolean,
     onOpenObjectCard: () -> Unit
 ) {
     TaskSectionCard(
         title = "Объект",
         action = {
             when {
-                isLoading -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(14.dp),
-                        strokeWidth = 2.dp
-                    )
-                }
+                isLoading -> SectionSpinner()
 
                 addressDetails != null -> {
                     TextButton(onClick = onOpenObjectCard) {
@@ -1047,6 +1091,8 @@ private fun TaskObjectPreviewSection(
                     }
                 }
             }
+
+            isUnavailable -> OfflineSectionNote("Карточка объекта загрузится, когда появится связь.")
 
             hasAttemptedLookup -> {
                 Text(
@@ -1347,20 +1393,22 @@ private fun FactCell(fact: TaskFact, modifier: Modifier = Modifier) {
 @Composable
 private fun TaskActionBar(
     status: TaskStatus,
-    onStatusChange: () -> Unit
+    onAdvance: (TaskStatus) -> Unit
 ) {
-    val nextActionLabel = when (status) {
-        TaskStatus.NEW -> "Взять в работу"
-        TaskStatus.IN_PROGRESS -> "Завершить"
+    val nextStatus = when (status) {
+        TaskStatus.NEW -> TaskStatus.IN_PROGRESS
+        TaskStatus.IN_PROGRESS -> TaskStatus.DONE
         else -> null
     } ?: return
+    val nextActionLabel = if (nextStatus == TaskStatus.DONE) "Завершить" else "Взять в работу"
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 8.dp
     ) {
         Button(
-            onClick = onStatusChange,
+            onClick = { onAdvance(nextStatus) },
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
@@ -1399,6 +1447,7 @@ private fun TaskPhotosSection(
     isExpanded: Boolean,
     isLoadingPhotos: Boolean,
     isUploadingPhoto: Boolean,
+    isUnavailable: Boolean,
     accentColor: Color,
     baseUrl: String,
     authToken: String?,
@@ -1447,12 +1496,15 @@ private fun TaskPhotosSection(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (isLoadingPhotos) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = accentColor
-                        )
+                        SectionSpinner()
                         Spacer(modifier = Modifier.width(8.dp))
+                    } else if (isUnavailable && photos.isEmpty()) {
+                        Text(
+                            text = "нет связи",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
                     }
                     Icon(
                         imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
@@ -1468,6 +1520,11 @@ private fun TaskPhotosSection(
                         photos = photos,
                         isLoading = isLoadingPhotos,
                         isUploading = isUploadingPhoto,
+                        emptyText = if (isUnavailable) {
+                            "Фото загрузятся, когда появится связь."
+                        } else {
+                            "Нет фотографий. Нажмите +, чтобы добавить."
+                        },
                         baseUrl = baseUrl,
                         authToken = authToken,
                         onAddPhotoClick = onAddPhotoClick,
@@ -1551,6 +1608,7 @@ private fun TaskHistorySection(
     hiddenComments: List<Comment>,
     photos: List<TaskPhoto>,
     isLoadingComments: Boolean,
+    isUnavailable: Boolean,
     isExpanded: Boolean,
     accentColor: Color,
     onToggleExpanded: () -> Unit
@@ -1577,17 +1635,19 @@ private fun TaskHistorySection(
     TaskSectionCard(
         title = "Лента работ",
         action = {
-            if (isLoadingComments) {
-                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-            }
+            if (isLoadingComments) SectionSpinner()
         }
     ) {
         if (timelineComments.isEmpty() && !isLoadingComments) {
-            Text(
-                text = "Пока нет записей",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (isUnavailable) {
+                OfflineSectionNote("Записи загрузятся, когда появится связь.")
+            } else {
+                Text(
+                    text = "Пока нет записей",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         } else {
             visibleTimeline.forEachIndexed { index, comment ->
                 HistoryTimelineItem(

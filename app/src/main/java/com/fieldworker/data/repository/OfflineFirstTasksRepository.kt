@@ -302,6 +302,13 @@ class OfflineFirstTasksRepository @Inject constructor(
             }
         }
     
+    /**
+     * Заявка и лента работ только из кеша — когда сервер заведомо недоступен
+     * (сеть есть, сервер нет): не ждём таймаут подключения ради того же кеша.
+     */
+    suspend fun getCachedTaskDetail(taskId: Long): Result<Pair<Task, List<Comment>>> =
+        withContext(Dispatchers.IO) { getTaskDetailFromCache(taskId) }
+
     private suspend fun getTaskDetailFromCache(taskId: Long): Result<Pair<Task, List<Comment>>> {
         val taskEntity = taskDao.getTaskById(taskId)
         return if (taskEntity != null) {

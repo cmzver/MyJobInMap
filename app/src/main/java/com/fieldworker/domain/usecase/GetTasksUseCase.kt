@@ -53,6 +53,11 @@ class GetTasksUseCase @Inject constructor(
     suspend fun getTaskDetail(taskId: Long): Result<Pair<Task, List<Comment>>> {
         return repository.getTaskDetail(taskId)
     }
+
+    /** То же из локального кеша, без обращения к серверу. */
+    suspend fun getCachedTaskDetail(taskId: Long): Result<Pair<Task, List<Comment>>> {
+        return repository.getCachedTaskDetail(taskId)
+    }
     
     /**
      * Получить время последней синхронизации

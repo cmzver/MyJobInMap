@@ -1,6 +1,7 @@
 package com.fieldworker.ui.map
 
 import com.fieldworker.data.network.NetworkMonitor
+import com.fieldworker.data.network.ServerHealthCheck
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.AddressRepository
 import com.fieldworker.data.repository.AuthRepository
@@ -45,6 +46,14 @@ class MapViewModelTest {
     private lateinit var syncManager: SyncManager
     private lateinit var preferences: AppPreferences
     private lateinit var authRepository: AuthRepository
+    private lateinit var serverHealthCheck: ServerHealthCheck
+
+    /**
+     * Отвечает ли «сервер» на /health. По умолчанию нет: так тесты работали и
+     * до выделения [ServerHealthCheck] (невалидный URL) — VM в режиме «сеть есть,
+     * сервер недоступен». Тесты онлайн-пути включают его явно.
+     */
+    private var serverReachable = false
 
     private val networkOnlineFlow = MutableStateFlow(true)
     private val tasksFlow = MutableStateFlow<List<Task>>(emptyList())
@@ -90,8 +99,8 @@ class MapViewModelTest {
         // EncryptedSharedPreferences недоступен в чистой JVM — конструктор
         // ловит исключение и откатывается на context.getSharedPreferences(...).
         val prefs = AppPreferences(context)
-        // Невалидный URL → checkServerReachable() падает мгновенно
-        // (MalformedURLException), а не ходит в сеть на 3с.
+        // Невалидный URL → прямые HTTP-проверки (testConnection) падают мгновенно
+        // (MalformedURLException), а не ходят в сеть. /health — через мок ServerHealthCheck.
         prefs.setServerUrl("invalid-url")
         return prefs
     }
@@ -127,6 +136,10 @@ class MapViewModelTest {
         authRepository = mockk(relaxed = true)
         coEvery { authRepository.getMyPermissions() } returns Result.success(emptyMap())
         usersRepository = mockk(relaxed = true)
+
+        serverReachable = false
+        serverHealthCheck = mockk()
+        coEvery { serverHealthCheck.isReachable() } answers { serverReachable }
     }
 
     @After
@@ -142,7 +155,7 @@ class MapViewModelTest {
     }
 
     /**
-     * Конструирует VM с тестовым диспетчером. Фоновый опрос /health
+     * Конструирует VM (viewModelScope — на тестовом Main). Фоновый опрос /health
      * (`startServerReachabilityCheck`) стартует только по ON_START от UI
      * (`setAppInForeground(true)`), поэтому в юнит-тестах не запускается и не
      * течёт в соседние тесты.
@@ -150,7 +163,7 @@ class MapViewModelTest {
     private fun buildViewModel(): MapViewModel = MapViewModel(
         getTasksUseCase, updateTaskStatusUseCase, taskPhotosUseCase,
         taskCommentsUseCase, addressRepository, usersRepository, networkMonitor, syncManager, preferences, authRepository,
-        testDispatcher
+        serverHealthCheck
     )
 
     // ==================== Инициализация ====================
@@ -278,6 +291,7 @@ class MapViewModelTest {
 
     @Test
     fun `selectTask sets selectedTask and loads details`() = runTest {
+        serverReachable = true
         val task = sampleTask()
         coEvery { getTasksUseCase.getTaskDetail(1L) } returns Result.success(
             Pair(task, listOf(
@@ -313,6 +327,7 @@ class MapViewModelTest {
 
     @Test
     fun `updateTaskStatus success updates task in list`() = runTest {
+        serverReachable = true
         val task = sampleTask(status = TaskStatus.NEW)
         val updatedTask = task.copy(status = TaskStatus.IN_PROGRESS)
         
@@ -366,6 +381,7 @@ class MapViewModelTest {
 
     @Test
     fun `addComment success reloads task details`() = runTest {
+        serverReachable = true
         val comment = Comment(1L, 1L, "Новый комментарий", "Иванов", null, null, "2026-02-15T10:00:00")
         coEvery { taskCommentsUseCase.addComment(1L, "Привет") } returns Result.success(comment)
         coEvery { getTasksUseCase.getTaskDetail(1L) } returns Result.success(
@@ -483,6 +499,89 @@ class MapViewModelTest {
 
         viewModel.hideStatusDialog()
         assertFalse(viewModel.uiState.value.showStatusDialog)
+    }
+
+    @Test
+    fun `selectTask without server reads cache and marks sections unavailable`() = runTest {
+        val task = sampleTask()
+        coEvery { getTasksUseCase.getCachedTaskDetail(1L) } returns Result.success(Pair(task, emptyList()))
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isOffline)
+
+        viewModel.selectTask(task)
+        advanceUntilIdle()
+
+        // Без сервера — ни одного сетевого запроса на таймаут, только кеш
+        coVerify(exactly = 0) { getTasksUseCase.getTaskDetail(any()) }
+        coVerify(exactly = 0) { taskPhotosUseCase.getPhotos(any()) }
+        coVerify(exactly = 0) { addressRepository.findAddressForTask(any()) }
+        val state = viewModel.uiState.value
+        assertEquals(TaskDetailSection.entries.toSet(), state.unavailableDetails)
+        assertFalse(state.isLoadingAddress || state.isLoadingPhotos || state.isLoadingComments)
+    }
+
+    @Test
+    fun `late task detail after closing the card does not reopen it`() = runTest {
+        serverReachable = true
+        val task = sampleTask()
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        coEvery { getTasksUseCase.getTaskDetail(1L) } coAnswers {
+            gate.await()
+            Result.success(Pair(task, emptyList()))
+        }
+        coEvery { taskPhotosUseCase.getPhotos(1L) } returns Result.success(emptyList())
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        viewModel.selectTask(task)
+        runCurrent()
+        viewModel.selectTask(null)
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.selectedTask)
+    }
+
+    @Test
+    fun `back online reloads sections that were unavailable`() = runTest {
+        val task = sampleTask()
+        coEvery { getTasksUseCase.getCachedTaskDetail(1L) } returns Result.success(Pair(task, emptyList()))
+        coEvery { getTasksUseCase.getTaskDetail(1L) } returns Result.success(Pair(task, emptyList()))
+        coEvery { taskPhotosUseCase.getPhotos(1L) } returns Result.success(emptyList())
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        viewModel.selectTask(task)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.unavailableDetails.isNotEmpty())
+
+        // Сервер снова отвечает: сеть пропала и вернулась
+        serverReachable = true
+        networkOnlineFlow.value = false
+        advanceUntilIdle()
+        networkOnlineFlow.value = true
+        advanceUntilIdle()
+
+        coVerify { getTasksUseCase.getTaskDetail(1L) }
+        coVerify { taskPhotosUseCase.getPhotos(1L) }
+        coVerify { addressRepository.findAddressForTask(any()) }
+        assertTrue(viewModel.uiState.value.unavailableDetails.isEmpty())
+    }
+
+    @Test
+    fun `next-step button opens status dialog with preselected target`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.showStatusDialog(TaskStatus.DONE)
+        assertTrue(viewModel.uiState.value.showStatusDialog)
+        assertEquals(TaskStatus.DONE, viewModel.uiState.value.statusDialogTarget)
+
+        viewModel.hideStatusDialog()
+        assertFalse(viewModel.uiState.value.showStatusDialog)
+        assertNull(viewModel.uiState.value.statusDialogTarget)
     }
 
     // ==================== Сетевой статус ====================

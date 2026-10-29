@@ -324,6 +324,7 @@ fun MapScreen(
         if (uiState.showStatusDialog && uiState.selectedTask != null) {
             StatusChangeDialog(
                 currentStatus = uiState.selectedTask!!.status,
+                targetStatus = uiState.statusDialogTarget,
                 onDismiss = { viewModel.hideStatusDialog() },
                 onStatusSelected = { status, comment ->
                     viewModel.updateTaskStatus(
@@ -359,10 +360,12 @@ fun MapScreen(
             photos = uiState.photos,
             isLoadingPhotos = uiState.isLoadingPhotos,
             isUploadingPhoto = uiState.isUploadingPhoto,
+            unavailableDetails = uiState.unavailableDetails,
             baseUrl = baseUrl,
             authToken = authToken,
             onDismiss = { viewModel.selectTask(null) },
             onStatusChange = { viewModel.showStatusDialog() },
+            onAdvanceStatus = { target -> viewModel.showStatusDialog(target) },
             onOpenObjectCard = onOpenObjectCard,
             onAddComment = { text -> viewModel.addComment(uiState.selectedTask!!.id, text) },
             onAddPhotoClick = {
@@ -552,14 +555,19 @@ private fun MapActionButton(
 }
 
 /**
- * Диалог изменения статуса с комментарием
+ * Диалог изменения статуса с комментарием.
+ *
+ * С [targetStatus] (кнопка следующего шага в карточке) переход уже выбран —
+ * диалог его только подтверждает: без списка вариантов, с полем комментария.
+ * Без него (тап по статусу) — полный выбор доступных переходов.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatusChangeDialog(
     currentStatus: TaskStatus,
     onDismiss: () -> Unit,
-    onStatusSelected: (TaskStatus, String) -> Unit
+    onStatusSelected: (TaskStatus, String) -> Unit,
+    targetStatus: TaskStatus? = null
 ) {
     var comment by remember { mutableStateOf("") }
     val availableStatuses = when (currentStatus) {
@@ -567,11 +575,15 @@ fun StatusChangeDialog(
         TaskStatus.IN_PROGRESS -> listOf(TaskStatus.DONE, TaskStatus.CANCELLED)
         else -> emptyList()
     }
-    var selectedStatus by remember(currentStatus) { mutableStateOf(availableStatuses.firstOrNull() ?: currentStatus) }
+    val fixedTarget = targetStatus?.takeIf { it in availableStatuses }
+    var selectedStatus by remember(currentStatus, fixedTarget) {
+        mutableStateOf(fixedTarget ?: availableStatuses.firstOrNull() ?: currentStatus)
+    }
     val requiresComment = selectedStatus == TaskStatus.DONE || selectedStatus == TaskStatus.CANCELLED
     val dialogTitle = when (selectedStatus) {
         TaskStatus.DONE -> "Завершение заявки"
         TaskStatus.CANCELLED -> "Отмена заявки"
+        TaskStatus.IN_PROGRESS -> if (fixedTarget != null) "Взять в работу?" else "Изменить статус"
         else -> "Изменить статус"
     }
     val commentLabel = when (selectedStatus) {
@@ -586,7 +598,9 @@ fun StatusChangeDialog(
     }
     val confirmText = when (selectedStatus) {
         TaskStatus.DONE -> "Завершить"
-        TaskStatus.CANCELLED -> "Отменить"
+        // «Отменить» рядом с «Отмена» читалось как одно и то же
+        TaskStatus.CANCELLED -> "Отменить заявку"
+        TaskStatus.IN_PROGRESS -> "Взять в работу"
         else -> "Сохранить"
     }
     
@@ -607,7 +621,7 @@ fun StatusChangeDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyMedium
                     )
-                } else {
+                } else if (fixedTarget == null) {
                     availableStatuses.forEach { status ->
                         Row(
                             modifier = Modifier
@@ -638,7 +652,9 @@ fun StatusChangeDialog(
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
+                }
 
+                if (availableStatuses.isNotEmpty()) {
                     OutlinedTextField(
                         value = comment,
                         onValueChange = { comment = it },

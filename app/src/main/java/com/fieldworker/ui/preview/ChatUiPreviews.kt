@@ -253,6 +253,33 @@ internal fun ChatListLightPreview() {
     }
 }
 
+@Preview(name = "Chat List Offline", showBackground = true, showSystemUi = true)
+@Composable
+internal fun ChatListOfflinePreview() {
+    FieldWorkerTheme(darkTheme = false) {
+        Surface {
+            ConversationListScreen(
+                conversations = emptyList(),
+                selectedFilter = ConversationListFilter.ACTIVE,
+                currentUserId = ChatPreviewData.me.id,
+                availableUsers = emptyList(),
+                isLoading = false,
+                isLoadingUsers = false,
+                baseUrl = "https://example.local:8001",
+                authToken = "preview-token",
+                isCreatingConversation = false,
+                onConversationClick = {},
+                onFilterChange = {},
+                onLoadUsers = {},
+                onCreateDirectConversation = {},
+                onCreateGroupConversation = { _, _ -> },
+                onRefresh = {},
+                isOffline = true,
+            )
+        }
+    }
+}
+
 @Preview(name = "Chat List Dark", showBackground = true, showSystemUi = true)
 @Composable
 internal fun ChatListDarkPreview() {
