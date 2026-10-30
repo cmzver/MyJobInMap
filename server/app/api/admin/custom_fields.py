@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
 
 @router.get("/custom-fields", response_model=List[CustomFieldResponse])
-async def get_custom_fields(
+def get_custom_fields(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
@@ -30,7 +30,7 @@ async def get_custom_fields(
 
 
 @router.post("/custom-fields", response_model=CustomFieldResponse)
-async def create_custom_field(
+def create_custom_field(
     field_data: CustomFieldCreate,
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
@@ -52,7 +52,7 @@ async def create_custom_field(
 
 
 @router.patch("/custom-fields/{field_id}", response_model=CustomFieldResponse)
-async def update_custom_field(
+def update_custom_field(
     field_id: int,
     field_data: CustomFieldUpdate,
     db: Session = Depends(get_db),
@@ -72,7 +72,7 @@ async def update_custom_field(
 
 
 @router.delete("/custom-fields/{field_id}")
-async def delete_custom_field(
+def delete_custom_field(
     field_id: int,
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),
@@ -88,7 +88,7 @@ async def delete_custom_field(
 
 
 @router.patch("/custom-fields/{field_id}/toggle")
-async def toggle_custom_field(
+def toggle_custom_field(
     field_id: int,
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_superadmin),

@@ -224,6 +224,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tasks/ids": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Task Ids
+         * @description ID всех видимых пользователю заявок (тот же скоуп, что у списка).
+         *
+         *     Дешёвая пара к ``updated_since``: по изменённым заявкам клиент не узнает об
+         *     удалённых и переназначенных — их он вычищает, сверяясь с этим списком.
+         */
+        get: operations["get_task_ids_api_tasks_ids_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tasks/summary": {
         parameters: {
             query?: never;
@@ -6133,6 +6156,14 @@ export interface components {
             description: string;
         };
         /**
+         * TaskIdsResponse
+         * @description ID всех заявок, видимых пользователю (для удаления пропавших в офлайн-кеше).
+         */
+        TaskIdsResponse: {
+            /** Ids */
+            ids: number[];
+        };
+        /**
          * TaskListResponse
          * @description Краткий ответ для списка (без полной истории комментариев).
          */
@@ -7443,6 +7474,8 @@ export interface operations {
                 search?: string | null;
                 address_id?: number | null;
                 sort?: string | null;
+                /** @description Только заявки, изменённые не раньше этого момента (UTC) — для инкрементальной синхронизации. Порядок: updated_at, id по возрастанию. */
+                updated_since?: string | null;
             };
             header?: never;
             path?: never;
@@ -7499,6 +7532,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_task_ids_api_tasks_ids_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskIdsResponse"];
                 };
             };
         };
@@ -7600,7 +7653,10 @@ export interface operations {
     update_task_status_api_tasks__task_id__status_patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Повтор с тем же ключом вернёт сохранённый ответ (Android-outbox). */
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 task_id: number;
             };
@@ -7635,7 +7691,10 @@ export interface operations {
     update_planned_date_api_tasks__task_id__planned_date_patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Повтор с тем же ключом вернёт сохранённый ответ (Android-outbox). */
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 task_id: number;
             };
@@ -7736,7 +7795,10 @@ export interface operations {
     add_comment_api_tasks__task_id__comments_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Повтор с тем же ключом вернёт сохранённый ответ (Android-outbox). */
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 task_id: number;
             };
@@ -7870,7 +7932,10 @@ export interface operations {
             query?: {
                 photo_type?: string;
             };
-            header?: never;
+            header?: {
+                /** @description Повтор с тем же ключом вернёт сохранённый ответ (Android-outbox). */
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 task_id: number;
             };

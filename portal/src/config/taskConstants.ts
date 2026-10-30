@@ -74,18 +74,31 @@ export const PRIORITY_FROM_NUMBER: Record<number, TaskPriority> = {
 // Цвета для Badge компонентов
 // =====================================================
 
-export const STATUS_COLORS: Record<TaskStatus, 'danger' | 'warning' | 'success' | 'gray'> = {
-  NEW: 'danger',
+// Цвет несёт СТАТУС (как в Android): новая — синяя, в работе — оранжевая,
+// выполнена — зелёная. Красный зарезервирован за аварийным приоритетом,
+// иначе «Новая» и «Аварийная» сливаются.
+export const STATUS_COLORS: Record<TaskStatus, 'info' | 'warning' | 'success' | 'gray'> = {
+  NEW: 'info',
   IN_PROGRESS: 'warning',
   DONE: 'success',
   CANCELLED: 'gray',
 }
 
-export const PRIORITY_COLORS: Record<TaskPriority, 'danger' | 'warning' | 'info' | 'success'> = {
+/** Те же цвета статусов для графиков, точек и легенд (паритет с Android AppColors). */
+export const STATUS_HEX: Record<TaskStatus, string> = {
+  NEW: '#2563EB',
+  IN_PROGRESS: '#D97706',
+  DONE: '#16A34A',
+  CANCELLED: '#6B7280',
+}
+
+// Бейдж приоритета цветной только у аварийной: синий/оранжевый/зелёный уже
+// заняты статусами, и «Текущая» рядом с «Новой» читалась бы как одно и то же.
+export const PRIORITY_COLORS: Record<TaskPriority, 'danger' | 'gray'> = {
   EMERGENCY: 'danger',
-  URGENT: 'warning',
-  CURRENT: 'info',
-  PLANNED: 'success',
+  URGENT: 'gray',
+  CURRENT: 'gray',
+  PLANNED: 'gray',
 }
 
 // =====================================================

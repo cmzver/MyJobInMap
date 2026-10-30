@@ -36,7 +36,7 @@ class UserStatsResponse(BaseModel):
 
 
 @router.get("", response_model=List[UserResponse])
-async def get_users(
+def get_users(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user_required),
 ):
@@ -51,7 +51,7 @@ async def get_users(
 
 
 @router.get("/me/stats", response_model=UserStatsResponse)
-async def get_my_stats(
+def get_my_stats(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user_required),
 ):

@@ -387,30 +387,28 @@ code {
   color: #e2e8f0;
 }
 
-.badge-adaptive .badge-compact {
-  display: none;
+.tasks-table-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #9ca3af transparent;
 }
 
-.tasks-badge-cell {
-  container-type: inline-size;
-  min-width: 0;
+.tasks-table-scroll::-webkit-scrollbar {
+  height: 7px;
 }
 
-@container (max-width: 92px) {
-  .tasks-badge-cell .badge-adaptive {
-    justify-content: center;
-    min-width: 1.75rem;
-    padding-left: 0.375rem;
-    padding-right: 0.375rem;
-  }
+.tasks-table-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
 
-  .tasks-badge-cell .badge-adaptive .badge-full {
-    display: none;
-  }
+.tasks-table-scroll::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: #9ca3af;
+}
 
-  .tasks-badge-cell .badge-adaptive .badge-compact {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
+.dark .tasks-table-scroll {
+  scrollbar-color: #4b5563 transparent;
+}
+
+.dark .tasks-table-scroll::-webkit-scrollbar-thumb {
+  background: #4b5563;
 }

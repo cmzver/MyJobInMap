@@ -1,11 +1,14 @@
 package com.fieldworker.ui.settings
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -16,18 +19,24 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.fieldworker.data.preferences.AppPreferences
+import com.fieldworker.domain.model.AccessLevel
+import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.avatarInitials
 import com.fieldworker.ui.utils.resolveAvatarUrl
+import com.fieldworker.ui.utils.successTextColor
 import kotlinx.coroutines.launch
 
 /**
@@ -46,7 +55,7 @@ fun SettingsScreen(
     baseUrl: String? = null,
     authToken: String? = null,
     onLogout: () -> Unit = {},
-    onOpenMenu: (() -> Unit)? = null
+    onOpenMyAddresses: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var serverUrl by remember { mutableStateOf(preferences.getServerUrl()) }
@@ -58,6 +67,7 @@ fun SettingsScreen(
     var notifyStatusChange by remember { mutableStateOf(preferences.getNotifyStatusChange()) }
     var notifyChatMessages by remember { mutableStateOf(preferences.getNotifyChatMessages()) }
     var showResetDialog by remember { mutableStateOf(false) }
+    var showServerDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     
@@ -83,21 +93,21 @@ fun SettingsScreen(
     val appVersionCode = appVersionInfo.second
     val userName = preferences.getUserFullName() ?: preferences.getUsername() ?: "Пользователь"
     // Предпочитаем серверный role_label (поддерживает кастомные группы),
-    // иначе — маппинг встроенных ролей.
+    // иначе — встроенная роль, иначе — базовый уровень доступа.
     val userRole = preferences.getUserRoleLabel()?.takeIf { it.isNotBlank() }
-        ?: roleLabel(preferences.getUserRole())
+        ?: AccessLevel.builtinLabel(preferences.getUserRole())
+        ?: AccessLevel.resolve(preferences.getUserRole(), preferences.getBaseAccess()).displayName
     
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Настройки") },
-                navigationIcon = {
-                    if (onOpenMenu != null) {
-                        IconButton(onClick = onOpenMenu) {
-                            Icon(Icons.Default.Menu, contentDescription = "Меню")
-                        }
-                    }
+                title = {
+                    Text(
+                        "Ещё",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
@@ -111,193 +121,157 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
         ) {
             // === Профиль ===
             val avatarUrl = preferences.getUserAvatarUrl()
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onOpenUserSettings)
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                ProfileAvatar(
-                    avatarUrl = avatarUrl,
-                    fullName = userName,
-                    baseUrl = baseUrl,
-                    authToken = authToken,
-                )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = userName,
-                        style = MaterialTheme.typography.titleMedium
+            SettingsGroup(modifier = Modifier.padding(top = 8.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onOpenUserSettings)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    ProfileAvatar(
+                        avatarUrl = avatarUrl,
+                        fullName = userName,
+                        baseUrl = baseUrl,
+                        authToken = authToken,
                     )
-                    Text(
-                        text = if (userRole.isNotEmpty()) userRole else "Пользователь",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = userName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (userRole.isNotEmpty()) userRole else "Пользователь",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Icon(
-                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
 
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp))
-
-            // === Подключение к серверу ===
-            SectionLabel("Сервер")
-
-            Column(
-                modifier = Modifier.padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = serverUrl,
-                    onValueChange = { serverUrl = it },
-                    label = { Text("URL сервера") },
-                    placeholder = { Text("https://example.com") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+            // === Разделы === (второстепенные — раньше жили в боковом меню)
+            SectionLabel("Разделы")
+            SettingsGroup {
+                NavRow(
+                    icon = Icons.Default.Home,
+                    title = "Мои адреса",
+                    onClick = onOpenMyAddresses
                 )
-
-                if (!serverUrl.trimStart().startsWith("https://", ignoreCase = true)) {
-                    OutlinedTextField(
-                        value = serverPort,
-                        onValueChange = { serverPort = it.filter { c -> c.isDigit() } },
-                        label = { Text("Порт") },
-                        placeholder = { Text("8001") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = {
-                            preferences.setServerUrl(serverUrl)
-                            preferences.setServerPort(serverPort.toIntOrNull() ?: 8001)
-                            scope.launch { snackbarHostState.showSnackbar("Сохранено") }
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) { Text("Сохранить") }
-
-                    OutlinedButton(
-                        onClick = { onTestConnection(buildServerEndpointPreview(serverUrl, serverPort)) },
-                        modifier = Modifier.weight(1f)
-                    ) { Text("Проверить") }
-                }
-
-                // Статус подключения (компактный)
-                if (connectionStatus != ConnectionStatus.IDLE) {
-                    val (statusText, statusColor) = when (connectionStatus) {
-                        ConnectionStatus.TESTING -> "Проверяем..." to MaterialTheme.colorScheme.onSurfaceVariant
-                        ConnectionStatus.SUCCESS -> "Сервер доступен" to MaterialTheme.colorScheme.primary
-                        is ConnectionStatus.ERROR -> connectionStatus.message to MaterialTheme.colorScheme.error
-                        else -> "" to MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                    Text(
-                        text = statusText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = statusColor
-                    )
-                }
             }
 
             // === Отображение ===
             SectionLabel("Отображение")
-
-            MinimalSwitch(
-                title = "Скрывать завершённые",
-                subtitle = "Не показывать заявки со статусом «Выполнена» и «Отменена»",
-                checked = hideDoneTasks,
-                onCheckedChange = { hideDoneTasks = it; preferences.setHideDoneTasks(it) }
-            )
-
-            MinimalSwitch(
-                title = "Моё местоположение",
-                subtitle = "Показывать на карте",
-                checked = showMyLocation,
-                onCheckedChange = { showMyLocation = it; preferences.setShowMyLocation(it) }
-            )
+            SettingsGroup {
+                SwitchRow(
+                    icon = Icons.Default.CheckCircle,
+                    title = "Скрывать завершённые",
+                    subtitle = "Выполненные и отменённые заявки",
+                    checked = hideDoneTasks,
+                    onCheckedChange = { hideDoneTasks = it; preferences.setHideDoneTasks(it) }
+                )
+                GroupDivider()
+                SwitchRow(
+                    icon = Icons.Default.LocationOn,
+                    title = "Моё местоположение",
+                    subtitle = "Показывать на карте",
+                    checked = showMyLocation,
+                    onCheckedChange = { showMyLocation = it; preferences.setShowMyLocation(it) }
+                )
+            }
 
             // === Уведомления ===
             SectionLabel("Уведомления")
-
-            MinimalSwitch(
-                title = "Push-уведомления",
-                checked = notificationsEnabled,
-                onCheckedChange = { notificationsEnabled = it; preferences.setNotificationsEnabled(it) }
-            )
-
-            if (notificationsEnabled) {
-                MinimalSwitch(
-                    title = "Новые задачи",
-                    checked = notifyNewTasks,
-                    onCheckedChange = { notifyNewTasks = it; preferences.setNotifyNewTasks(it) }
+            SettingsGroup {
+                SwitchRow(
+                    icon = Icons.Default.Notifications,
+                    title = "Push-уведомления",
+                    checked = notificationsEnabled,
+                    onCheckedChange = { notificationsEnabled = it; preferences.setNotificationsEnabled(it) }
                 )
-                MinimalSwitch(
-                    title = "Изменение статуса",
-                    checked = notifyStatusChange,
-                    onCheckedChange = { notifyStatusChange = it; preferences.setNotifyStatusChange(it) }
-                )
-                MinimalSwitch(
-                    title = "Сообщения в чате",
-                    checked = notifyChatMessages,
-                    onCheckedChange = { notifyChatMessages = it; preferences.setNotifyChatMessages(it) }
-                )
-            }
-
-            // === Обновления ===
-            SectionLabel("Обновления")
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "v$appVersion • код $appVersionCode",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedButton(
-                    onClick = onCheckForUpdates,
-                    enabled = !isCheckingForUpdates
-                ) {
-                    if (isCheckingForUpdates) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.width(8.dp))
+                // Подробности — только когда push включены; раскрываются плавно
+                AnimatedVisibility(visible = notificationsEnabled) {
+                    Column {
+                        GroupDivider()
+                        SwitchRow(
+                            title = "Новые заявки",
+                            checked = notifyNewTasks,
+                            onCheckedChange = { notifyNewTasks = it; preferences.setNotifyNewTasks(it) }
+                        )
+                        GroupDivider()
+                        SwitchRow(
+                            title = "Смена статуса",
+                            checked = notifyStatusChange,
+                            onCheckedChange = { notifyStatusChange = it; preferences.setNotifyStatusChange(it) }
+                        )
+                        GroupDivider()
+                        SwitchRow(
+                            title = "Сообщения в чате",
+                            checked = notifyChatMessages,
+                            onCheckedChange = { notifyChatMessages = it; preferences.setNotifyChatMessages(it) }
+                        )
                     }
-                    Text("Проверить")
                 }
             }
 
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+            // === Подключение === (адрес сервера меняют редко — одна строка, поля в диалоге)
+            SectionLabel("Подключение")
+            SettingsGroup {
+                NavRow(
+                    icon = Icons.Default.Settings,
+                    title = "Сервер",
+                    value = buildServerEndpointPreview(serverUrl, serverPort)
+                        .removePrefix("https://").removePrefix("http://"),
+                    onClick = { showServerDialog = true }
+                )
+            }
 
-            // === Сброс и выход ===
-            MinimalRow(
-                title = "Сбросить настройки",
-                titleColor = MaterialTheme.colorScheme.onSurface,
-                onClick = { showResetDialog = true }
-            )
+            // === Приложение ===
+            SectionLabel("Приложение")
+            SettingsGroup {
+                NavRow(
+                    icon = Icons.Default.Refresh,
+                    title = "Проверить обновления",
+                    value = "v$appVersion",
+                    isLoading = isCheckingForUpdates,
+                    onClick = { if (!isCheckingForUpdates) onCheckForUpdates() }
+                )
+                GroupDivider()
+                NavRow(
+                    icon = Icons.Default.Build,
+                    title = "Сбросить настройки",
+                    onClick = { showResetDialog = true }
+                )
+            }
 
-            MinimalRow(
-                title = "Выйти из аккаунта",
-                titleColor = MaterialTheme.colorScheme.error,
-                onClick = onLogout
-            )
+            SettingsGroup(modifier = Modifier.padding(top = 24.dp)) {
+                Text(
+                    text = "Выйти из аккаунта",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onLogout)
+                        .padding(vertical = 16.dp)
+                )
+            }
 
             // Версия (5 тапов = режим разработчика)
             Text(
                 text = buildString {
-                    append("FieldWorker v$appVersion")
+                    append("FieldWorker v$appVersion · сборка $appVersionCode")
                     if (versionTapCount > 0) append(" • ещё ${5 - versionTapCount}")
                 },
                 style = MaterialTheme.typography.bodySmall,
@@ -315,6 +289,60 @@ fun SettingsScreen(
                     .padding(vertical = 24.dp)
             )
         }
+    }
+
+    if (showServerDialog) {
+        AlertDialog(
+            onDismissRequest = { showServerDialog = false },
+            title = { Text("Сервер") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = serverUrl,
+                        onValueChange = { serverUrl = it },
+                        label = { Text("URL сервера") },
+                        placeholder = { Text("https://example.com") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    if (!serverUrl.trimStart().startsWith("https://", ignoreCase = true)) {
+                        OutlinedTextField(
+                            value = serverPort,
+                            onValueChange = { serverPort = it.filter { c -> c.isDigit() } },
+                            label = { Text("Порт") },
+                            placeholder = { Text("8001") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                    }
+                    if (connectionStatus != ConnectionStatus.IDLE) {
+                        val (statusText, statusColor) = when (connectionStatus) {
+                            ConnectionStatus.TESTING -> "Проверяем..." to MaterialTheme.colorScheme.onSurfaceVariant
+                            ConnectionStatus.SUCCESS -> "Сервер доступен" to successTextColor()
+                            is ConnectionStatus.ERROR -> connectionStatus.message to MaterialTheme.colorScheme.error
+                            else -> "" to MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                        Text(text = statusText, style = MaterialTheme.typography.bodySmall, color = statusColor)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        preferences.setServerUrl(serverUrl)
+                        preferences.setServerPort(serverPort.toIntOrNull() ?: 8001)
+                        showServerDialog = false
+                        scope.launch { snackbarHostState.showSnackbar("Сохранено") }
+                    }
+                ) { Text("Сохранить") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { onTestConnection(buildServerEndpointPreview(serverUrl, serverPort)) }
+                ) { Text("Проверить") }
+            }
+        )
     }
 
     // Диалог сброса
@@ -358,28 +386,75 @@ fun SettingsScreen(
 
 @Composable
 private fun SectionLabel(text: String) {
+    // Нейтральный eyebrow, как в портале: акцент — только для действий
     Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 8.dp)
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.8.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp)
     )
 }
 
+/** Сгруппированная карточка настроек (iOS-style inset group). */
 @Composable
-private fun MinimalSwitch(
+private fun SettingsGroup(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = AppShape.lg,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    ) {
+        Column(content = content)
+    }
+}
+
+/** Разделитель внутри группы — с отступом под иконку, как в iOS. */
+@Composable
+private fun GroupDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 60.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+    )
+}
+
+/** Иконка в мягкой плашке слева от строки (или пустое место той же ширины). */
+@Composable
+private fun RowIcon(icon: ImageVector?) {
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .clip(AppShape.sm)
+            .background(if (icon != null) MaterialTheme.colorScheme.primaryContainer else Color.Transparent),
+        contentAlignment = Alignment.Center
+    ) {
+        if (icon != null) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun SwitchRow(
     title: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    icon: ImageVector? = null,
     subtitle: String? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        RowIcon(icon)
         Column(modifier = Modifier.weight(1f)) {
             Text(text = title, style = MaterialTheme.typography.bodyLarge)
             if (subtitle != null) {
@@ -395,20 +470,41 @@ private fun MinimalSwitch(
 }
 
 @Composable
-private fun MinimalRow(
+private fun NavRow(
+    icon: ImageVector?,
     title: String,
-    titleColor: androidx.compose.ui.graphics.Color,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    value: String? = null,
+    isLoading: Boolean = false,
 ) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.bodyLarge,
-        color = titleColor,
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 14.dp)
-    )
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        RowIcon(icon)
+        Text(text = title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        if (isLoading) {
+            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+        } else if (value != null) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 160.dp)
+            )
+        }
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+        )
+    }
 }
 
 sealed class ConnectionStatus {
@@ -469,15 +565,6 @@ private fun ProfileAvatar(
                 )
             }
         }
-    }
-}
-
-private fun roleLabel(role: String?): String {
-    return when (role) {
-        "admin" -> "Администратор"
-        "dispatcher" -> "Диспетчер"
-        "worker" -> "Работник"
-        else -> ""
     }
 }
 

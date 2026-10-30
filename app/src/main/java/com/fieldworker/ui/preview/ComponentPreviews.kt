@@ -13,9 +13,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
+import com.fieldworker.domain.model.PendingPhoto
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskStatus
+import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.TaskCard
 import com.fieldworker.ui.list.*
 import com.fieldworker.ui.map.StatusChangeDialog
@@ -43,7 +45,7 @@ class StatusPreviewProvider : PreviewParameterProvider<TaskStatus> {
 
 @Preview(name = "TaskCard - Single", showBackground = true)
 @Composable
-private fun TaskCardPreview() {
+internal fun TaskCardPreview() {
     FieldWorkerTheme {
         Surface {
             TaskCard(
@@ -59,7 +61,7 @@ private fun TaskCardPreview() {
 
 @Preview(name = "TaskCard - Selected", showBackground = true)
 @Composable
-private fun TaskCardSelectedPreview() {
+internal fun TaskCardSelectedPreview() {
     FieldWorkerTheme {
         Surface {
             TaskCard(
@@ -75,7 +77,7 @@ private fun TaskCardSelectedPreview() {
 
 @Preview(name = "TaskCard - All Priorities", showBackground = true)
 @Composable
-private fun TaskCardAllPrioritiesPreview() {
+internal fun TaskCardAllPrioritiesPreview() {
     FieldWorkerTheme {
         Surface {
             Column(
@@ -109,7 +111,7 @@ private fun TaskCardAllPrioritiesPreview() {
 
 @Preview(name = "TaskCard - Dark Theme", showBackground = true)
 @Composable
-private fun TaskCardDarkPreview() {
+internal fun TaskCardDarkPreview() {
     FieldWorkerTheme(darkTheme = true) {
         Surface {
             TaskCard(
@@ -123,7 +125,7 @@ private fun TaskCardDarkPreview() {
 
 @Preview(name = "TaskCard - Variants", showBackground = true, backgroundColor = 0xFFF5F7FA)
 @Composable
-private fun TaskCardVariantsPreview() {
+internal fun TaskCardVariantsPreview() {
     FieldWorkerTheme {
         Surface {
             Column(
@@ -146,79 +148,85 @@ private fun TaskCardVariantsPreview() {
 
 @Preview(name = "TaskListScreen - Full", showBackground = true, showSystemUi = true)
 @Composable
-private fun TaskListScreenPreview() {
+internal fun TaskListScreenPreview() {
     FieldWorkerTheme {
-        TaskListScreen(
-            tasks = PreviewData.sampleTasks,
-            comments = emptyList(),
-            isLoading = false,
-            isLoadingComments = false,
-            selectedTask = null,
-            showStatusDialog = false,
-            onRefresh = {},
-            onTaskClick = {},
-            onTaskDismiss = {},
-            onStatusChange = {},
-            onHideStatusDialog = {},
-            onStatusSelected = { _, _, _ -> },
-            onAddComment = { _, _ -> },
-            statusFilter = emptySet(),
-            searchQuery = "",
-            onStatusFilterChange = {},
-            onSearchQueryChange = {}
-        )
+        Surface(color = MaterialTheme.colorScheme.background) {
+            TaskListScreen(
+                tasks = PreviewData.sampleTasks,
+                comments = emptyList(),
+                isLoading = false,
+                isLoadingComments = false,
+                selectedTask = null,
+                showStatusDialog = false,
+                onRefresh = {},
+                onTaskClick = {},
+                onTaskDismiss = {},
+                onStatusChange = {},
+                onHideStatusDialog = {},
+                onStatusSelected = { _, _, _ -> },
+                onAddComment = { _, _ -> },
+                statusFilter = emptySet(),
+                searchQuery = "",
+                onStatusFilterChange = {},
+                onSearchQueryChange = {}
+            )
+        }
     }
 }
 
 @Preview(name = "TaskListScreen - Loading", showBackground = true, showSystemUi = true)
 @Composable
-private fun TaskListScreenLoadingPreview() {
+internal fun TaskListScreenLoadingPreview() {
     FieldWorkerTheme {
-        TaskListScreen(
-            tasks = emptyList(),
-            comments = emptyList(),
-            isLoading = true,
-            isLoadingComments = false,
-            selectedTask = null,
-            showStatusDialog = false,
-            onRefresh = {},
-            onTaskClick = {},
-            onTaskDismiss = {},
-            onStatusChange = {},
-            onHideStatusDialog = {},
-            onStatusSelected = { _, _, _ -> },
-            onAddComment = { _, _ -> },
-            statusFilter = emptySet(),
-            searchQuery = "",
-            onStatusFilterChange = {},
-            onSearchQueryChange = {}
-        )
+        Surface(color = MaterialTheme.colorScheme.background) {
+            TaskListScreen(
+                tasks = emptyList(),
+                comments = emptyList(),
+                isLoading = true,
+                isLoadingComments = false,
+                selectedTask = null,
+                showStatusDialog = false,
+                onRefresh = {},
+                onTaskClick = {},
+                onTaskDismiss = {},
+                onStatusChange = {},
+                onHideStatusDialog = {},
+                onStatusSelected = { _, _, _ -> },
+                onAddComment = { _, _ -> },
+                statusFilter = emptySet(),
+                searchQuery = "",
+                onStatusFilterChange = {},
+                onSearchQueryChange = {}
+            )
+        }
     }
 }
 
 @Preview(name = "TaskListScreen - Empty", showBackground = true, showSystemUi = true)
 @Composable
-private fun TaskListScreenEmptyPreview() {
+internal fun TaskListScreenEmptyPreview() {
     FieldWorkerTheme {
-        TaskListScreen(
-            tasks = emptyList(),
-            comments = emptyList(),
-            isLoading = false,
-            isLoadingComments = false,
-            selectedTask = null,
-            showStatusDialog = false,
-            onRefresh = {},
-            onTaskClick = {},
-            onTaskDismiss = {},
-            onStatusChange = {},
-            onHideStatusDialog = {},
-            onStatusSelected = { _, _, _ -> },
-            onAddComment = { _, _ -> },
-            statusFilter = emptySet(),
-            searchQuery = "",
-            onStatusFilterChange = {},
-            onSearchQueryChange = {}
-        )
+        Surface(color = MaterialTheme.colorScheme.background) {
+            TaskListScreen(
+                tasks = emptyList(),
+                comments = emptyList(),
+                isLoading = false,
+                isLoadingComments = false,
+                selectedTask = null,
+                showStatusDialog = false,
+                onRefresh = {},
+                onTaskClick = {},
+                onTaskDismiss = {},
+                onStatusChange = {},
+                onHideStatusDialog = {},
+                onStatusSelected = { _, _, _ -> },
+                onAddComment = { _, _ -> },
+                statusFilter = emptySet(),
+                searchQuery = "",
+                onStatusFilterChange = {},
+                onSearchQueryChange = {}
+            )
+        }
     }
 }
 
@@ -226,7 +234,7 @@ private fun TaskListScreenEmptyPreview() {
 
 @Preview(name = "FiltersPanel", showBackground = true)
 @Composable
-private fun FiltersPanelPreview() {
+internal fun FiltersPanelPreview() {
     FieldWorkerTheme {
         Surface {
             FiltersPanel(
@@ -244,7 +252,7 @@ private fun FiltersPanelPreview() {
 
 @Preview(name = "Priority Colors - All", showBackground = true)
 @Composable
-private fun PriorityBadgeAllPreview() {
+internal fun PriorityBadgeAllPreview() {
     FieldWorkerTheme {
         Surface {
             Row(
@@ -271,7 +279,7 @@ private fun PriorityBadgeAllPreview() {
 
 @Preview(name = "Status Colors - All", showBackground = true)
 @Composable
-private fun StatusColorsPreview() {
+internal fun StatusColorsPreview() {
     FieldWorkerTheme {
         Surface {
             Column(
@@ -300,7 +308,7 @@ private fun StatusColorsPreview() {
 
 @Preview(name = "StatusChangeDialog", showBackground = true)
 @Composable
-private fun StatusChangeDialogPreview() {
+internal fun StatusChangeDialogPreview() {
     FieldWorkerTheme {
         StatusChangeDialog(
             currentStatus = TaskStatus.NEW,
@@ -314,7 +322,7 @@ private fun StatusChangeDialogPreview() {
 
 @Preview(name = "TaskDetailBottomSheet", showBackground = true, showSystemUi = true)
 @Composable
-private fun TaskDetailBottomSheetPreview() {
+internal fun TaskDetailBottomSheetPreview() {
     FieldWorkerTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             TaskDetailBottomSheet(
@@ -329,11 +337,29 @@ private fun TaskDetailBottomSheetPreview() {
     }
 }
 
+@Preview(name = "TaskDetailContent", showBackground = true, showSystemUi = true)
+@Composable
+internal fun TaskDetailContentPreview() {
+    FieldWorkerTheme {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            TaskDetailContent(
+                task = PreviewData.taskEmergency,
+                comments = PreviewData.sampleComments,
+                isLoadingComments = false,
+                onStatusChange = {},
+                onAddComment = {},
+                onPlannedDateChange = {},
+                onAssignClick = {}
+            )
+        }
+    }
+}
+
 // ==================== Skeleton Previews ====================
 
 @Preview(name = "TaskListItemSkeleton", showBackground = true)
 @Composable
-private fun TaskListItemSkeletonPreview() {
+internal fun TaskListItemSkeletonPreview() {
     FieldWorkerTheme {
         Surface {
             TaskListItemSkeleton()
@@ -343,7 +369,7 @@ private fun TaskListItemSkeletonPreview() {
 
 @Preview(name = "TaskListSkeleton", showBackground = true)
 @Composable
-private fun TaskListSkeletonPreview() {
+internal fun TaskListSkeletonPreview() {
     FieldWorkerTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             TaskListSkeleton(count = 3)
@@ -355,7 +381,7 @@ private fun TaskListSkeletonPreview() {
 
 @Preview(name = "SearchBar - Empty", showBackground = true)
 @Composable
-private fun SearchBarEmptyPreview() {
+internal fun SearchBarEmptyPreview() {
     FieldWorkerTheme {
         Surface {
             SearchBar(
@@ -370,7 +396,7 @@ private fun SearchBarEmptyPreview() {
 
 @Preview(name = "SearchBar - With Query", showBackground = true)
 @Composable
-private fun SearchBarWithQueryPreview() {
+internal fun SearchBarWithQueryPreview() {
     FieldWorkerTheme {
         Surface {
             SearchBar(
@@ -391,7 +417,7 @@ private fun SearchBarWithQueryPreview() {
     showSystemUi = true
 )
 @Composable
-private fun PhonePreview() {
+internal fun PhonePreview() {
     FieldWorkerTheme {
         TaskListScreen(
             tasks = PreviewData.sampleTasks,
@@ -421,7 +447,7 @@ private fun PhonePreview() {
     showSystemUi = true
 )
 @Composable
-private fun TabletPreview() {
+internal fun TabletPreview() {
     FieldWorkerTheme {
         TaskListScreen(
             tasks = PreviewData.sampleTasks,
@@ -449,7 +475,7 @@ private fun TabletPreview() {
 
 @Preview(name = "Light Theme", showBackground = true)
 @Composable
-private fun LightThemePreview() {
+internal fun LightThemePreview() {
     FieldWorkerTheme(darkTheme = false) {
         Surface {
             Column(
@@ -473,7 +499,7 @@ private fun LightThemePreview() {
 
 @Preview(name = "Dark Theme", showBackground = true)
 @Composable
-private fun DarkThemePreview() {
+internal fun DarkThemePreview() {
     FieldWorkerTheme(darkTheme = true) {
         Surface {
             Column(
@@ -492,5 +518,133 @@ private fun DarkThemePreview() {
                 )
             }
         }
+    }
+}
+
+@Preview(name = "TaskListScreen - Dark", showBackground = true, showSystemUi = true)
+@Composable
+internal fun TaskListScreenDarkPreview() {
+    FieldWorkerTheme(darkTheme = true) {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            TaskListScreen(
+                tasks = PreviewData.sampleTasks,
+                comments = emptyList(),
+                isLoading = false,
+                isLoadingComments = false,
+                selectedTask = null,
+                showStatusDialog = false,
+                onRefresh = {},
+                onTaskClick = {},
+                onTaskDismiss = {},
+                onStatusChange = {},
+                onHideStatusDialog = {},
+                onStatusSelected = { _, _, _ -> },
+                onAddComment = { _, _ -> },
+                statusFilter = emptySet(),
+                searchQuery = "",
+                onStatusFilterChange = {},
+                onSearchQueryChange = {}
+            )
+        }
+    }
+}
+
+@Preview(name = "TaskDetailContent - Dark", showBackground = true, showSystemUi = true)
+@Composable
+internal fun TaskDetailContentDarkPreview() {
+    FieldWorkerTheme(darkTheme = true) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            TaskDetailContent(
+                task = PreviewData.taskEmergency,
+                comments = PreviewData.sampleComments,
+                isLoadingComments = false,
+                onStatusChange = {},
+                onAddComment = {},
+                onPlannedDateChange = {},
+                onAssignClick = {}
+            )
+        }
+    }
+}
+
+@Preview(name = "TaskDetailContent - Offline", showBackground = true, showSystemUi = true)
+@Composable
+internal fun TaskDetailContentOfflinePreview() {
+    FieldWorkerTheme {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            TaskDetailContent(
+                task = PreviewData.taskEmergency,
+                hasAttemptedAddressLookup = true,
+                comments = emptyList(),
+                isLoadingComments = false,
+                unavailableDetails = com.fieldworker.ui.map.TaskDetailSection.entries.toSet(),
+                pendingPhotos = previewPendingPhotos.take(1),
+                onStatusChange = {},
+                onAddComment = {},
+            )
+        }
+    }
+}
+
+private val previewPendingPhotos = listOf(
+    PendingPhoto(id = 1, taskId = 1, filePath = "/preview/1.jpg", photoType = "before", isFailed = false),
+    PendingPhoto(id = 2, taskId = 1, filePath = "/preview/2.jpg", photoType = "after", isFailed = true),
+)
+
+@Composable
+private fun PhotoGalleryQueueSample() {
+    Surface(color = MaterialTheme.colorScheme.surface) {
+        PhotoGallery(
+            photos = emptyList(),
+            isLoading = false,
+            isUploading = false,
+            baseUrl = "",
+            onAddPhotoClick = {},
+            onDeletePhoto = {},
+            pendingPhotos = previewPendingPhotos,
+            onTakePhotoClick = {},
+            emptyText = null,
+            modifier = Modifier.padding(16.dp)
+        )
+    }
+}
+
+@Preview(name = "PhotoGallery - Queue", showBackground = true)
+@Composable
+internal fun PhotoGalleryQueuePreview() {
+    FieldWorkerTheme(darkTheme = false) { PhotoGalleryQueueSample() }
+}
+
+@Preview(name = "PhotoGallery - Queue Dark", showBackground = true)
+@Composable
+internal fun PhotoGalleryQueueDarkPreview() {
+    FieldWorkerTheme(darkTheme = true) { PhotoGalleryQueueSample() }
+}
+
+@Preview(name = "ObjectDetails", showBackground = true, showSystemUi = true)
+@Composable
+internal fun ObjectDetailsPreview() {
+    FieldWorkerTheme {
+        com.fieldworker.ui.objectcard.ObjectDetailsScreen(
+            task = PreviewData.taskEmergency,
+            addressDetails = com.fieldworker.domain.model.AddressDetails(
+                id = 1,
+                address = "Ленинский проспект, д.82, корп.3",
+                city = "Санкт-Петербург",
+                entranceCount = 6,
+                floorCount = 16,
+                apartmentCount = 384,
+                hasElevator = true,
+                hasIntercom = true,
+                intercomCode = "К1234",
+                managementCompany = "УК «Южный дом»",
+                managementPhone = "88124567890",
+                taskStats = com.fieldworker.domain.model.AddressTaskStats(total = 12, newCount = 2, inProgress = 1, done = 8, cancelled = 1),
+            ),
+            isLoading = false,
+            hasAttemptedLookup = true,
+            onBack = {},
+            comments = PreviewData.sampleComments,
+        )
     }
 }

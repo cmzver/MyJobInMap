@@ -3,6 +3,7 @@ package com.fieldworker.ui.addresses
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -17,16 +18,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
@@ -56,6 +58,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fieldworker.domain.model.AddressContact
@@ -67,8 +70,15 @@ import com.fieldworker.domain.model.AddressPanel
 import com.fieldworker.domain.model.AddressSummary
 import com.fieldworker.domain.model.AddressSystem
 import com.fieldworker.domain.model.AddressTaskStats
+import com.fieldworker.domain.model.TaskStatus
+import com.fieldworker.ui.theme.AppColors
+import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.TaskUtils
-import com.fieldworker.ui.utils.normalizePhoneForDial
+import com.fieldworker.ui.utils.accentTextColor
+import com.fieldworker.ui.utils.containerColor
+import com.fieldworker.ui.utils.contentColor
+import com.fieldworker.ui.utils.dialPhone
+import com.fieldworker.ui.utils.formatPhoneForDisplay
 
 /**
  * Раздел «Мои адреса»: список назначенных адресов и полная карточка объекта —
@@ -80,7 +90,7 @@ import com.fieldworker.ui.utils.normalizePhoneForDial
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyAddressesScreen(
-    onOpenDrawer: () -> Unit,
+    onBack: () -> Unit,
     viewModel: MyAddressesViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -119,8 +129,8 @@ fun MyAddressesScreen(
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                         }
                     } else {
-                        IconButton(onClick = onOpenDrawer) {
-                            Icon(Icons.Default.Menu, contentDescription = "Меню")
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                         }
                     }
                 },
@@ -160,7 +170,7 @@ fun MyAddressesScreen(
 }
 
 @Composable
-private fun AddressList(
+internal fun AddressList(
     addresses: List<AddressSummary>,
     onClick: (AddressSummary) -> Unit,
 ) {
@@ -180,7 +190,8 @@ private fun AddressRowCard(address: AddressSummary, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         shape = MaterialTheme.shapes.large,
     ) {
         Row(
@@ -191,7 +202,7 @@ private fun AddressRowCard(address: AddressSummary, onClick: () -> Unit) {
             Icon(
                 imageVector = Icons.Default.Home,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
@@ -200,11 +211,7 @@ private fun AddressRowCard(address: AddressSummary, onClick: () -> Unit) {
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                val sub = listOfNotNull(
-                    address.city?.takeIf { it.isNotBlank() },
-                    address.street?.takeIf { it.isNotBlank() },
-                    address.building?.takeIf { it.isNotBlank() }?.let { "д. $it" },
-                ).joinToString(" • ")
+                val sub = cityHint(address.address, address.city)
                 if (sub.isNotBlank()) {
                     Text(
                         text = sub,
@@ -213,6 +220,11 @@ private fun AddressRowCard(address: AddressSummary, onClick: () -> Unit) {
                     )
                 }
             }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -248,7 +260,7 @@ private fun EmptyState(modifier: Modifier = Modifier) {
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun AddressDetailContent(
+internal fun AddressDetailContent(
     details: AddressDetails?,
     isLoading: Boolean,
     openingPanelId: Long?,
@@ -325,7 +337,7 @@ private fun AddressDetailContent(
                         )
                     }
                     details.managementPhone?.takeIf { it.isNotBlank() }?.let { phone ->
-                        PhoneLine(phone) { dial(context, phone) }
+                        PhoneLine(phone) { dialPhone(context, phone) }
                     }
                 }
             }
@@ -407,12 +419,7 @@ private fun AddressDetailContent(
 @Composable
 private fun HeaderCard(details: AddressDetails) {
     SectionCard(title = details.address) {
-        val locality = listOfNotNull(
-            details.city?.takeIf { it.isNotBlank() },
-            details.street?.takeIf { it.isNotBlank() },
-            details.building?.takeIf { it.isNotBlank() }?.let { "д. $it" },
-            details.corpus?.takeIf { it.isNotBlank() }?.let { "корп. $it" },
-        ).joinToString(" • ")
+        val locality = cityHint(details.address, details.city)
         if (locality.isNotBlank()) {
             Text(
                 text = locality,
@@ -427,7 +434,10 @@ private fun HeaderCard(details: AddressDetails) {
             details.apartmentCount?.let { add("Квартиры" to it.toString()) }
             details.entrance?.takeIf { it.isNotBlank() }?.let { add("Подъезд" to it) }
             if (details.hasElevator != null) add("Лифт" to if (details.hasElevator) "есть" else "нет")
-            if (details.hasIntercom != null) add("Домофон" to if (details.hasIntercom) "есть" else "нет")
+            // Код домофона выделен ниже отдельной плашкой — «Домофон: есть» над ним лишнее
+            if (details.hasIntercom != null && details.intercomCode.isNullOrBlank()) {
+                add("Домофон" to if (details.hasIntercom) "есть" else "нет")
+            }
         }
         if (facts.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -448,7 +458,7 @@ private fun HeaderCard(details: AddressDetails) {
                     .fillMaxWidth()
                     .background(
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-                        RoundedCornerShape(10.dp),
+                        AppShape.sm,
                     )
                     .padding(horizontal = 12.dp, vertical = 10.dp),
             ) {
@@ -458,7 +468,7 @@ private fun HeaderCard(details: AddressDetails) {
                         text = code,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = accentTextColor(),
                     )
                 }
             }
@@ -468,29 +478,33 @@ private fun HeaderCard(details: AddressDetails) {
 
 @Composable
 private fun TaskStatsCard(stats: AddressTaskStats) {
-    SectionCard(title = "Заявки") {
+    // «Всего» — в заголовке, статусы — четыре равные плашки в ширину карточки:
+    // раньше пятая уезжала за край и выглядела обрезанной. Нули тоже видны —
+    // раскладка не прыгает от адреса к адресу (как в сводке на карте).
+    SectionCard(title = "Заявки · ${stats.total}") {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            StatPill("Всего", stats.total, StatusTone.NEUTRAL)
-            if (stats.newCount > 0) StatPill("Новые", stats.newCount, StatusTone.WARNING)
-            if (stats.inProgress > 0) StatPill("В работе", stats.inProgress, StatusTone.WARNING)
-            if (stats.done > 0) StatPill("Выполнено", stats.done, StatusTone.POSITIVE)
-            if (stats.cancelled > 0) StatPill("Отменено", stats.cancelled, StatusTone.NEUTRAL)
+            StatPill("Новые", stats.newCount, TaskStatus.NEW, Modifier.weight(1f))
+            StatPill("В работе", stats.inProgress, TaskStatus.IN_PROGRESS, Modifier.weight(1f))
+            StatPill("Готово", stats.done, TaskStatus.DONE, Modifier.weight(1f))
+            StatPill("Отменено", stats.cancelled, TaskStatus.CANCELLED, Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun StatPill(label: String, count: Int, tone: StatusTone) {
-    val base = tone.color()
+private fun StatPill(label: String, count: Int, status: TaskStatus, modifier: Modifier = Modifier) {
+    val active = count > 0
+    val tone = if (active) status.contentColor() else MaterialTheme.colorScheme.onSurfaceVariant
     Column(
-        modifier = Modifier
-            .background(base.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+        modifier = modifier
+            .background(
+                if (active) status.containerColor() else MaterialTheme.colorScheme.surfaceContainerHigh,
+                AppShape.md
+            )
+            .padding(horizontal = 4.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -498,12 +512,13 @@ private fun StatPill(label: String, count: Int, tone: StatusTone) {
             text = count.toString(),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = base,
+            color = tone,
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
         )
     }
 }
@@ -596,7 +611,7 @@ private fun ContactRow(contact: AddressContact, context: android.content.Context
         ).joinToString(" • ")
         if (role.isNotBlank()) Eyebrow(role)
         contact.phone?.takeIf { it.isNotBlank() }?.let { phone ->
-            PhoneLine(phone) { dial(context, phone) }
+            PhoneLine(phone) { dialPhone(context, phone) }
         }
         contact.email?.takeIf { it.isNotBlank() }?.let { email ->
             Row(
@@ -613,7 +628,7 @@ private fun ContactRow(contact: AddressContact, context: android.content.Context
                 Text(
                     text = email,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = accentTextColor(),
                 )
             }
         }
@@ -711,7 +726,8 @@ private fun PanelRow(
                 )
             } else {
                 Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
-                Text("  Открыть")
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Открыть")
             }
         }
     }
@@ -728,7 +744,8 @@ private fun SectionCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         shape = MaterialTheme.shapes.large,
     ) {
         Column(
@@ -749,8 +766,9 @@ private fun SectionCard(
 @Composable
 private fun Eyebrow(text: String) {
     Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium,
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        letterSpacing = 0.6.sp,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
@@ -791,9 +809,9 @@ private fun PhoneLine(phone: String, onClick: () -> Unit) {
             tint = MaterialTheme.colorScheme.primary,
         )
         Text(
-            text = phone,
+            text = formatPhoneForDisplay(phone),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
+            color = accentTextColor(),
         )
     }
 }
@@ -802,8 +820,8 @@ private enum class StatusTone { POSITIVE, WARNING, NEGATIVE, NEUTRAL }
 
 @Composable
 private fun StatusTone.color(): Color = when (this) {
-    StatusTone.POSITIVE -> Color(0xFF2E9E5B)
-    StatusTone.WARNING -> Color(0xFFCC8A00)
+    StatusTone.POSITIVE -> AppColors.StatusDone
+    StatusTone.WARNING -> AppColors.StatusInProgress
     StatusTone.NEGATIVE -> MaterialTheme.colorScheme.error
     StatusTone.NEUTRAL -> MaterialTheme.colorScheme.onSurfaceVariant
 }
@@ -813,7 +831,7 @@ private fun StatusChip(label: String, tone: StatusTone) {
     val base = tone.color()
     Box(
         modifier = Modifier
-            .background(base.copy(alpha = 0.14f), RoundedCornerShape(8.dp))
+            .background(base.copy(alpha = 0.14f), AppShape.sm)
             .padding(horizontal = 8.dp, vertical = 3.dp),
     ) {
         Text(
@@ -829,13 +847,12 @@ private fun StatusChip(label: String, tone: StatusTone) {
 // Действия и словари лейблов (паритет с порталом)
 // ---------------------------------------------------------------------------
 
-private fun dial(context: android.content.Context, phone: String) {
-    runCatching {
-        context.startActivity(
-            Intent(Intent.ACTION_DIAL, Uri.parse("tel:${normalizePhoneForDial(phone)}")),
-        )
-    }
-}
+/**
+ * Подстрока под адресом: только город, и только если его нет в самом адресе —
+ * улица/дом/корпус и так в заголовке, повторять их незачем.
+ */
+private fun cityHint(address: String, city: String?): String =
+    city?.takeIf { it.isNotBlank() && !address.contains(it, ignoreCase = true) }.orEmpty()
 
 private fun mail(context: android.content.Context, email: String) {
     runCatching {

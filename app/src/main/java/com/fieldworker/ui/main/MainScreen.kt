@@ -3,7 +3,6 @@ package com.fieldworker.ui.main
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -15,30 +14,23 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.sp
-import com.fieldworker.BuildConfig
-import com.fieldworker.ui.theme.AppColors
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.runtime.*
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.fieldworker.ui.utils.avatarInitials
-import com.fieldworker.ui.utils.resolveAvatarUrl
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -46,21 +38,26 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.paging.compose.collectAsLazyPagingItems
+import com.fieldworker.ui.addresses.MyAddressesScreen
+import com.fieldworker.ui.chat.ChatScreen
+import com.fieldworker.ui.chat.ChatViewModel
+import com.fieldworker.ui.chat.ConversationListScreen
+import com.fieldworker.ui.components.FailedActionsDialog
 import com.fieldworker.ui.components.OfflineBanner
 import com.fieldworker.ui.components.PhotoUploadConfirmDialog
-import com.fieldworker.ui.chat.ChatViewModel
-import com.fieldworker.ui.chat.ChatScreen
-import com.fieldworker.ui.chat.ConversationListFilter
-import com.fieldworker.ui.chat.ConversationListScreen
+import com.fieldworker.ui.components.rememberPhotoDraft
+import com.fieldworker.ui.components.rememberPickPhotoLauncher
+import com.fieldworker.ui.components.rememberTakePhotoLauncher
+import com.fieldworker.ui.list.TaskAssignmentUi
 import com.fieldworker.ui.list.TaskListScreen
 import com.fieldworker.ui.map.MapScreen
 import com.fieldworker.ui.map.MapViewModel
-import com.fieldworker.ui.addresses.MyAddressesScreen
 import com.fieldworker.ui.navigation.Screen
 import com.fieldworker.ui.objectcard.ObjectDetailsScreen
 import com.fieldworker.ui.settings.DeveloperScreen
 import com.fieldworker.ui.settings.SettingsScreen
 import com.fieldworker.ui.settings.UserSettingsScreen
+import kotlinx.coroutines.launch
 
 /**
  * Главный экран приложения с Navigation Compose.
@@ -89,13 +86,25 @@ fun MainScreen(
     val chatViewModel: ChatViewModel = hiltViewModel()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val drawerScope = rememberCoroutineScope()
     
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showSendTaskToChat by remember { mutableStateOf(false) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val filteredTasks by viewModel.filteredTasks.collectAsStateWithLifecycle()
+
+    // Фоновые опросы (health) — только пока приложение видно
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> viewModel.setAppInForeground(true)
+                Lifecycle.Event.ON_STOP -> viewModel.setAppInForeground(false)
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val chatListState by chatViewModel.listState.collectAsStateWithLifecycle()
     val chatState by chatViewModel.chatState.collectAsStateWithLifecycle()
     val pagingItems = viewModel.tasksPagingFlow.collectAsLazyPagingItems()
@@ -108,12 +117,15 @@ fun MainScreen(
         Screen.Developer.route -> Screen.Developer
         Screen.ObjectCard.route -> Screen.ObjectCard
         Screen.MyAddresses.route -> Screen.MyAddresses
+        // Без этой ветки профиль считался «Картой»: над ним рисовались шапка
+        // «Карта выездов» и нижняя панель
+        Screen.UserSettings.route -> Screen.UserSettings
         else -> Screen.Map
     }
     val unreadChatCount = remember(chatListState.conversations) {
         chatListState.conversations.sumOf { it.unreadCount }
     }
-    val topTitle = mainTitleFor(currentScreen)
+    val topTitle = mainTitleFor(currentScreen, canManageTasks = uiState.canManageTasks)
     val isChatConversationOpen = remember(currentScreen, chatState.conversationId) {
         currentScreen == Screen.Chat && chatState.conversationId != null
     }
@@ -122,28 +134,16 @@ fun MainScreen(
     val baseUrl = viewModel.preferences.getFullServerUrl()
     val authToken = viewModel.preferences.getAuthToken()
     
-    // Состояние для выбранного фото (перед подтверждением загрузки)
-    var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
-    
-    // Сбрасываем selectedPhotoUri когда загрузка завершилась
+    // Фото для заявки до подтверждения отправки — переживает и смерть процесса
+    var photoDraft by rememberPhotoDraft()
+    // Снимок сохранён в очередь — закрываем диалог (при ошибке он остаётся)
+    var wasSavingPhoto by remember { mutableStateOf(false) }
     LaunchedEffect(uiState.isUploadingPhoto) {
-        if (!uiState.isUploadingPhoto && selectedPhotoUri != null) {
-            // Проверяем, не было ли ошибки
-            if (uiState.error == null) {
-                selectedPhotoUri = null
-            }
-        }
+        if (wasSavingPhoto && !uiState.isUploadingPhoto && uiState.error == null) photoDraft = null
+        wasSavingPhoto = uiState.isUploadingPhoto
     }
-    
-    // Image picker для загрузки фото (теперь сохраняем Uri, не загружаем сразу)
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia(),
-        onResult = { uri: Uri? ->
-            uri?.let {
-                selectedPhotoUri = it
-            }
-        }
-    )
+    val pickPhoto = rememberPickPhotoLauncher { photoDraft = it }
+    val takePhoto = rememberTakePhotoLauncher { photoDraft = it }
 
     val chatAttachmentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
@@ -199,16 +199,12 @@ fun MainScreen(
         }
     }
     
-    // Полностью боковая навигация: разделы живут в drawer, нижней панели нет.
-    val topLevelScreens = setOf(
-        Screen.Map, Screen.TaskList, Screen.Chat, Screen.Settings, Screen.MyAddresses
-    )
-    val isTopLevel = currentScreen in topLevelScreens && !isChatConversationOpen
-    // Единый верхний бар (бургер + заголовок) — только для экранов без своей шапки.
+    // Нижняя навигация: разделы — одно касание под большим пальцем (раньше
+    // два касания через бургер в верхнем углу). Во вложенных экранах её нет.
+    val showBottomBar = currentScreen in Screen.bottomNavItems && !isChatConversationOpen
+    // Единый верхний бар (заголовок) — только для экранов без своей шапки.
     val showUnifiedTopBar = currentScreen == Screen.Map || currentScreen == Screen.TaskList
-    val openDrawer: () -> Unit = { drawerScope.launch { drawerState.open() } }
     val navigateTab: (String) -> Unit = { route ->
-        drawerScope.launch { drawerState.close() }
         navController.navigate(route) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
             launchSingleTop = true
@@ -242,39 +238,19 @@ fun MainScreen(
         onNotificationChatHandled()
     }
     
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = isTopLevel || drawerState.isOpen,
-        drawerContent = {
-            AppDrawer(
-                userName = viewModel.preferences.getUserFullName()
-                    ?: viewModel.preferences.getUsername()
-                    ?: "Профиль",
-                roleLabel = viewModel.preferences.getUserRoleLabel(),
-                avatarUrl = viewModel.preferences.getUserAvatarUrl(),
-                baseUrl = baseUrl,
-                authToken = authToken,
-                currentScreen = currentScreen,
-                newTasksCount = uiState.newTasksCount,
-                unreadChatCount = unreadChatCount,
-                onMap = { navigateTab(Screen.Map.route) },
-                onTaskList = { navigateTab(Screen.TaskList.route) },
-                onChat = { navigateTab(Screen.Chat.route) },
-                onMyAddresses = {
-                    drawerScope.launch { drawerState.close() }
-                    navController.navigate(Screen.MyAddresses.route) { launchSingleTop = true }
-                },
-                onSettings = { navigateTab(Screen.Settings.route) },
-                onProfile = {
-                    drawerScope.launch { drawerState.close() }
-                    navController.navigate(Screen.UserSettings.route) { launchSingleTop = true }
-                },
-            )
-        },
-    ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = {
+            if (showBottomBar) {
+                AppBottomBar(
+                    currentScreen = currentScreen,
+                    newTasksCount = uiState.newTasksCount,
+                    unreadChatCount = unreadChatCount,
+                    onSelect = { navigateTab(it.route) },
+                )
+            }
+        },
         topBar = {
             if (showUnifiedTopBar) {
                 TopAppBar(
@@ -284,11 +260,6 @@ fun MainScreen(
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                         )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = openDrawer) {
-                            Icon(Icons.Default.Menu, contentDescription = "Меню")
-                        }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background
@@ -303,12 +274,14 @@ fun MainScreen(
                 .padding(paddingValues)
         ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Баннер офлайн-режима (занимает место сверху, сдвигает контент)
-            OfflineBanner(
-                isOffline = uiState.isOffline,
-                pendingActionsCount = uiState.pendingActionsCount,
-                onSyncClick = { viewModel.forceSync() }
-            )
+            if (uiState.showFailedActions) {
+                FailedActionsDialog(
+                    actions = uiState.failedActions,
+                    onRetry = { viewModel.retryFailedAction(it) },
+                    onDiscard = { viewModel.discardFailedAction(it) },
+                    onDismiss = { viewModel.hideFailedActions() }
+                )
+            }
 
             Box(modifier = Modifier.weight(1f)) {
             NavHost(
@@ -335,10 +308,12 @@ fun MainScreen(
                         isLoadingAddress = uiState.isLoadingAddress,
                         hasAttemptedAddressLookup = uiState.hasAttemptedAddressLookup,
                         showStatusDialog = uiState.showStatusDialog,
+                        statusDialogTarget = uiState.statusDialogTarget,
                         onRefresh = { viewModel.loadTasks() },
                         onTaskClick = { task -> viewModel.selectTask(task) },
                         onTaskDismiss = { viewModel.selectTask(null) },
                         onStatusChange = { viewModel.showStatusDialog() },
+                        onAdvanceStatus = { target -> viewModel.showStatusDialog(target) },
                         onHideStatusDialog = { viewModel.hideStatusDialog() },
                         onStatusSelected = { taskId: Long, status, comment ->
                             viewModel.updateTaskStatus(taskId, status, comment)
@@ -358,19 +333,35 @@ fun MainScreen(
                         photos = uiState.photos,
                         isLoadingPhotos = uiState.isLoadingPhotos,
                         isUploadingPhoto = uiState.isUploadingPhoto,
+                        pendingPhotos = uiState.selectedTaskPendingPhotos,
+                        unavailableDetails = uiState.unavailableDetails,
                         baseUrl = baseUrl,
                         authToken = authToken,
                         onOpenObjectCard = {
                             navController.navigate(Screen.ObjectCard.route)
                         },
-                        onAddPhotoClick = {
-                            photoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        },
+                        onAddPhotoClick = { uiState.selectedTask?.let { pickPhoto(it.id) } },
+                        onTakePhotoClick = { uiState.selectedTask?.let { takePhoto(it.id) } },
+                        onCancelPendingPhoto = { id -> viewModel.cancelPendingPhoto(id) },
                         onDeletePhoto = { photoId -> viewModel.deletePhoto(photoId) },
                         // Планируемая дата
-                        onPlannedDateChange = { taskId, date -> viewModel.updatePlannedDate(taskId, date) }
+                        onPlannedDateChange = { taskId, date -> viewModel.updatePlannedDate(taskId, date) },
+                        // Диспетчер/админ
+                        taskScope = uiState.taskScope.takeIf { uiState.canManageTasks },
+                        onTaskScopeChange = { viewModel.setTaskScope(it) },
+                        assignment = if (uiState.canAssignTasks) {
+                            TaskAssignmentUi(
+                                showDialog = uiState.showAssignDialog,
+                                workers = uiState.workers,
+                                isLoadingWorkers = uiState.isLoadingWorkers,
+                                isAssigning = uiState.isAssigning,
+                                onOpen = { viewModel.showAssignDialog() },
+                                onDismiss = { viewModel.hideAssignDialog() },
+                                onAssign = { taskId, userId -> viewModel.assignTask(taskId, userId) },
+                            )
+                        } else {
+                            null
+                        }
                     )
                 }
                 
@@ -498,7 +489,8 @@ fun MainScreen(
                             onCreateDirectConversation = { chatViewModel.createDirectConversation(it) },
                             onCreateGroupConversation = { name, userIds -> chatViewModel.createGroupConversation(name, userIds) },
                             onRefresh = { chatViewModel.loadConversations() },
-                            onOpenMenu = openDrawer,
+                            isOffline = uiState.isOffline,
+                            loadFailed = listState.error != null,
                         )
                     }
                     }
@@ -520,7 +512,9 @@ fun MainScreen(
                         baseUrl = baseUrl,
                         authToken = authToken,
                         onLogout = { showLogoutDialog = true },
-                        onOpenMenu = openDrawer
+                        onOpenMyAddresses = {
+                            navController.navigate(Screen.MyAddresses.route) { launchSingleTop = true }
+                        }
                     )
                 }
 
@@ -552,10 +546,19 @@ fun MainScreen(
                 }
 
                 composable(Screen.MyAddresses.route) {
-                    MyAddressesScreen(onOpenDrawer = openDrawer)
+                    MyAddressesScreen(onBack = { navController.popBackStack() })
                 }
             }
             } // Box(weight)
+            // Баннер офлайна/неотправленного — всегда над нижней панелью: у экранов
+            // со своей шапкой (чаты, «Ещё») он раньше оказывался над заголовком.
+            OfflineBanner(
+                isOffline = uiState.isOffline,
+                pendingActionsCount = uiState.pendingActionsCount,
+                onSyncClick = { viewModel.forceSync() },
+                failedActionsCount = uiState.failedActions.size,
+                onReviewFailed = { viewModel.showFailedActions() }
+            )
         } // Column
 
         // Диалог «Отправить заявку в чат» из карточки объекта
@@ -623,25 +626,25 @@ fun MainScreen(
             }
             
             // Диалог подтверждения загрузки фото
-            if (selectedPhotoUri != null && uiState.selectedTask != null) {
+            photoDraft?.let { draft ->
                 PhotoUploadConfirmDialog(
-                    photoUri = selectedPhotoUri!!,
+                    photoUri = draft.uri,
                     isUploading = uiState.isUploadingPhoto,
-                    onUpload = { photoType ->
-                        viewModel.uploadPhoto(uiState.selectedTask!!.id, selectedPhotoUri!!, photoType)
-                    },
-                    onDismiss = { selectedPhotoUri = null }
+                    onUpload = { photoType -> viewModel.uploadPhoto(draft.taskId, draft.uri, photoType) },
+                    onDismiss = { photoDraft = null },
+                    isOffline = uiState.isOffline,
+                    taskLabel = uiState.tasks.find { it.id == draft.taskId }?.shortLabel()
                 )
             }
         }
     }
-    } // ModalNavigationDrawer
 }
 
-private fun mainTitleFor(screen: Screen): String {
+private fun mainTitleFor(screen: Screen, canManageTasks: Boolean): String {
     return when (screen) {
         Screen.Map -> "Карта выездов"
-        Screen.TaskList -> "Мои заявки"
+        // Диспетчер/админ видит все заявки организации, а не только свои
+        Screen.TaskList -> if (canManageTasks) "Заявки" else "Мои заявки"
         Screen.Chat -> "Чаты"
         Screen.Settings -> "Настройки и профиль"
         Screen.Developer -> "Режим разработчика"
@@ -651,191 +654,54 @@ private fun mainTitleFor(screen: Screen): String {
     }
 }
 
+/**
+ * Нижняя навигация: четыре раздела, счётчики новых заявок и непрочитанных
+ * чатов видны всегда. «Ещё» подсвечен и во вложенных разделах настроек.
+ */
 @Composable
-private fun AppDrawer(
-    userName: String,
-    roleLabel: String?,
-    avatarUrl: String?,
-    baseUrl: String?,
-    authToken: String?,
+internal fun AppBottomBar(
     currentScreen: Screen,
     newTasksCount: Int,
     unreadChatCount: Int,
-    onMap: () -> Unit,
-    onTaskList: () -> Unit,
-    onChat: () -> Unit,
-    onMyAddresses: () -> Unit,
-    onSettings: () -> Unit,
-    onProfile: () -> Unit,
+    onSelect: (Screen) -> Unit,
 ) {
-    ModalDrawerSheet(
-        modifier = Modifier.width(296.dp),
-        drawerContainerColor = MaterialTheme.colorScheme.surface,
-        drawerTonalElevation = 0.dp,
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Бренд + профиль (как шапка/лого портала)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .clickable(onClick = onProfile)
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                val context = LocalContext.current
-                val resolvedAvatarUrl = remember(avatarUrl, baseUrl) {
-                    resolveAvatarUrl(avatarUrl, baseUrl)
+    Column {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+        NavigationBar(
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 0.dp,
+        ) {
+            Screen.bottomNavItems.forEach { screen ->
+                val badge = when (screen) {
+                    Screen.TaskList -> newTasksCount
+                    Screen.Chat -> unreadChatCount
+                    else -> 0
                 }
-                // Bearer-токен подставляет AuthHeaderInterceptor в общем Coil ImageLoader.
-                val avatarRequest = remember(resolvedAvatarUrl) {
-                    resolvedAvatarUrl?.let { url ->
-                        ImageRequest.Builder(context)
-                            .data(url)
-                            .crossfade(true)
-                            .build()
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    AppColors.PrimaryDark,
-                                )
-                            )
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (avatarRequest != null) {
-                        AsyncImage(
-                            model = avatarRequest,
-                            contentDescription = "Аватар",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.matchParentSize(),
-                        )
-                    } else {
-                        Text(
-                            text = avatarInitials(userName).ifEmpty { "?" },
-                            style = MaterialTheme.typography.titleLarge,
-                            color = Color.White,
-                        )
-                    }
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = userName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                    )
-                    if (!roleLabel.isNullOrBlank()) {
-                        Text(
-                            text = roleLabel,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                        )
-                    }
-                }
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-            Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                DrawerSectionTitle("Основное")
-                PortalDrawerItem(Screen.Map, currentScreen == Screen.Map, 0, onMap)
-                PortalDrawerItem(Screen.TaskList, currentScreen == Screen.TaskList, newTasksCount, onTaskList)
-                PortalDrawerItem(Screen.Chat, currentScreen == Screen.Chat, unreadChatCount, onChat)
-
-                DrawerSectionTitle("Управление")
-                PortalDrawerItem(Screen.MyAddresses, currentScreen == Screen.MyAddresses, 0, onMyAddresses)
-
-                DrawerSectionTitle("Личное")
-                // «Профиль» намеренно не дублируем пунктом меню — переход туда
-                // уже даёт клик по шапке с аватаром выше.
-                PortalDrawerItem(Screen.Settings, currentScreen == Screen.Settings, 0, onSettings)
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Text(
-                text = "FieldWorker • v${BuildConfig.VERSION_NAME}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun DrawerSectionTitle(title: String) {
-    Text(
-        text = title.uppercase(),
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        letterSpacing = 0.8.sp,
-        modifier = Modifier.padding(start = 28.dp, end = 16.dp, top = 10.dp, bottom = 4.dp),
-    )
-}
-
-@Composable
-private fun PortalDrawerItem(
-    screen: Screen,
-    selected: Boolean,
-    badge: Int,
-    onClick: () -> Unit,
-) {
-    val accent = MaterialTheme.colorScheme.primary
-    val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-    val contentColor = if (selected) accent else MaterialTheme.colorScheme.onSurface
-    val iconColor = if (selected) accent else MaterialTheme.colorScheme.onSurfaceVariant
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 1.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(bg)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        screen.icon?.let {
-            Icon(it, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
-        }
-        Text(
-            text = screen.label,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-            color = contentColor,
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 14.dp),
-        )
-        if (badge > 0) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(MaterialTheme.colorScheme.error)
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = if (badge > 99) "99+" else "$badge",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onError,
+                NavigationBarItem(
+                    selected = currentScreen == screen,
+                    onClick = { onSelect(screen) },
+                    icon = {
+                        BadgedBox(
+                            badge = {
+                                if (badge > 0) {
+                                    Badge(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                                    ) { Text(if (badge > 99) "99+" else "$badge") }
+                                }
+                            }
+                        ) {
+                            screen.icon?.let { Icon(it, contentDescription = null) }
+                        }
+                    },
+                    label = { Text(screen.label, style = MaterialTheme.typography.labelMedium) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
                 )
             }
         }

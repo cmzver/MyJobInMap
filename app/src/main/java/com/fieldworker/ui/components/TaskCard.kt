@@ -1,9 +1,16 @@
 package com.fieldworker.ui.components
 
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -27,23 +35,27 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskStatus
-import com.fieldworker.ui.map.toColor
 import com.fieldworker.ui.map.toIcon
+import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.TaskUtils
+import com.fieldworker.ui.utils.containerColor
+import com.fieldworker.ui.utils.contentColor
 import com.fieldworker.ui.utils.isAttention
-import com.fieldworker.ui.utils.priorityColor
 
 /** Дальше этого расстояние считаем недостоверным и не показываем. */
 private const val MAX_DISTANCE_METERS = 300_000f
@@ -53,7 +65,7 @@ fun TaskCard(
     task: Task,
     modifier: Modifier = Modifier,
     isSelected: Boolean = false,
-    showArrow: Boolean = true,
+    showArrow: Boolean = false,
     userLat: Double? = null,
     userLon: Double? = null,
     onClick: () -> Unit,
@@ -61,16 +73,35 @@ fun TaskCard(
     val view = LocalView.current
     val ui = rememberTaskCardUi(task, userLat, userLon)
     val priorityIsAttention = task.priority.isAttention()
-    val barColor = if (priorityIsAttention) ui.priorityColor else MaterialTheme.colorScheme.outlineVariant
+    // Полоса — только у аварийной: единственный красный сигнал в ленте
+    val priorityColor = task.priority.contentColor()
+    val barColor = if (priorityIsAttention) priorityColor else Color.Transparent
+    val showPriorityLabel = priorityIsAttention || task.priority == Priority.URGENT
+
+    // Тактильный отклик: карточка слегка «проседает» под пальцем
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.98f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "card-press"
+    )
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .clickable {
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current
+            ) {
                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                 onClick()
             },
-        shape = RoundedCornerShape(12.dp),
+        shape = AppShape.md,
         color = if (isSelected) {
             MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)
         } else {
@@ -111,20 +142,31 @@ fun TaskCard(
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     // Ярлык приоритета показываем только когда он что-то значит
-                    // (аварийная/срочная) — рутина остаётся без цветового шума.
-                    if (priorityIsAttention) {
+                    // (аварийная — красным, срочная — нейтрально); рутина без шума.
+                    if (showPriorityLabel) {
                         BulletDot()
+                        if (priorityIsAttention) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = priorityColor,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
                         Text(
                             text = task.priority.displayName,
                             style = MaterialTheme.typography.labelMedium,
-                            color = ui.priorityColor,
+                            color = priorityColor,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
+                            // fill = true: ярлык забирает всё свободное место, и дата
+                            // всегда прижата вправо (раньше делили пополам со Spacer).
+                            modifier = Modifier.weight(1f),
                         )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
-                    Spacer(modifier = Modifier.weight(1f))
                     Text(
                         text = ui.formattedDate,
                         style = MaterialTheme.typography.labelSmall,
@@ -175,7 +217,7 @@ fun TaskCard(
                         BulletDot()
                         // Цветом отмечаем только просрочку; обычная план-дата — тихий серый.
                         val plannedColor = if (ui.isPlannedOverdue) {
-                            Color(0xFFFF3B30)
+                            MaterialTheme.colorScheme.error
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         }
@@ -209,13 +251,14 @@ private fun BulletDot() {
  */
 @Composable
 private fun StatusChip(task: Task) {
-    val color = task.status.toColor()
+    val color by animateColorAsState(task.status.contentColor(), label = "status-color")
+    val container by animateColorAsState(task.status.containerColor(), label = "status-container")
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(color.copy(alpha = 0.12f))
+            .clip(AppShape.pill)
+            .background(container)
             .padding(horizontal = 7.dp, vertical = 2.dp),
     ) {
         Box(
@@ -235,7 +278,6 @@ private fun StatusChip(task: Task) {
 }
 
 private data class TaskCardUi(
-    val priorityColor: Color,
     val distance: String?,
     val formattedDate: String,
     val formattedPlannedDate: String?,
@@ -252,13 +294,12 @@ private fun rememberTaskCardUi(
 ): TaskCardUi = remember(task, userLat, userLon) {
     val displayNumber = task.getDisplayNumber()
     TaskCardUi(
-        priorityColor = priorityColor(task.priority),
         // Прячем неправдоподобную дистанцию: нет фикса геолокации или кривые
         // координаты дают сотни/тысячи км — это мусор, а не полезный ориентир.
         distance = TaskUtils.calculateDistance(userLat, userLon, task.lat, task.lon)
             ?.takeIf { it in 0f..MAX_DISTANCE_METERS }
             ?.let { TaskUtils.formatDistance(it) },
-        formattedDate = TaskUtils.formatShortDate(task.createdAt),
+        formattedDate = TaskUtils.formatCompactDate(task.createdAt),
         formattedPlannedDate = task.plannedDate?.let { TaskUtils.formatShortDate(it) },
         isPlannedOverdue = task.status != TaskStatus.DONE
             && task.status != TaskStatus.CANCELLED
@@ -275,7 +316,7 @@ private fun rememberTaskCardUi(
  * У title в этих данных лежит адрес, поэтому без описания заголовок совпадёт с
  * адресной строкой — это осознанный fallback, лучше чем пусто.
  */
-private fun taskHeadline(task: Task, displayNumber: String): String {
+internal fun taskHeadline(task: Task, displayNumber: String): String {
     val raw = task.description?.trim().orEmpty()
     if (raw.isBlank()) return formatTaskTitle(task, displayNumber)
 
@@ -294,8 +335,14 @@ private fun taskHeadline(task: Task, displayNumber: String): String {
         text = withoutRefs.replaceFirst(LEADING_ORG_TOKEN, "").trim()
     }
 
+    // 3. Телефон есть в отдельном поле — в заголовке он только съедает место.
+    text = text.replace(INLINE_PHONE, "").trim().trimEnd(',', ';', ':').trim()
+
     return text.ifBlank { formatTaskTitle(task, displayNumber) }
 }
+
+/** «Телефон: +79219876543» / «тел. 8921…» внутри описания. */
+private val INLINE_PHONE = Regex("""(?:тел(?:ефон)?\.?\s*:?\s*)?\+?[78]\d{10}""", RegexOption.IGNORE_CASE)
 
 /** Символы служебных строк-номеров: цифры, №, разделители, пунктуация. */
 private val SERVICE_CHARS = Regex("[№#\\d/\\\\\\s.,;:()\\-–—]")
@@ -306,7 +353,7 @@ private val LEADING_REF_PREFIX = Regex("^№?\\s*\\d+\\s*/\\s*№?\\s*[\\d.\\s]+
 /** ALL-CAPS токен-организация сразу после номерного префикса (напр. «ЭЛЬТОН»). */
 private val LEADING_ORG_TOKEN = Regex("^[А-ЯЁA-Z]{3,}\\s+")
 
-private fun formatTaskTitle(task: Task, displayNumber: String): String {
+internal fun formatTaskTitle(task: Task, displayNumber: String): String {
     val escapedNumber = Regex.escape(displayNumber)
     val cleaned = task.title
         .trim()
@@ -327,8 +374,8 @@ fun CompactTaskCard(
     onClick: () -> Unit
 ) {
     val view = LocalView.current
-    val priorityColor = priorityColor(task.priority)
-    val statusColor = task.status.toColor()
+    val priorityColor = task.priority.contentColor()
+    val statusColor = task.status.contentColor()
     val statusIcon = task.status.toIcon()
     val displayNumber = remember(task.taskNumber, task.id, task.title) { task.getDisplayNumber() }
 
@@ -358,7 +405,7 @@ fun CompactTaskCard(
                 modifier = Modifier
                     .fillMaxHeight()
                     .width(3.dp)
-                    .background(priorityColor.copy(alpha = 0.9f))
+                    .background(if (task.priority.isAttention()) priorityColor else Color.Transparent)
             )
 
             Row(

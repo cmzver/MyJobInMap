@@ -134,7 +134,7 @@ def _event_to_dict(row: IPSecurityEventModel) -> dict:
 
 
 @router.get("/overview")
-async def security_overview(
+def security_overview(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_admin),
 ):
@@ -183,7 +183,7 @@ async def security_overview(
 
 
 @router.get("/blocked")
-async def list_blocked(
+def list_blocked(
     include_expired: bool = Query(False),
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_admin),
@@ -202,7 +202,7 @@ async def list_blocked(
 
 
 @router.post("/blocked")
-async def block_ip(
+def block_ip(
     payload: BlockIPRequest,
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_admin),
@@ -236,7 +236,7 @@ async def block_ip(
 
 
 @router.delete("/blocked/{ip_address}")
-async def unblock_ip(
+def unblock_ip(
     ip_address: str,
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_admin),
@@ -250,7 +250,7 @@ async def unblock_ip(
 
 
 @router.get("/allowlist")
-async def list_allowlist(
+def list_allowlist(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_admin),
 ):
@@ -260,7 +260,7 @@ async def list_allowlist(
 
 
 @router.post("/allowlist")
-async def add_allowlist(
+def add_allowlist(
     payload: AllowlistRequest,
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_admin),
@@ -274,7 +274,7 @@ async def add_allowlist(
 
 
 @router.delete("/allowlist/{ip_address}")
-async def remove_allowlist(
+def remove_allowlist(
     ip_address: str,
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_admin),
@@ -287,7 +287,7 @@ async def remove_allowlist(
 
 
 @router.get("/events")
-async def list_events(
+def list_events(
     limit: int = Query(100, ge=1, le=500),
     ip_address: Optional[str] = Query(None),
     event_type: Optional[str] = Query(None),

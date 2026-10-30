@@ -27,11 +27,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -41,8 +38,6 @@ import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,7 +48,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,6 +56,9 @@ import com.fieldworker.domain.model.Conversation
 import com.fieldworker.domain.model.ConversationType
 import com.fieldworker.domain.model.User
 import com.fieldworker.ui.chat.components.ChatAvatar
+import com.fieldworker.ui.components.AppSearchField
+import com.fieldworker.ui.theme.AppShape
+import com.fieldworker.ui.utils.accentTextColor
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -84,10 +81,16 @@ fun ConversationListScreen(
     onCreateDirectConversation: (Long) -> Unit,
     onCreateGroupConversation: (String, List<Long>) -> Unit,
     onRefresh: () -> Unit,
-    onOpenMenu: (() -> Unit)? = null,
+    // Сервер недоступен / последняя загрузка не удалась — пустой список
+    // означает «не загрузили», а не «чатов нет»
+    isOffline: Boolean = false,
+    loadFailed: Boolean = false,
 ) {
-    LaunchedEffect(conversations.isEmpty(), isLoading) {
-        if (conversations.isEmpty() && !isLoading) {
+    // Пустой список — одна попытка при входе и при возврате связи. Раньше эффект
+    // перезапускался после каждой неудачной загрузки: без сети это был
+    // бесконечный цикл запросов и вечный индикатор обновления.
+    LaunchedEffect(isOffline) {
+        if (!isOffline && conversations.isEmpty() && !isLoading) {
             onRefresh()
         }
     }
@@ -135,7 +138,6 @@ fun ConversationListScreen(
                     showCreateDialog = true
                     onLoadUsers(false)
                 },
-                onOpenMenu = onOpenMenu,
             )
 
             PullToRefreshBox(
@@ -147,6 +149,8 @@ fun ConversationListScreen(
                     EmptyConversationState(
                         selectedFilter = selectedFilter,
                         searchQuery = searchQuery,
+                        isUnavailable = conversations.isEmpty() && (isOffline || loadFailed),
+                        onRetry = onRefresh,
                         onCreateClick = {
                             showCreateDialog = true
                             onLoadUsers(false)
@@ -228,31 +232,26 @@ private fun ConversationListHeader(
     onSearchQueryChange: (String) -> Unit,
     onFilterChange: (ConversationListFilter) -> Unit,
     onCreateClick: () -> Unit,
-    onOpenMenu: (() -> Unit)? = null,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface),
     ) {
+        // Геометрия как у TopAppBar остальных разделов: высота 64dp,
+        // заголовок с отступом 16dp — при переключении вкладок он не прыгает.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 8.dp),
+                .height(64.dp)
+                .padding(start = 16.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (onOpenMenu != null) {
-                IconButton(onClick = onOpenMenu) {
-                    Icon(Icons.Default.Menu, contentDescription = "Меню")
-                }
-            }
             Text(
                 text = "Чаты",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = if (onOpenMenu != null) 4.dp else 12.dp),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
             )
             IconButton(onClick = onCreateClick) {
                 Icon(
@@ -263,49 +262,13 @@ private fun ConversationListHeader(
             }
         }
 
-        // Search bar
-        TextField(
+        AppSearchField(
             value = searchQuery,
             onValueChange = onSearchQueryChange,
+            placeholder = "Поиск",
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .clip(RoundedCornerShape(14.dp)),
-            placeholder = {
-                Text(
-                    "Поиск",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            },
-            leadingIcon = {
-                Icon(
-                    Icons.Default.Search,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
-                )
-            },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { onSearchQueryChange("") }) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "Очистить",
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-            },
-            singleLine = true,
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                disabledIndicatorColor = Color.Transparent,
-            ),
-            textStyle = MaterialTheme.typography.bodyMedium,
+                .padding(horizontal = 16.dp),
         )
 
         Spacer(Modifier.height(4.dp))
@@ -431,7 +394,7 @@ private fun ConversationItem(
                             text = formatChatTime(preview.createdAt),
                             style = MaterialTheme.typography.labelSmall,
                             color = if (isUnread && !conversation.isMuted)
-                                MaterialTheme.colorScheme.primary
+                                accentTextColor()
                             else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -485,7 +448,7 @@ private fun ConversationItem(
                         modifier = Modifier
                             .background(
                                 MaterialTheme.colorScheme.surfaceVariant,
-                                RoundedCornerShape(6.dp),
+                                AppShape.sm,
                             )
                             .padding(horizontal = 6.dp, vertical = 2.dp),
                     ) {
@@ -505,6 +468,8 @@ private fun ConversationItem(
 private fun EmptyConversationState(
     selectedFilter: ConversationListFilter,
     searchQuery: String,
+    isUnavailable: Boolean,
+    onRetry: () -> Unit,
     onCreateClick: () -> Unit,
     onClearSearch: () -> Unit,
 ) {
@@ -512,11 +477,13 @@ private fun EmptyConversationState(
     val isArchive = selectedFilter == ConversationListFilter.ARCHIVED
 
     val title = when {
+        isUnavailable -> "Нет подключения"
         isSearching -> "Ничего не найдено"
         isArchive -> "Архив пуст"
         else -> "Нет активных чатов"
     }
     val description = when {
+        isUnavailable -> "Чаты загрузятся, когда появится связь"
         isSearching -> "Попробуйте изменить запрос"
         isArchive -> "Архивированные диалоги появятся здесь"
         else -> "Создайте первый диалог с коллегой"
@@ -558,7 +525,9 @@ private fun EmptyConversationState(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(24.dp))
-        if (isSearching) {
+        if (isUnavailable) {
+            TextButton(onClick = onRetry) { Text("Повторить") }
+        } else if (isSearching) {
             TextButton(onClick = onClearSearch) { Text("Очистить поиск") }
         } else if (!isArchive) {
             TextButton(onClick = onCreateClick) { Text("Новый чат") }

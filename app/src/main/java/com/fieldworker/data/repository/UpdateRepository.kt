@@ -5,6 +5,7 @@ import android.util.Log
 import com.fieldworker.data.api.AuthApi
 import com.fieldworker.data.remote.generated.AppUpdateCheck
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -45,6 +46,8 @@ class UpdateRepository @Inject constructor(
                 Log.w(TAG, "Check update failed: ${response.code()}")
                 Result.failure(Exception("Server error: ${response.code()}"))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Check update error", e)
             Result.failure(e)

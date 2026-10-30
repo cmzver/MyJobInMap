@@ -236,7 +236,7 @@ async def send_message_with_attachment(
 
 
 @router.get("/attachments/{attachment_id}/download")
-async def download_attachment(
+def download_attachment(
     attachment_id: int,
     current_user: UserModel = Depends(get_current_user_required),
     db: Session = Depends(get_db),
@@ -282,7 +282,7 @@ async def download_attachment(
 
 
 @router.get("/attachments/{attachment_id}/thumbnail")
-async def download_attachment_thumbnail(
+def download_attachment_thumbnail(
     attachment_id: int,
     current_user: UserModel = Depends(get_current_user_required),
     db: Session = Depends(get_db),

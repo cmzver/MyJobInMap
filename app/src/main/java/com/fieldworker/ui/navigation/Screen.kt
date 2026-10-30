@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
@@ -13,7 +14,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
  * Destinations навигационного графа приложения.
  * 
  * Определяет все маршруты для Navigation Compose.
- * Bottom navigation tabs: Map, TaskList, Settings.
+ * Нижняя навигация: Карта, Заявки, Чаты, Ещё (настройки + второстепенные разделы).
  * Дополнительные экраны: Developer (полноэкранный).
  */
 sealed class Screen(
@@ -31,15 +32,15 @@ sealed class Screen(
     /** Список заявок */
     data object TaskList : Screen(
         route = "task_list",
-        label = "Список",
+        label = "Заявки",
         icon = Icons.AutoMirrored.Filled.List
     )
     
-    /** Настройки */
+    /** «Ещё»: настройки, профиль и второстепенные разделы (Мои адреса) */
     data object Settings : Screen(
         route = "settings",
-        label = "Настройки",
-        icon = Icons.Default.Settings
+        label = "Ещё",
+        icon = Icons.Default.Menu
     )
 
     /** Чаты */
@@ -62,7 +63,7 @@ sealed class Screen(
     /** Полноэкранная карточка объекта */
     data object ObjectCard : Screen(route = "object_card")
 
-    /** Раздел «Мои адреса» (открывается из бокового меню) */
+    /** Раздел «Мои адреса» (открывается из «Ещё») */
     data object MyAddresses : Screen(
         route = "my_addresses",
         label = "Мои адреса",

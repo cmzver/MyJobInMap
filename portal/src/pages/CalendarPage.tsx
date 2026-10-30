@@ -13,8 +13,7 @@ import Spinner from '@/components/Spinner'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
 import { useAuthStore } from '@/store/authStore'
-import apiClient from '@/api/client'
-import { Task } from '@/types/task'
+import { fetchAllTaskPages } from '@/api/tasks'
 import { normalizeRoleForAccess } from '@/types/user'
 import { 
   format, 
@@ -29,6 +28,7 @@ import {
   parseISO
 } from 'date-fns'
 import { ru } from 'date-fns/locale'
+import { STATUS_HEX } from '@/config/taskConstants'
 
 export default function CalendarPage() {
   const { user } = useAuthStore()
@@ -48,9 +48,7 @@ export default function CalendarPage() {
       if (isWorker && user?.id) {
         params.append('assignee_id', String(user.id))
       }
-      params.append('size', '200')
-      const response = await apiClient.get<{ items: Task[] }>(`/tasks?${params}`)
-      return response.data.items
+      return fetchAllTaskPages(params)
     },
   })
 
@@ -196,12 +194,8 @@ export default function CalendarPage() {
                             {dayTasks.slice(0, 3).map((task) => (
                               <span
                                 key={task.id}
-                                className={`w-1.5 h-1.5 rounded-full ${
-                                  isSelected ? 'bg-white/70' :
-                                  task.status === 'NEW' ? 'bg-red-500' :
-                                  task.status === 'IN_PROGRESS' ? 'bg-yellow-500' :
-                                  'bg-green-500'
-                                }`}
+                                className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white/70' : ''}`}
+                                style={isSelected ? undefined : { backgroundColor: STATUS_HEX[task.status] ?? STATUS_HEX.DONE }}
                               />
                             ))}
                             {dayTasks.length > 3 && (

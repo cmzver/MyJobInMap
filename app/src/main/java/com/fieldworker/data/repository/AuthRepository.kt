@@ -11,6 +11,7 @@ import com.fieldworker.data.remote.generated.ReportSettingsUpdate
 import com.fieldworker.data.remote.generated.Token
 import com.fieldworker.data.remote.generated.UserResponse
 import com.fieldworker.data.preferences.AppPreferences
+import com.fieldworker.domain.model.AccessLevel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -102,9 +103,10 @@ class AuthRepository @Inject constructor(
                 if (prefs.getUserId() <= 0) prefs.setUserId(user.id)
                 if (prefs.getUsername().isNullOrBlank()) prefs.setUsername(user.username)
                 if (prefs.getUserFullName().isNullOrBlank()) prefs.setUserFullName(user.fullName)
-                if (prefs.getUserRole().isNullOrBlank()) prefs.setUserRole(user.role)
-                // role_label и avatar_url синхронизируем всегда — могут меняться
-                // без перелогина (переименование группы / смена аватара)
+                // Роль, role_label, base_access и avatar_url синхронизируем всегда —
+                // могут меняться без перелогина (перевод в другую группу,
+                // переименование группы, смена аватара)
+                prefs.setUserRole(user.role)
                 prefs.setUserRoleLabel(user.roleLabel)
                 prefs.setBaseAccess(user.baseAccess)
                 prefs.setUserAvatarUrl(user.avatarUrl)
@@ -183,6 +185,31 @@ class AuthRepository @Inject constructor(
      * Получить роль пользователя
      */
     fun getUserRole(): String? = prefs.getUserRole()
+
+    /**
+     * Права текущего пользователя (ключ → разрешено). Матрица прав редактируется
+     * в портале, поэтому для тонкого гейтинга (assign_tasks и т.п.) берём её с сервера.
+     */
+    suspend fun getMyPermissions(): Result<Map<String, Boolean>> {
+        return try {
+            val response = authApi.getMyPermissions()
+            val body = response.body()
+            if (response.isSuccessful && body != null) {
+                Result.success(body.permissions)
+            } else {
+                Result.failure(Exception("Ошибка загрузки прав: ${response.code()}"))
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(Exception("Ошибка подключения: ${e.message}"))
+        }
+    }
+
+    /**
+     * Базовый уровень доступа текущего пользователя (драйвит гейтинг UI).
+     */
+    fun getAccessLevel(): AccessLevel = AccessLevel.resolve(prefs.getUserRole(), prefs.getBaseAccess())
 
     /**
      * Получить URL аватара пользователя (относительный путь от сервера).

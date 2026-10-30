@@ -37,7 +37,7 @@ class DeviceResponse(BaseModel):
 
 
 @router.get("", response_model=List[DeviceResponse])
-async def list_devices(
+def list_devices(
     db: Session = Depends(get_db), admin: UserModel = Depends(get_current_admin)
 ):
     """Получить список всех устройств (только админ)"""
@@ -67,7 +67,7 @@ async def list_devices(
 
 
 @router.delete("/{device_id:int}")
-async def delete_device(
+def delete_device(
     device_id: int,
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_admin),
@@ -87,7 +87,7 @@ async def delete_device(
 
 
 @router.post("")
-async def register_device(
+def register_device(
     device: DeviceRegister,
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user_required),
@@ -124,7 +124,7 @@ async def register_device(
 
 
 @router.delete("/unregister")
-async def unregister_device(
+def unregister_device(
     device: DeviceRegister,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user_required),
@@ -145,7 +145,7 @@ async def unregister_device(
 
 
 @router.get("/info")
-async def list_devices_info(
+def list_devices_info(
     db: Session = Depends(get_db),
     admin: UserModel = Depends(get_current_admin),
 ):

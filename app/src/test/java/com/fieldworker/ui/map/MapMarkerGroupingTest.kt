@@ -145,3 +145,25 @@ class MapMarkerGroupingTest {
         assertEquals(2, summary.activeCount)
     }
 }
+
+class TaskGroupSummaryColorTest {
+
+    private fun summary(
+        priority: com.fieldworker.domain.model.Priority = com.fieldworker.domain.model.Priority.CURRENT,
+        new: Int = 0, inProgress: Int = 0, done: Int = 0, cancelled: Int = 0,
+    ) = TaskGroupSummary(priority, new, inProgress, done, cancelled)
+
+    @org.junit.Test
+    fun `dominant status prefers new over in progress over closed`() {
+        org.junit.Assert.assertEquals(com.fieldworker.domain.model.TaskStatus.NEW, summary(new = 1, inProgress = 3).dominantStatus)
+        org.junit.Assert.assertEquals(com.fieldworker.domain.model.TaskStatus.IN_PROGRESS, summary(inProgress = 1, done = 5).dominantStatus)
+        org.junit.Assert.assertEquals(com.fieldworker.domain.model.TaskStatus.DONE, summary(done = 1, cancelled = 1).dominantStatus)
+    }
+
+    @org.junit.Test
+    fun `emergency highlights marker only while active`() {
+        val emergency = com.fieldworker.domain.model.Priority.EMERGENCY
+        org.junit.Assert.assertTrue(summary(priority = emergency, inProgress = 1).hasActiveEmergency)
+        org.junit.Assert.assertFalse(summary(priority = emergency, done = 1).hasActiveEmergency)
+    }
+}

@@ -98,7 +98,7 @@ class SlaResponse(BaseModel):
 
 
 @router.get("", response_model=SlaResponse)
-async def sla_dashboard(
+def sla_dashboard(
     period: str = Query(
         default="month",
         pattern="^(today|yesterday|week|month|quarter|year|all|custom)$",

@@ -6,13 +6,13 @@ import com.fieldworker.data.remote.generated.TaskListResponse
 import com.fieldworker.data.remote.generated.TaskResponse
 import com.fieldworker.data.remote.generated.Token
 import com.fieldworker.data.remote.generated.UserResponse
+import com.fieldworker.domain.model.AccessLevel
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.domain.model.User
-import com.fieldworker.domain.model.UserRole
 
 /**
  * Маперы для конвертации DTO → Domain модели.
@@ -120,7 +120,9 @@ fun UserResponse.toDomain(): User = User(
     fullName = fullName,
     email = email,
     phone = phone,
-    role = UserRole.fromString(role),
+    role = role,
+    roleLabel = roleLabel,
+    access = AccessLevel.resolve(role, baseAccess),
     isActive = isActive,
     avatarUrl = avatarUrl
 )
@@ -137,7 +139,9 @@ fun Token.toUser(): User = User(
     id = userId,
     username = username,
     fullName = fullName,
-    role = UserRole.fromString(role),
+    role = role,
+    roleLabel = roleLabel,
+    access = AccessLevel.resolve(role, baseAccess),
     isActive = true,
     avatarUrl = avatarUrl
 )

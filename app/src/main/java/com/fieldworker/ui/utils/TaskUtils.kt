@@ -89,6 +89,20 @@ object TaskUtils {
         }
     }
 
+    /**
+     * Компактная дата для ленты (заявки уже сгруппированы по дням): сегодня —
+     * время, текущий год — «28.10», иначе — «28.10.25».
+     */
+    fun formatCompactDate(dateString: String, today: java.time.LocalDate = java.time.LocalDate.now()): String {
+        val dateTime = parseDateTime(dateString) ?: return dateString
+        val pattern = when {
+            dateTime.toLocalDate() == today -> "HH:mm"
+            dateTime.year == today.year -> "dd.MM"
+            else -> "dd.MM.yy"
+        }
+        return dateTime.format(DateTimeFormatter.ofPattern(pattern))
+    }
+
     fun formatShortTime(dateString: String): String {
         return try {
             val dateTime = parseDateTime(dateString) ?: return ""
@@ -301,13 +315,23 @@ fun extractAdditionalInfo(task: Task): String? {
     val description = task.description
     if (description.isBlank()) return null
     var info = description
-        .replace(Regex("""\+?[78]\d{10}"""), "")
+        .replace(Regex("""(?:тел(?:ефон)?\.?\s*:?\s*)?\+?[78]\d{10}""", RegexOption.IGNORE_CASE), "")
         .replace(Regex("""(?:кв\.?\s*|квартира\s*)\d+""", RegexOption.IGNORE_CASE), "")
         .replace(Regex("""\s*,\s*,\s*"""), ", ")
         .replace(Regex("""^\s*,\s*"""), "")
         .replace(Regex("""\s*,\s*$"""), "")
         .trim()
+        .trimEnd(',', ';', ':')
+        .trim()
     return info.ifBlank { null }
+}
+
+/** «+79219876543» → «+7 921 987-65-43»; нестандартные номера — как есть. */
+fun formatPhoneForDisplay(phone: String): String {
+    val normalized = normalizePhoneForDial(phone)
+    val m = Regex("""^\+7(\d{3})(\d{3})(\d{2})(\d{2})$""").find(normalized) ?: return normalized
+    val (code, a, b, c) = m.destructured
+    return "+7 $code $a-$b-$c"
 }
 
 fun normalizePhoneForDial(phone: String): String {
@@ -317,5 +341,17 @@ fun normalizePhoneForDial(phone: String): String {
         compact.startsWith("+") -> compact
         compact.isNotBlank() -> "+$compact"
         else -> compact
+    }
+}
+
+/** Открыть набор номера (без звонка — пользователь подтверждает сам). */
+fun dialPhone(context: android.content.Context, phone: String) {
+    runCatching {
+        context.startActivity(
+            android.content.Intent(
+                android.content.Intent.ACTION_DIAL,
+                android.net.Uri.parse("tel:${normalizePhoneForDial(phone)}"),
+            ),
+        )
     }
 }

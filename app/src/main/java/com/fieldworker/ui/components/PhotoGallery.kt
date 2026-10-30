@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -15,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
@@ -27,7 +27,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -40,27 +43,25 @@ import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.fieldworker.R
+import com.fieldworker.domain.model.PendingPhoto
+import com.fieldworker.domain.model.PhotoType
 import com.fieldworker.domain.model.TaskPhoto
+import com.fieldworker.domain.model.photoTypeDisplayName
+import com.fieldworker.ui.theme.AppShape
+import com.fieldworker.ui.utils.accentTextColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Headers
+import java.io.File
 import java.io.InputStream
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 /**
- * Типы фото для выбора
- */
-enum class PhotoType(val value: String, val displayName: String) {
-    BEFORE("before", "До работ"),
-    AFTER("after", "После работ"),
-    COMPLETION("completion", "При завершении")
-}
-
-/**
- * Галерея фотографий заявки
+ * Галерея фотографий заявки: плитки «Снять» и «Галерея», затем снимки,
+ * ждущие отправки, затем фото с сервера. Заголовок — у секции-владельца.
  */
 @Composable
 fun PhotoGallery(
@@ -71,61 +72,48 @@ fun PhotoGallery(
     authToken: String? = null,
     onAddPhotoClick: () -> Unit,
     onDeletePhoto: (Long) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    pendingPhotos: List<PendingPhoto> = emptyList(),
+    onTakePhotoClick: (() -> Unit)? = null,
+    onCancelPendingPhoto: (Long) -> Unit = {},
+    emptyText: String? = "Нет фотографий — снимите или выберите из галереи."
 ) {
     var selectedPhoto by remember { mutableStateOf<TaskPhoto?>(null) }
-    
+    var selectedPending by remember { mutableStateOf<PendingPhoto?>(null) }
+
     Column(modifier = modifier.fillMaxWidth()) {
-        // Заголовок секции
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 4.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Info,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Фотографии",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                if (photos.isNotEmpty()) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "(${photos.size})",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+            if (onTakePhotoClick != null) {
+                item(key = "take") {
+                    AddPhotoTile(
+                        label = "Снять",
+                        iconPainter = painterResource(id = R.drawable.ic_camera),
+                        isBusy = isUploading,
+                        onClick = onTakePhotoClick
                     )
                 }
             }
-            
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(12.dp))
-        
-        // Галерея
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(vertical = 4.dp)
-        ) {
-            // Кнопка добавления фото
-            item {
-                AddPhotoButton(
-                    isUploading = isUploading,
+            item(key = "pick") {
+                AddPhotoTile(
+                    label = "Галерея",
+                    iconVector = Icons.Default.Add,
+                    // Крутилка одна — на первой плитке
+                    isBusy = isUploading && onTakePhotoClick == null,
+                    enabled = !isUploading,
                     onClick = onAddPhotoClick
                 )
             }
-            
-            // Фотографии
+
+            items(pendingPhotos, key = { "pending-${it.id}" }) { pending ->
+                PendingPhotoThumbnail(
+                    photo = pending,
+                    onClick = { selectedPending = pending }
+                )
+            }
+
             items(photos, key = { it.id }) { photo ->
                 PhotoThumbnail(
                     photo = photo,
@@ -135,18 +123,17 @@ fun PhotoGallery(
                 )
             }
         }
-        
-        // Плейсхолдер, если нет фото
-        if (photos.isEmpty() && !isLoading) {
+
+        if (emptyText != null && photos.isEmpty() && !isLoading) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Нет фотографий. Нажмите +, чтобы добавить.",
+                text = emptyText,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
-    
+
     // Диалог просмотра фото
     selectedPhoto?.let { photo ->
         PhotoViewDialog(
@@ -160,17 +147,32 @@ fun PhotoGallery(
             }
         )
     }
+
+    selectedPending?.let { pending ->
+        PendingPhotoDialog(
+            photo = pending,
+            onDismiss = { selectedPending = null },
+            onCancelUpload = {
+                onCancelPendingPhoto(pending.id)
+                selectedPending = null
+            }
+        )
+    }
 }
 
 /**
  * Диалог подтверждения загрузки фото с выбором типа
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PhotoUploadConfirmDialog(
     photoUri: Uri,
     isUploading: Boolean,
     onUpload: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    isOffline: Boolean = false,
+    /** К какой заявке фото — после возврата из камеры карточка может быть уже закрыта. */
+    taskLabel: String? = null
 ) {
     var selectedType by remember { mutableStateOf(PhotoType.COMPLETION) }
     
@@ -184,10 +186,20 @@ fun PhotoUploadConfirmDialog(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Загрузка фото",
+                    text = "Новое фото",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
+                taskLabel?.let { label ->
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
@@ -221,8 +233,8 @@ fun PhotoUploadConfirmDialog(
                 
                 Spacer(modifier = Modifier.height(8.dp))
                 
-                // Кнопки выбора типа
-                Row(
+                // Кнопки выбора типа: не влезли в строку — переносятся целиком
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -230,16 +242,25 @@ fun PhotoUploadConfirmDialog(
                         FilterChip(
                             selected = selectedType == type,
                             onClick = { selectedType = type },
-                            label = { Text(type.displayName, style = MaterialTheme.typography.labelSmall) },
-                            modifier = Modifier.weight(1f),
+                            label = { Text(type.displayName, maxLines = 1) },
                             enabled = !isUploading
                         )
                     }
                 }
                 
+                if (isOffline) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Нет связи — фото сохранится и отправится само, когда она появится.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.Start)
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Прогресс загрузки или кнопки
+                // Прогресс сохранения или кнопки
                 if (isUploading) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
@@ -253,7 +274,7 @@ fun PhotoUploadConfirmDialog(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Загрузка...",
+                            text = "Сохранение…",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -275,13 +296,7 @@ fun PhotoUploadConfirmDialog(
                             onClick = { onUpload(selectedType.value) },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Загрузить")
+                            Text(if (isOffline) "Сохранить" else "Отправить", maxLines = 1)
                         }
                     }
                 }
@@ -291,42 +306,154 @@ fun PhotoUploadConfirmDialog(
 }
 
 /**
- * Кнопка добавления фото
+ * Плитка добавления фото: иконка и подпись источника.
  */
 @Composable
-private fun AddPhotoButton(
-    isUploading: Boolean,
-    onClick: () -> Unit
+private fun AddPhotoTile(
+    label: String,
+    isBusy: Boolean,
+    onClick: () -> Unit,
+    iconPainter: Painter? = null,
+    iconVector: ImageVector? = null,
+    enabled: Boolean = !isBusy
 ) {
-    Card(
-        modifier = Modifier
-            .size(80.dp)
-            .clickable(enabled = !isUploading) { onClick() },
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-        ),
-        border = CardDefaults.outlinedCardBorder()
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = AppShape.md,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.size(80.dp)
     ) {
-        Box(
+        Column(
             modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            if (isUploading) {
+            if (isBusy) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(24.dp),
                     strokeWidth = 2.dp
                 )
             } else {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Добавить фото",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(32.dp)
-                )
+                val tint = if (enabled) accentTextColor() else MaterialTheme.colorScheme.onSurfaceVariant
+                when {
+                    iconPainter != null -> Icon(iconPainter, null, tint = tint, modifier = Modifier.size(26.dp))
+                    iconVector != null -> Icon(iconVector, null, tint = tint, modifier = Modifier.size(26.dp))
+                }
             }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
+}
+
+/**
+ * Миниатюра снимка из очереди: локальный файл и плашка состояния.
+ */
+@Composable
+private fun PendingPhotoThumbnail(
+    photo: PendingPhoto,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(80.dp)
+            .clip(AppShape.md)
+            .clickable(onClick = onClick)
+    ) {
+        AsyncImage(
+            model = File(photo.filePath),
+            contentDescription = if (photo.isFailed) "Фото не отправлено" else "Фото ждёт отправки",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        )
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(
+                    if (photo.isFailed) {
+                        MaterialTheme.colorScheme.error.copy(alpha = 0.9f)
+                    } else {
+                        Color.Black.copy(alpha = 0.55f)
+                    }
+                )
+                .padding(horizontal = 6.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                painter = painterResource(
+                    id = if (photo.isFailed) R.drawable.ic_warning_triangle else R.drawable.ic_sync_status
+                ),
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(12.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = if (photo.isFailed) "ошибка" else "ждёт",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+/**
+ * Снимок из очереди: что с ним происходит и как от него отказаться.
+ */
+@Composable
+private fun PendingPhotoDialog(
+    photo: PendingPhoto,
+    onDismiss: () -> Unit,
+    onCancelUpload: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (photo.isFailed) "Фото не отправлено" else "Фото в очереди") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                AsyncImage(
+                    model = File(photo.filePath),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(AppShape.md)
+                )
+                Text(
+                    text = if (photo.isFailed) {
+                        "Сервер не принял фото. Повторить отправку можно из плашки «Не отправлено»."
+                    } else {
+                        "«${photoTypeDisplayName(photo.photoType)}» — отправится само, как только будет связь."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Закрыть") }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onCancelUpload,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Удалить")
+            }
+        }
+    )
 }
 
 /**
@@ -343,7 +470,7 @@ private fun PhotoThumbnail(
         modifier = Modifier
             .size(80.dp)
             .clickable { onClick() },
-        shape = MaterialTheme.shapes.medium
+        shape = AppShape.md
     ) {
         val requestBuilder = ImageRequest.Builder(LocalContext.current)
             .data(photo.getFullUrl(baseUrl))
@@ -398,12 +525,7 @@ private fun PhotoViewDialog(
     }
     
     // Тип фото на русском
-    val photoTypeDisplay = when (photo.photoType) {
-        "before" -> "До работ"
-        "after" -> "После работ"
-        "completion" -> "При завершении"
-        else -> photo.photoType
-    }
+    val photoTypeDisplay = photo.getPhotoTypeDisplayName()
     
     Dialog(
         onDismissRequest = onDismiss,

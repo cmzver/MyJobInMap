@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/admin", tags=["Admin - Backups & DB"])
 
 
 @router.get("/backups", response_model=BackupListResponse)
-async def list_backups(
+def list_backups(
     admin: UserModel = Depends(get_current_superadmin),
     service: BackupService = Depends(get_backup_service),
 ):
@@ -35,7 +35,7 @@ async def list_backups(
 
 
 @router.post("/backups")
-async def run_backup(
+def run_backup(
     admin: UserModel = Depends(get_current_superadmin),
     service: BackupService = Depends(get_backup_service),
 ):
@@ -51,7 +51,7 @@ async def run_backup(
 
 
 @router.get("/backups/settings", response_model=BackupSettingsResponse)
-async def get_backup_settings(
+def get_backup_settings(
     admin: UserModel = Depends(get_current_superadmin),
     service: BackupService = Depends(get_backup_service),
 ):
@@ -60,7 +60,7 @@ async def get_backup_settings(
 
 
 @router.patch("/backups/settings", response_model=BackupSettingsResponse)
-async def update_backup_settings(
+def update_backup_settings(
     settings_data: BackupSettingsSchema,
     admin: UserModel = Depends(get_current_superadmin),
     service: BackupService = Depends(get_backup_service),
@@ -82,7 +82,7 @@ async def update_backup_settings(
 
 
 @router.get("/backups/{filename}/download")
-async def download_backup(
+def download_backup(
     filename: str,
     admin: UserModel = Depends(get_current_superadmin),
     service: BackupService = Depends(get_backup_service),
@@ -99,7 +99,7 @@ async def download_backup(
 
 
 @router.delete("/backups/{filename}")
-async def delete_backup(
+def delete_backup(
     filename: str,
     admin: UserModel = Depends(get_current_superadmin),
     service: BackupService = Depends(get_backup_service),

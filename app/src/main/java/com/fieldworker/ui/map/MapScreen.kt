@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.Point
 import android.graphics.Rect
@@ -18,7 +19,6 @@ import android.graphics.drawable.Drawable
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
-import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -26,7 +26,6 @@ import android.text.TextPaint
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
@@ -73,11 +72,17 @@ import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.components.CompactTaskCard
 import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.PhotoUploadConfirmDialog
+import com.fieldworker.ui.components.rememberPhotoDraft
+import com.fieldworker.ui.components.rememberPickPhotoLauncher
+import com.fieldworker.ui.components.rememberTakePhotoLauncher
+import com.fieldworker.ui.list.AssigneePickerDialog
 import com.fieldworker.ui.list.TaskDetailBottomSheet
 import com.fieldworker.ui.utils.extractApartment
 import com.fieldworker.ui.utils.extractAdditionalInfo
 import com.fieldworker.ui.utils.extractPhoneNumber
+import com.fieldworker.ui.utils.contentColor
 import com.fieldworker.ui.utils.priorityColor
+import com.fieldworker.ui.utils.isDarkPalette
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
@@ -172,26 +177,21 @@ fun MapScreen(
     val baseUrl = viewModel.preferences.getFullServerUrl()
     val authToken = viewModel.preferences.getAuthToken()
 
-    var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    // Фото для заявки до подтверждения отправки — переживает и смерть процесса
+    var photoDraft by rememberPhotoDraft()
     var selectedGroup by remember { mutableStateOf<TaskMarkerGroup?>(null) }
     // Счётчик явных запросов "перейти к моему местоположению"
     var centerOnLocationTick by remember { mutableStateOf(0) }
     val savedMapPosition = remember { viewModel.getSavedMapPosition() }
 
+    // Снимок сохранён в очередь — закрываем диалог (при ошибке он остаётся)
+    var wasSavingPhoto by remember { mutableStateOf(false) }
     LaunchedEffect(uiState.isUploadingPhoto) {
-        if (!uiState.isUploadingPhoto && selectedPhotoUri != null && uiState.error == null) {
-            selectedPhotoUri = null
-        }
+        if (wasSavingPhoto && !uiState.isUploadingPhoto && uiState.error == null) photoDraft = null
+        wasSavingPhoto = uiState.isUploadingPhoto
     }
-
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia(),
-        onResult = { uri: Uri? ->
-            uri?.let {
-                selectedPhotoUri = it
-            }
-        }
-    )
+    val pickPhoto = rememberPickPhotoLauncher { photoDraft = it }
+    val takePhoto = rememberTakePhotoLauncher { photoDraft = it }
 
     var hasLocationPermission by remember {
         mutableStateOf(
@@ -322,6 +322,7 @@ fun MapScreen(
         if (uiState.showStatusDialog && uiState.selectedTask != null) {
             StatusChangeDialog(
                 currentStatus = uiState.selectedTask!!.status,
+                targetStatus = uiState.statusDialogTarget,
                 onDismiss = { viewModel.hideStatusDialog() },
                 onStatusSelected = { status, comment ->
                     viewModel.updateTaskStatus(
@@ -357,32 +358,49 @@ fun MapScreen(
             photos = uiState.photos,
             isLoadingPhotos = uiState.isLoadingPhotos,
             isUploadingPhoto = uiState.isUploadingPhoto,
+            pendingPhotos = uiState.selectedTaskPendingPhotos,
+            unavailableDetails = uiState.unavailableDetails,
             baseUrl = baseUrl,
             authToken = authToken,
             onDismiss = { viewModel.selectTask(null) },
             onStatusChange = { viewModel.showStatusDialog() },
+            onAdvanceStatus = { target -> viewModel.showStatusDialog(target) },
             onOpenObjectCard = onOpenObjectCard,
             onAddComment = { text -> viewModel.addComment(uiState.selectedTask!!.id, text) },
-            onAddPhotoClick = {
-                photoPickerLauncher.launch(
-                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                )
-            },
+            onAddPhotoClick = { pickPhoto(uiState.selectedTask!!.id) },
+            onTakePhotoClick = { takePhoto(uiState.selectedTask!!.id) },
+            onCancelPendingPhoto = { id -> viewModel.cancelPendingPhoto(id) },
             onDeletePhoto = { photoId -> viewModel.deletePhoto(photoId) },
-            onPlannedDateChange = { date -> viewModel.updatePlannedDate(uiState.selectedTask!!.id, date) }
+            onPlannedDateChange = { date -> viewModel.updatePlannedDate(uiState.selectedTask!!.id, date) },
+            onAssignClick = if (uiState.canAssignTasks) {
+                { viewModel.showAssignDialog() }
+            } else {
+                null
+            }
         )
-        
-        // Диалог подтверждения загрузки фото
-        selectedPhotoUri?.let { uri ->
-            PhotoUploadConfirmDialog(
-                photoUri = uri,
-                isUploading = uiState.isUploadingPhoto,
-                onUpload = { photoType ->
-                    viewModel.uploadPhoto(uiState.selectedTask!!.id, uri, photoType)
-                },
-                onDismiss = { selectedPhotoUri = null }
+
+        if (uiState.showAssignDialog) {
+            AssigneePickerDialog(
+                workers = uiState.workers,
+                currentAssigneeId = uiState.selectedTask!!.assignedUserId,
+                isLoading = uiState.isLoadingWorkers,
+                isAssigning = uiState.isAssigning,
+                onAssign = { userId -> viewModel.assignTask(uiState.selectedTask!!.id, userId) },
+                onDismiss = { viewModel.hideAssignDialog() }
             )
         }
+    }
+
+    // Диалог подтверждения фото — вне карточки: после смерти процесса её уже нет
+    photoDraft?.let { draft ->
+        PhotoUploadConfirmDialog(
+            photoUri = draft.uri,
+            isUploading = uiState.isUploadingPhoto,
+            onUpload = { photoType -> viewModel.uploadPhoto(draft.taskId, draft.uri, photoType) },
+            onDismiss = { photoDraft = null },
+            isOffline = uiState.isOffline,
+            taskLabel = uiState.tasks.find { it.id == draft.taskId }?.shortLabel()
+        )
     }
 }
 
@@ -470,9 +488,9 @@ fun TasksStatsBar(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatItem(count = newCount, label = stringResource(id = R.string.stat_new), color = Color(0xFFFF3B30))
-            StatItem(count = inProgressCount, label = stringResource(id = R.string.stat_in_progress), color = Color(0xFFFF9500))
-            StatItem(count = doneCount, label = stringResource(id = R.string.stat_done), color = Color(0xFF34C759))
+            StatItem(count = newCount, label = stringResource(id = R.string.stat_new), color = TaskStatus.NEW.contentColor())
+            StatItem(count = inProgressCount, label = stringResource(id = R.string.stat_in_progress), color = TaskStatus.IN_PROGRESS.contentColor())
+            StatItem(count = doneCount, label = stringResource(id = R.string.stat_done), color = TaskStatus.DONE.contentColor())
         }
     }
 }
@@ -534,14 +552,19 @@ private fun MapActionButton(
 }
 
 /**
- * Диалог изменения статуса с комментарием
+ * Диалог изменения статуса с комментарием.
+ *
+ * С [targetStatus] (кнопка следующего шага в карточке) переход уже выбран —
+ * диалог его только подтверждает: без списка вариантов, с полем комментария.
+ * Без него (тап по статусу) — полный выбор доступных переходов.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatusChangeDialog(
     currentStatus: TaskStatus,
     onDismiss: () -> Unit,
-    onStatusSelected: (TaskStatus, String) -> Unit
+    onStatusSelected: (TaskStatus, String) -> Unit,
+    targetStatus: TaskStatus? = null
 ) {
     var comment by remember { mutableStateOf("") }
     val availableStatuses = when (currentStatus) {
@@ -549,11 +572,15 @@ fun StatusChangeDialog(
         TaskStatus.IN_PROGRESS -> listOf(TaskStatus.DONE, TaskStatus.CANCELLED)
         else -> emptyList()
     }
-    var selectedStatus by remember(currentStatus) { mutableStateOf(availableStatuses.firstOrNull() ?: currentStatus) }
+    val fixedTarget = targetStatus?.takeIf { it in availableStatuses }
+    var selectedStatus by remember(currentStatus, fixedTarget) {
+        mutableStateOf(fixedTarget ?: availableStatuses.firstOrNull() ?: currentStatus)
+    }
     val requiresComment = selectedStatus == TaskStatus.DONE || selectedStatus == TaskStatus.CANCELLED
     val dialogTitle = when (selectedStatus) {
         TaskStatus.DONE -> "Завершение заявки"
         TaskStatus.CANCELLED -> "Отмена заявки"
+        TaskStatus.IN_PROGRESS -> if (fixedTarget != null) "Взять в работу?" else "Изменить статус"
         else -> "Изменить статус"
     }
     val commentLabel = when (selectedStatus) {
@@ -568,7 +595,9 @@ fun StatusChangeDialog(
     }
     val confirmText = when (selectedStatus) {
         TaskStatus.DONE -> "Завершить"
-        TaskStatus.CANCELLED -> "Отменить"
+        // «Отменить» рядом с «Отмена» читалось как одно и то же
+        TaskStatus.CANCELLED -> "Отменить заявку"
+        TaskStatus.IN_PROGRESS -> "Взять в работу"
         else -> "Сохранить"
     }
     
@@ -589,7 +618,7 @@ fun StatusChangeDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyMedium
                     )
-                } else {
+                } else if (fixedTarget == null) {
                     availableStatuses.forEach { status ->
                         Row(
                             modifier = Modifier
@@ -609,7 +638,7 @@ fun StatusChangeDialog(
                                 modifier = Modifier
                                     .size(10.dp)
                                     .clip(CircleShape)
-                                    .background(status.toColor())
+                                    .background(status.contentColor())
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
@@ -620,7 +649,9 @@ fun StatusChangeDialog(
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
+                }
 
+                if (availableStatuses.isNotEmpty()) {
                     OutlinedTextField(
                         value = comment,
                         onValueChange = { comment = it },
@@ -655,13 +686,11 @@ fun StatusChangeDialog(
     )
 }
 
-fun TaskStatus.toColor(): Color = when (this) {
-    TaskStatus.NEW -> Color(0xFFFF3B30)
-    TaskStatus.IN_PROGRESS -> Color(0xFFFF9500)
-    TaskStatus.DONE -> Color(0xFF34C759)
-    TaskStatus.CANCELLED -> Color(0xFF8E8E93)
-    TaskStatus.UNKNOWN -> Color(0xFF8E8E93)
-}
+fun TaskStatus.toColor(): Color = com.fieldworker.ui.utils.statusColor(this)
+
+/** Цвет маркера: красный для активной аварийной, иначе — цвет доминирующего статуса. */
+internal fun TaskGroupSummary.markerColor(): Color =
+    if (hasActiveEmergency) priorityColor(Priority.EMERGENCY) else dominantStatus.toColor()
 
 fun TaskStatus.toIcon() = when (this) {
     TaskStatus.NEW -> Icons.Default.Star
@@ -669,6 +698,31 @@ fun TaskStatus.toIcon() = when (this) {
     TaskStatus.DONE -> Icons.Default.CheckCircle
     TaskStatus.CANCELLED -> Icons.Default.Close
     TaskStatus.UNKNOWN -> Icons.Default.Warning
+}
+
+/**
+ * «Ночная» подложка карты: яркость инвертируется, а поворот оттенка на 180°
+ * возвращает цвета (вода остаётся синей, парки — зелёными). Контраст слегка
+ * снижен, чтобы подписи не были чисто белыми, а суша — чёрной.
+ */
+private val DarkMapTilesFilter: ColorMatrixColorFilter by lazy {
+    // Поворот оттенка на 180° (матрица hue-rotate из CSS Filter Effects, cos = -1, sin = 0)
+    val hue = floatArrayOf(
+        -0.574f, 1.430f, 0.144f,
+        0.426f, 0.430f, 0.144f,
+        0.426f, 1.430f, -0.856f,
+    )
+    val contrast = 0.85f
+    // Строки hue в сумме дают 1, поэтому k·hue·(255 − c) + 20 = −k·hue·c + (255k + 20)
+    val offset = 255f * contrast + 20f
+    ColorMatrixColorFilter(
+        floatArrayOf(
+            -contrast * hue[0], -contrast * hue[1], -contrast * hue[2], 0f, offset,
+            -contrast * hue[3], -contrast * hue[4], -contrast * hue[5], 0f, offset,
+            -contrast * hue[6], -contrast * hue[7], -contrast * hue[8], 0f, offset,
+            0f, 0f, 0f, 1f, 0f,
+        )
+    )
 }
 
 /**
@@ -706,6 +760,14 @@ private fun OsmMapView(
         }
     }
 
+    // Тёмная тема: белая подложка OSM слепит рядом с тёмным интерфейсом.
+    // Фильтр — только на тайлы; маркеры отдельными оверлеями его не получают.
+    val darkMap = isDarkPalette()
+    LaunchedEffect(darkMap) {
+        mapView.overlayManager.tilesOverlay.setColorFilter(if (darkMap) DarkMapTilesFilter else null)
+        mapView.invalidate()
+    }
+
     // Если есть сохранённая позиция — карта уже спозиционирована при создании mapView
     var mapCentered by remember { mutableStateOf(savedPosition != null) }
 
@@ -737,28 +799,46 @@ private fun OsmMapView(
         }
     }
 
-    LaunchedEffect(markerGroups, showMyLocation, myLocationLat, myLocationLon) {
-        mapView.overlays.clear()
-
-        if (showMyLocation && myLocationLat != null && myLocationLon != null) {
-            val myLocationMarker = Marker(mapView).apply {
-                position = GeoPoint(myLocationLat, myLocationLon)
-                title = "Моё местоположение"
-                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                icon = getMyLocationIcon(context)
-            }
-            mapView.overlays.add(myLocationMarker)
+    // Маркер «я» создаём один раз и только двигаем: GPS-фиксы приходят часто,
+    // и раньше каждый из них пересоздавал все маркеры заявок.
+    val myLocationMarker = remember {
+        Marker(mapView).apply {
+            title = "Моё местоположение"
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+            icon = getMyLocationIcon(context)
         }
+    }
+    val taskOverlays = remember { mutableListOf<org.osmdroid.views.overlay.Overlay>() }
+
+    LaunchedEffect(showMyLocation, myLocationLat, myLocationLon) {
+        val lat = myLocationLat
+        val lon = myLocationLon
+        mapView.overlays.remove(myLocationMarker)
+        if (showMyLocation && lat != null && lon != null) {
+            myLocationMarker.position = GeoPoint(lat, lon)
+            // Под маркерами заявок, как и раньше
+            mapView.overlays.add(0, myLocationMarker)
+            if (!mapCentered && markerGroups.isEmpty()) {
+                mapView.controller.animateTo(myLocationMarker.position)
+                mapCentered = true
+            }
+        }
+        mapView.invalidate()
+    }
+
+    LaunchedEffect(markerGroups) {
+        mapView.overlays.removeAll(taskOverlays)
+        taskOverlays.clear()
 
         markerGroups.forEach { group ->
             if (group.isCluster) {
                 val clusterDrawable = getClusterMarkerIcon(
                     context = context,
-                    markerColor = priorityColor(group.summary.highestPriority),
+                    markerColor = group.summary.markerColor(),
                     count = group.count
                 ) ?: return@forEach
 
-                mapView.overlays.add(
+                taskOverlays.add(
                     ClusterBubbleOverlay(
                         mapView = mapView,
                         point = GeoPoint(group.lat, group.lon),
@@ -780,7 +860,7 @@ private fun OsmMapView(
                     title = "[${group.primaryTask.taskNumber}] ${group.primaryTask.title}"
                     snippet = group.address
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    icon = getMarkerIcon(context, priorityColor(group.summary.highestPriority), group.count)
+                    icon = getMarkerIcon(context, group.summary.markerColor(), group.count)
 
                     setOnMarkerClickListener { _, _ ->
                         pendingGroupOpenJob?.cancel()
@@ -793,25 +873,16 @@ private fun OsmMapView(
                         true
                     }
                 }
-                mapView.overlays.add(marker)
+                taskOverlays.add(marker)
             }
         }
+        mapView.overlays.addAll(taskOverlays)
 
         // Центрируем карту только при первой загрузке данных.
         // При последующих обновлениях маркеров (смена статуса, фильтры) позицию не трогаем.
-        if (!mapCentered) {
-            val centered = when {
-                markerGroups.isNotEmpty() -> {
-                    fitMapToMarkers(mapView, markerGroups)
-                    true
-                }
-                showMyLocation && myLocationLat != null && myLocationLon != null -> {
-                    mapView.controller.animateTo(GeoPoint(myLocationLat, myLocationLon))
-                    true
-                }
-                else -> false
-            }
-            if (centered) mapCentered = true
+        if (!mapCentered && markerGroups.isNotEmpty()) {
+            fitMapToMarkers(mapView, markerGroups)
+            mapCentered = true
         }
 
         mapView.invalidate()

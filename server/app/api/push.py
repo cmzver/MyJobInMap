@@ -36,7 +36,7 @@ class PushUnsubscribePayload(BaseModel):
 
 
 @router.get("/vapid-public-key")
-async def get_vapid_public_key():
+def get_vapid_public_key():
     """Публичный VAPID-ключ для подписки браузера (applicationServerKey)."""
     return {
         "public_key": settings.VAPID_PUBLIC_KEY,
@@ -45,7 +45,7 @@ async def get_vapid_public_key():
 
 
 @router.post("/subscribe")
-async def subscribe(
+def subscribe(
     payload: PushSubscriptionPayload,
     request: Request,
     db: Session = Depends(get_db),
@@ -84,7 +84,7 @@ async def subscribe(
 
 
 @router.post("/unsubscribe")
-async def unsubscribe(
+def unsubscribe(
     payload: PushUnsubscribePayload,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user_required),

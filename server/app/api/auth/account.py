@@ -53,7 +53,7 @@ class PermissionsResponse(BaseModel):
 
 
 @router.get("/avatar/{user_id}/{file_name}", include_in_schema=False)
-async def get_user_avatar(user_id: int, file_name: str, db: Session = Depends(get_db)):
+def get_user_avatar(user_id: int, file_name: str, db: Session = Depends(get_db)):
     """Получить аватар пользователя по публичному URL."""
     user = db.query(UserModel).filter(UserModel.id == user_id).first()
     if not user or not user.avatar_path:
@@ -74,13 +74,13 @@ async def get_user_avatar(user_id: int, file_name: str, db: Session = Depends(ge
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(user: UserModel = Depends(get_current_user_required)):
+def get_me(user: UserModel = Depends(get_current_user_required)):
     """Получить текущего пользователя"""
     return user_to_response(user)
 
 
 @router.patch("/profile", response_model=UserResponse)
-async def update_profile(
+def update_profile(
     data: ProfileUpdate,
     user: UserModel = Depends(get_current_user_required),
     db: Session = Depends(get_db),
@@ -180,7 +180,7 @@ def change_password(
 
 
 @router.get("/report-settings", response_model=ReportSettingsResponse)
-async def get_report_settings(
+def get_report_settings(
     user: UserModel = Depends(get_current_user_required), db: Session = Depends(get_db)
 ):
     """Получить настройки отправки отчётов"""
@@ -191,7 +191,7 @@ async def get_report_settings(
 
 
 @router.get("/permissions", response_model=PermissionsResponse)
-async def get_my_permissions(
+def get_my_permissions(
     user: UserModel = Depends(get_current_user_required), db: Session = Depends(get_db)
 ):
     """Получить разрешения текущего пользователя"""
@@ -218,7 +218,7 @@ async def get_my_permissions(
 
 
 @router.patch("/report-settings", response_model=ReportSettingsResponse)
-async def update_report_settings(
+def update_report_settings(
     settings: ReportSettingsUpdate,
     user: UserModel = Depends(get_current_user_required),
     db: Session = Depends(get_db),

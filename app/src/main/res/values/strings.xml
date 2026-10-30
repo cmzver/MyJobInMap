@@ -12,8 +12,8 @@
     <string name="login_subtitle">Система заявок для сотрудников</string>
     <string name="login_username_label">Логин</string>
     <string name="login_password_label">Пароль</string>
-    <string name="login_show_password">Показать пароль</string>
-    <string name="login_hide_password">Скрыть пароль</string>
+    <string name="login_show_password">Показать</string>
+    <string name="login_hide_password">Скрыть</string>
     <string name="login_button">Войти</string>
     <string name="login_demo_hint">Демо доступ: admin/admin, user/user</string>
     <string name="login_server_settings">Настройки сервера</string>

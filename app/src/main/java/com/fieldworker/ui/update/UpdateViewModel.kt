@@ -1,8 +1,12 @@
 package com.fieldworker.ui.update
 
+import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fieldworker.data.network.NetworkMonitor
+import com.fieldworker.data.network.ServerHealthCheck
+import com.fieldworker.data.network.toUserMessage
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.UpdateRepository
 import com.fieldworker.ui.components.UpdateState
@@ -12,7 +16,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import java.io.IOException
+import java.net.SocketTimeoutException
 import javax.inject.Inject
 
 /**
@@ -22,11 +29,25 @@ import javax.inject.Inject
 @HiltViewModel
 class UpdateViewModel @Inject constructor(
     private val updateRepository: UpdateRepository,
-    private val appPreferences: AppPreferences
+    private val appPreferences: AppPreferences,
+    private val networkMonitor: NetworkMonitor,
+    private val serverHealthCheck: ServerHealthCheck
 ) : ViewModel() {
 
     companion object {
         private const val TAG = "UpdateViewModel"
+
+        /** Автопроверка дёргается на каждый ON_RESUME (фото-пикер, звонок…) — не чаще. */
+        private const val AUTO_CHECK_INTERVAL_MS = 30 * 60_000L
+
+        /**
+         * Ручная проверка: дольше спиннер не крутим. Без этого таймауты
+         * подключения, чтения и повтор RetryInterceptor растягивали её на минуту.
+         */
+        internal const val MANUAL_CHECK_TIMEOUT_MS = 8_000L
+
+        internal const val NO_CONNECTION_MESSAGE =
+            "Нет связи с сервером. Проверьте подключение и попробуйте ещё раз."
     }
 
     private val _updateState = MutableStateFlow<UpdateState?>(null)
@@ -36,6 +57,8 @@ class UpdateViewModel @Inject constructor(
     val downloadedApk: StateFlow<File?> = _downloadedApk.asStateFlow()
 
     private var downloadJob: Job? = null
+    private var checkJob: Job? = null
+    private var lastAutoCheckAtMs = 0L
 
     /**
      * Проверить наличие обновления.
@@ -45,17 +68,38 @@ class UpdateViewModel @Inject constructor(
             return
         }
 
+        // Без сети или при заведомо недоступном сервере не ждём таймауты запроса;
+        // автопроверка при этом не считается сделанной — повторится со связью
+        if (!networkMonitor.isCurrentlyOnline() || serverHealthCheck.lastKnownReachable == false) {
+            if (isManualCheck) _updateState.value = UpdateState.Error(NO_CONNECTION_MESSAGE)
+            return
+        }
+
+        if (!isManualCheck) {
+            val now = SystemClock.elapsedRealtime()
+            val checkedRecently = lastAutoCheckAtMs != 0L && now - lastAutoCheckAtMs < AUTO_CHECK_INTERVAL_MS
+            if (checkJob?.isActive == true || checkedRecently) return
+            lastAutoCheckAtMs = now
+        }
+
         val dismissedVersionCode = appPreferences.getDismissedUpdateVersionCode()
         if (dismissedVersionCode != -1 && versionCode >= dismissedVersionCode) {
             appPreferences.clearDismissedUpdateVersionCode()
         }
 
-        viewModelScope.launch {
+        checkJob = viewModelScope.launch {
             if (isManualCheck) {
                 _updateState.value = UpdateState.Checking
             }
 
-            updateRepository.checkForUpdate(versionCode, versionName)
+            val result = if (isManualCheck) {
+                withTimeoutOrNull(MANUAL_CHECK_TIMEOUT_MS) {
+                    updateRepository.checkForUpdate(versionCode, versionName)
+                } ?: Result.failure(SocketTimeoutException("Update check timed out"))
+            } else {
+                updateRepository.checkForUpdate(versionCode, versionName)
+            }
+            result
                 .onSuccess { check ->
                     if (check.updateAvailable && check.update != null) {
                         val ignoredVersionCode = appPreferences.getDismissedUpdateVersionCode()
@@ -77,7 +121,7 @@ class UpdateViewModel @Inject constructor(
                     Log.w(TAG, "Update check failed: ${it.message}")
                     if (isManualCheck) {
                         _updateState.value = UpdateState.Error(
-                            it.message ?: "Не удалось проверить обновления"
+                            if (it is IOException) NO_CONNECTION_MESSAGE else it.toUserMessage()
                         )
                     }
                 }

@@ -18,13 +18,23 @@ import androidx.core.view.WindowCompat
 
 // Базовая палитра: нейтральные поверхности + оранжевый акцент (как в портале).
 object AppColors {
-    // Оранжевый акцент портала (tailwind primary: 500 #ff9800, 600 #fb8c00, 700 #f57c00).
+    // Оранжевый акцент портала (tailwind primary: 500 #ff9800, 600 #fb8c00, 700 #f57c00) —
+    // фирменный цвет: иконка приложения, уведомления, сплэш.
     val Primary = Color(0xFFF57C00)
     val PrimaryLight = Color(0xFFFFB74D)
+    // Акцент светлой темы в интерфейсе. Белый на #F57C00 — 2.7:1: не дотягивал
+    // даже до 3:1 для иконок/переключателей, а подпись кнопки на солнце не
+    // читалась. #E65100 — тот же оранжевый на ступень глубже: 3.8:1.
     val PrimaryDark = Color(0xFFE65100)
     // Светлая подложка активного пункта (portal primary-50).
     val PrimaryContainerLight = Color(0xFFFFF3E0)
-    val PrimaryContainerDark = Color(0xFF4A2A00)
+    // Тёмная тема: оранжевые подложки на почти чёрном фоне читаются как
+    // коричневый — контейнер акцента там нейтрально-тёплый.
+    val PrimaryContainerDark = Color(0xFF2E2A26)
+
+    // Оранжевый для мелкого текста-ссылки на светлом фоне: обычному тексту
+    // нужно 4.5:1 (WCAG AA), акцент #E65100 даёт 3.8:1. Тот же оттенок, темнее: 4.6:1.
+    val AccentText = Color(0xFFC25400)
 
     val Emergency = Color(0xFFC94F4F)
     val EmergencyBg = Color(0xFFFCECEC)
@@ -35,10 +45,29 @@ object AppColors {
     val Planned = Color(0xFF2F7D4B)
     val PlannedBg = Color(0xFFEAF6EC)
 
-    val StatusNew = Color(0xFFC94F4F)
-    val StatusInProgress = Color(0xFFCC7A1A)
-    val StatusDone = Color(0xFF2F7D4B)
-    val StatusCancelled = Color(0xFF7B8790)
+    // Цвет несёт СТАТУС (единственный источник — ui/utils/TaskColors.kt).
+    // Красный зарезервирован за аварийным приоритетом, поэтому «Новая» — синяя.
+    val StatusNew = Color(0xFF2563EB)
+    val StatusInProgress = Color(0xFFD97706)
+    val StatusDone = Color(0xFF16A34A)
+    val StatusCancelled = Color(0xFF6B7280)
+    val PriorityEmergency = Color(0xFFDC2626)
+
+    // Тёмная тема: те же оттенки на шаг светлее (шкала 400) — тёмный фон
+    // съедает контраст базовых (600), «Новая» синим почти не читалась.
+    val StatusNewDark = Color(0xFF60A5FA)
+    val StatusInProgressDark = Color(0xFFFBBF24)
+    val StatusDoneDark = Color(0xFF4ADE80)
+    val StatusCancelledDark = Color(0xFF9CA3AF)
+
+    // Текст статуса на светлом чипе — на ступень темнее точки (шкала 700):
+    // 600-е оттенки давали 2.8:1 для «В работе»/«Выполнена».
+    val StatusNewText = Color(0xFF1D4ED8)
+    val StatusInProgressText = Color(0xFFB45309)
+    val StatusDoneText = Color(0xFF15803D)
+    val StatusCancelledText = Color(0xFF4B5563)
+    val PriorityEmergencyDark = Color(0xFFF87171)
+    val PriorityNeutral = Color(0xFF8E8E93)
 
     val Background = Color(0xFFF6F7F3)
     val Surface = Color(0xFFFFFFFF)
@@ -64,11 +93,27 @@ private val DarkColorScheme = darkColorScheme(
     surfaceVariant = Color(0xFF243136),
     onSurface = Color(0xFFF1F4F5),
     onSurfaceVariant = Color(0xFFB6C0C4),
-    error = AppColors.Error
+    error = AppColors.Error,
+    // Ниже — роли, которые иначе берутся из фиолетовой baseline-палитры M3
+    // (лавандовые диалоги, меню, тональные кнопки, обводки).
+    secondaryContainer = Color(0xFF243136),
+    onSecondaryContainer = Color(0xFFF1F4F5),
+    tertiaryContainer = Color(0xFF1E3A2A),
+    onTertiaryContainer = Color(0xFFBDE5C8),
+    errorContainer = Color(0xFF3B1F1F),
+    onErrorContainer = Color(0xFFF2B8B5),
+    surfaceTint = AppColors.PrimaryLight,
+    outline = Color(0xFF6E7B81),
+    outlineVariant = Color(0xFF34434A),
+    surfaceContainerLowest = Color(0xFF0B1012),
+    surfaceContainerLow = Color(0xFF131A1D),
+    surfaceContainer = Color(0xFF182124),
+    surfaceContainerHigh = Color(0xFF1E282C),
+    surfaceContainerHighest = Color(0xFF253136),
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = AppColors.Primary,
+    primary = AppColors.PrimaryDark,
     onPrimary = Color.White,
     primaryContainer = AppColors.PrimaryContainerLight,
     onPrimaryContainer = AppColors.PrimaryDark,
@@ -79,7 +124,23 @@ private val LightColorScheme = lightColorScheme(
     surfaceVariant = AppColors.SurfaceVariant,
     onSurface = AppColors.OnSurface,
     onSurfaceVariant = AppColors.OnSurfaceVariant,
-    error = AppColors.Error
+    error = AppColors.Error,
+    // Ниже — роли, которые иначе берутся из фиолетовой baseline-палитры M3
+    // (лавандовые диалоги, меню, тональные кнопки, обводки).
+    secondaryContainer = Color(0xFFEDF0F1),
+    onSecondaryContainer = AppColors.OnSurface,
+    tertiaryContainer = AppColors.PlannedBg,
+    onTertiaryContainer = AppColors.Planned,
+    errorContainer = AppColors.EmergencyBg,
+    onErrorContainer = Color(0xFF8A1C1C),
+    surfaceTint = AppColors.PrimaryDark,
+    outline = Color(0xFF8A959B),
+    outlineVariant = Color(0xFFDDE2E4),
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Color(0xFFFAFBF9),
+    surfaceContainer = Color(0xFFF3F5F2),
+    surfaceContainerHigh = Color(0xFFFFFFFF),
+    surfaceContainerHighest = Color(0xFFE9ECEC),
 )
 
 @Composable

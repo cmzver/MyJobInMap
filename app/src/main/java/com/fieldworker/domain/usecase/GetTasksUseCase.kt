@@ -32,6 +32,13 @@ class GetTasksUseCase @Inject constructor(
      * Получить Flow количества отложенных действий
      */
     val pendingActionsCount = repository.pendingActionsCount
+
+    /** Офлайн-действия, которые не удалось отправить (dead-letter). */
+    val failedActions = repository.failedActions
+
+    suspend fun retryFailedAction(actionId: Long) = repository.retryFailedAction(actionId)
+
+    suspend fun discardFailedAction(actionId: Long) = repository.discardFailedAction(actionId)
     
     /**
      * Обновить список задач (из кеша или сервера)
@@ -45,6 +52,11 @@ class GetTasksUseCase @Inject constructor(
      */
     suspend fun getTaskDetail(taskId: Long): Result<Pair<Task, List<Comment>>> {
         return repository.getTaskDetail(taskId)
+    }
+
+    /** То же из локального кеша, без обращения к серверу. */
+    suspend fun getCachedTaskDetail(taskId: Long): Result<Pair<Task, List<Comment>>> {
+        return repository.getCachedTaskDetail(taskId)
     }
     
     /**
@@ -64,8 +76,8 @@ class GetTasksUseCase @Inject constructor(
     /**
      * Очистить локальный кеш (при выходе из аккаунта)
      */
-    suspend fun clearCache() {
-        repository.clearCache()
+    suspend fun clearCache(keepOutbox: Boolean = false) {
+        repository.clearCache(keepOutbox)
     }
     
     /**
@@ -73,5 +85,12 @@ class GetTasksUseCase @Inject constructor(
      */
     suspend fun updatePlannedDate(taskId: Long, plannedDate: String?): Result<Task> {
         return repository.updatePlannedDate(taskId, plannedDate)
+    }
+
+    /**
+     * Назначить исполнителя заявки (null — снять назначение)
+     */
+    suspend fun assignTask(taskId: Long, assigneeId: Long?): Result<Task> {
+        return repository.assignTask(taskId, assigneeId)
     }
 }

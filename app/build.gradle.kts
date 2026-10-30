@@ -25,8 +25,8 @@ android {
         applicationId = "com.fieldworker"
         minSdk = 24
         targetSdk = 34
-        versionCode = 23601
-        versionName = "2.36.1"
+        versionCode = 23803
+        versionName = "2.38.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -53,6 +53,23 @@ android {
     
     kotlinOptions {
         jvmTarget = "17"
+        // Конфиг стабильности Compose (compiler 1.5.5+): List/Set/Map и java.time
+        // считаются стабильными — экраны с такими параметрами снова пропускают
+        // рекомпозицию, когда данные не менялись.
+        freeCompilerArgs += listOf(
+            "-P",
+            "plugin:androidx.compose.compiler.plugins.kotlin:stabilityConfigurationPath=" +
+                "${project.projectDir.absolutePath}/compose-stability.conf",
+        )
+        // Отчёты о стабильности/пропускаемости composable: ./gradlew :app:compileDebugKotlin -PcomposeReports
+        // → app/build/compose_reports/
+        if (project.hasProperty("composeReports")) {
+            val reportsDir = "${project.layout.buildDirectory.get().asFile.absolutePath}/compose_reports"
+            freeCompilerArgs += listOf(
+                "-P", "plugin:androidx.compose.compiler.plugins.kotlin:reportsDestination=$reportsDir",
+                "-P", "plugin:androidx.compose.compiler.plugins.kotlin:metricsDestination=$reportsDir",
+            )
+        }
     }
     
     buildFeatures {
@@ -76,7 +93,17 @@ android {
         // тесте. Важно: mockkStatic(android.util.Log) конфликтует со стабингом
         // property-геттеров (every { mock.prop }) — см. MapViewModelTest.
         unitTests.isReturnDefaultValues = true
+        // Robolectric-скриншоты (ui/screenshot) читают ресурсы приложения
+        unitTests.isIncludeAndroidResources = true
         unitTests.all {
+            // Скриншот-тесты медленные (Robolectric) — только по запросу:
+            //   ./gradlew :app:testDebugUnitTest -Pscreenshots --tests "*.screenshot.*"
+            // PNG пишутся в app/build/outputs/roborazzi/.
+            if (project.hasProperty("screenshots")) {
+                it.systemProperty("roborazzi.test.record", "true")
+            } else {
+                it.exclude("**/screenshot/**")
+            }
             // MockK agent needs these JVM args on JDK 17+ / 21+
             it.jvmArgs(
                 "-XX:+EnableDynamicAgentLoading",
@@ -159,6 +186,11 @@ dependencies {
     testImplementation(libs.turbine)
     testImplementation(libs.arch.core.testing)
     testImplementation(libs.room.testing)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
     
     androidTestImplementation(libs.androidx.test.ext)
     androidTestImplementation(libs.espresso.core)
@@ -166,4 +198,11 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+// Конфиг стабильности Compose — вход компиляции: правка файла должна
+// перекомпилировать код, а не оставаться незамеченной инкрементальной сборкой.
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    inputs.file(layout.projectDirectory.file("compose-stability.conf"))
+        .withPathSensitivity(PathSensitivity.RELATIVE)
 }

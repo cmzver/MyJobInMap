@@ -11,34 +11,35 @@ import javax.inject.Singleton
 
 /**
  * Interceptor для автоматического повтора неудачных запросов.
- * 
+ *
  * Стратегия:
- * - До 3 попыток для сетевых ошибок
+ * - До 2 попыток для сетевых ошибок (одна повторная): при недоступном сервере
+ *   каждая попытка ждёт таймаут подключения, и три попытки растягивали ожидание
  * - Экспоненциальная задержка между попытками
  * - Не повторяем при ошибках авторизации (401, 403)
  */
 @Singleton
 class RetryInterceptor @Inject constructor() : Interceptor {
-    
+
     companion object {
         private const val TAG = "RetryInterceptor"
-        private const val MAX_RETRIES = 3
+        private const val MAX_RETRIES = 2
         private const val INITIAL_DELAY_MS = 1000L
     }
-    
+
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         var lastException: IOException? = null
-        
+
         repeat(MAX_RETRIES) { attempt ->
             try {
                 val response = chain.proceed(request)
-                
+
                 // Успешный ответ или клиентская ошибка - не повторяем
                 if (response.isSuccessful || response.code in 400..499) {
                     return response
                 }
-                
+
                 // Серверные ошибки (5xx) - повторяем
                 if (response.code in 500..599 && attempt < MAX_RETRIES - 1) {
                     response.close()
@@ -64,10 +65,10 @@ class RetryInterceptor @Inject constructor() : Interceptor {
                 }
             }
         }
-        
+
         throw lastException ?: IOException("Unknown error after $MAX_RETRIES retries")
     }
-    
+
     /**
      * Экспоненциальная задержка: 1s, 2s, 4s...
      */

@@ -30,7 +30,7 @@ router = APIRouter(prefix="/api/support", tags=["Support"])
 
 
 @router.get("/tickets", response_model=list[SupportTicketResponse])
-async def list_support_tickets(
+def list_support_tickets(
     scope: Literal["mine", "all"] = Query("mine"),
     status_filter: Optional[SupportTicketStatus] = Query(None, alias="status"),
     category: Optional[SupportTicketCategory] = None,
@@ -46,7 +46,7 @@ async def list_support_tickets(
 
 
 @router.get("/tickets/{ticket_id}", response_model=SupportTicketDetailResponse)
-async def get_support_ticket(
+def get_support_ticket(
     ticket_id: int,
     current_user: UserModel = Depends(get_current_user_required),
     service: SupportService = Depends(get_support_service),

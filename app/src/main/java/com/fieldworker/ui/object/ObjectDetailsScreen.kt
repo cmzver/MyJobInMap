@@ -1,24 +1,26 @@
 package com.fieldworker.ui.objectcard
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -31,15 +33,26 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.fieldworker.domain.model.AddressDetails
 import com.fieldworker.domain.model.Comment
+import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
+import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.TaskUtils
+import com.fieldworker.ui.utils.accentTextColor
+import com.fieldworker.ui.utils.containerColor
+import com.fieldworker.ui.utils.contentColor
+import com.fieldworker.ui.utils.dialPhone
+import com.fieldworker.ui.utils.extractAdditionalInfo
+import com.fieldworker.ui.utils.formatPhoneForDisplay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,12 +109,14 @@ fun ObjectDetailsScreen(
 
                 if (comments.isNotEmpty()) {
                     item {
+                        // Название и формат времени — как в карточке заявки
                         ObjectInsightList(
-                            title = "Комментарии",
+                            title = "Лента работ",
                             items = comments.map { comment ->
                                 comment.text to listOfNotNull(
                                     comment.author,
-                                    TaskUtils.formatShortDate(comment.createdAt),
+                                    TaskUtils.formatShortDate(comment.createdAt) + " " +
+                                        TaskUtils.formatShortTime(comment.createdAt),
                                 ).filter { it.isNotBlank() }.joinToString(" • ")
                             }
                         )
@@ -129,7 +144,7 @@ fun ObjectDetailsScreen(
                                 ObjectInsightList(
                                     title = "Контакты",
                                     items = addressDetails.contacts.map { contact ->
-                                        contact.name to listOfNotNull(contact.position, contact.phone, contact.email)
+                                        contact.name to listOfNotNull(contact.position, contact.phone?.let(::formatPhoneForDisplay), contact.email)
                                             .filter { it.isNotBlank() }
                                             .joinToString(" • ")
                                     }
@@ -227,131 +242,167 @@ private fun ObjectHeaderCard(task: Task?, addressDetails: AddressDetails?) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
                 text = addressDetails?.address ?: task?.address ?: "Адрес не определён",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            task?.let {
+            addressDetails?.city?.takeIf { it.isNotBlank() && !addressDetails.address.contains(it, true) }?.let {
                 Text(
-                    text = "По заявке #${it.getDisplayNumber()} • ${it.title}",
+                    text = it,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            // Заявка, по которой открыта карточка: тот же язык, что в ленте
+            task?.let { TaskBadgeRow(it) }
         }
     }
 }
 
 @Composable
-private fun TaskDetailsSection(task: Task) {
-    ObjectSectionCard(title = "Заявка") {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            ObjectInfoRow(
-                icon = Icons.Default.Info,
-                label = "Статус",
-                value = "${task.status.displayName} • ${task.priority.displayName}",
+private fun TaskBadgeRow(task: Task) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .clip(AppShape.pill)
+                .background(task.status.containerColor())
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(task.status.contentColor())
             )
-            if (task.description.isNotBlank()) {
-                ObjectInfoRow(
-                    icon = Icons.Default.Info,
-                    label = "Описание",
-                    value = task.description,
-                )
-            }
-            val customer = listOfNotNull(
-                task.customerName?.takeIf { it.isNotBlank() },
-                task.customerPhone?.takeIf { it.isNotBlank() },
-            ).joinToString(" • ")
-            if (customer.isNotBlank()) {
-                ObjectInfoRow(
-                    icon = Icons.Default.Person,
-                    label = "Заказчик",
-                    value = customer,
-                )
-            }
-            task.assignedUserName?.takeIf { it.isNotBlank() }?.let {
-                ObjectInfoRow(icon = Icons.Default.Person, label = "Исполнитель", value = it)
-            }
-            task.plannedDate?.takeIf { it.isNotBlank() }?.let {
-                ObjectInfoRow(
-                    icon = Icons.Default.Info,
-                    label = "Плановая дата",
-                    value = TaskUtils.formatShortDate(it),
-                )
-            }
-            val defect = listOfNotNull(
-                task.systemType?.takeIf { it.isNotBlank() },
-                task.defectType?.takeIf { it.isNotBlank() },
-            ).joinToString(" • ")
-            if (defect.isNotBlank()) {
-                ObjectInfoRow(icon = Icons.Default.Info, label = "Система / неисправность", value = defect)
-            }
+            Text(
+                text = task.status.displayName,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = task.status.contentColor()
+            )
         }
+        if (task.priority == Priority.EMERGENCY) {
+            Text(
+                text = "⚠ ${task.priority.displayName}",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = task.priority.contentColor()
+            )
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = "#${task.getDisplayNumber()}",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/** Факт карточки: подпись, значение и действие по тапу (у телефонов — набор номера). */
+private data class ObjectFact(
+    val label: String,
+    val value: String,
+    val onClick: (() -> Unit)? = null,
+)
+
+@Composable
+private fun TaskDetailsSection(task: Task) {
+    val context = LocalContext.current
+    val description = remember(task) { extractAdditionalInfo(task) ?: task.description.trim() }
+    val facts = buildList {
+        // Подписи — те же, что в карточке заявки («Клиент», а не «Заказчик»)
+        task.customerName?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Клиент", it)) }
+        task.customerPhone?.takeIf { it.isNotBlank() }?.let { phone ->
+            add(ObjectFact("Телефон", formatPhoneForDisplay(phone)) { dialPhone(context, phone) })
+        }
+        task.assignedUserName?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Исполнитель", it)) }
+        task.plannedDate?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Срок", TaskUtils.formatShortDate(it))) }
+        task.systemType?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Система", it)) }
+        task.defectType?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Неисправность", it)) }
+    }
+    ObjectSectionCard(title = "Заявка") {
+        if (description.isNotBlank()) {
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        if (facts.isNotEmpty()) ObjectFactsGrid(facts)
     }
 }
 
 @Composable
 private fun ObjectOverviewCard(addressDetails: AddressDetails) {
-    ObjectSectionCard(title = "Сводка") {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            ObjectInfoRow(
-                icon = Icons.Default.Home,
-                label = "Адрес",
-                value = addressDetails.address
-            )
+    val context = LocalContext.current
+    val facts = buildList {
+        addressDetails.entranceCount?.let { add(ObjectFact("Подъезды", it.toString())) }
+        addressDetails.floorCount?.let { add(ObjectFact("Этажи", it.toString())) }
+        addressDetails.apartmentCount?.let { add(ObjectFact("Квартиры", it.toString())) }
+        addressDetails.entrance?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Подъезд", it)) }
+        addressDetails.hasElevator?.let { add(ObjectFact("Лифт", if (it) "есть" else "нет")) }
+        if (addressDetails.hasIntercom == true) {
+            val code = addressDetails.intercomCode?.takeIf { it.isNotBlank() }
+            add(if (code != null) ObjectFact("Код домофона", code) else ObjectFact("Домофон", "есть"))
+        }
+        addressDetails.managementCompany?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("УК", it)) }
+        addressDetails.managementPhone?.takeIf { it.isNotBlank() }?.let { phone ->
+            add(ObjectFact("Телефон УК", formatPhoneForDisplay(phone)) { dialPhone(context, phone) })
+        }
+    }
+    if (facts.isEmpty()) return
+    ObjectSectionCard(title = "Объект") {
+        ObjectFactsGrid(facts)
+    }
+}
 
-            val buildingFacts = buildList {
-                addressDetails.entranceCount?.let { add("подъездов: $it") }
-                addressDetails.floorCount?.let { add("этажей: $it") }
-                addressDetails.apartmentCount?.let { add("квартир: $it") }
-                addressDetails.entrance?.takeIf { it.isNotBlank() }?.let { add("подъезд: $it") }
-            }.joinToString(" • ")
-
-            if (buildingFacts.isNotBlank()) {
-                ObjectInfoRow(
-                    icon = Icons.Default.Home,
-                    label = "Параметры здания",
-                    value = buildingFacts
-                )
-            }
-
-            val accessFacts = buildList {
-                if (addressDetails.hasElevator == true) add("есть лифт")
-                if (addressDetails.hasIntercom == true) {
-                    add(
-                        addressDetails.intercomCode?.takeIf { it.isNotBlank() }
-                            ?.let { "домофон: $it" }
-                            ?: "есть домофон"
-                    )
+/** Факты сеткой в две колонки с eyebrow-лейблами — как в карточке заявки. */
+@Composable
+private fun ObjectFactsGrid(facts: List<ObjectFact>) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        facts.chunked(2).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                row.forEach { fact ->
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .then(
+                                if (fact.onClick != null) {
+                                    Modifier.clip(AppShape.sm).clickable(onClick = fact.onClick)
+                                } else {
+                                    Modifier
+                                }
+                            )
+                    ) {
+                        Text(
+                            text = fact.label.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            letterSpacing = 0.6.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = fact.value,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            // Нажимаемое значение — цветом ссылки, как в карточке заявки
+                            color = if (fact.onClick != null) accentTextColor() else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
-            }.joinToString(" • ")
-
-            if (accessFacts.isNotBlank()) {
-                ObjectInfoRow(
-                    icon = Icons.Default.Lock,
-                    label = "Доступ",
-                    value = accessFacts
-                )
-            }
-
-            addressDetails.managementCompany?.takeIf { it.isNotBlank() }?.let {
-                ObjectInfoRow(
-                    icon = Icons.Default.Info,
-                    label = "Управляющая компания",
-                    value = it
-                )
-            }
-
-            addressDetails.managementPhone?.takeIf { it.isNotBlank() }?.let {
-                ObjectInfoRow(
-                    icon = Icons.Default.Phone,
-                    label = "Телефон УК",
-                    value = it
-                )
+                if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
             }
         }
     }
@@ -496,7 +547,8 @@ private fun ObjectSectionCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         shape = MaterialTheme.shapes.large
     ) {
         Column(
@@ -512,51 +564,6 @@ private fun ObjectSectionCard(
                 color = MaterialTheme.colorScheme.onSurface
             )
             content(this)
-        }
-    }
-}
-
-@Composable
-private fun ObjectInfoRow(
-    icon: ImageVector,
-    label: String,
-    value: String
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-        ) {
-            Box(
-                modifier = Modifier.padding(10.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
         }
     }
 }

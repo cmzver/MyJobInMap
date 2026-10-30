@@ -44,6 +44,7 @@ from app.models.chat import (
     MessageType,
 )
 from app.models.enums import TaskPriority, TaskStatus, UserRole
+from app.models.idempotency import IdempotencyKeyModel
 from app.models.notification import NotificationModel, NotificationType
 from app.models.organization import OrganizationModel
 from app.models.security import (
@@ -74,6 +75,7 @@ from app.models.task import CommentModel, TaskModel, TaskPhotoModel
 from app.models.user import DeviceModel, PushSubscriptionModel, UserModel
 
 __all__ = [
+    "IdempotencyKeyModel",
     # Base
     "Base",
     "engine",

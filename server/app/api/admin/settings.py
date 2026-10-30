@@ -163,7 +163,7 @@ def _build_login_branding_response(db: Session) -> LoginBrandingResponse:
 
 
 @router.get("/settings", response_model=List[SettingsGroupResponse])
-async def get_system_settings(
+def get_system_settings(
     admin: UserModel = Depends(get_current_superadmin),
     service: SettingsService = Depends(get_settings_service),
 ):
@@ -172,7 +172,7 @@ async def get_system_settings(
 
 
 @router.get("/settings/interface", response_model=InterfaceSettingsResponse)
-async def get_interface_settings(
+def get_interface_settings(
     service: SettingsService = Depends(get_settings_service),
 ):
     """Получить публичные настройки интерфейса"""
@@ -180,7 +180,7 @@ async def get_interface_settings(
 
 
 @public_router.get("/login-branding", response_model=LoginBrandingResponse)
-async def get_login_branding_settings(db: Session = Depends(get_db)):
+def get_login_branding_settings(db: Session = Depends(get_db)):
     """�������� ��������� ��������� ��������� � ����� ��������� ��� �������� �����."""
     return _build_login_branding_response(db)
 
@@ -191,7 +191,7 @@ async def get_login_branding_settings(db: Session = Depends(get_db)):
 
 
 @router.get("/settings/defect-types", response_model=List[DefectTypeResponse])
-async def get_defect_types(
+def get_defect_types(
     service: SettingsService = Depends(get_settings_service),
 ):
     """Получить список типов неисправностей (доступно всем)"""
@@ -202,7 +202,7 @@ async def get_defect_types(
 
 
 @router.post("/settings/defect-types", response_model=DefectTypeResponse)
-async def add_defect_type(
+def add_defect_type(
     data: DefectTypeCreate,
     admin: UserModel = Depends(get_current_superadmin),
     service: SettingsService = Depends(get_settings_service),
@@ -215,7 +215,7 @@ async def add_defect_type(
 @router.patch(
     "/settings/defect-types/{defect_type_id}", response_model=DefectTypeResponse
 )
-async def update_defect_type(
+def update_defect_type(
     defect_type_id: str,
     data: DefectTypeUpdate,
     admin: UserModel = Depends(get_current_superadmin),
@@ -232,7 +232,7 @@ async def update_defect_type(
 
 
 @router.delete("/settings/defect-types/{defect_type_id}")
-async def delete_defect_type(
+def delete_defect_type(
     defect_type_id: str,
     admin: UserModel = Depends(get_current_superadmin),
     service: SettingsService = Depends(get_settings_service),
@@ -246,7 +246,7 @@ async def delete_defect_type(
 
 
 @router.get("/settings/{key}")
-async def get_single_setting(
+def get_single_setting(
     key: str,
     admin: UserModel = Depends(get_current_superadmin),
     service: SettingsService = Depends(get_settings_service),
@@ -259,7 +259,7 @@ async def get_single_setting(
 
 
 @router.patch("/settings/{key}")
-async def update_setting(
+def update_setting(
     key: str,
     data: LocalSettingUpdate,
     admin: UserModel = Depends(get_current_superadmin),
@@ -273,7 +273,7 @@ async def update_setting(
 
 
 @router.patch("/settings")
-async def update_settings_bulk(
+def update_settings_bulk(
     updates: Dict[str, Any],
     admin: UserModel = Depends(get_current_superadmin),
     service: SettingsService = Depends(get_settings_service),
@@ -328,7 +328,7 @@ class TelegramBotSettingsResponse(BaseModel):
 
 
 @router.get("/telegram-bot", response_model=TelegramBotSettingsResponse)
-async def get_telegram_bot_settings(
+def get_telegram_bot_settings(
     admin: UserModel = Depends(get_current_superadmin),
     service: SettingsService = Depends(get_settings_service),
 ):
@@ -337,7 +337,7 @@ async def get_telegram_bot_settings(
 
 
 @router.patch("/telegram-bot")
-async def update_telegram_bot_settings(
+def update_telegram_bot_settings(
     data: TelegramBotSettingsResponse,
     admin: UserModel = Depends(get_current_superadmin),
     service: SettingsService = Depends(get_settings_service),
@@ -353,7 +353,7 @@ async def update_telegram_bot_settings(
 
 
 @public_router.get("/telegram-bot/mappings")
-async def get_bot_mappings_public(
+def get_bot_mappings_public(
     user: UserModel = Depends(require_permission("create_tasks")),
     service: SettingsService = Depends(get_settings_service),
 ):
@@ -372,7 +372,7 @@ class _ReportGroupBody(BaseModel):
 
 
 @public_router.post("/telegram-bot/report-group")
-async def report_bot_group(
+def report_bot_group(
     body: _ReportGroupBody,
     user: UserModel = Depends(require_permission("create_tasks")),
     service: SettingsService = Depends(get_settings_service),

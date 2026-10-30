@@ -2,7 +2,9 @@ package com.fieldworker.domain.usecase
 
 import android.net.Uri
 import com.fieldworker.data.repository.OfflineFirstTasksRepository
+import com.fieldworker.domain.model.PendingPhoto
 import com.fieldworker.domain.model.TaskPhoto
+import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,18 +25,33 @@ class TaskPhotosUseCase @Inject constructor(
     }
     
     /**
-     * Загрузить фото к заявке
-     * 
+     * Поставить фото в очередь отправки — уйдёт сразу или когда появится связь.
+     *
      * @param taskId ID задачи
      * @param imageUri URI изображения из галереи или камеры
      * @param photoType Тип фото: "before", "after", "completion"
      */
-    suspend fun uploadPhoto(
+    suspend fun enqueuePhoto(
         taskId: Long,
         imageUri: Uri,
         photoType: String = "completion"
-    ): Result<TaskPhoto> {
-        return repository.uploadTaskPhoto(taskId, imageUri, photoType)
+    ): Result<Unit> {
+        return repository.enqueueTaskPhoto(taskId, imageUri, photoType)
+    }
+
+    /** Фото заявки, ещё не дошедшие до сервера. */
+    fun pendingPhotos(taskId: Long): Flow<List<PendingPhoto>> =
+        repository.pendingPhotosFlow(taskId)
+
+    /** Отправить очередь сейчас. false — что-то не ушло и стоит повторить позже. */
+    suspend fun sendPending(): Boolean {
+        val result = repository.syncPendingActions()
+        return result.retryableFailures == 0
+    }
+
+    /** Отменить отправку фото и удалить снимок с устройства. */
+    suspend fun cancelPendingPhoto(pendingPhotoId: Long) {
+        repository.discardFailedAction(pendingPhotoId)
     }
     
     /**

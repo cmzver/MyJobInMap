@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/admin", tags=["Admin - Backups & DB"])
 
 
 @router.post("/db/seed")
-async def seed_database(
+def seed_database(
     admin: UserModel = Depends(get_current_superadmin),
     service: DatabaseService = Depends(get_database_service),
 ):
@@ -31,7 +31,7 @@ async def seed_database(
 
 
 @router.get("/db/stats")
-async def get_database_stats(
+def get_database_stats(
     admin: UserModel = Depends(get_current_superadmin),
     service: DatabaseService = Depends(get_database_service),
 ):
@@ -43,7 +43,7 @@ async def get_database_stats(
 
 
 @router.post("/db/cleanup")
-async def cleanup_old_data(
+def cleanup_old_data(
     days: int = 90,
     include_done: bool = True,
     include_cancelled: bool = True,
@@ -64,7 +64,7 @@ async def cleanup_old_data(
 
 
 @router.delete("/tasks")
-async def delete_all_tasks(
+def delete_all_tasks(
     admin: UserModel = Depends(get_current_superadmin),
     service: DatabaseService = Depends(get_database_service),
 ):

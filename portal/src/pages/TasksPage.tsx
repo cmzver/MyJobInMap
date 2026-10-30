@@ -2,13 +2,13 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { showApiError } from '@/utils/apiError'
-import { Plus, RefreshCw, AlertTriangle } from 'lucide-react'
+import { Plus, RefreshCw, AlertTriangle, List, TableProperties } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useUnreadTaskNotifications } from '@/hooks/useNotifications'
 import { useTasks } from '@/hooks/useTasks'
 import { usePortalInterfaceSettings } from '@/hooks/useSettings'
 import { useUsers } from '@/hooks/useUsers'
-import { tasksApi } from '@/api/tasks'
+import { MAX_TASKS_PAGE_SIZE, tasksApi } from '@/api/tasks'
 import type { TaskStatus, TaskPriority, TaskFilters, Task, TaskSort } from '@/types/task'
 import {
   normalizePriority,
@@ -28,6 +28,9 @@ import TaskFiltersPanel, { type ActiveTaskFilter } from '@/components/tasks/Task
 import TaskBulkActions from '@/components/tasks/TaskBulkActions'
 import TaskListTable from '@/components/tasks/TaskListTable'
 import TaskMobileList from '@/components/tasks/TaskMobileList'
+import TaskDispatchOverview, {
+  type TaskDispatchSelection,
+} from '@/components/tasks/TaskDispatchOverview'
 import type { TaskListGroup } from '@/components/tasks/taskListTypes'
 import {
   defaultVisibleTaskTableColumns as defaultVisibleColumns,
@@ -42,13 +45,14 @@ import { isAssignableRole } from '@/types/user'
 import {
   areTaskViewSettingsEqual,
   useTaskSavedViews,
+  type TaskDisplayMode,
   type TaskSavedView,
   type TaskSavedViewSettings,
 } from '@/hooks/useTaskSavedViews'
 
 const PAGE_SIZE = 20
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
-const SEARCH_DEBOUNCE_MS = 700
+const SEARCH_DEBOUNCE_MS = 350
 const COLUMN_STORAGE_KEY = 'tasks-table-column-widths'
 const COLUMN_VISIBILITY_STORAGE_KEY = 'tasks-table-visible-columns'
 
@@ -66,16 +70,16 @@ const defaultColumnWidths: Record<ColumnKey, number> = {
 }
 
 const columnMinWidths: Record<ColumnKey, number> = {
-  select: 28,
-  number: 54,
-  title: 88,
-  address: 96,
-  status: 72,
-  priority: 72,
-  assignee: 88,
-  creator: 88,
-  date: 84,
-  sla: 72,
+  select: 44,
+  number: 88,
+  title: 180,
+  address: 190,
+  status: 132,
+  priority: 132,
+  assignee: 140,
+  creator: 140,
+  date: 132,
+  sla: 110,
 }
 
 const columnMaxWidths: Record<ColumnKey, number> = {
@@ -288,6 +292,9 @@ export default function TasksPage() {
   const [visibleColumns, setVisibleColumns] =
     useState<Record<ToggleableColumnKey, boolean>>(loadVisibleColumns)
   const [isColumnMenuOpen, setIsColumnMenuOpen] = useState(false)
+  const [displayMode, setDisplayMode] = useState<TaskDisplayMode>(() =>
+    searchParams.get('view') === 'dispatch' ? 'dispatch' : 'list'
+  )
   const resizeState = useRef<{
     key: ColumnKey
     startX: number
@@ -308,7 +315,7 @@ export default function TasksPage() {
   const [page, setPage] = useState(() =>
     Number.isFinite(initialPage) && initialPage > 0 ? initialPage : 1
   )
-  const initialSize = Number(searchParams.get('size') || PAGE_SIZE)
+  const initialSize = Math.min(MAX_TASKS_PAGE_SIZE, Number(searchParams.get('size') || PAGE_SIZE))
   const [pageSize, setPageSize] = useState(() =>
     Number.isFinite(initialSize) && initialSize > 0 ? Math.trunc(initialSize) : PAGE_SIZE
   )
@@ -363,11 +370,13 @@ export default function TasksPage() {
       addressTitle: addressTitleFilter,
       sort: sortBy,
       groupBy,
+      displayMode,
     }),
     [
       addressIdFilter,
       addressTitleFilter,
       assigneeFilter,
+      displayMode,
       groupBy,
       priorityFilter,
       search,
@@ -400,7 +409,10 @@ export default function TasksPage() {
   )
 
   const { data: interfaceSettings } = usePortalInterfaceSettings()
-  const defaultPageSize = Math.max(1, Number(interfaceSettings?.tasks_per_page ?? PAGE_SIZE))
+  const defaultPageSize = Math.min(
+    MAX_TASKS_PAGE_SIZE,
+    Math.max(1, Number(interfaceSettings?.tasks_per_page ?? PAGE_SIZE)),
+  )
   const pageSizeOptions = useMemo(
     () =>
       Array.from(new Set([PAGE_SIZE, defaultPageSize, ...PAGE_SIZE_OPTIONS])).sort((a, b) => a - b),
@@ -478,6 +490,14 @@ export default function TasksPage() {
     setPage(1)
   }
 
+  const applyDispatchSelection = ({ assigneeId, statuses, priorities }: TaskDispatchSelection) => {
+    setAssigneeFilter([String(assigneeId)])
+    if (statuses) setStatusFilter(statuses)
+    if (priorities) setPriorityFilter(priorities)
+    setPage(1)
+    setDisplayMode('list')
+  }
+
   const handleSortChange = (value: string) => {
     setSortBy(value === 'created_at_asc' ? 'created_at_asc' : 'created_at_desc')
     setPage(1)
@@ -507,6 +527,7 @@ export default function TasksPage() {
     setAddressTitleFilter(view.settings.addressTitle)
     setSortBy(view.settings.sort)
     setGroupBy(view.settings.groupBy)
+    setDisplayMode(view.settings.displayMode)
     setCollapsedGroups(new Set())
     setPage(1)
     toast.success(`Применён вид «${view.name}»`)
@@ -1203,6 +1224,11 @@ export default function TasksPage() {
     [search]
   )
 
+  const clearSearch = useCallback(() => {
+    setSearchInput('')
+    commitSearch('')
+  }, [commitSearch])
+
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       commitSearch(searchInput)
@@ -1233,6 +1259,7 @@ export default function TasksPage() {
     if (addressTitleFilter) nextParams.set('address_title', addressTitleFilter)
     if (sortBy !== 'created_at_desc') nextParams.set('sort', sortBy)
     if (groupBy) nextParams.set('group', groupBy)
+    if (displayMode === 'dispatch') nextParams.set('view', 'dispatch')
     if (page > 1) nextParams.set('page', String(page))
     if (pageSize !== defaultPageSize) nextParams.set('size', String(pageSize))
 
@@ -1251,6 +1278,7 @@ export default function TasksPage() {
     addressTitleFilter,
     sortBy,
     groupBy,
+    displayMode,
     page,
     pageSize,
     defaultPageSize,
@@ -1274,6 +1302,8 @@ export default function TasksPage() {
       searchParams.get('sort') === 'created_at_asc' ? 'created_at_asc' : 'created_at_desc'
     const rawGroup = searchParams.get('group') || ''
     const urlGroup = ['status', 'assignee', 'priority'].includes(rawGroup) ? rawGroup : ''
+    const urlDisplayMode: TaskDisplayMode =
+      searchParams.get('view') === 'dispatch' ? 'dispatch' : 'list'
     const rawPage = Number(searchParams.get('page') || 1)
     const urlPage = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
     const rawSize = Number(searchParams.get('size') || defaultPageSize)
@@ -1288,6 +1318,7 @@ export default function TasksPage() {
     setAddressTitleFilter((prev) => (prev === urlAddressTitle ? prev : urlAddressTitle))
     setSortBy((prev) => (prev === urlSort ? prev : urlSort))
     setGroupBy((prev) => (prev === urlGroup ? prev : urlGroup))
+    setDisplayMode((prev) => (prev === urlDisplayMode ? prev : urlDisplayMode))
     setPage((prev) => (prev === urlPage ? prev : urlPage))
     setPageSize((prev) => (prev === urlSize ? prev : urlSize))
   }, [searchParams, defaultPageSize])
@@ -1324,6 +1355,7 @@ export default function TasksPage() {
         searchInput={searchInput}
         onSearchChange={handleSearchChange}
         onSearchCommit={() => commitSearch(searchInput)}
+        onSearchClear={clearSearch}
         isNewQuickView={isNewQuickView}
         isInProgressQuickView={isInProgressQuickView}
         isUrgentQuickView={isUrgentQuickView}
@@ -1399,6 +1431,30 @@ export default function TasksPage() {
       ) : (
         data && (
           <>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="text-sm text-gray-500 dark:text-gray-400">Представление</span>
+              <div className="inline-flex rounded-lg border border-gray-300 bg-white p-0.5 dark:border-gray-600 dark:bg-gray-800">
+                <button
+                  type="button"
+                  aria-pressed={displayMode === 'list'}
+                  onClick={() => setDisplayMode('list')}
+                  className={`flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors ${displayMode === 'list' ? 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white' : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'}`}
+                >
+                  <List className="h-4 w-4" />
+                  Список
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={displayMode === 'dispatch'}
+                  onClick={() => setDisplayMode('dispatch')}
+                  className={`flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors ${displayMode === 'dispatch' ? 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white' : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'}`}
+                >
+                  <TableProperties className="h-4 w-4" />
+                  Сводка
+                </button>
+              </div>
+            </div>
+
             {selectedCount > 0 && (
               <TaskBulkActions
                 selectedCount={selectedCount}
@@ -1473,44 +1529,54 @@ export default function TasksPage() {
               </div>
             </Modal>
 
-            <TaskMobileList
-              groups={groupedTasks}
-              groupBy={groupBy}
-              collapsedGroups={collapsedGroups}
-              selectedIds={selectedIds}
-              unreadByTaskId={unreadByTaskId}
-              onToggleGroup={toggleGroup}
-              onToggleSelection={toggleSelection}
-              onOpenTask={handleRowClick}
-            />
+            {displayMode === 'dispatch' ? (
+              <TaskDispatchOverview
+                tasks={data.items}
+                total={data.total}
+                onSelect={applyDispatchSelection}
+              />
+            ) : (
+              <>
+                <TaskMobileList
+                  groups={groupedTasks}
+                  groupBy={groupBy}
+                  collapsedGroups={collapsedGroups}
+                  selectedIds={selectedIds}
+                  unreadByTaskId={unreadByTaskId}
+                  onToggleGroup={toggleGroup}
+                  onToggleSelection={toggleSelection}
+                  onOpenTask={handleRowClick}
+                />
 
-            <TaskListTable
-              groups={groupedTasks}
-              groupBy={groupBy}
-              collapsedGroups={collapsedGroups}
-              selectedIds={selectedIds}
-              unreadByTaskId={unreadByTaskId}
-              visibleColumns={visibleColumns}
-              effectiveColumnWidths={effectiveColumnWidths}
-              visibleColumnCount={visibleColumnCount}
-              visibleDataColumnCount={visibleDataColumnCount}
-              isResizableEnabled={isResizableEnabled}
-              isCompactView={isCompactView}
-              tableWidth={resizableTableWidth}
-              allSelectedOnPage={allSelectedOnPage}
-              isColumnMenuOpen={isColumnMenuOpen}
-              tableRef={tableRef}
-              columnMenuRef={columnMenuRef}
-              onMeasureContainer={measureTableContainer}
-              onColumnMenuToggle={() => setIsColumnMenuOpen((current) => !current)}
-              onColumnVisibilityToggle={toggleColumnVisibility}
-              onResetVisibleColumns={() => setVisibleColumns(defaultVisibleColumns)}
-              onResizeStart={startResize}
-              onToggleSelectAll={toggleSelectAllOnPage}
-              onToggleSelection={toggleSelection}
-              onToggleGroup={toggleGroup}
-              onOpenTask={handleRowClick}
-            />
+                <TaskListTable
+                  groups={groupedTasks}
+                  groupBy={groupBy}
+                  collapsedGroups={collapsedGroups}
+                  selectedIds={selectedIds}
+                  unreadByTaskId={unreadByTaskId}
+                  visibleColumns={visibleColumns}
+                  effectiveColumnWidths={effectiveColumnWidths}
+                  visibleColumnCount={visibleColumnCount}
+                  visibleDataColumnCount={visibleDataColumnCount}
+                  isResizableEnabled={isResizableEnabled}
+                  isCompactView={isCompactView}
+                  tableWidth={resizableTableWidth}
+                  allSelectedOnPage={allSelectedOnPage}
+                  isColumnMenuOpen={isColumnMenuOpen}
+                  tableRef={tableRef}
+                  columnMenuRef={columnMenuRef}
+                  onMeasureContainer={measureTableContainer}
+                  onColumnMenuToggle={() => setIsColumnMenuOpen((current) => !current)}
+                  onColumnVisibilityToggle={toggleColumnVisibility}
+                  onResetVisibleColumns={() => setVisibleColumns(defaultVisibleColumns)}
+                  onResizeStart={startResize}
+                  onToggleSelectAll={toggleSelectAllOnPage}
+                  onToggleSelection={toggleSelection}
+                  onToggleGroup={toggleGroup}
+                  onOpenTask={handleRowClick}
+                />
+              </>
+            )}
 
             {/* Pagination */}
             <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">

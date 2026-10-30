@@ -40,7 +40,7 @@ class AnalyticsResponse(BaseModel):
     sla: SlaResponse
 
 
-async def _load_analytics_payload(
+def _load_analytics_payload(
     *,
     period: str,
     date_from: Optional[date],
@@ -49,7 +49,7 @@ async def _load_analytics_payload(
     db: Session,
     user: UserModel,
 ) -> tuple[ReportsResponse, dict[str, Any]]:
-    reports = await get_reports(
+    reports = get_reports(
         period=period,
         date_from=date_from,
         date_to=date_to,
@@ -104,7 +104,7 @@ def _get_worker_name(db: Session, user: UserModel, worker_id: Optional[int]) -> 
     return worker.full_name or worker.username
 
 
-async def _export_analytics_document(
+def _export_analytics_document(
     *,
     period: str,
     date_from: Optional[date],
@@ -113,7 +113,7 @@ async def _export_analytics_document(
     db: Session,
     user: UserModel,
 ) -> StreamingResponse:
-    reports, sla = await _load_analytics_payload(
+    reports, sla = _load_analytics_payload(
         period=period,
         date_from=date_from,
         date_to=date_to,
@@ -155,7 +155,7 @@ async def _export_analytics_document(
 
 
 @router.get("", response_model=AnalyticsResponse)
-async def get_analytics(
+def get_analytics(
     period: str = Query(default="month", pattern=PERIOD_PATTERN),
     date_from: Optional[date] = Query(
         default=None, description="Custom period start (YYYY-MM-DD)"
@@ -167,7 +167,7 @@ async def get_analytics(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
-    reports, sla = await _load_analytics_payload(
+    reports, sla = _load_analytics_payload(
         period=period,
         date_from=date_from,
         date_to=date_to,
@@ -179,7 +179,7 @@ async def get_analytics(
 
 
 @router.get("/export")
-async def export_analytics(
+def export_analytics(
     period: str = Query(default="month", pattern=PERIOD_PATTERN),
     date_from: Optional[date] = Query(default=None),
     date_to: Optional[date] = Query(default=None),
@@ -189,7 +189,7 @@ async def export_analytics(
     user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
     _require_export_format(format, "xlsx")
-    return await _export_analytics_document(
+    return _export_analytics_document(
         period=period,
         date_from=date_from,
         date_to=date_to,
@@ -200,7 +200,7 @@ async def export_analytics(
 
 
 @router.get("/export/excel")
-async def export_analytics_excel(
+def export_analytics_excel(
     period: str = Query(default="month", pattern=PERIOD_PATTERN),
     date_from: Optional[date] = Query(default=None),
     date_to: Optional[date] = Query(default=None),
@@ -208,7 +208,7 @@ async def export_analytics_excel(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
-    return await _export_analytics_document(
+    return _export_analytics_document(
         period=period,
         date_from=date_from,
         date_to=date_to,

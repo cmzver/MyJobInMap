@@ -72,6 +72,11 @@ class SyncWorker @AssistedInject constructor(
                 Log.w(TAG, "Sync stopped: authentication is required")
                 return Result.failure()
             }
+            if (syncResult.serverUnreachable) {
+                // Обновление списка упёрлось бы в тот же таймаут — повторим позже
+                Log.w(TAG, "Server unreachable, retrying later")
+                return Result.retry()
+            }
             
             // Обновляем данные с сервера
             val result = repository.refreshTasks(syncPendingFirst = false)

@@ -51,6 +51,8 @@ import kotlinx.serialization.Contextual
  * @param completedAt Дата завершения (если статус=DONE)
  * @param assignedUserId ID назначенного исполнителя
  * @param assignedUserName Имя исполнителя
+ * @param createdById ID пользователя, который завел заявку
+ * @param createdByName Кем заведена заявка
  * @param isRemote Может ли быть выполнена удалённо
  * @param isPaid Платная ли заявка
  * @param paymentAmount Сумма оплаты
@@ -127,6 +129,14 @@ data class TaskResponse (
     /* Имя исполнителя */
     @SerialName(value = "assigned_user_name")
     val assignedUserName: kotlin.String? = null,
+
+    /* ID пользователя, который завел заявку */
+    @SerialName(value = "created_by_id")
+    val createdById: kotlin.Long? = null,
+
+    /* Кем заведена заявка */
+    @SerialName(value = "created_by_name")
+    val createdByName: kotlin.String? = null,
 
     /* Может ли быть выполнена удалённо */
     @SerialName(value = "is_remote")

@@ -13,26 +13,11 @@ import kotlinx.coroutines.flow.Flow
 interface PendingActionDao {
     
     /**
-     * Получить все отложенные действия
+     * Все отложенные действия в порядке создания. Какие из них отправлять и в
+     * каком порядке, решает очередь по [ActionType].
      */
-    @Query("SELECT * FROM pending_actions ORDER BY createdAt ASC")
+    @Query("SELECT * FROM pending_actions ORDER BY createdAt ASC, id ASC")
     suspend fun getAllPendingActions(): List<PendingAction>
-
-    @Query("""
-        SELECT * FROM pending_actions
-        WHERE retryCount < :maxRetries
-          AND NOT EXISTS (
-              SELECT 1 FROM pending_actions AS failed
-              WHERE failed.taskId = pending_actions.taskId
-                AND failed.retryCount >= :maxRetries
-                AND (
-                    failed.createdAt < pending_actions.createdAt
-                    OR (failed.createdAt = pending_actions.createdAt AND failed.id < pending_actions.id)
-                )
-          )
-        ORDER BY createdAt ASC, id ASC
-    """)
-    suspend fun getSyncablePendingActions(maxRetries: Int): List<PendingAction>
     
     /**
      * Получить количество отложенных действий как Flow
@@ -51,7 +36,15 @@ interface PendingActionDao {
      */
     @Query("SELECT * FROM pending_actions WHERE taskId = :taskId ORDER BY createdAt ASC")
     suspend fun getPendingActionsForTask(taskId: Long): List<PendingAction>
-    
+
+    /** Фото заявки, ещё не дошедшие до сервера. */
+    @Query("""
+        SELECT * FROM pending_actions
+        WHERE taskId = :taskId AND actionType = 'UPLOAD_PHOTO'
+        ORDER BY createdAt ASC, id ASC
+    """)
+    fun getPendingPhotosFlow(taskId: Long): Flow<List<PendingAction>>
+
     /**
      * Вставить отложенное действие
      */
@@ -104,4 +97,15 @@ interface PendingActionDao {
      */
     @Query("SELECT * FROM pending_actions WHERE retryCount >= :maxRetries")
     suspend fun getFailedActions(maxRetries: Int = 5): List<PendingAction>
+
+    /** Dead-letter: действия, которые очередь больше не повторяет сама. */
+    @Query("SELECT * FROM pending_actions WHERE retryCount >= :maxRetries ORDER BY createdAt ASC, id ASC")
+    fun getFailedActionsFlow(maxRetries: Int): Flow<List<PendingAction>>
+
+    @Query("SELECT * FROM pending_actions WHERE id = :actionId")
+    suspend fun getPendingActionById(actionId: Long): PendingAction?
+
+    /** Вернуть действие в очередь (ручной «Повторить»). */
+    @Query("UPDATE pending_actions SET retryCount = 0, lastError = NULL WHERE id = :actionId")
+    suspend fun resetRetries(actionId: Long)
 }

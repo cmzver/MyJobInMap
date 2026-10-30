@@ -17,14 +17,13 @@ import com.fieldworker.domain.model.LastMessagePreview
 import com.fieldworker.domain.model.MessageType
 import com.fieldworker.domain.model.ReplyPreview
 import com.fieldworker.domain.model.User
-import com.fieldworker.domain.model.UserRole
 import com.fieldworker.ui.chat.ChatScreen
 import com.fieldworker.ui.chat.ConversationListFilter
 import com.fieldworker.ui.chat.ConversationListScreen
 import com.fieldworker.ui.theme.FieldWorkerTheme
 import java.time.LocalDateTime
 
-private object ChatPreviewData {
+internal object ChatPreviewData {
     private val now = LocalDateTime.of(2026, 3, 19, 14, 30)
 
     val me = User(
@@ -33,7 +32,7 @@ private object ChatPreviewData {
         fullName = "Алексей Смирнов",
         email = "dispatcher@fieldworker.local",
         phone = "+7 999 111-22-33",
-        role = UserRole.DISPATCHER,
+        role = "dispatcher",
     )
 
     val colleague = User(
@@ -42,7 +41,7 @@ private object ChatPreviewData {
         fullName = "Иван Иванов",
         email = "ivanov@fieldworker.local",
         phone = "+7 999 222-33-44",
-        role = UserRole.WORKER,
+        role = "worker",
     )
 
     val manager = User(
@@ -51,7 +50,7 @@ private object ChatPreviewData {
         fullName = "Мария Кузнецова",
         email = "admin@fieldworker.local",
         phone = "+7 999 333-44-55",
-        role = UserRole.ADMIN,
+        role = "admin",
     )
 
     val listConversations = listOf(
@@ -230,7 +229,7 @@ private object ChatPreviewData {
 
 @Preview(name = "Chat List Light", showBackground = true, showSystemUi = true)
 @Composable
-private fun ChatListLightPreview() {
+internal fun ChatListLightPreview() {
     FieldWorkerTheme(darkTheme = false) {
         Surface {
             ConversationListScreen(
@@ -254,9 +253,36 @@ private fun ChatListLightPreview() {
     }
 }
 
+@Preview(name = "Chat List Offline", showBackground = true, showSystemUi = true)
+@Composable
+internal fun ChatListOfflinePreview() {
+    FieldWorkerTheme(darkTheme = false) {
+        Surface {
+            ConversationListScreen(
+                conversations = emptyList(),
+                selectedFilter = ConversationListFilter.ACTIVE,
+                currentUserId = ChatPreviewData.me.id,
+                availableUsers = emptyList(),
+                isLoading = false,
+                isLoadingUsers = false,
+                baseUrl = "https://example.local:8001",
+                authToken = "preview-token",
+                isCreatingConversation = false,
+                onConversationClick = {},
+                onFilterChange = {},
+                onLoadUsers = {},
+                onCreateDirectConversation = {},
+                onCreateGroupConversation = { _, _ -> },
+                onRefresh = {},
+                isOffline = true,
+            )
+        }
+    }
+}
+
 @Preview(name = "Chat List Dark", showBackground = true, showSystemUi = true)
 @Composable
-private fun ChatListDarkPreview() {
+internal fun ChatListDarkPreview() {
     FieldWorkerTheme(darkTheme = true) {
         Surface {
             ConversationListScreen(
@@ -282,7 +308,7 @@ private fun ChatListDarkPreview() {
 
 @Preview(name = "Chat Screen Full", showBackground = true, showSystemUi = true)
 @Composable
-private fun ChatScreenFullPreview() {
+internal fun ChatScreenFullPreview() {
     FieldWorkerTheme(darkTheme = false) {
         Surface(modifier = Modifier.fillMaxSize()) {
             ChatScreen(
@@ -337,7 +363,7 @@ private fun ChatScreenFullPreview() {
 
 @Preview(name = "Chat Screen Dark Compact", showBackground = true, device = "spec:width=411dp,height=891dp,dpi=420")
 @Composable
-private fun ChatScreenDarkCompactPreview() {
+internal fun ChatScreenDarkCompactPreview() {
     FieldWorkerTheme(darkTheme = true) {
         Surface(modifier = Modifier.fillMaxSize()) {
             ChatScreen(

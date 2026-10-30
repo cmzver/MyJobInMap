@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
@@ -40,6 +41,8 @@ fun OfflineBanner(
     isOffline: Boolean,
     pendingActionsCount: Int = 0,
     onSyncClick: () -> Unit = {},
+    failedActionsCount: Int = 0,
+    onReviewFailed: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showReconnected by remember { mutableStateOf(false) }
@@ -58,7 +61,9 @@ fun OfflineBanner(
     }
 
     val hasPendingActions = pendingActionsCount > 0
-    val visible = isOffline || showReconnected || hasPendingActions
+    // Действия, которые очередь сама больше не отправит — нужен пользователь
+    val hasFailedActions = failedActionsCount > 0 && !isOffline
+    val visible = isOffline || showReconnected || hasPendingActions || hasFailedActions
 
     AnimatedVisibility(
         visible = visible,
@@ -66,14 +71,18 @@ fun OfflineBanner(
         exit = shrinkVertically(shrinkTowards = Alignment.Top),
         modifier = modifier
     ) {
+        // Офлайн для полевого работника — штатный режим, а не авария: спокойный
+        // нейтрал. Красный — только для действий, которые не удалось отправить.
         val backgroundColor = when {
-            isOffline -> MaterialTheme.colorScheme.errorContainer
+            hasFailedActions -> MaterialTheme.colorScheme.errorContainer
+            isOffline -> MaterialTheme.colorScheme.surfaceContainerHighest
             hasPendingActions -> MaterialTheme.colorScheme.secondaryContainer
             else -> Color(0xFF2E7D32)
         }
 
         val contentColor = when {
-            isOffline -> MaterialTheme.colorScheme.onErrorContainer
+            hasFailedActions -> MaterialTheme.colorScheme.onErrorContainer
+            isOffline -> MaterialTheme.colorScheme.onSurface
             hasPendingActions -> MaterialTheme.colorScheme.onSecondaryContainer
             else -> Color.White
         }
@@ -88,7 +97,8 @@ fun OfflineBanner(
         ) {
             Icon(
                 imageVector = when {
-                    isOffline -> Icons.Default.Warning
+                    hasFailedActions -> Icons.Default.Warning
+                    isOffline -> Icons.Default.Info
                     hasPendingActions -> Icons.Default.Refresh
                     else -> Icons.Default.CheckCircle
                 },
@@ -102,6 +112,8 @@ fun OfflineBanner(
                     "Офлайн-режим • Несинхронизировано: $pendingActionsCount"
                 isOffline ->
                     "Нет подключения к серверу • Офлайн-режим"
+                hasFailedActions ->
+                    "Не отправлено: $failedActionsCount"
                 hasPendingActions ->
                     "Ожидает синхронизации: $pendingActionsCount"
                 else ->
@@ -115,7 +127,15 @@ fun OfflineBanner(
                 modifier = Modifier.padding(start = 8.dp)
             )
 
-            if (hasPendingActions && !isOffline) {
+            if (hasFailedActions) {
+                TextButton(onClick = onReviewFailed) {
+                    Text(
+                        text = "Разобрать",
+                        color = contentColor,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            } else if (hasPendingActions && !isOffline) {
                 TextButton(onClick = onSyncClick) {
                     Text(
                         text = "Синхр.",

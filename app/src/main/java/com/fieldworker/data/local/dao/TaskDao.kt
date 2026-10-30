@@ -72,11 +72,20 @@ interface TaskDao {
     @Query("DELETE FROM tasks")
     suspend fun deleteAllTasks()
     
-    /**
-     * Удалить задачи, которых нет в списке (для синхронизации)
-     */
-    @Query("DELETE FROM tasks WHERE id NOT IN (:ids) AND isLocallyModified = 0")
-    suspend fun deleteTasksNotIn(ids: List<Long>)
+    @Query("SELECT id FROM tasks")
+    suspend fun getAllTaskIds(): List<Long>
+
+    /** ID синхронизированных (без локальных правок) задач — кандидаты на удаление. */
+    @Query("SELECT id FROM tasks WHERE isLocallyModified = 0")
+    suspend fun getSyncedTaskIds(): List<Long>
+
+    /** Удаление пачкой; вызывать чанками ≤ 500 (лимит параметров SQLite — 999 до API 30). */
+    @Query("DELETE FROM tasks WHERE id IN (:ids) AND isLocallyModified = 0")
+    suspend fun deleteSyncedTasksByIds(ids: List<Long>)
+
+    /** Курсор инкрементальной синхронизации: самое свежее серверное updated_at в кеше. */
+    @Query("SELECT MAX(updatedAt) FROM tasks")
+    suspend fun getMaxUpdatedAt(): String?
     
     /**
      * Обновить статус задачи локально

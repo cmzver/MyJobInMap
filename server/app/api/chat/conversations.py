@@ -38,7 +38,7 @@ router = APIRouter(prefix="/api/chat", tags=["Chat"])
 
 
 @router.get("/conversations", response_model=List[ConversationListItem])
-async def list_conversations(
+def list_conversations(
     include_archived: bool = Query(False, description="Включая архивные"),
     current_user: UserModel = Depends(get_current_user_required),
     db: Session = Depends(get_db),
@@ -55,7 +55,7 @@ async def list_conversations(
 
 
 @router.post("/conversations", response_model=ConversationResponse)
-async def create_conversation(
+def create_conversation(
     data: ConversationCreate,
     current_user: UserModel = Depends(get_current_user_required),
     db: Session = Depends(get_db),
@@ -74,7 +74,7 @@ async def create_conversation(
 
 
 @router.get("/conversations/{conv_id}", response_model=ConversationDetailResponse)
-async def get_conversation(
+def get_conversation(
     conv_id: int,
     current_user: UserModel = Depends(get_current_user_required),
     db: Session = Depends(get_db),
@@ -117,7 +117,7 @@ async def update_conversation(
 
 
 @router.get("/conversations/{conv_id}/avatar/{file_name}", include_in_schema=False)
-async def get_conversation_avatar(
+def get_conversation_avatar(
     conv_id: int,
     file_name: str,
     db: Session = Depends(get_db),
@@ -333,7 +333,7 @@ async def transfer_ownership(
 
 
 @router.patch("/conversations/{conv_id}/mute")
-async def mute_conversation(
+def mute_conversation(
     conv_id: int,
     data: MuteRequest,
     current_user: UserModel = Depends(get_current_user_required),
@@ -345,7 +345,7 @@ async def mute_conversation(
 
 
 @router.patch("/conversations/{conv_id}/archive")
-async def archive_conversation(
+def archive_conversation(
     conv_id: int,
     data: ArchiveRequest,
     current_user: UserModel = Depends(get_current_user_required),
@@ -357,7 +357,7 @@ async def archive_conversation(
 
 
 @router.get("/task/{task_id}", response_model=ConversationResponse)
-async def get_task_chat(
+def get_task_chat(
     task_id: int,
     current_user: UserModel = Depends(get_current_user_required),
     db: Session = Depends(get_db),

@@ -82,6 +82,9 @@ data class Task(
     fun getDisplayNumber(): String {
         return getDispatcherNumber() ?: getInternalNumber()
     }
+
+    /** «#номер · адрес» — заявка одной строкой в диалогах и списке сбоев. */
+    fun shortLabel(): String = "#${getDisplayNumber()} · $address"
 }
 
 /**
@@ -193,12 +196,31 @@ data class TaskPhoto(
     /**
      * Отображаемое название типа фото
      */
-    fun getPhotoTypeDisplayName(): String {
-        return when (photoType) {
-            "before" -> "До работ"
-            "after" -> "После работ"
-            "completion" -> "При завершении"
-            else -> "Фото"
-        }
-    }
+    fun getPhotoTypeDisplayName(): String = photoTypeDisplayName(photoType)
 }
+
+/**
+ * Фото, снятое к заявке и ещё не дошедшее до сервера: лежит в личных
+ * файлах приложения и отправится из офлайн-очереди.
+ */
+data class PendingPhoto(
+    val id: Long,
+    val taskId: Long,
+    val filePath: String,
+    val photoType: String,
+    /** Очередь перестала повторять отправку — решение за пользователем. */
+    val isFailed: Boolean
+)
+
+/** Типы фото к заявке: значение для API и подпись. */
+enum class PhotoType(val value: String, val displayName: String) {
+    BEFORE("before", "До работ"),
+    AFTER("after", "После работ"),
+    COMPLETION("completion", "При завершении")
+}
+
+/** Подпись типа фото; незнакомый тип с сервера показываем как есть. */
+fun photoTypeDisplayName(photoType: String?): String =
+    PhotoType.entries.find { it.value == photoType }?.displayName
+        ?: photoType?.takeIf { it.isNotBlank() }
+        ?: "Фото"

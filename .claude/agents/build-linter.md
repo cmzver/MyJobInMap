@@ -2,7 +2,7 @@
 name: build-linter
 description: Runs lint, type-check, and build for the subproject(s) touched by the current change — portal (eslint + tsc + vite), server (pylint/black), Android (gradle). Use to verify a change compiles and passes static checks before commit. Runs commands and reports pass/fail; fixes only trivial lint issues if asked.
 tools: Read, Grep, Glob, Bash, Edit
-model: sonnet
+model: haiku
 ---
 
 You are the build & static-analysis runner for the FieldWorker / MyJobInMap project.

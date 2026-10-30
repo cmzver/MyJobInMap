@@ -12,6 +12,25 @@ from sqlalchemy.pool import StaticPool
 # Add server directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+import bcrypt  # noqa: E402
+
+# bcrypt по умолчанию — 12 раундов (~200 мс на хеш и столько же на проверку).
+# Почти каждый тест создаёт пользователя и логинится, и это было ~0.5 с setup
+# на тест. В тестах берём минимальную стоимость: проверка паролей остаётся
+# настоящей, но дешёвой. Код приложения и прод не затрагиваются.
+_original_gensalt = bcrypt.gensalt
+bcrypt.gensalt = lambda rounds=4, prefix=b"2b": _original_gensalt(
+    rounds=rounds, prefix=prefix
+)
+
+from geopy.geocoders import Nominatim  # noqa: E402
+
+# Создание адреса/заявки геокодирует адрес реальным запросом к Nominatim (с
+# таймаутом и ретраями) — ~4 с на адрес и зависимость тестов от интернета.
+# В тестах внешний геокодер «ничего не нашёл» — как при недоступной сети.
+# Тесты GeocodingService подменяют geolocator моком сами и это не затрагивает.
+Nominatim.geocode = lambda self, *args, **kwargs: None
+
 from app.models import UserModel, UserRole
 from app.models.base import Base, get_db
 from app.services.auth import get_password_hash

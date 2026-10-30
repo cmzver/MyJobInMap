@@ -24,7 +24,7 @@ import com.fieldworker.ui.utils.priorityColor
 
 @Preview(name = "TasksStatsBar", showBackground = true)
 @Composable
-private fun TasksStatsBarPreview() {
+internal fun TasksStatsBarPreview() {
     FieldWorkerTheme {
         Surface {
             TasksStatsBar(
@@ -39,7 +39,7 @@ private fun TasksStatsBarPreview() {
 
 @Preview(name = "Priority Legend", showBackground = true)
 @Composable
-private fun PriorityLegendPreview() {
+internal fun PriorityLegendPreview() {
     FieldWorkerTheme {
         Surface {
             Column(
@@ -78,7 +78,7 @@ private fun PriorityLegendPreview() {
 
 @Preview(name = "Status Legend", showBackground = true)
 @Composable
-private fun StatusLegendPreview() {
+internal fun StatusLegendPreview() {
     FieldWorkerTheme {
         Surface {
             Column(
@@ -115,68 +115,37 @@ private fun StatusLegendPreview() {
 
 // ==================== Combined Legend Preview ====================
 
+/** Легенда маркеров: цвет = статус, красный — только активная аварийная. */
 @Preview(name = "Full Legend", showBackground = true)
 @Composable
-private fun FullLegendPreview() {
+internal fun FullLegendPreview() {
     FieldWorkerTheme {
         Surface {
-            Row(
+            Column(
                 modifier = Modifier.padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(32.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Приоритеты
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Приоритет",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Priority.entries.forEach { priority ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(14.dp)
-                                    .clip(CircleShape)
-                                    .background(priorityColor(priority))
-                            )
-                            Text(
-                                text = priority.displayName,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                }
-                
-                // Статусы
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Статус",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    TaskStatus.entries.filter { it != TaskStatus.UNKNOWN }.forEach { status ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(14.dp)
-                                    .clip(CircleShape)
-                                    .background(status.toColor())
-                            )
-                            Text(
-                                text = status.displayName,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
+                Text(
+                    text = "Маркер",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                val entries = TaskStatus.entries
+                    .filter { it != TaskStatus.UNKNOWN }
+                    .map { it.displayName to it.toColor() } +
+                    ("Аварийная (активная)" to priorityColor(Priority.EMERGENCY))
+                entries.forEach { (label, color) ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(14.dp)
+                                .clip(CircleShape)
+                                .background(color)
+                        )
+                        Text(text = label, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
