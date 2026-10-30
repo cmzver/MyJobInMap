@@ -19,7 +19,6 @@ import android.graphics.drawable.Drawable
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
-import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -27,7 +26,6 @@ import android.text.TextPaint
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
@@ -74,6 +72,8 @@ import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.components.CompactTaskCard
 import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.PhotoUploadConfirmDialog
+import com.fieldworker.ui.components.rememberPhotoDraft
+import com.fieldworker.ui.components.rememberPickPhotoLauncher
 import com.fieldworker.ui.components.rememberTakePhotoLauncher
 import com.fieldworker.ui.list.AssigneePickerDialog
 import com.fieldworker.ui.list.TaskDetailBottomSheet
@@ -177,28 +177,21 @@ fun MapScreen(
     val baseUrl = viewModel.preferences.getFullServerUrl()
     val authToken = viewModel.preferences.getAuthToken()
 
-    var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    // Фото для заявки до подтверждения отправки — переживает и смерть процесса
+    var photoDraft by rememberPhotoDraft()
     var selectedGroup by remember { mutableStateOf<TaskMarkerGroup?>(null) }
     // Счётчик явных запросов "перейти к моему местоположению"
     var centerOnLocationTick by remember { mutableStateOf(0) }
     val savedMapPosition = remember { viewModel.getSavedMapPosition() }
 
+    // Снимок сохранён в очередь — закрываем диалог (при ошибке он остаётся)
+    var wasSavingPhoto by remember { mutableStateOf(false) }
     LaunchedEffect(uiState.isUploadingPhoto) {
-        if (!uiState.isUploadingPhoto && selectedPhotoUri != null && uiState.error == null) {
-            selectedPhotoUri = null
-        }
+        if (wasSavingPhoto && !uiState.isUploadingPhoto && uiState.error == null) photoDraft = null
+        wasSavingPhoto = uiState.isUploadingPhoto
     }
-
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia(),
-        onResult = { uri: Uri? ->
-            uri?.let {
-                selectedPhotoUri = it
-            }
-        }
-    )
-
-    val takePhoto = rememberTakePhotoLauncher { uri -> selectedPhotoUri = uri }
+    val pickPhoto = rememberPickPhotoLauncher { photoDraft = it }
+    val takePhoto = rememberTakePhotoLauncher { photoDraft = it }
 
     var hasLocationPermission by remember {
         mutableStateOf(
@@ -374,12 +367,8 @@ fun MapScreen(
             onAdvanceStatus = { target -> viewModel.showStatusDialog(target) },
             onOpenObjectCard = onOpenObjectCard,
             onAddComment = { text -> viewModel.addComment(uiState.selectedTask!!.id, text) },
-            onAddPhotoClick = {
-                photoPickerLauncher.launch(
-                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                )
-            },
-            onTakePhotoClick = takePhoto,
+            onAddPhotoClick = { pickPhoto(uiState.selectedTask!!.id) },
+            onTakePhotoClick = { takePhoto(uiState.selectedTask!!.id) },
             onCancelPendingPhoto = { id -> viewModel.cancelPendingPhoto(id) },
             onDeletePhoto = { photoId -> viewModel.deletePhoto(photoId) },
             onPlannedDateChange = { date -> viewModel.updatePlannedDate(uiState.selectedTask!!.id, date) },
@@ -400,19 +389,18 @@ fun MapScreen(
                 onDismiss = { viewModel.hideAssignDialog() }
             )
         }
-        
-        // Диалог подтверждения загрузки фото
-        selectedPhotoUri?.let { uri ->
-            PhotoUploadConfirmDialog(
-                photoUri = uri,
-                isUploading = uiState.isUploadingPhoto,
-                onUpload = { photoType ->
-                    viewModel.uploadPhoto(uiState.selectedTask!!.id, uri, photoType)
-                },
-                onDismiss = { selectedPhotoUri = null },
-                isOffline = uiState.isOffline
-            )
-        }
+    }
+
+    // Диалог подтверждения фото — вне карточки: после смерти процесса её уже нет
+    photoDraft?.let { draft ->
+        PhotoUploadConfirmDialog(
+            photoUri = draft.uri,
+            isUploading = uiState.isUploadingPhoto,
+            onUpload = { photoType -> viewModel.uploadPhoto(draft.taskId, draft.uri, photoType) },
+            onDismiss = { photoDraft = null },
+            isOffline = uiState.isOffline,
+            taskLabel = uiState.tasks.find { it.id == draft.taskId }?.shortLabel()
+        )
     }
 }
 

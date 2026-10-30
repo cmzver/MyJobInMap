@@ -45,6 +45,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import retrofit2.Response
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -86,6 +87,8 @@ class OfflineFirstTasksRepository @Inject constructor(
     }
 
     private val pendingSyncMutex = Mutex()
+    /** Отправка фото и отмена снимка не должны пересекаться. */
+    private val independentActionMutex = Mutex()
     
     /**
      * Flow всех задач из локальной БД (для карты — загружает все)
@@ -129,7 +132,8 @@ class OfflineFirstTasksRepository @Inject constructor(
      */
     suspend fun refreshTasks(syncPendingFirst: Boolean = true): Result<List<Task>> = withContext(Dispatchers.IO) {
         if (syncPendingFirst && networkMonitor.isCurrentlyOnline()) {
-            val syncResult = syncPendingActions()
+            // Фото список не меняют — их отправит SyncWorker, не задерживая обновление
+            val syncResult = syncTaskChanges()
             if (syncResult.requiresAuthentication) {
                 return@withContext Result.failure(Exception("401 Unauthorized"))
             }
@@ -146,8 +150,7 @@ class OfflineFirstTasksRepository @Inject constructor(
                 )
                 fetchResult.fold(
                     onSuccess = { tasks ->
-                        val locallyModifiedIds = taskDao.getLocallyModifiedTasks()
-                            .mapTo(mutableSetOf()) { it.id }
+                        val locallyModifiedIds = tasksWithUnsentChanges()
                         val entities = tasks
                             .filterNot { it.id in locallyModifiedIds }
                             .map { TaskEntity.fromDomain(it) }
@@ -553,198 +556,229 @@ class OfflineFirstTasksRepository @Inject constructor(
         val retryableFailures: Int = 0,
         val permanentFailures: Int = 0,
         val requiresAuthentication: Boolean = false
-    )
-
-    private enum class SyncOutcome { SUCCESS, RETRYABLE_FAILURE, PERMANENT_FAILURE, AUTH_REQUIRED }
-
-    suspend fun syncPendingActions(): PendingSyncResult = pendingSyncMutex.withLock {
-        syncPendingActionsInternal()
-    }
-
-    private suspend fun syncPendingActionsInternal(): PendingSyncResult = withContext(Dispatchers.IO) {
-        if (!networkMonitor.isCurrentlyOnline()) {
-            return@withContext PendingSyncResult()
-        }
-        
-        val pendingActions = pendingActionDao.getSyncablePendingActions(MAX_PENDING_RETRIES)
-        var syncedCount = 0
-        var retryableFailures = 0
-        var permanentFailures = 0
-        var requiresAuthentication = false
-        val blockedTaskIds = mutableSetOf<Long>()
-        
-        for (action in pendingActions) {
-            if (action.taskId in blockedTaskIds) continue
-            try {
-                val outcome = when (action.actionType) {
-                    ActionType.UPDATE_STATUS -> {
-                        val status = action.newStatus
-                        if (status == null) {
-                            pendingActionDao.markAsFailed(
-                                action.id, "Missing status payload", MAX_PENDING_RETRIES
-                            )
-                            permanentFailures++
-                            blockedTaskIds += action.taskId
-                            continue
-                        }
-                        val response = tasksApi.updateTaskStatus(
-                            id = action.taskId,
-                            status = TaskStatusUpdate(
-                                status = GenTaskStatus.valueOf(status),
-                                comment = action.comment ?: ""
-                            ),
-                            idempotencyKey = action.operationId.ifBlank { null }
-                        )
-                        
-                        val body = response.body()
-                        if (response.isSuccessful && body != null) {
-                            transactionRunner.run {
-                                pendingActionDao.deletePendingActionById(action.id)
-                                val remaining = pendingActionDao.getPendingActionsForTask(action.taskId)
-                                if (remaining.isEmpty()) {
-                                    taskDao.upsertTask(TaskEntity.fromDomain(body.toDomain()))
-                                    taskDao.markAsSynced(action.taskId)
-                                }
-                            }
-                            SyncOutcome.SUCCESS
-                        } else if (response.isSuccessful) {
-                            pendingActionDao.incrementRetryCount(action.id, "Empty response body")
-                            SyncOutcome.RETRYABLE_FAILURE
-                        } else {
-                            recordHttpFailure(action, response.code())
-                        }
-                    }
-                    
-                    ActionType.ADD_COMMENT -> {
-                        val text = action.comment
-                        if (text == null) {
-                            pendingActionDao.markAsFailed(
-                                action.id, "Missing comment payload", MAX_PENDING_RETRIES
-                            )
-                            permanentFailures++
-                            blockedTaskIds += action.taskId
-                            continue
-                        }
-                        val response = tasksApi.addComment(
-                            id = action.taskId,
-                            comment = CommentCreate(text = text),
-                            idempotencyKey = action.operationId.ifBlank { null }
-                        )
-                        val body = response.body()
-                        if (response.isSuccessful && body != null) {
-                            transactionRunner.run {
-                                action.tempId?.let { tempId ->
-                                    commentDao.deleteByTempId(tempId)
-                                }
-                                commentDao.upsertComment(CommentEntity.fromDomain(body.toDomain()))
-                                pendingActionDao.deletePendingActionById(action.id)
-                            }
-                            SyncOutcome.SUCCESS
-                        } else if (response.isSuccessful) {
-                            pendingActionDao.incrementRetryCount(action.id, "Empty response body")
-                            SyncOutcome.RETRYABLE_FAILURE
-                        } else {
-                            recordHttpFailure(action, response.code())
-                        }
-                    }
-
-                    ActionType.UPDATE_PLANNED_DATE -> {
-                        val response = tasksApi.updatePlannedDate(
-                            id = action.taskId,
-                            plannedDate = PlannedDateUpdate(
-                                plannedDate = action.plannedDate
-                            ),
-                            idempotencyKey = action.operationId.ifBlank { null }
-                        )
-                        val body = response.body()
-                        if (response.isSuccessful && body != null) {
-                            transactionRunner.run {
-                                pendingActionDao.deletePendingActionById(action.id)
-                                val remaining = pendingActionDao.getPendingActionsForTask(action.taskId)
-                                if (remaining.isEmpty()) {
-                                    taskDao.upsertTask(TaskEntity.fromDomain(body.toDomain()))
-                                    taskDao.markAsSynced(action.taskId)
-                                }
-                            }
-                            SyncOutcome.SUCCESS
-                        } else if (response.isSuccessful) {
-                            pendingActionDao.incrementRetryCount(action.id, "Empty response body")
-                            SyncOutcome.RETRYABLE_FAILURE
-                        } else {
-                            recordHttpFailure(action, response.code())
-                        }
-                    }
-
-                    ActionType.UPLOAD_PHOTO -> {
-                        val file = action.filePath?.let(::File)?.takeIf { it.exists() }
-                        if (file == null) {
-                            pendingActionDao.markAsFailed(
-                                action.id, "Photo file is missing", MAX_PENDING_RETRIES
-                            )
-                            permanentFailures++
-                            continue
-                        }
-                        val response = tasksApi.uploadTaskPhoto(
-                            taskId = action.taskId,
-                            file = photoPart(file),
-                            photoType = action.photoType ?: DEFAULT_PHOTO_TYPE,
-                            idempotencyKey = action.operationId.ifBlank { null }
-                        )
-                        if (response.isSuccessful && response.body() != null) {
-                            pendingActionDao.deletePendingActionById(action.id)
-                            pendingPhotoStore.delete(action.filePath)
-                            SyncOutcome.SUCCESS
-                        } else if (response.isSuccessful) {
-                            pendingActionDao.incrementRetryCount(action.id, "Empty response body")
-                            SyncOutcome.RETRYABLE_FAILURE
-                        } else {
-                            recordHttpFailure(action, response.code())
-                        }
-                    }
-                }
-                
-                when (outcome) {
-                    SyncOutcome.SUCCESS -> {
-                        syncedCount++
-                        Log.d(TAG, "Synced pending action ${action.id}")
-                    }
-                    SyncOutcome.RETRYABLE_FAILURE -> {
-                        retryableFailures++
-                        if (action.blocksLaterActions) blockedTaskIds += action.taskId
-                    }
-                    SyncOutcome.PERMANENT_FAILURE -> {
-                        permanentFailures++
-                        if (action.blocksLaterActions) blockedTaskIds += action.taskId
-                    }
-                    SyncOutcome.AUTH_REQUIRED -> {
-                        requiresAuthentication = true
-                        break
-                    }
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to sync action ${action.id}: ${e.message}", e)
-                pendingActionDao.incrementRetryCount(action.id, e.message)
-                retryableFailures++
-                if (action.blocksLaterActions) blockedTaskIds += action.taskId
-            }
-        }
-        
-        PendingSyncResult(
-            synced = syncedCount,
-            retryableFailures = retryableFailures,
-            permanentFailures = permanentFailures,
-            requiresAuthentication = requiresAuthentication
+    ) {
+        operator fun plus(other: PendingSyncResult) = PendingSyncResult(
+            synced = synced + other.synced,
+            retryableFailures = retryableFailures + other.retryableFailures,
+            permanentFailures = permanentFailures + other.permanentFailures,
+            requiresAuthentication = requiresAuthentication || other.requiresAuthentication
         )
     }
 
+    private enum class SyncOutcome { SUCCESS, RETRYABLE_FAILURE, PERMANENT_FAILURE, AUTH_REQUIRED }
+
+    private fun PendingSyncResult.counting(outcome: SyncOutcome) = when (outcome) {
+        SyncOutcome.SUCCESS -> copy(synced = synced + 1)
+        SyncOutcome.RETRYABLE_FAILURE -> copy(retryableFailures = retryableFailures + 1)
+        SyncOutcome.PERMANENT_FAILURE -> copy(permanentFailures = permanentFailures + 1)
+        SyncOutcome.AUTH_REQUIRED -> copy(requiresAuthentication = true)
+    }
+
+    /** Вся очередь: сначала правки заявок, затем фото. */
+    suspend fun syncPendingActions(): PendingSyncResult {
+        val changes = syncTaskChanges()
+        if (changes.requiresAuthentication) return changes
+        return changes + syncIndependentActions()
+    }
+
     /**
-     * Сбой действия задерживает следующие по той же заявке — порядок изменений
-     * сохраняется. Фото заявку не меняет, поэтому статус за ним не ждёт.
+     * Правки заявок (статус, комментарии, дата) — короткие запросы строго по
+     * порядку: сбой действия задерживает следующие по той же заявке.
      */
-    private val PendingAction.blocksLaterActions: Boolean
-        get() = actionType != ActionType.UPLOAD_PHOTO
+    private suspend fun syncTaskChanges(): PendingSyncResult = pendingSyncMutex.withLock {
+        withContext(Dispatchers.IO) {
+            var result = PendingSyncResult()
+            if (!networkMonitor.isCurrentlyOnline()) return@withContext result
+
+            val blockedTaskIds = mutableSetOf<Long>()
+            for (action in pendingActionDao.getAllPendingActions()) {
+                if (!action.actionType.keepsTaskOrder || action.taskId in blockedTaskIds) continue
+                if (action.retryCount >= MAX_PENDING_RETRIES) {
+                    // Застрявшее держит следующие, пока его не повторят или не отменят
+                    blockedTaskIds += action.taskId
+                    continue
+                }
+                val outcome = trySend(action)
+                result = result.counting(outcome)
+                if (outcome == SyncOutcome.AUTH_REQUIRED) break
+                if (outcome != SyncOutcome.SUCCESS) blockedTaskIds += action.taskId
+            }
+            result
+        }
+    }
+
+    /**
+     * Действия вне порядка заявки (фото) — отдельным проходом после правок:
+     * мегабайтные загрузки не задерживают статусы и обновление списка.
+     * Блокировка — на каждый снимок: отмена ждёт только его загрузку.
+     */
+    private suspend fun syncIndependentActions(): PendingSyncResult = withContext(Dispatchers.IO) {
+        var result = PendingSyncResult()
+        val actions = pendingActionDao.getAllPendingActions()
+        pendingPhotoStore.pruneOrphans(actions.mapNotNullTo(HashSet()) { it.filePath })
+        val queued = actions
+            .filter { !it.actionType.keepsTaskOrder && it.retryCount < MAX_PENDING_RETRIES }
+        for (snapshot in queued) {
+            if (!networkMonitor.isCurrentlyOnline()) break
+            val outcome = independentActionMutex.withLock {
+                // Снимок могли отменить или отправить параллельным проходом
+                pendingActionDao.getPendingActionById(snapshot.id)
+                    ?.takeIf { it.retryCount < MAX_PENDING_RETRIES }
+                    ?.let { trySend(it) }
+            } ?: continue
+            result = result.counting(outcome)
+            // Слабая связь: остальные снимки зря потратили бы попытки — повторит SyncWorker
+            if (outcome == SyncOutcome.AUTH_REQUIRED || outcome == SyncOutcome.RETRYABLE_FAILURE) break
+        }
+        result
+    }
+
+    private suspend fun trySend(action: PendingAction): SyncOutcome = try {
+        send(action).also { outcome ->
+            if (outcome == SyncOutcome.SUCCESS) Log.d(TAG, "Synced pending action ${action.id}")
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.e(TAG, "Failed to sync action ${action.id}: ${e.message}", e)
+        pendingActionDao.incrementRetryCount(action.id, e.message)
+        SyncOutcome.RETRYABLE_FAILURE
+    }
+
+    private suspend fun send(action: PendingAction): SyncOutcome = when (action.actionType) {
+        ActionType.UPDATE_STATUS -> {
+            val status = action.newStatus
+            if (status == null) {
+                markPayloadMissing(action, "status")
+            } else {
+                val response = tasksApi.updateTaskStatus(
+                    id = action.taskId,
+                    status = TaskStatusUpdate(
+                        status = GenTaskStatus.valueOf(status),
+                        comment = action.comment ?: ""
+                    ),
+                    idempotencyKey = action.operationId.ifBlank { null }
+                )
+                handleResponse(action, response) { body ->
+                    transactionRunner.run {
+                        pendingActionDao.deletePendingActionById(action.id)
+                        if (!hasUnsentTaskChanges(action.taskId)) {
+                            taskDao.upsertTask(TaskEntity.fromDomain(body.toDomain()))
+                            taskDao.markAsSynced(action.taskId)
+                        }
+                    }
+                }
+            }
+        }
+
+        ActionType.ADD_COMMENT -> {
+            val text = action.comment
+            if (text == null) {
+                markPayloadMissing(action, "comment")
+            } else {
+                val response = tasksApi.addComment(
+                    id = action.taskId,
+                    comment = CommentCreate(text = text),
+                    idempotencyKey = action.operationId.ifBlank { null }
+                )
+                handleResponse(action, response) { body ->
+                    transactionRunner.run {
+                        action.tempId?.let { tempId ->
+                            commentDao.deleteByTempId(tempId)
+                        }
+                        // Заявку могли убрать из кеша (выход по 401) — комментарий
+                        // без неё не сохранить; придёт с карточкой.
+                        if (taskDao.getTaskById(action.taskId) != null) {
+                            commentDao.upsertComment(CommentEntity.fromDomain(body.toDomain()))
+                        }
+                        pendingActionDao.deletePendingActionById(action.id)
+                    }
+                }
+            }
+        }
+
+        ActionType.UPDATE_PLANNED_DATE -> {
+            val response = tasksApi.updatePlannedDate(
+                id = action.taskId,
+                plannedDate = PlannedDateUpdate(
+                    plannedDate = action.plannedDate
+                ),
+                idempotencyKey = action.operationId.ifBlank { null }
+            )
+            handleResponse(action, response) { body ->
+                transactionRunner.run {
+                    pendingActionDao.deletePendingActionById(action.id)
+                    if (!hasUnsentTaskChanges(action.taskId)) {
+                        taskDao.upsertTask(TaskEntity.fromDomain(body.toDomain()))
+                        taskDao.markAsSynced(action.taskId)
+                    }
+                }
+            }
+        }
+
+        ActionType.UPLOAD_PHOTO -> {
+            val file = action.filePath?.let(::File)?.takeIf { it.exists() }
+            if (file == null) {
+                pendingActionDao.markAsFailed(
+                    action.id, "Photo file is missing", MAX_PENDING_RETRIES
+                )
+                SyncOutcome.PERMANENT_FAILURE
+            } else {
+                val response = tasksApi.uploadTaskPhoto(
+                    taskId = action.taskId,
+                    file = photoPart(file),
+                    photoType = action.photoType ?: DEFAULT_PHOTO_TYPE,
+                    idempotencyKey = action.operationId.ifBlank { null }
+                )
+                handleResponse(action, response) {
+                    pendingActionDao.deletePendingActionById(action.id)
+                    pendingPhotoStore.delete(action.filePath)
+                }
+            }
+        }
+    }
+
+    private suspend fun <T> handleResponse(
+        action: PendingAction,
+        response: Response<T>,
+        onSuccess: suspend (T) -> Unit
+    ): SyncOutcome {
+        val body = response.body()
+        return when {
+            response.isSuccessful && body != null -> {
+                onSuccess(body)
+                SyncOutcome.SUCCESS
+            }
+            response.isSuccessful -> {
+                pendingActionDao.incrementRetryCount(action.id, "Empty response body")
+                SyncOutcome.RETRYABLE_FAILURE
+            }
+            else -> recordHttpFailure(action, response.code())
+        }
+    }
+
+    private suspend fun markPayloadMissing(action: PendingAction, payload: String): SyncOutcome {
+        pendingActionDao.markAsFailed(action.id, "Missing $payload payload", MAX_PENDING_RETRIES)
+        return SyncOutcome.PERMANENT_FAILURE
+    }
+
+    /**
+     * Заявки, которые нельзя перезаписать серверной версией. Флаг «изменена»
+     * без ждущих правок — след прошлых версий (застревал после комментария
+     * или фото): снимаем, иначе заявка навсегда выпадала из обновлений.
+     */
+    private suspend fun tasksWithUnsentChanges(): Set<Long> {
+        val flagged = taskDao.getLocallyModifiedTasks().map { it.id }
+        val withChanges = pendingActionDao.getAllPendingActions()
+            .filter { it.actionType.mutatesTask }
+            .mapTo(HashSet()) { it.taskId }
+        flagged.filterNot { it in withChanges }.forEach { taskDao.markAsSynced(it) }
+        return flagged.filterTo(HashSet()) { it in withChanges }
+    }
+
+    /** Ждут ли отправки правки, уже применённые к заявке в кеше. */
+    private suspend fun hasUnsentTaskChanges(taskId: Long): Boolean =
+        pendingActionDao.getPendingActionsForTask(taskId).any { it.actionType.mutatesTask }
 
     private suspend fun recordHttpFailure(action: PendingAction, code: Int): SyncOutcome {
         val message = "Server error: $code"
@@ -768,23 +802,27 @@ class OfflineFirstTasksRepository @Inject constructor(
     }
 
     /**
-     * Отменить «провалившееся» действие: удалить его и локальные следы (черновик
-     * комментария). Если по заявке больше ничего не ждёт отправки — вернуть её
+     * Отменить действие из очереди: удалить его и локальные следы (черновик
+     * комментария, снимок). Если правок заявки больше не ждёт — вернуть её
      * к серверному состоянию.
      */
     suspend fun discardFailedAction(actionId: Long) = withContext(Dispatchers.IO) {
         val action = pendingActionDao.getPendingActionById(actionId) ?: return@withContext
+        if (!action.actionType.keepsTaskOrder) {
+            // Снимок мог как раз уходить — дожидаемся, чтобы не удалить его посреди загрузки
+            independentActionMutex.withLock {
+                pendingActionDao.deletePendingActionById(actionId)
+                pendingPhotoStore.delete(action.filePath)
+            }
+            return@withContext
+        }
         var restoreTask = false
         transactionRunner.run {
             pendingActionDao.deletePendingActionById(actionId)
             action.tempId?.let { commentDao.deleteByTempId(it) }
-            restoreTask = pendingActionDao.getPendingActionsForTask(action.taskId).isEmpty()
+            restoreTask = action.actionType.mutatesTask && !hasUnsentTaskChanges(action.taskId)
         }
-        pendingPhotoStore.delete(action.filePath)
-        // Фото не меняет заявку локально — восстанавливать нечего
-        if (restoreTask && action.actionType != ActionType.UPLOAD_PHOTO) {
-            restoreTaskFromServer(action.taskId)
-        }
+        if (restoreTask) restoreTaskFromServer(action.taskId)
     }
 
     private suspend fun restoreTaskFromServer(taskId: Long) {
@@ -820,10 +858,7 @@ class OfflineFirstTasksRepository @Inject constructor(
 
     private suspend fun PendingAction.toFailedAction(): FailedAction {
         val task = taskDao.getTaskById(taskId)
-        val label = task?.let { entity ->
-            val domain = entity.toDomain()
-            "#${domain.getDisplayNumber()} · ${domain.address}"
-        } ?: "Заявка #$taskId"
+        val label = task?.toDomain()?.shortLabel() ?: "Заявка #$taskId"
         val description = when (actionType) {
             ActionType.UPDATE_STATUS -> {
                 val status = newStatus?.let { TaskStatus.fromString(it).displayName } ?: "—"
@@ -856,13 +891,19 @@ class OfflineFirstTasksRepository @Inject constructor(
     }
 
     /**
-     * Очистить локальный кеш (при выходе из аккаунта)
+     * Очистить локальный кеш при выходе из аккаунта. [keepOutbox] — выход не по
+     * воле пользователя (сессия истекла): неотправленные правки и снимки
+     * остаются и уйдут после повторного входа — переснять фото с объекта
+     * уже не выйдет. Войдёт другой — очередь удаляется полным [clearCache].
      */
-    suspend fun clearCache() = withContext(Dispatchers.IO) {
+    suspend fun clearCache(keepOutbox: Boolean = false) = withContext(Dispatchers.IO) {
         taskDao.deleteAllTasks()
-        pendingActionDao.deleteAllPendingActions()
-        pendingPhotoStore.clear()
-        Log.d(TAG, "Cache cleared")
+        if (!keepOutbox) {
+            pendingActionDao.deleteAllPendingActions()
+            pendingPhotoStore.clear()
+        }
+        pendingPhotoStore.clearCameraShots()
+        Log.d(TAG, "Cache cleared (outbox kept: $keepOutbox)")
     }
     
     /**
@@ -915,6 +956,7 @@ class OfflineFirstTasksRepository @Inject constructor(
         val operationId = UUID.randomUUID().toString()
         val file = pendingPhotoStore.save(imageUri, name = operationId)
             ?: return@withContext Result.failure(Exception("Не удалось прочитать фото"))
+        pendingPhotoStore.clearCameraShots()
         try {
             pendingActionDao.insertPendingAction(
                 PendingAction(

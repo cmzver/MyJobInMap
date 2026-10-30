@@ -43,9 +43,10 @@ class TaskPhotosUseCase @Inject constructor(
     fun pendingPhotos(taskId: Long): Flow<List<PendingPhoto>> =
         repository.pendingPhotosFlow(taskId)
 
-    /** Отправить очередь сейчас (без сети — ничего не делает). */
-    suspend fun sendPending() {
-        repository.syncPendingActions()
+    /** Отправить очередь сейчас. false — что-то не ушло и стоит повторить позже. */
+    suspend fun sendPending(): Boolean {
+        val result = repository.syncPendingActions()
+        return result.retryableFailures == 0
     }
 
     /** Отменить отправку фото и удалить снимок с устройства. */

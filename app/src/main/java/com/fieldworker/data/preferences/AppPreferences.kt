@@ -343,6 +343,17 @@ class AppPreferences @Inject constructor(
     fun clearDismissedUpdateVersionCode() {
         prefs.edit().remove(KEY_DISMISSED_UPDATE_VERSION_CODE).apply()
     }
+
+    /**
+     * Чья офлайн-очередь лежит на устройстве (-1 — неизвестно). Не сбрасывается
+     * при [logout]: после выхода по истёкшей сессии по нему решается, отдать
+     * очередь вошедшему или удалить.
+     */
+    fun getOutboxOwnerId(): Long = prefs.getLong(KEY_OUTBOX_OWNER_ID, -1)
+
+    fun setOutboxOwnerId(userId: Long) {
+        prefs.edit().putLong(KEY_OUTBOX_OWNER_ID, userId).apply()
+    }
     
     fun isLoggedIn(): Boolean {
         return getAuthToken() != null
@@ -488,6 +499,7 @@ class AppPreferences @Inject constructor(
         private const val KEY_USER_BASE_ACCESS = "user_base_access"
         private const val KEY_USER_AVATAR_URL = "user_avatar_url"
         private const val KEY_DISMISSED_UPDATE_VERSION_CODE = "dismissed_update_version_code"
+        private const val KEY_OUTBOX_OWNER_ID = "outbox_owner_id"
 
         // Позиция карты
         private const val KEY_MAP_LAT  = "map_lat"

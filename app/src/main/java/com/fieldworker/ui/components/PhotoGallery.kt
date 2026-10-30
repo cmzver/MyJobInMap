@@ -44,6 +44,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.fieldworker.R
 import com.fieldworker.domain.model.PendingPhoto
+import com.fieldworker.domain.model.PhotoType
 import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.photoTypeDisplayName
 import com.fieldworker.ui.theme.AppShape
@@ -57,15 +58,6 @@ import java.io.InputStream
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Locale
-
-/**
- * Типы фото для выбора
- */
-enum class PhotoType(val value: String, val displayName: String) {
-    BEFORE("before", "До работ"),
-    AFTER("after", "После работ"),
-    COMPLETION("completion", "При завершении")
-}
 
 /**
  * Галерея фотографий заявки: плитки «Снять» и «Галерея», затем снимки,
@@ -178,7 +170,9 @@ fun PhotoUploadConfirmDialog(
     isUploading: Boolean,
     onUpload: (String) -> Unit,
     onDismiss: () -> Unit,
-    isOffline: Boolean = false
+    isOffline: Boolean = false,
+    /** К какой заявке фото — после возврата из камеры карточка может быть уже закрыта. */
+    taskLabel: String? = null
 ) {
     var selectedType by remember { mutableStateOf(PhotoType.COMPLETION) }
     
@@ -196,6 +190,16 @@ fun PhotoUploadConfirmDialog(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
+                taskLabel?.let { label ->
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 

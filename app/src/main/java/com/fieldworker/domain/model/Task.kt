@@ -82,6 +82,9 @@ data class Task(
     fun getDisplayNumber(): String {
         return getDispatcherNumber() ?: getInternalNumber()
     }
+
+    /** «#номер · адрес» — заявка одной строкой в диалогах и списке сбоев. */
+    fun shortLabel(): String = "#${getDisplayNumber()} · $address"
 }
 
 /**
@@ -209,9 +212,15 @@ data class PendingPhoto(
     val isFailed: Boolean
 )
 
-fun photoTypeDisplayName(photoType: String?): String = when (photoType) {
-    "before" -> "До работ"
-    "after" -> "После работ"
-    "completion" -> "При завершении"
-    else -> "Фото"
+/** Типы фото к заявке: значение для API и подпись. */
+enum class PhotoType(val value: String, val displayName: String) {
+    BEFORE("before", "До работ"),
+    AFTER("after", "После работ"),
+    COMPLETION("completion", "При завершении")
 }
+
+/** Подпись типа фото; незнакомый тип с сервера показываем как есть. */
+fun photoTypeDisplayName(photoType: String?): String =
+    PhotoType.entries.find { it.value == photoType }?.displayName
+        ?: photoType?.takeIf { it.isNotBlank() }
+        ?: "Фото"

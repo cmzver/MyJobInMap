@@ -3,7 +3,6 @@ package com.fieldworker.ui.main
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -46,6 +45,8 @@ import com.fieldworker.ui.chat.ConversationListScreen
 import com.fieldworker.ui.components.FailedActionsDialog
 import com.fieldworker.ui.components.OfflineBanner
 import com.fieldworker.ui.components.PhotoUploadConfirmDialog
+import com.fieldworker.ui.components.rememberPhotoDraft
+import com.fieldworker.ui.components.rememberPickPhotoLauncher
 import com.fieldworker.ui.components.rememberTakePhotoLauncher
 import com.fieldworker.ui.list.TaskAssignmentUi
 import com.fieldworker.ui.list.TaskListScreen
@@ -133,30 +134,16 @@ fun MainScreen(
     val baseUrl = viewModel.preferences.getFullServerUrl()
     val authToken = viewModel.preferences.getAuthToken()
     
-    // Состояние для выбранного фото (перед подтверждением загрузки)
-    var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
-    
-    // Сбрасываем selectedPhotoUri когда загрузка завершилась
+    // Фото для заявки до подтверждения отправки — переживает и смерть процесса
+    var photoDraft by rememberPhotoDraft()
+    // Снимок сохранён в очередь — закрываем диалог (при ошибке он остаётся)
+    var wasSavingPhoto by remember { mutableStateOf(false) }
     LaunchedEffect(uiState.isUploadingPhoto) {
-        if (!uiState.isUploadingPhoto && selectedPhotoUri != null) {
-            // Проверяем, не было ли ошибки
-            if (uiState.error == null) {
-                selectedPhotoUri = null
-            }
-        }
+        if (wasSavingPhoto && !uiState.isUploadingPhoto && uiState.error == null) photoDraft = null
+        wasSavingPhoto = uiState.isUploadingPhoto
     }
-    
-    // Image picker для загрузки фото (теперь сохраняем Uri, не загружаем сразу)
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia(),
-        onResult = { uri: Uri? ->
-            uri?.let {
-                selectedPhotoUri = it
-            }
-        }
-    )
-
-    val takePhoto = rememberTakePhotoLauncher { uri -> selectedPhotoUri = uri }
+    val pickPhoto = rememberPickPhotoLauncher { photoDraft = it }
+    val takePhoto = rememberTakePhotoLauncher { photoDraft = it }
 
     val chatAttachmentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
@@ -353,12 +340,8 @@ fun MainScreen(
                         onOpenObjectCard = {
                             navController.navigate(Screen.ObjectCard.route)
                         },
-                        onAddPhotoClick = {
-                            photoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        },
-                        onTakePhotoClick = takePhoto,
+                        onAddPhotoClick = { uiState.selectedTask?.let { pickPhoto(it.id) } },
+                        onTakePhotoClick = { uiState.selectedTask?.let { takePhoto(it.id) } },
                         onCancelPendingPhoto = { id -> viewModel.cancelPendingPhoto(id) },
                         onDeletePhoto = { photoId -> viewModel.deletePhoto(photoId) },
                         // Планируемая дата
@@ -643,15 +626,14 @@ fun MainScreen(
             }
             
             // Диалог подтверждения загрузки фото
-            if (selectedPhotoUri != null && uiState.selectedTask != null) {
+            photoDraft?.let { draft ->
                 PhotoUploadConfirmDialog(
-                    photoUri = selectedPhotoUri!!,
+                    photoUri = draft.uri,
                     isUploading = uiState.isUploadingPhoto,
-                    onUpload = { photoType ->
-                        viewModel.uploadPhoto(uiState.selectedTask!!.id, selectedPhotoUri!!, photoType)
-                    },
-                    onDismiss = { selectedPhotoUri = null },
-                    isOffline = uiState.isOffline
+                    onUpload = { photoType -> viewModel.uploadPhoto(draft.taskId, draft.uri, photoType) },
+                    onDismiss = { photoDraft = null },
+                    isOffline = uiState.isOffline,
+                    taskLabel = uiState.tasks.find { it.id == draft.taskId }?.shortLabel()
                 )
             }
         }

@@ -34,11 +34,16 @@ data class PendingAction(
 )
 
 /**
- * Типы отложенных действий
+ * Типы отложенных действий.
+ *
+ * @property mutatesTask действие уже применено к заявке в кеше: пока оно не
+ *   отправлено, заявку нельзя перезаписывать серверной версией.
+ * @property keepsTaskOrder действие уходит строго после предыдущих по той же
+ *   заявке, а его сбой задерживает следующие. Фото ни от чего не зависит.
  */
-enum class ActionType {
-    UPDATE_STATUS,
-    ADD_COMMENT,
-    UPDATE_PLANNED_DATE,
-    UPLOAD_PHOTO
+enum class ActionType(val mutatesTask: Boolean, val keepsTaskOrder: Boolean) {
+    UPDATE_STATUS(mutatesTask = true, keepsTaskOrder = true),
+    ADD_COMMENT(mutatesTask = false, keepsTaskOrder = true),
+    UPDATE_PLANNED_DATE(mutatesTask = true, keepsTaskOrder = true),
+    UPLOAD_PHOTO(mutatesTask = false, keepsTaskOrder = false)
 }

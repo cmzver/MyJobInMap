@@ -13,28 +13,11 @@ import kotlinx.coroutines.flow.Flow
 interface PendingActionDao {
     
     /**
-     * Получить все отложенные действия
+     * Все отложенные действия в порядке создания. Какие из них отправлять и в
+     * каком порядке, решает очередь по [ActionType].
      */
-    @Query("SELECT * FROM pending_actions ORDER BY createdAt ASC")
+    @Query("SELECT * FROM pending_actions ORDER BY createdAt ASC, id ASC")
     suspend fun getAllPendingActions(): List<PendingAction>
-
-    @Query("""
-        SELECT * FROM pending_actions
-        WHERE retryCount < :maxRetries
-          AND NOT EXISTS (
-              SELECT 1 FROM pending_actions AS failed
-              WHERE failed.taskId = pending_actions.taskId
-                AND failed.retryCount >= :maxRetries
-                -- Фото не меняет заявку: застрявший снимок не держит статус и комментарии
-                AND failed.actionType != 'UPLOAD_PHOTO'
-                AND (
-                    failed.createdAt < pending_actions.createdAt
-                    OR (failed.createdAt = pending_actions.createdAt AND failed.id < pending_actions.id)
-                )
-          )
-        ORDER BY createdAt ASC, id ASC
-    """)
-    suspend fun getSyncablePendingActions(maxRetries: Int): List<PendingAction>
     
     /**
      * Получить количество отложенных действий как Flow

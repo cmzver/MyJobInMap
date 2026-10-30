@@ -32,6 +32,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -249,6 +250,8 @@ class MapViewModel @Inject constructor(
     private val _connectionStatus = MutableStateFlow<ConnectionStatus>(ConnectionStatus.IDLE)
     val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
 
+
+    private var photosJob: Job? = null
 
     // Circuit breaker для проверки /health: после 5 подряд неудач интервал растёт до 5 минут
     private var serverCheckFailures = 0
@@ -477,7 +480,7 @@ class MapViewModel @Inject constructor(
         when (validation) {
             com.fieldworker.data.repository.AuthRepository.ValidationResult.INVALID -> {
                 android.util.Log.w("MapViewModel", "User session invalid, clearing cache and triggering logout")
-                getTasksUseCase.clearCache()
+                getTasksUseCase.clearCache(keepOutbox = true)
                 _uiState.update { it.copy(isLoading = false, tasks = emptyList()) }
                 preferences.triggerLogout()
                 return  // НЕ загружаем данные и НЕ разрешаем показ кеша!
@@ -701,7 +704,9 @@ class MapViewModel @Inject constructor(
      * Загрузить фотографии задачи
      */
     private fun loadTaskPhotos(taskId: Long) {
-        viewModelScope.launch {
+        // Новый запрос отменяет прежний: поздний старый ответ не затрёт свежий список
+        photosJob?.cancel()
+        photosJob = viewModelScope.launch {
             if (_uiState.value.isOffline) {
                 // Фото не кешируются — без связи не ждём таймаут, а помечаем раздел
                 _uiState.update {
@@ -773,7 +778,8 @@ class MapViewModel @Inject constructor(
                         old.taskId == taskId && pending.none { it.id == old.id }
                     }
                     _uiState.update { it.copy(pendingPhotos = pending) }
-                    if (taskId != null && left && !state.isOffline) loadTaskPhotos(taskId)
+                    // Без связи loadTaskPhotos пометит раздел — догрузится при её возврате
+                    if (taskId != null && left) loadTaskPhotos(taskId)
                 }
         }
     }
@@ -789,8 +795,11 @@ class MapViewModel @Inject constructor(
             taskPhotosUseCase.enqueuePhoto(taskId, imageUri, photoType)
                 .onSuccess {
                     _uiState.update { it.copy(isUploadingPhoto = false) }
-                    // Без сервера не тратим попытки очереди — отправит возврат связи
-                    if (!_uiState.value.isOffline) taskPhotosUseCase.sendPending()
+                    // Без сервера не тратим попытки очереди — отправит возврат связи.
+                    // Не ушло сразу (слабая связь) — повторит фоновая синхронизация.
+                    if (!_uiState.value.isOffline && !taskPhotosUseCase.sendPending()) {
+                        syncManager.triggerImmediateSync()
+                    }
                 }
                 .onFailure { exception ->
                     _uiState.update {

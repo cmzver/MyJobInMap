@@ -120,6 +120,8 @@ class OfflineFirstTasksRepositoryTest {
         every { pendingActionDao.getPendingActionsCountFlow() } returns flowOf(0)
         every { pendingActionDao.getFailedActionsFlow(any()) } returns flowOf(emptyList())
         coEvery { taskDao.getLocallyModifiedTasks() } returns emptyList()
+        coEvery { pendingActionDao.getAllPendingActions() } returns emptyList()
+        coEvery { pendingActionDao.getPendingActionsForTask(any()) } returns emptyList()
         coEvery { taskDao.getAllTasks() } returns listOf(testTaskEntity)
         coEvery { taskDao.getMaxUpdatedAt() } returns null
         coEvery { taskDao.getSyncedTaskIds() } returns emptyList()
@@ -138,6 +140,37 @@ class OfflineFirstTasksRepositoryTest {
         )
     }
 
+    private fun givenQueue(vararg actions: PendingAction) {
+        coEvery { pendingActionDao.getAllPendingActions() } returns actions.toList()
+        actions.forEach { action ->
+            coEvery { pendingActionDao.getPendingActionById(action.id) } returns action
+        }
+    }
+
+    private fun photoAction(id: Long, taskId: Long = 1L, retryCount: Int = 0) = PendingAction(
+        id = id,
+        taskId = taskId,
+        actionType = ActionType.UPLOAD_PHOTO,
+        filePath = tempFolder.newFile("op-$id.jpg").apply { writeBytes(byteArrayOf(1)) }.absolutePath,
+        photoType = "after",
+        retryCount = retryCount
+    )
+
+    private val serverTaskResponse = TaskResponse(
+        id = 1L,
+        taskNumber = "Z-001",
+        title = "Test Task",
+        rawAddress = "Test Address",
+        description = "Test Description",
+        lat = BigDecimal("55.75"),
+        lon = BigDecimal("37.62"),
+        status = GenTaskStatus.NEW,
+        priority = GenTaskPriority.CURRENT,
+        createdAt = "2024-01-01T10:00:00",
+        updatedAt = "2024-01-01T11:00:00",
+        comments = emptyList()
+    )
+
     // =========================================================================
     // refreshTasks() tests
     // =========================================================================
@@ -151,7 +184,6 @@ class OfflineFirstTasksRepositoryTest {
         )
         coEvery { taskDao.upsertTasks(any()) } just Runs
         coEvery { taskDao.getSyncedTaskIds() } returns emptyList()
-        coEvery { pendingActionDao.getSyncablePendingActions(any()) } returns emptyList()
 
         // When
         val result = repository.refreshTasks()
@@ -166,7 +198,6 @@ class OfflineFirstTasksRepositoryTest {
     @Test
     fun `second refresh is incremental and prunes tasks no longer visible`() = runTest {
         every { networkMonitor.isCurrentlyOnline() } returns true
-        coEvery { pendingActionDao.getSyncablePendingActions(any()) } returns emptyList()
         coEvery { taskDao.upsertTasks(any()) } just Runs
         coEvery { tasksApi.getTasks(any(), any(), any(), any()) } returns Response.success(
             PaginatedResponseTaskListResponse(items = listOf(testTaskDto), total = 1, page = 1, propertySize = 100, pages = 1)
@@ -191,7 +222,6 @@ class OfflineFirstTasksRepositoryTest {
     @Test
     fun `incremental refresh keeps cache when ids fetch fails`() = runTest {
         every { networkMonitor.isCurrentlyOnline() } returns true
-        coEvery { pendingActionDao.getSyncablePendingActions(any()) } returns emptyList()
         coEvery { taskDao.upsertTasks(any()) } just Runs
         coEvery { tasksApi.getTasks(any(), any(), any(), any()) } returns Response.success(
             PaginatedResponseTaskListResponse(items = emptyList(), total = 0, page = 1, propertySize = 100, pages = 1)
@@ -229,7 +259,6 @@ class OfflineFirstTasksRepositoryTest {
         every { networkMonitor.isCurrentlyOnline() } returns true
         coEvery { tasksApi.getTasks(any(), any(), any(), any()) } throws Exception("Network error")
         coEvery { taskDao.getAllTasks() } returns listOf(testTaskEntity)
-        coEvery { pendingActionDao.getSyncablePendingActions(any()) } returns emptyList()
 
         // When
         val result = repository.refreshTasks()
@@ -319,7 +348,7 @@ class OfflineFirstTasksRepositoryTest {
             newStatus = "IN_PROGRESS"
         )
         every { networkMonitor.isCurrentlyOnline() } returns true
-        coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(action)
+        givenQueue(action)
         coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } returns
             Response.error(503, "unavailable".toResponseBody())
         coEvery { pendingActionDao.incrementRetryCount(any(), any()) } just Runs
@@ -373,7 +402,7 @@ class OfflineFirstTasksRepositoryTest {
             operationId = "op-7"
         )
         every { networkMonitor.isCurrentlyOnline() } returns true
-        coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(action)
+        givenQueue(action)
         coEvery { tasksApi.uploadTaskPhoto(any(), any(), any(), any()) } returns Response.success(
             PhotoResponse(
                 id = 5L,
@@ -413,7 +442,7 @@ class OfflineFirstTasksRepositoryTest {
             newStatus = "DONE"
         )
         every { networkMonitor.isCurrentlyOnline() } returns true
-        coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(photo, status)
+        givenQueue(photo, status)
         coEvery { tasksApi.uploadTaskPhoto(any(), any(), any(), any()) } returns
             Response.error(503, "unavailable".toResponseBody())
         coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } returns
@@ -435,7 +464,7 @@ class OfflineFirstTasksRepositoryTest {
             photoType = "after"
         )
         every { networkMonitor.isCurrentlyOnline() } returns true
-        coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(action)
+        givenQueue(action)
 
         val result = repository.syncPendingActions()
 
@@ -453,7 +482,7 @@ class OfflineFirstTasksRepositoryTest {
             newStatus = "IN_PROGRESS"
         )
         every { networkMonitor.isCurrentlyOnline() } returns true
-        coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(action)
+        givenQueue(action)
         coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } returns
             Response.error(422, "invalid".toResponseBody())
         coEvery { pendingActionDao.markAsFailed(any(), any(), any()) } just Runs
@@ -475,7 +504,7 @@ class OfflineFirstTasksRepositoryTest {
             operationId = "op-42"
         )
         every { networkMonitor.isCurrentlyOnline() } returns true
-        coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(action)
+        givenQueue(action)
         coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } returns
             Response.error(503, "unavailable".toResponseBody())
         coEvery { pendingActionDao.incrementRetryCount(any(), any()) } just Runs
@@ -535,7 +564,7 @@ class OfflineFirstTasksRepositoryTest {
             newStatus = "IN_PROGRESS"
         )
         every { networkMonitor.isCurrentlyOnline() } returns true
-        coEvery { pendingActionDao.getSyncablePendingActions(5) } returns listOf(action)
+        givenQueue(action)
         coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } returns
             Response.error(401, "unauthorized".toResponseBody())
 
@@ -545,6 +574,140 @@ class OfflineFirstTasksRepositoryTest {
         coVerify(exactly = 0) { pendingActionDao.incrementRetryCount(any(), any()) }
         coVerify(exactly = 0) { pendingActionDao.markAsFailed(any(), any(), any()) }
         coVerify(exactly = 0) { pendingActionDao.deletePendingActionById(any()) }
+    }
+
+    @Test
+    fun `synced status clears local flag even while a photo of the task is queued`() = runTest {
+        val status = PendingAction(id = 40L, taskId = 1L, actionType = ActionType.UPDATE_STATUS, newStatus = "DONE")
+        val photo = photoAction(41L)
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        givenQueue(status)
+        // После удаления статуса по заявке остаётся только фото
+        coEvery { pendingActionDao.getPendingActionsForTask(1L) } returns listOf(photo)
+        coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } returns
+            Response.success(serverTaskResponse.copy(status = GenTaskStatus.DONE))
+
+        repository.syncPendingActions()
+
+        coVerify { taskDao.upsertTask(match { it.id == 1L && it.status == "DONE" }) }
+        coVerify { taskDao.markAsSynced(1L, any()) }
+    }
+
+    @Test
+    fun `photo is sent even behind a dead lettered status of the same task`() = runTest {
+        val deadStatus = PendingAction(
+            id = 42L, taskId = 1L, actionType = ActionType.UPDATE_STATUS, newStatus = "DONE", retryCount = 5
+        )
+        val comment = PendingAction(id = 43L, taskId = 1L, actionType = ActionType.ADD_COMMENT, comment = "x")
+        val photo = photoAction(44L)
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        givenQueue(deadStatus, comment, photo)
+        coEvery { tasksApi.uploadTaskPhoto(any(), any(), any(), any()) } returns
+            Response.error(503, "unavailable".toResponseBody())
+
+        repository.syncPendingActions()
+
+        // Комментарий ждёт застрявший статус, фото — нет
+        coVerify(exactly = 0) { tasksApi.addComment(any(), any(), any()) }
+        coVerify(exactly = 1) { tasksApi.uploadTaskPhoto(1L, any(), any(), any()) }
+    }
+
+    @Test
+    fun `photo cancelled after the pass started is not uploaded`() = runTest {
+        val photo = photoAction(45L)
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        givenQueue(photo)
+        coEvery { pendingActionDao.getPendingActionById(45L) } returns null
+
+        val result = repository.syncPendingActions()
+
+        assertEquals(OfflineFirstTasksRepository.PendingSyncResult(), result)
+        coVerify(exactly = 0) { tasksApi.uploadTaskPhoto(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { pendingActionDao.markAsFailed(any(), any(), any()) }
+    }
+
+    @Test
+    fun `photo pass stops at first retryable failure`() = runTest {
+        val first = photoAction(46L)
+        val second = photoAction(47L)
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        givenQueue(first, second)
+        coEvery { tasksApi.uploadTaskPhoto(any(), any(), any(), any()) } returns
+            Response.error(503, "unavailable".toResponseBody())
+
+        val result = repository.syncPendingActions()
+
+        assertEquals(1, result.retryableFailures)
+        coVerify(exactly = 1) { tasksApi.uploadTaskPhoto(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `refreshTasks sends task changes but leaves photos to the background sync`() = runTest {
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        givenQueue(photoAction(48L))
+        coEvery { tasksApi.getTasks(any(), any(), any(), any()) } returns Response.success(
+            PaginatedResponseTaskListResponse(items = listOf(testTaskDto), total = 1, page = 1, propertySize = 100, pages = 1)
+        )
+
+        repository.refreshTasks()
+
+        coVerify(exactly = 0) { tasksApi.uploadTaskPhoto(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `refreshTasks overwrites task whose local flag has no unsent changes`() = runTest {
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        coEvery { taskDao.getLocallyModifiedTasks() } returns listOf(testTaskEntity.copy(isLocallyModified = true))
+        coEvery { tasksApi.getTasks(any(), any(), any(), any()) } returns Response.success(
+            PaginatedResponseTaskListResponse(items = listOf(testTaskDto), total = 1, page = 1, propertySize = 100, pages = 1)
+        )
+
+        repository.refreshTasks()
+
+        coVerify { taskDao.markAsSynced(1L, any()) }
+        coVerify { taskDao.upsertTasks(match { tasks -> tasks.any { it.id == 1L } }) }
+    }
+
+    @Test
+    fun `refreshTasks keeps task with unsent status change`() = runTest {
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        coEvery { taskDao.getLocallyModifiedTasks() } returns listOf(testTaskEntity.copy(isLocallyModified = true))
+        givenQueue(
+            PendingAction(id = 49L, taskId = 1L, actionType = ActionType.UPDATE_STATUS, newStatus = "DONE", retryCount = 5)
+        )
+        coEvery { tasksApi.getTasks(any(), any(), any(), any()) } returns Response.success(
+            PaginatedResponseTaskListResponse(items = listOf(testTaskDto), total = 1, page = 1, propertySize = 100, pages = 1)
+        )
+
+        repository.refreshTasks()
+
+        coVerify(exactly = 0) { taskDao.markAsSynced(1L, any()) }
+        coVerify { taskDao.upsertTasks(match { tasks -> tasks.none { it.id == 1L } }) }
+    }
+
+    @Test
+    fun `discarding dead lettered status restores task although a photo is queued`() = runTest {
+        val status = PendingAction(id = 50L, taskId = 1L, actionType = ActionType.UPDATE_STATUS, newStatus = "DONE")
+        coEvery { pendingActionDao.getPendingActionById(50L) } returns status
+        coEvery { pendingActionDao.getPendingActionsForTask(1L) } returns listOf(photoAction(51L))
+        coEvery { tasksApi.getTaskDetail(1L) } returns Response.success(serverTaskResponse)
+
+        repository.discardFailedAction(50L)
+
+        coVerify { taskDao.upsertTask(match { it.id == 1L && it.status == "NEW" }) }
+        coVerify { taskDao.markAsSynced(1L, any()) }
+    }
+
+    @Test
+    fun `cancelling queued photo deletes it without touching the task`() = runTest {
+        val photo = photoAction(52L)
+        coEvery { pendingActionDao.getPendingActionById(52L) } returns photo
+
+        repository.discardFailedAction(52L)
+
+        coVerify { pendingActionDao.deletePendingActionById(52L) }
+        verify { pendingPhotoStore.delete(photo.filePath) }
+        coVerify(exactly = 0) { tasksApi.getTaskDetail(any()) }
     }
 
     // =========================================================================
@@ -592,5 +755,16 @@ class OfflineFirstTasksRepositoryTest {
         coVerify { taskDao.deleteAllTasks() }
         coVerify { pendingActionDao.deleteAllPendingActions() }
         verify { pendingPhotoStore.clear() }
+        verify { pendingPhotoStore.clearCameraShots() }
+    }
+
+    @Test
+    fun `clearCache after expired session keeps unsent changes and photos`() = runTest {
+        repository.clearCache(keepOutbox = true)
+
+        coVerify { taskDao.deleteAllTasks() }
+        coVerify(exactly = 0) { pendingActionDao.deleteAllPendingActions() }
+        verify(exactly = 0) { pendingPhotoStore.clear() }
+        verify { pendingPhotoStore.clearCameraShots() }
     }
 }

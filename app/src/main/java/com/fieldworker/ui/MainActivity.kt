@@ -136,7 +136,7 @@ class MainActivity : ComponentActivity() {
                         if (appPreferences.forcedLogoutRequested) {
                             Log.w(TAG, "Forced logout flag detected, clearing")
                             appPreferences.clearForcedLogoutFlag()
-                            tasksRepository.clearCache(); chatRepository.clearChatCache()
+                            tasksRepository.clearCache(keepOutbox = true); chatRepository.clearChatCache()
                             authState = AuthState.NotLoggedIn
                             return@LaunchedEffect
                         }
@@ -158,6 +158,7 @@ class MainActivity : ComponentActivity() {
                         // недействительна — triggerLogout() вернёт сюда через logoutEvent.
                         // Раньше старт ждал сервер (здесь до 5 с + ещё раз в VM без
                         // таймаута) — при недоступном сервере офлайн открывался минуту.
+                        claimOutbox()
                         authState = AuthState.LoggedIn
                         Log.d(TAG, "========== SESSION VALIDATION END (deferred) ==========")
                     }
@@ -167,7 +168,7 @@ class MainActivity : ComponentActivity() {
                         appPreferences.logoutEvent.collectLatest {
                             Log.w(TAG, "Received logout event (401 Unauthorized), clearing cache")
                             appPreferences.clearForcedLogoutFlag()
-                            tasksRepository.clearCache(); chatRepository.clearChatCache()
+                            tasksRepository.clearCache(keepOutbox = true); chatRepository.clearChatCache()
                             authState = AuthState.NotLoggedIn
                         }
                     }
@@ -281,7 +282,10 @@ class MainActivity : ComponentActivity() {
                         AuthState.NotLoggedIn -> {
                             LoginScreen(
                                 onLoginSuccess = {
-                                    authState = AuthState.LoggedIn
+                                    lifecycleScope.launch {
+                                        claimOutbox()
+                                        authState = AuthState.LoggedIn
+                                    }
                                 }
                             )
                         }
@@ -306,6 +310,18 @@ class MainActivity : ComponentActivity() {
         data object Loading : AuthState()
         data object LoggedIn : AuthState()
         data object NotLoggedIn : AuthState()
+    }
+
+    /**
+     * Офлайн-очередь принадлежит вошедшему. После выхода по истёкшей сессии
+     * она ждёт на устройстве; вошёл другой — чужие правки и снимки удаляем.
+     */
+    private suspend fun claimOutbox() {
+        val userId = appPreferences.getUserId()
+        if (userId <= 0) return
+        val owner = appPreferences.getOutboxOwnerId()
+        if (owner > 0 && owner != userId) tasksRepository.clearCache()
+        appPreferences.setOutboxOwnerId(userId)
     }
 
     private fun askNotificationPermission() {

@@ -207,7 +207,8 @@ class MapViewModelTest {
         val viewModel = buildViewModel()
         advanceUntilIdle()
 
-        coVerify { getTasksUseCase.clearCache() }
+        // Выход не по воле пользователя — неотправленное остаётся до повторного входа
+        coVerify { getTasksUseCase.clearCache(keepOutbox = true) }
         assertTrue(preferences.forcedLogoutRequested)
         assertTrue(viewModel.uiState.value.tasks.isEmpty())
     }
@@ -694,16 +695,35 @@ class MapViewModelTest {
         serverReachable = true
         val uri = mockk<android.net.Uri>()
         coEvery { taskPhotosUseCase.enqueuePhoto(1L, uri, "before") } returns Result.success(Unit)
+        coEvery { taskPhotosUseCase.sendPending() } returns true
 
         val viewModel = createViewModel()
         advanceUntilIdle()
+        clearMocks(syncManager, answers = false)
         viewModel.uploadPhoto(1L, uri, "before")
         advanceUntilIdle()
 
         coVerify { taskPhotosUseCase.enqueuePhoto(1L, uri, "before") }
         coVerify { taskPhotosUseCase.sendPending() }
+        verify(exactly = 0) { syncManager.triggerImmediateSync() }
         assertFalse(viewModel.uiState.value.isUploadingPhoto)
         assertNull(viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun `photo that did not go out at once is handed to background sync`() = runTest {
+        serverReachable = true
+        val uri = mockk<android.net.Uri>()
+        coEvery { taskPhotosUseCase.enqueuePhoto(any(), any(), any()) } returns Result.success(Unit)
+        coEvery { taskPhotosUseCase.sendPending() } returns false
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        clearMocks(syncManager, answers = false)
+        viewModel.uploadPhoto(1L, uri, "before")
+        advanceUntilIdle()
+
+        verify(exactly = 1) { syncManager.triggerImmediateSync() }
     }
 
     @Test

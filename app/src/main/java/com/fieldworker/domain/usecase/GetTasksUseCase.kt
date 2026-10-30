@@ -76,8 +76,8 @@ class GetTasksUseCase @Inject constructor(
     /**
      * Очистить локальный кеш (при выходе из аккаунта)
      */
-    suspend fun clearCache() {
-        repository.clearCache()
+    suspend fun clearCache(keepOutbox: Boolean = false) {
+        repository.clearCache(keepOutbox)
     }
     
     /**
