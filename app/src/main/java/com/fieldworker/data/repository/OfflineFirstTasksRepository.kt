@@ -571,29 +571,43 @@ class OfflineFirstTasksRepository @Inject constructor(
         val synced: Int = 0,
         val retryableFailures: Int = 0,
         val permanentFailures: Int = 0,
-        val requiresAuthentication: Boolean = false
+        val requiresAuthentication: Boolean = false,
+        /** Сервер не ответил — проход прерван, попытки не потрачены. */
+        val serverUnreachable: Boolean = false
     ) {
         operator fun plus(other: PendingSyncResult) = PendingSyncResult(
             synced = synced + other.synced,
             retryableFailures = retryableFailures + other.retryableFailures,
             permanentFailures = permanentFailures + other.permanentFailures,
-            requiresAuthentication = requiresAuthentication || other.requiresAuthentication
+            requiresAuthentication = requiresAuthentication || other.requiresAuthentication,
+            serverUnreachable = serverUnreachable || other.serverUnreachable
         )
     }
 
-    private enum class SyncOutcome { SUCCESS, RETRYABLE_FAILURE, PERMANENT_FAILURE, AUTH_REQUIRED }
+    private enum class SyncOutcome {
+        SUCCESS,
+        RETRYABLE_FAILURE,
+        PERMANENT_FAILURE,
+        AUTH_REQUIRED,
+        /** Нет ответа (нет связи, таймаут): остальные действия ждали бы того же. */
+        UNREACHABLE;
+
+        val stopsPass: Boolean get() = this == AUTH_REQUIRED || this == UNREACHABLE
+    }
 
     private fun PendingSyncResult.counting(outcome: SyncOutcome) = when (outcome) {
         SyncOutcome.SUCCESS -> copy(synced = synced + 1)
         SyncOutcome.RETRYABLE_FAILURE -> copy(retryableFailures = retryableFailures + 1)
         SyncOutcome.PERMANENT_FAILURE -> copy(permanentFailures = permanentFailures + 1)
         SyncOutcome.AUTH_REQUIRED -> copy(requiresAuthentication = true)
+        SyncOutcome.UNREACHABLE ->
+            copy(retryableFailures = retryableFailures + 1, serverUnreachable = true)
     }
 
     /** Вся очередь: сначала правки заявок, затем фото. */
     suspend fun syncPendingActions(): PendingSyncResult {
         val changes = syncTaskChanges()
-        if (changes.requiresAuthentication) return changes
+        if (changes.requiresAuthentication || changes.serverUnreachable) return changes
         return changes + syncIndependentActions()
     }
 
@@ -616,7 +630,7 @@ class OfflineFirstTasksRepository @Inject constructor(
                 }
                 val outcome = trySend(action)
                 result = result.counting(outcome)
-                if (outcome == SyncOutcome.AUTH_REQUIRED) break
+                if (outcome.stopsPass) break
                 if (outcome != SyncOutcome.SUCCESS) blockedTaskIds += action.taskId
             }
             result
@@ -644,7 +658,7 @@ class OfflineFirstTasksRepository @Inject constructor(
             } ?: continue
             result = result.counting(outcome)
             // Слабая связь: остальные снимки зря потратили бы попытки — повторит SyncWorker
-            if (outcome == SyncOutcome.AUTH_REQUIRED || outcome == SyncOutcome.RETRYABLE_FAILURE) break
+            if (outcome.stopsPass || outcome == SyncOutcome.RETRYABLE_FAILURE) break
         }
         result
     }
@@ -655,6 +669,11 @@ class OfflineFirstTasksRepository @Inject constructor(
         }
     } catch (e: CancellationException) {
         throw e
+    } catch (e: IOException) {
+        // Сервер не ответил — это не отказ, попытку не засчитываем: иначе при
+        // сети без доступа к серверу правки «сгорали» за несколько минут
+        Log.w(TAG, "Server unreachable while syncing action ${action.id}: ${e.message}")
+        SyncOutcome.UNREACHABLE
     } catch (e: Exception) {
         Log.e(TAG, "Failed to sync action ${action.id}: ${e.message}", e)
         pendingActionDao.incrementRetryCount(action.id, e.message)

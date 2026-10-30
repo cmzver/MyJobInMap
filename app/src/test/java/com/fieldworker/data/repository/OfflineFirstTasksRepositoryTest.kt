@@ -691,6 +691,25 @@ class OfflineFirstTasksRepositoryTest {
     }
 
     @Test
+    fun `unanswered request does not spend a retry and stops the whole pass`() = runTest {
+        val first = PendingAction(id = 60L, taskId = 1L, actionType = ActionType.UPDATE_STATUS, newStatus = "DONE")
+        val other = PendingAction(id = 61L, taskId = 2L, actionType = ActionType.UPDATE_STATUS, newStatus = "DONE")
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        givenQueue(first, other, photoAction(62L))
+        coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } throws
+            java.net.ConnectException("failed to connect")
+
+        val result = repository.syncPendingActions()
+
+        assertTrue(result.serverUnreachable)
+        assertEquals(1, result.retryableFailures)
+        // Сеть без сервера не сжигает попытки — иначе правка ушла бы в «не удалось»
+        coVerify(exactly = 0) { pendingActionDao.incrementRetryCount(any(), any()) }
+        coVerify(exactly = 1) { tasksApi.updateTaskStatus(any(), any(), any()) }
+        coVerify(exactly = 0) { tasksApi.uploadTaskPhoto(any(), any(), any(), any()) }
+    }
+
+    @Test
     fun `photo pass stops at first retryable failure`() = runTest {
         val first = photoAction(46L)
         val second = photoAction(47L)
