@@ -7,7 +7,7 @@ CRUD заявок, список с фильтрами/сортировкой, с
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -173,6 +173,12 @@ def get_tasks(
             "инкрементальной синхронизации. Порядок: updated_at, id по возрастанию."
         ),
     ),
+    planned_date_from: Optional[date] = Query(
+        None, description="Плановая дата не раньше этого дня (локальная дата)."
+    ),
+    planned_date_to: Optional[date] = Query(
+        None, description="Плановая дата не позже этого дня, включительно."
+    ),
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("view_tasks")),
 ):
@@ -247,6 +253,17 @@ def get_tasks(
 
     if updated_since is not None:
         query = query.filter(TaskModel.updated_at >= _to_naive_utc(updated_since))
+
+    # planned_date — наивное локальное время, как его ввёл пользователь
+    if planned_date_from is not None:
+        query = query.filter(
+            TaskModel.planned_date >= datetime.combine(planned_date_from, time.min)
+        )
+    if planned_date_to is not None:
+        query = query.filter(
+            TaskModel.planned_date
+            < datetime.combine(planned_date_to + timedelta(days=1), time.min)
+        )
 
     # Считаем общее количество
     total = query.count()

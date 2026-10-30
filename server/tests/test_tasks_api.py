@@ -572,3 +572,48 @@ class TestIdempotencyKeys:
             f"/api/tasks/{task['id']}/comments", headers=headers
         ).json()
         assert [c["text"] for c in comments].count("Два") == 2
+
+
+class TestPlannedDateFilter:
+    """planned_date_from/to — календарь портала берёт только свой месяц."""
+
+    def test_month_range_is_inclusive_and_skips_undated(
+        self, client, admin_token, db_session
+    ):
+        from app.models import TaskModel
+
+        headers = {"Authorization": f"Bearer {admin_token}"}
+        planned = {
+            "before": datetime(2026, 9, 30, 23, 30),
+            "first": datetime(2026, 10, 1, 0, 0),
+            "last": datetime(2026, 10, 31, 23, 59),
+            "after": datetime(2026, 11, 1, 0, 0),
+            "undated": None,
+        }
+        ids = {}
+        for title, value in planned.items():
+            response = client.post(
+                "/api/tasks",
+                json={"title": title, "address": "Main St, 1"},
+                headers=headers,
+            )
+            assert response.status_code == 200
+            ids[title] = response.json()["id"]
+            db_session.query(TaskModel).filter(TaskModel.id == ids[title]).update(
+                {"planned_date": value}, synchronize_session=False
+            )
+        db_session.commit()
+
+        response = client.get(
+            "/api/tasks",
+            params={
+                "planned_date_from": "2026-10-01",
+                "planned_date_to": "2026-10-31",
+                "size": 100,
+            },
+            headers=headers,
+        )
+
+        assert response.status_code == 200
+        found = {item["id"] for item in response.json()["items"]}
+        assert found == {ids["first"], ids["last"]}

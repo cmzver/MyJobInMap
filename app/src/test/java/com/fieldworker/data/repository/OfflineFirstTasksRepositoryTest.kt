@@ -289,6 +289,48 @@ class OfflineFirstTasksRepositoryTest {
         assertTrue(result.getOrNull()?.isEmpty() == true)
     }
 
+    @Test
+    fun `refreshTasks answers from cache when server is still down`() = runTest {
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        every { serverHealthCheck.lastKnownReachable } returns false
+        coEvery { serverHealthCheck.isReachable() } returns false
+        givenQueue(PendingAction(id = 63L, taskId = 1L, actionType = ActionType.UPDATE_STATUS, newStatus = "DONE"))
+
+        val result = repository.refreshTasks()
+
+        assertEquals(1, result.getOrNull()?.size)
+        // Ни очередь, ни список не ждут таймаутов — хватило короткой проверки /health
+        coVerify(exactly = 0) { tasksApi.updateTaskStatus(any(), any(), any()) }
+        coVerify(exactly = 0) { tasksApi.getTasks(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `refreshTasks rechecks a server known to be down and loads once it answers`() = runTest {
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        every { serverHealthCheck.lastKnownReachable } returns false
+        coEvery { serverHealthCheck.isReachable() } returns true
+        coEvery { tasksApi.getTasks(any(), any(), any(), any()) } returns Response.success(
+            PaginatedResponseTaskListResponse(items = listOf(testTaskDto), total = 1, page = 1, propertySize = 100, pages = 1)
+        )
+
+        repository.refreshTasks()
+
+        coVerify(exactly = 1) { tasksApi.getTasks(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `refreshTasks does not fetch the list after a queued change got no answer`() = runTest {
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        givenQueue(PendingAction(id = 64L, taskId = 1L, actionType = ActionType.UPDATE_STATUS, newStatus = "DONE"))
+        coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } throws
+            java.net.SocketTimeoutException("timeout")
+
+        val result = repository.refreshTasks()
+
+        assertEquals(1, result.getOrNull()?.size)
+        coVerify(exactly = 0) { tasksApi.getTasks(any(), any(), any(), any()) }
+    }
+
     // =========================================================================
     // updateTaskStatus() tests
     // =========================================================================
