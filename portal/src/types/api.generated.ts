@@ -7476,6 +7476,10 @@ export interface operations {
                 sort?: string | null;
                 /** @description Только заявки, изменённые не раньше этого момента (UTC) — для инкрементальной синхронизации. Порядок: updated_at, id по возрастанию. */
                 updated_since?: string | null;
+                /** @description Плановая дата не раньше этого дня (локальная дата). */
+                planned_date_from?: string | null;
+                /** @description Плановая дата не позже этого дня, включительно. */
+                planned_date_to?: string | null;
             };
             header?: never;
             path?: never;
