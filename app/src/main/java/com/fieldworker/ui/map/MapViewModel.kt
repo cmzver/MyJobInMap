@@ -410,7 +410,11 @@ class MapViewModel @Inject constructor(
     private fun observePendingActions() {
         viewModelScope.launch {
             getTasksUseCase.pendingActionsCount.collect { count ->
+                val grew = count > _uiState.value.pendingActionsCount
                 _uiState.update { it.copy(pendingActionsCount = count) }
+                // Правка встала в очередь, хотя сервер считался доступным (запрос
+                // не дошёл), — отправляем, не дожидаясь периодической синхронизации
+                if (grew && !_uiState.value.isOffline) syncManager.triggerImmediateSync()
             }
         }
         viewModelScope.launch {

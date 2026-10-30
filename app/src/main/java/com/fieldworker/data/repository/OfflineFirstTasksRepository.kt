@@ -29,6 +29,7 @@ import com.fieldworker.data.mapper.toDomainPhotos
 import com.fieldworker.data.mapper.toDomainTasks
 import com.fieldworker.data.network.NetworkError
 import com.fieldworker.data.network.NetworkMonitor
+import com.fieldworker.data.network.ServerHealthCheck
 import com.fieldworker.data.network.toUserMessage
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.FailedAction
@@ -51,6 +52,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
+import java.io.IOException
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -70,6 +72,7 @@ class OfflineFirstTasksRepository @Inject constructor(
     private val pendingActionDao: PendingActionDao,
     private val transactionRunner: LocalTransactionRunner,
     private val networkMonitor: NetworkMonitor,
+    private val serverHealthCheck: ServerHealthCheck,
     private val pendingPhotoStore: PendingPhotoStore
 ) {
     companion object {
@@ -334,13 +337,17 @@ class OfflineFirstTasksRepository @Inject constructor(
         comment: String = ""
     ): Result<Task> = withContext(Dispatchers.IO) {
         try {
-            if (networkMonitor.isCurrentlyOnline()) {
-                // Online: отправляем на сервер
-                val response = tasksApi.updateTaskStatus(
+            // Один ключ на прямую отправку и очередь: если ответ потерялся,
+            // повтор из очереди не сменит статус второй раз
+            val operationId = UUID.randomUUID().toString()
+            val response = sendNow {
+                tasksApi.updateTaskStatus(
                     id = taskId,
-                    status = TaskStatusUpdate(status = GenTaskStatus.valueOf(newStatus.name), comment = comment)
+                    status = TaskStatusUpdate(status = GenTaskStatus.valueOf(newStatus.name), comment = comment),
+                    idempotencyKey = operationId
                 )
-                
+            }
+            if (response != null) {
                 if (response.isSuccessful) {
                     val dto = response.body()
                     if (dto != null) {
@@ -358,7 +365,7 @@ class OfflineFirstTasksRepository @Inject constructor(
                     Result.failure(Exception("Ошибка сервера: ${response.code()}"))
                 }
             } else {
-                // Offline: сохраняем локально
+                // Сервер недоступен: применяем локально и ставим в очередь
                 Log.d(TAG, "Offline: saving status update as pending action")
                 
                 var updatedTask: Task? = null
@@ -374,7 +381,8 @@ class OfflineFirstTasksRepository @Inject constructor(
                             taskId = taskId,
                             actionType = ActionType.UPDATE_STATUS,
                             newStatus = newStatus.name,
-                            comment = comment.ifEmpty { null }
+                            comment = comment.ifEmpty { null },
+                            operationId = operationId
                         )
                     )
                     updatedTask = taskDao.getTaskById(taskId)?.toDomain()
@@ -399,12 +407,15 @@ class OfflineFirstTasksRepository @Inject constructor(
     suspend fun addComment(taskId: Long, text: String): Result<Comment> =
         withContext(Dispatchers.IO) {
             try {
-                if (networkMonitor.isCurrentlyOnline()) {
-                    val response = tasksApi.addComment(
+                val operationId = UUID.randomUUID().toString()
+                val response = sendNow {
+                    tasksApi.addComment(
                         id = taskId,
-                        comment = CommentCreate(text = text)
+                        comment = CommentCreate(text = text),
+                        idempotencyKey = operationId
                     )
-                    
+                }
+                if (response != null) {
                     if (response.isSuccessful) {
                         val dto = response.body()
                         if (dto != null) {
@@ -445,7 +456,8 @@ class OfflineFirstTasksRepository @Inject constructor(
                                 taskId = taskId,
                                 actionType = ActionType.ADD_COMMENT,
                                 comment = text,
-                                tempId = tempId
+                                tempId = tempId,
+                                operationId = operationId
                             )
                         )
                     }
@@ -467,12 +479,15 @@ class OfflineFirstTasksRepository @Inject constructor(
         plannedDate: String?
     ): Result<Task> = withContext(Dispatchers.IO) {
         try {
-            if (networkMonitor.isCurrentlyOnline()) {
-                val response = tasksApi.updatePlannedDate(
+            val operationId = UUID.randomUUID().toString()
+            val response = sendNow {
+                tasksApi.updatePlannedDate(
                     id = taskId,
-                    plannedDate = PlannedDateUpdate(plannedDate = plannedDate)
+                    plannedDate = PlannedDateUpdate(plannedDate = plannedDate),
+                    idempotencyKey = operationId
                 )
-                
+            }
+            if (response != null) {
                 if (response.isSuccessful) {
                     val dto = response.body()
                     if (dto != null) {
@@ -503,7 +518,8 @@ class OfflineFirstTasksRepository @Inject constructor(
                         PendingAction(
                             taskId = taskId,
                             actionType = ActionType.UPDATE_PLANNED_DATE,
-                            plannedDate = plannedDate
+                            plannedDate = plannedDate,
+                            operationId = operationId
                         )
                     )
                     updatedTask = updated.toDomain()
@@ -784,7 +800,7 @@ class OfflineFirstTasksRepository @Inject constructor(
         val message = "Server error: $code"
         return when {
             code == 401 -> SyncOutcome.AUTH_REQUIRED
-            code == 408 || code == 429 || code >= 500 -> {
+            isRetryableHttpCode(code) -> {
                 pendingActionDao.incrementRetryCount(action.id, message)
                 SyncOutcome.RETRYABLE_FAILURE
             }
@@ -795,6 +811,28 @@ class OfflineFirstTasksRepository @Inject constructor(
         }
     }
     
+    private fun isRetryableHttpCode(code: Int) = code == 408 || code == 429 || code >= 500
+
+    /**
+     * Отправить правку сразу. null — не дошла (нет сети или ответа, таймаут,
+     * 5xx): её применят локально и поставят в очередь. «Есть сеть» ещё не
+     * значит «сервер ответит»: если проверка /health уже сказала, что сервер
+     * недоступен, не ждём таймаут — правка сразу уходит в очередь.
+     */
+    private suspend fun <T> sendNow(request: suspend () -> Response<T>): Response<T>? {
+        if (!networkMonitor.isCurrentlyOnline() || serverHealthCheck.lastKnownReachable == false) {
+            return null
+        }
+        return try {
+            request().takeUnless { isRetryableHttpCode(it.code()) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            Log.w(TAG, "Server unreachable, queueing the change: ${e.message}")
+            null
+        }
+    }
+
     /** Вернуть «провалившееся» действие в очередь и сразу попробовать отправить. */
     suspend fun retryFailedAction(actionId: Long): PendingSyncResult = withContext(Dispatchers.IO) {
         pendingActionDao.resetRetries(actionId)

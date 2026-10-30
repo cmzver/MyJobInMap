@@ -790,6 +790,20 @@ class MapViewModelTest {
         assertEquals(3, viewModel.uiState.value.pendingActionsCount)
     }
 
+    @Test
+    fun `change queued while server is reachable is sent without waiting`() = runTest {
+        serverReachable = true
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        clearMocks(syncManager, answers = false)
+
+        pendingCountFlow.value = 1
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isOffline)
+        verify(exactly = 1) { syncManager.triggerImmediateSync() }
+    }
+
     // ==================== filteredTasks ====================
 
     @Test

@@ -20,7 +20,21 @@ class ServerHealthCheck @Inject constructor(
     private val preferences: AppPreferences,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) {
+    @Volatile
+    private var lastResult: Boolean? = null
+
+    /**
+     * Итог последней проверки (null — ещё не проверяли). По нему правки без
+     * ответа сервера сразу уходят в очередь, а не ждут таймаут запроса.
+     */
+    val lastKnownReachable: Boolean?
+        get() = lastResult
+
     suspend fun isReachable(): Boolean = withContext(ioDispatcher) {
+        check().also { lastResult = it }
+    }
+
+    private fun check(): Boolean =
         try {
             val healthUrl = preferences.getFullServerUrl().trimEnd('/') + "/health"
             val connection = URL(healthUrl).openConnection() as HttpURLConnection
@@ -36,7 +50,6 @@ class ServerHealthCheck @Inject constructor(
         } catch (_: Exception) {
             false
         }
-    }
 
     private companion object {
         const val TIMEOUT_MS = 3_000

@@ -11,6 +11,7 @@ import com.fieldworker.data.local.entity.TaskEntity
 import com.fieldworker.data.local.entity.ActionType
 import com.fieldworker.data.local.entity.PendingAction
 import com.fieldworker.data.network.NetworkMonitor
+import com.fieldworker.data.network.ServerHealthCheck
 import com.fieldworker.data.remote.generated.PaginatedResponseTaskListResponse
 import com.fieldworker.data.remote.generated.PhotoResponse
 import com.fieldworker.data.remote.generated.TaskIdsResponse
@@ -74,6 +75,9 @@ class OfflineFirstTasksRepositoryTest {
     private lateinit var networkMonitor: NetworkMonitor
 
     @MockK
+    private lateinit var serverHealthCheck: ServerHealthCheck
+
+    @MockK
     private lateinit var pendingPhotoStore: PendingPhotoStore
 
     @get:Rule
@@ -120,6 +124,7 @@ class OfflineFirstTasksRepositoryTest {
         every { pendingActionDao.getPendingActionsCountFlow() } returns flowOf(0)
         every { pendingActionDao.getFailedActionsFlow(any()) } returns flowOf(emptyList())
         coEvery { taskDao.getLocallyModifiedTasks() } returns emptyList()
+        every { serverHealthCheck.lastKnownReachable } returns null
         coEvery { pendingActionDao.getAllPendingActions() } returns emptyList()
         coEvery { pendingActionDao.getPendingActionsForTask(any()) } returns emptyList()
         coEvery { taskDao.getAllTasks() } returns listOf(testTaskEntity)
@@ -136,6 +141,7 @@ class OfflineFirstTasksRepositoryTest {
             pendingActionDao = pendingActionDao,
             transactionRunner = transactionRunner,
             networkMonitor = networkMonitor,
+            serverHealthCheck = serverHealthCheck,
             pendingPhotoStore = pendingPhotoStore
         )
     }
@@ -333,6 +339,64 @@ class OfflineFirstTasksRepositoryTest {
         coVerify { taskDao.updateStatusLocally(1L, "IN_PROGRESS", "IN_PROGRESS", "Starting work") }
         coVerify { pendingActionDao.insertPendingAction(any()) }
         coVerify(exactly = 1) { transactionRunner.run(any()) }
+    }
+
+    @Test
+    fun `updateTaskStatus queues the change under the same key when the server does not answer`() = runTest {
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        val sentKey = slot<String>()
+        val queued = slot<PendingAction>()
+        coEvery { tasksApi.updateTaskStatus(any(), any(), capture(sentKey)) } throws
+            java.net.SocketTimeoutException("timeout")
+        coEvery { pendingActionDao.insertPendingAction(capture(queued)) } returns 1L
+        coEvery { taskDao.getTaskById(1L) } returns testTaskEntity.copy(status = "IN_PROGRESS")
+
+        val result = repository.updateTaskStatus(1L, TaskStatus.IN_PROGRESS)
+
+        assertTrue(result.isSuccess)
+        coVerify { taskDao.updateStatusLocally(1L, "IN_PROGRESS", "IN_PROGRESS", null) }
+        assertEquals(ActionType.UPDATE_STATUS, queued.captured.actionType)
+        // Ответ мог потеряться после применения — повтор из очереди сервер узнает по ключу
+        assertEquals(sentKey.captured, queued.captured.operationId)
+    }
+
+    @Test
+    fun `updateTaskStatus goes straight to the queue when the server is known to be down`() = runTest {
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        every { serverHealthCheck.lastKnownReachable } returns false
+        coEvery { pendingActionDao.insertPendingAction(any()) } returns 1L
+        coEvery { taskDao.getTaskById(1L) } returns testTaskEntity.copy(status = "IN_PROGRESS")
+
+        val result = repository.updateTaskStatus(1L, TaskStatus.IN_PROGRESS)
+
+        assertTrue(result.isSuccess)
+        coVerify(exactly = 0) { tasksApi.updateTaskStatus(any(), any(), any()) }
+        coVerify { pendingActionDao.insertPendingAction(match { it.actionType == ActionType.UPDATE_STATUS }) }
+    }
+
+    @Test
+    fun `updateTaskStatus reports a rejected change without queueing it`() = runTest {
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } returns
+            Response.error(422, "invalid".toResponseBody())
+
+        val result = repository.updateTaskStatus(1L, TaskStatus.IN_PROGRESS)
+
+        assertTrue(result.isFailure)
+        coVerify(exactly = 0) { pendingActionDao.insertPendingAction(any()) }
+    }
+
+    @Test
+    fun `addComment queues the comment when the server does not answer`() = runTest {
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        coEvery { tasksApi.addComment(any(), any(), any()) } throws java.io.IOException("refused")
+        coEvery { pendingActionDao.insertPendingAction(any()) } returns 1L
+
+        val result = repository.addComment(1L, "Жду ключи")
+
+        assertTrue(result.isSuccess)
+        coVerify { commentDao.upsertComment(match { it.isLocalOnly && it.text == "Жду ключи" }) }
+        coVerify { pendingActionDao.insertPendingAction(match { it.actionType == ActionType.ADD_COMMENT }) }
     }
 
     // =========================================================================
