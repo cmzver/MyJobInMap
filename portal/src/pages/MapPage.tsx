@@ -21,8 +21,8 @@ import Select from '@/components/Select'
 import { useAuthStore } from '@/store/authStore'
 import { useTheme } from '@/hooks/useTheme'
 import { useUsers } from '@/hooks/useUsers'
-import apiClient from '@/api/client'
-import type { PaginatedResponse, Task, TaskPriority, TaskStatus } from '@/types/task'
+import { fetchAllTaskPages } from '@/api/tasks'
+import type { Task, TaskPriority, TaskStatus } from '@/types/task'
 import { normalizeRoleForAccess, isAssignableRole } from '@/types/user'
 import { STATUS_HEX, normalizePriority } from '@/config/taskConstants'
 import { formatDatePretty } from '@/utils/dateFormat'
@@ -291,34 +291,17 @@ export default function MapPage() {
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['map-tasks', statusQuery, priorityQuery, isWorker ? user?.id : assigneeFilter],
     queryFn: async () => {
-      const PAGE_SIZE = 200
-      const buildParams = (page: number) => {
-        const params = new URLSearchParams()
-        // Явно фильтруем по статусам/приоритету/исполнителю на сервере, а не на
-        // клиенте, иначе лимит страницы «съедали» бы заявки других статусов.
-        sortedStatuses.forEach((status) => params.append('status', status))
-        sortedPriorities.forEach((priority) => params.append('priority', priority))
-        if (isWorker && user?.id) {
-          params.append('assignee_id', String(user.id))
-        } else if (assigneeFilter) {
-          params.append('assignee_id', assigneeFilter)
-        }
-        params.append('size', String(PAGE_SIZE))
-        params.append('page', String(page))
-        return params
+      const params = new URLSearchParams()
+      // Явно фильтруем по статусам/приоритету/исполнителю на сервере, а не на
+      // клиенте, иначе лимит страницы «съедали» бы заявки других статусов.
+      sortedStatuses.forEach((status) => params.append('status', status))
+      sortedPriorities.forEach((priority) => params.append('priority', priority))
+      if (isWorker && user?.id) {
+        params.append('assignee_id', String(user.id))
+      } else if (assigneeFilter) {
+        params.append('assignee_id', assigneeFilter)
       }
-
-      const first = await apiClient.get<PaginatedResponse<Task>>(`/tasks?${buildParams(1)}`)
-      let items = first.data.items
-      const totalPages = first.data.pages ?? 1
-      if (totalPages > 1) {
-        const rest = await Promise.all(
-          Array.from({ length: totalPages - 1 }, (_, index) =>
-            apiClient.get<PaginatedResponse<Task>>(`/tasks?${buildParams(index + 2)}`),
-          ),
-        )
-        items = items.concat(...rest.map((response) => response.data.items))
-      }
+      const items = await fetchAllTaskPages(params)
       return items.filter(isTaskWithUsableCoordinates)
     },
   })

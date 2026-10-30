@@ -8,7 +8,7 @@ import { useUnreadTaskNotifications } from '@/hooks/useNotifications'
 import { useTasks } from '@/hooks/useTasks'
 import { usePortalInterfaceSettings } from '@/hooks/useSettings'
 import { useUsers } from '@/hooks/useUsers'
-import { tasksApi } from '@/api/tasks'
+import { MAX_TASKS_PAGE_SIZE, tasksApi } from '@/api/tasks'
 import type { TaskStatus, TaskPriority, TaskFilters, Task, TaskSort } from '@/types/task'
 import {
   normalizePriority,
@@ -315,7 +315,7 @@ export default function TasksPage() {
   const [page, setPage] = useState(() =>
     Number.isFinite(initialPage) && initialPage > 0 ? initialPage : 1
   )
-  const initialSize = Number(searchParams.get('size') || PAGE_SIZE)
+  const initialSize = Math.min(MAX_TASKS_PAGE_SIZE, Number(searchParams.get('size') || PAGE_SIZE))
   const [pageSize, setPageSize] = useState(() =>
     Number.isFinite(initialSize) && initialSize > 0 ? Math.trunc(initialSize) : PAGE_SIZE
   )
@@ -409,7 +409,10 @@ export default function TasksPage() {
   )
 
   const { data: interfaceSettings } = usePortalInterfaceSettings()
-  const defaultPageSize = Math.max(1, Number(interfaceSettings?.tasks_per_page ?? PAGE_SIZE))
+  const defaultPageSize = Math.min(
+    MAX_TASKS_PAGE_SIZE,
+    Math.max(1, Number(interfaceSettings?.tasks_per_page ?? PAGE_SIZE)),
+  )
   const pageSizeOptions = useMemo(
     () =>
       Array.from(new Set([PAGE_SIZE, defaultPageSize, ...PAGE_SIZE_OPTIONS])).sort((a, b) => a - b),

@@ -7,6 +7,28 @@ import type { components } from '@/types/api.generated'
 export type CreateTaskData = components['schemas']['TaskCreate']
 export type UpdateTaskData = components['schemas']['TaskUpdate']
 
+/** Больше заявок за запрос сервер не отдаёт (`size` ≤ 100) — больший размер даёт 422. */
+export const MAX_TASKS_PAGE_SIZE = 100
+
+/** Все заявки по фильтрам: страницы по {@link MAX_TASKS_PAGE_SIZE}, остальные параллельно. */
+export async function fetchAllTaskPages(filters: URLSearchParams): Promise<Task[]> {
+  const pageQuery = (page: number) => {
+    const params = new URLSearchParams(filters)
+    params.set('size', String(MAX_TASKS_PAGE_SIZE))
+    params.set('page', String(page))
+    return params
+  }
+  const first = await apiClient.get<PaginatedResponse<Task>>(`/tasks?${pageQuery(1)}`)
+  const totalPages = first.data.pages ?? 1
+  if (totalPages <= 1) return first.data.items
+  const rest = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) =>
+      apiClient.get<PaginatedResponse<Task>>(`/tasks?${pageQuery(index + 2)}`),
+    ),
+  )
+  return first.data.items.concat(...rest.map((response) => response.data.items))
+}
+
 export const tasksApi = {
   // Get paginated list of tasks
   async getTasks(filters?: TaskFilters): Promise<PaginatedResponse<Task>> {

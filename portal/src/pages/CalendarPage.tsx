@@ -13,8 +13,7 @@ import Spinner from '@/components/Spinner'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
 import { useAuthStore } from '@/store/authStore'
-import apiClient from '@/api/client'
-import { Task } from '@/types/task'
+import { fetchAllTaskPages } from '@/api/tasks'
 import { normalizeRoleForAccess } from '@/types/user'
 import { 
   format, 
@@ -49,9 +48,7 @@ export default function CalendarPage() {
       if (isWorker && user?.id) {
         params.append('assignee_id', String(user.id))
       }
-      params.append('size', '200')
-      const response = await apiClient.get<{ items: Task[] }>(`/tasks?${params}`)
-      return response.data.items
+      return fetchAllTaskPages(params)
     },
   })
 

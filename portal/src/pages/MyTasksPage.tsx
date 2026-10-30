@@ -8,7 +8,7 @@ import Spinner from '@/components/Spinner'
 import PageHeader from '@/components/PageHeader'
 import StatusBadge from '@/components/StatusBadge'
 import { useAuthStore } from '@/store/authStore'
-import apiClient from '@/api/client'
+import { fetchAllTaskPages } from '@/api/tasks'
 import { myTaskKeys } from '@/hooks/useTasks'
 import { Task } from '@/types/task'
 import { formatDatePretty as formatDate, formatDateShort } from '@/utils/dateFormat'
@@ -83,27 +83,10 @@ export default function MyTasksPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: [...myTaskKeys.list(user?.id), { search }],
     queryFn: async () => {
-      const pageSize = 200
-      const all: Task[] = []
-      let page = 1
-
-      while (true) {
-        const params = new URLSearchParams()
-        params.append('assignee_id', String(user?.id))
-        params.append('page', String(page))
-        params.append('size', String(pageSize))
-        if (search) params.append('search', search)
-
-        const response = await apiClient.get<{ items: Task[]; pages: number }>(`/tasks?${params}`)
-        all.push(...response.data.items)
-
-        if (page >= (response.data.pages ?? 0) || response.data.items.length < pageSize) {
-          break
-        }
-        page += 1
-      }
-
-      return all
+      const params = new URLSearchParams()
+      params.append('assignee_id', String(user?.id))
+      if (search) params.append('search', search)
+      return fetchAllTaskPages(params)
     },
     enabled: !!user?.id,
     refetchOnMount: 'always',
