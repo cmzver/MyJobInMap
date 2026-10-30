@@ -134,12 +134,18 @@ class OfflineFirstTasksRepository @Inject constructor(
      * Загрузить задачи (сначала из кеша, потом обновить с сервера)
      */
     suspend fun refreshTasks(syncPendingFirst: Boolean = true): Result<List<Task>> = withContext(Dispatchers.IO) {
-        if (syncPendingFirst && networkMonitor.isCurrentlyOnline()) {
+        if (!serverWorthAsking()) {
+            Log.d(TAG, "Server unreachable, returning cached tasks")
+            return@withContext Result.success(getTasksFromCache())
+        }
+        if (syncPendingFirst) {
             // Фото список не меняют — их отправит SyncWorker, не задерживая обновление
             val syncResult = syncTaskChanges()
             if (syncResult.requiresAuthentication) {
                 return@withContext Result.failure(Exception("401 Unauthorized"))
             }
+            // Правку сервер не принял молча — список не отдаст тем более
+            if (syncResult.serverUnreachable) return@withContext Result.success(getTasksFromCache())
         }
 
         try {
@@ -204,6 +210,17 @@ class OfflineFirstTasksRepository @Inject constructor(
     }
 
     
+    /**
+     * Идти ли за списком на сервер. Если /health уже сказал «недоступен» —
+     * переспрашиваем его (≤3 с): ждать таймауты очереди и страниц списка ради
+     * того же кеша — это полминуты крутящегося pull-to-refresh.
+     */
+    private suspend fun serverWorthAsking(): Boolean = when {
+        !networkMonitor.isCurrentlyOnline() -> false
+        serverHealthCheck.lastKnownReachable == false -> serverHealthCheck.isReachable()
+        else -> true
+    }
+
     /**
      * Получить задачи из кеша
      */
