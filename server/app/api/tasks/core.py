@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
@@ -44,7 +44,11 @@ from app.services import (
     metrics,
     require_permission,
 )
-from app.services.idempotency import cached_response, remember_response
+from app.services.idempotency import (
+    IdempotencyKey,
+    cached_response,
+    remember_response,
+)
 from app.services.notification_service import (
     broadcast_created_notification_async,
     create_task_assignment_notification,
@@ -363,12 +367,7 @@ async def update_task_status(
             "change_task_status", worker_detail="Нет доступа к этой заявке"
         )
     ),
-    idempotency_key: Optional[str] = Header(
-        None,
-        alias="Idempotency-Key",
-        max_length=64,
-        description="Повтор с тем же ключом вернёт сохранённый ответ (Android-outbox).",
-    ),
+    idempotency_key: IdempotencyKey = None,
     task_service=Depends(get_task_service),
 ):
     """Изменить статус заявки."""
@@ -465,12 +464,7 @@ def update_planned_date(
     access: TaskAccess = Depends(
         require_task_access("edit_tasks", worker_detail="Нет доступа к этой заявке")
     ),
-    idempotency_key: Optional[str] = Header(
-        None,
-        alias="Idempotency-Key",
-        max_length=64,
-        description="Повтор с тем же ключом вернёт сохранённый ответ (Android-outbox).",
-    ),
+    idempotency_key: IdempotencyKey = None,
     task_service=Depends(get_task_service),
 ):
     """Изменить плановую дату заявки."""

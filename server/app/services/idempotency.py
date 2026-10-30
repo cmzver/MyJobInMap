@@ -7,9 +7,9 @@
 
 import json
 from datetime import timedelta
-from typing import Optional
+from typing import Annotated, Optional
 
-from fastapi import HTTPException
+from fastapi import Header, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
@@ -21,6 +21,16 @@ from app.models.idempotency import IdempotencyKeyModel
 # Outbox клиента повторяет максимум несколько дней — дольше хранить незачем.
 IDEMPOTENCY_TTL = timedelta(days=7)
 MAX_KEY_LENGTH = 64
+
+# Параметр эндпоинта: ``idempotency_key: IdempotencyKey = None``.
+IdempotencyKey = Annotated[
+    Optional[str],
+    Header(
+        alias="Idempotency-Key",
+        max_length=MAX_KEY_LENGTH,
+        description="Повтор с тем же ключом вернёт сохранённый ответ (Android-outbox).",
+    ),
+]
 
 
 def cached_response(

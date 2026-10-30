@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.api import photos as photos_api
 from app.config import settings
 from app.models import TaskModel, TaskPhotoModel, TaskStatus
 
@@ -103,6 +104,56 @@ class TestUploadPhoto:
             .count()
         )
         assert count == 1
+
+    def test_upload_retry_racing_the_first_request_keeps_one_photo(
+        self,
+        client: TestClient,
+        admin_token: str,
+        test_task,
+        cleanup_photos,
+        db_session: Session,
+        monkeypatch,
+    ):
+        """Повтор, проверивший ключ до коммита первого запроса, не оставляет дубль."""
+        headers = {
+            "Authorization": f"Bearer {admin_token}",
+            "Idempotency-Key": "photo-op-race",
+        }
+
+        def upload():
+            return client.post(
+                f"/api/tasks/{test_task.id}/photos",
+                files={"file": ("test.jpg", create_test_jpeg(), "image/jpeg")},
+                params={"photo_type": "before"},
+                headers=headers,
+            )
+
+        first = upload()
+        cleanup_photos.append(first.json()["filename"])
+        files_before = set(settings.PHOTOS_DIR.iterdir())
+
+        # Повтор «не видит» ключ на входе — как если бы первый ещё не закоммитился
+        real_cached_response = photos_api.cached_response
+        checks = []
+
+        def racing_cached_response(*args):
+            checks.append(args)
+            return None if len(checks) == 1 else real_cached_response(*args)
+
+        monkeypatch.setattr(photos_api, "cached_response", racing_cached_response)
+        second = upload()
+
+        assert second.status_code == 200
+        assert second.json()["id"] == first.json()["id"]
+        count = (
+            db_session.query(TaskPhotoModel)
+            .filter(TaskPhotoModel.task_id == test_task.id)
+            .count()
+        )
+        assert count == 1
+        # Ответ взят после отката своей копии; её файл удалён
+        assert len(checks) == 2
+        assert set(settings.PHOTOS_DIR.iterdir()) == files_before
 
     def test_upload_photo_task_not_found(self, client: TestClient, admin_token: str):
         """Заявка не найдена."""

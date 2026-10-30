@@ -5,15 +5,15 @@ Tasks API — comments
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import TaskAccess, require_task_access
 from app.models import CommentModel, get_db
 from app.schemas import CommentCreate, CommentResponse
-from app.services.idempotency import cached_response, stage_response
+from app.services.idempotency import IdempotencyKey, cached_response, stage_response
 
 router = APIRouter(prefix="/api/tasks", tags=["Tasks"])
 
@@ -25,12 +25,7 @@ async def add_comment(
     access: TaskAccess = Depends(
         require_task_access("add_comments", worker_detail="Нет доступа к этой заявке")
     ),
-    idempotency_key: Optional[str] = Header(
-        None,
-        alias="Idempotency-Key",
-        max_length=64,
-        description="Повтор с тем же ключом вернёт сохранённый ответ (Android-outbox).",
-    ),
+    idempotency_key: IdempotencyKey = None,
     db: Session = Depends(get_db),
 ):
     """Добавить комментарий"""

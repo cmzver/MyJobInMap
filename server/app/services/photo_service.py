@@ -9,7 +9,7 @@ magic-bytes), оптимизация, сохранение на диск + за�
 import logging
 import uuid
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from fastapi import Depends
 from sqlalchemy.orm import Session, joinedload
@@ -78,7 +78,10 @@ class PhotoService:
         photo_type: str,
         filename: Optional[str],
         content: bytes,
+        stage_response: Optional[Callable[[PhotoResponse], None]] = None,
     ) -> PhotoResponse:
+        """Сохранить фото. ``stage_response`` добавляет запись в ту же транзакцию
+        (ответ для Idempotency-Key) — без фото она не закоммитится и наоборот."""
         # Проверка расширения
         file_ext = Path(filename).suffix.lower() if filename else ""
         if file_ext not in settings.ALLOWED_EXTENSIONS:
@@ -144,13 +147,22 @@ class PhotoService:
             photo_type=photo_type,
             uploaded_by_id=current_user.id,
         )
-        self.db.add(photo)
-        self.db.commit()
-        self.db.refresh(photo)
+        try:
+            self.db.add(photo)
+            self.db.flush()  # id и created_at для ответа
+            response = _photo_to_response(
+                photo, current_user.full_name or current_user.username
+            )
+            if stage_response is not None:
+                stage_response(response)
+            self.db.commit()
+        except Exception:
+            # Запись не сохранилась — файл без неё никому не нужен
+            self.db.rollback()
+            file_path.unlink(missing_ok=True)
+            raise
 
-        return _photo_to_response(
-            photo, current_user.full_name or current_user.username
-        )
+        return response
 
     def list_for_task(self, task_id: int) -> List[PhotoResponse]:
         # Оптимизированный запрос с JOIN вместо N+1 запросов
