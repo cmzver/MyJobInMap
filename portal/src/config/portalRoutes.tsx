@@ -6,6 +6,7 @@ import {
   Calendar,
   ClipboardList,
   DollarSign,
+  Landmark,
   LayoutDashboard,
   LifeBuoy,
   Map,
@@ -38,6 +39,7 @@ const SupportTicketDetailPage = lazy(() => import('@/pages/SupportTicketDetailPa
 const AdminSettingsPage = lazy(() => import('@/pages/AdminSettingsPage'))
 const OrganizationsPage = lazy(() => import('@/pages/OrganizationsPage'))
 const OrganizationDetailPage = lazy(() => import('@/pages/OrganizationDetailPage'))
+const OrganizationSettingsPage = lazy(() => import('@/pages/OrganizationSettingsPage'))
 const UpdatesPage = lazy(() => import('@/pages/UpdatesPage'))
 const ChatPage = lazy(() => import('@/pages/ChatPage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
@@ -148,6 +150,13 @@ export const portalRoutes: PortalRouteDefinition[] = [
     element: <UsersPage />,
     roles: ADMIN_ROLES,
     navigation: { section: 'management', label: 'Пользователи', icon: Users },
+  },
+  {
+    id: 'organization-settings',
+    path: 'organization',
+    element: <OrganizationSettingsPage />,
+    roles: ADMIN_ROLES,
+    navigation: { section: 'management', label: 'Организация', icon: Landmark },
   },
   {
     id: 'finance',

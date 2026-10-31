@@ -1712,6 +1712,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/organization-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Organization Settings
+         * @description Реквизиты, настройки актов и действующие нормативы сроков.
+         */
+        get: operations["read_organization_settings_api_admin_organization_settings_get"];
+        /**
+         * Save Organization Settings
+         * @description Сохранить настройки целиком; sla_hours=null — нормативы по умолчанию.
+         */
+        put: operations["save_organization_settings_api_admin_organization_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/system/health": {
         parameters: {
             query?: never;
@@ -5431,6 +5455,76 @@ export interface components {
             /** Updated At */
             updated_at?: string | null;
         };
+        /** OrganizationSettingsResponse */
+        OrganizationSettingsResponse: {
+            /** Legal Name */
+            legal_name?: string | null;
+            /** Inn */
+            inn?: string | null;
+            /** Kpp */
+            kpp?: string | null;
+            /** Ogrn */
+            ogrn?: string | null;
+            /** Legal Address */
+            legal_address?: string | null;
+            /** Bank Name */
+            bank_name?: string | null;
+            /** Bik */
+            bik?: string | null;
+            /** Account */
+            account?: string | null;
+            /** Corr Account */
+            corr_account?: string | null;
+            /** Director Name */
+            director_name?: string | null;
+            /** Director Title */
+            director_title?: string | null;
+            /**
+             * Act Number Prefix
+             * @default А
+             */
+            act_number_prefix: string;
+            /** Act Footer Text */
+            act_footer_text?: string | null;
+            /** Organization Id */
+            organization_id: number;
+            sla_hours: components["schemas"]["SlaHours"];
+            /** Sla Hours Customized */
+            sla_hours_customized: boolean;
+        };
+        /** OrganizationSettingsUpdate */
+        OrganizationSettingsUpdate: {
+            /** Legal Name */
+            legal_name?: string | null;
+            /** Inn */
+            inn?: string | null;
+            /** Kpp */
+            kpp?: string | null;
+            /** Ogrn */
+            ogrn?: string | null;
+            /** Legal Address */
+            legal_address?: string | null;
+            /** Bank Name */
+            bank_name?: string | null;
+            /** Bik */
+            bik?: string | null;
+            /** Account */
+            account?: string | null;
+            /** Corr Account */
+            corr_account?: string | null;
+            /** Director Name */
+            director_name?: string | null;
+            /** Director Title */
+            director_title?: string | null;
+            /**
+             * Act Number Prefix
+             * @default А
+             */
+            act_number_prefix: string;
+            /** Act Footer Text */
+            act_footer_text?: string | null;
+            sla_hours?: components["schemas"]["SlaHours"] | null;
+        };
         /** OrganizationUpdate */
         OrganizationUpdate: {
             /** Name */
@@ -5812,6 +5906,20 @@ export interface components {
             icon: string;
             /** Settings */
             settings: components["schemas"]["SettingResponse"][];
+        };
+        /**
+         * SlaHours
+         * @description Норматив срока по приоритету, часы (не больше года).
+         */
+        SlaHours: {
+            /** Emergency */
+            EMERGENCY: number;
+            /** Urgent */
+            URGENT: number;
+            /** Current */
+            CURRENT: number;
+            /** Planned */
+            PLANNED: number;
         };
         /**
          * SlaOverview
@@ -6250,6 +6358,12 @@ export interface components {
              */
             completed_at?: string | null;
             /**
+             * Due At
+             * @description Срок выполнения: конец плановой даты или создание + норматив приоритета
+             * @example 2025-12-10T21:00:00Z
+             */
+            due_at?: string | null;
+            /**
              * Assigned User Id
              * @description ID назначенного исполнителя
              * @example 2
@@ -6468,6 +6582,12 @@ export interface components {
              * @example 2025-12-09T21:00:00
              */
             completed_at?: string | null;
+            /**
+             * Due At
+             * @description Срок выполнения: конец плановой даты или создание + норматив приоритета
+             * @example 2025-12-10T21:00:00Z
+             */
+            due_at?: string | null;
             /**
              * Assigned User Id
              * @description ID назначенного исполнителя
@@ -10199,6 +10319,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_organization_settings_api_admin_organization_settings_get: {
+        parameters: {
+            query?: {
+                organization_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationSettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_organization_settings_api_admin_organization_settings_put: {
+        parameters: {
+            query?: {
+                organization_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganizationSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationSettingsResponse"];
                 };
             };
             /** @description Validation Error */
