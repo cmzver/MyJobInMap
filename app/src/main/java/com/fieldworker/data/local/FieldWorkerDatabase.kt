@@ -27,7 +27,7 @@ import com.fieldworker.data.local.entity.TaskEntity
         ConversationEntity::class,
         MessageEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 abstract class FieldWorkerDatabase : RoomDatabase() {
@@ -173,6 +173,22 @@ abstract class FieldWorkerDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE pending_actions ADD COLUMN filePath TEXT DEFAULT NULL")
                 db.execSQL("ALTER TABLE pending_actions ADD COLUMN photoType TEXT DEFAULT NULL")
+            }
+        }
+
+        /**
+         * Migration 9 -> 10: повтор более ранней заявки на том же месте (repeat_of с сервера).
+         * Кеш дозаполнится первой синхронизацией после запуска — она всегда полная.
+         */
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN repeatOfId INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN repeatTaskNumber TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN repeatIsReturn INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN repeatSameDefect INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN repeatDate TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN repeatAssigneeName TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN repeatComment TEXT DEFAULT NULL")
             }
         }
     }
