@@ -337,6 +337,12 @@ class _TaskReadBase(BaseModel):
         json_schema_extra={"example": "2025-12-09T21:00:00"},
     )
 
+    due_at: Optional[UtcDateTime] = Field(
+        None,
+        description="Срок выполнения: конец плановой даты или создание + норматив приоритета",
+        json_schema_extra={"example": "2025-12-10T21:00:00Z"},
+    )
+
     assigned_user_id: Optional[int] = Field(
         None,
         description="ID назначенного исполнителя",

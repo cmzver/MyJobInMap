@@ -7,7 +7,7 @@ Organization Model
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, utcnow
@@ -67,4 +67,48 @@ class OrganizationModel(Base):
     )
     support_tickets: Mapped[List["SupportTicketModel"]] = relationship(
         "SupportTicketModel", back_populates="organization"
+    )
+
+
+class OrganizationSettingsModel(Base):
+    """Реквизиты, документы и нормативы организации (1:1 к organizations).
+
+    Строки может не быть — тогда действуют значения по умолчанию
+    (см. organization_settings_service).
+    """
+
+    __tablename__ = "organization_settings"
+
+    organization_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    # Реквизиты — для шапки актов
+    legal_name: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    inn: Mapped[Optional[str]] = mapped_column(String(12), nullable=True)
+    kpp: Mapped[Optional[str]] = mapped_column(String(9), nullable=True)
+    ogrn: Mapped[Optional[str]] = mapped_column(String(15), nullable=True)
+    legal_address: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    bank_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    bik: Mapped[Optional[str]] = mapped_column(String(9), nullable=True)
+    account: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    corr_account: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    director_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    director_title: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+    # Документы
+    act_number_prefix: Mapped[str] = mapped_column(
+        String(10), default="А", nullable=False
+    )
+    act_footer_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Нормативы срока по приоритету, часы: {"EMERGENCY": 4, ...}.
+    # NULL — нормативы по умолчанию (sla_service.DEFAULT_SLA_HOURS).
+    sla_hours: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, onupdate=utcnow, nullable=True
+    )
+    updated_by_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

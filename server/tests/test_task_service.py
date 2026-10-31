@@ -1,17 +1,23 @@
 """Tests for TaskService class."""
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from app.models import (
     AddressModel,
     OrganizationModel,
+    OrganizationSettingsModel,
     TaskModel,
     TaskStatus,
+    UserGroupModel,
     UserModel,
     UserRole,
 )
-from app.schemas import TaskCreate
+from app.schemas import TaskCreate, TaskUpdate
 from app.services.auth import get_password_hash
+from app.services.role_utils import org_managers
+from app.services.sla_service import get_sla_metrics
 from app.services.task_service import (
     CommentRequiredError,
     InvalidTransitionError,
@@ -475,3 +481,133 @@ class TestTaskServiceStatusNames:
         assert PRIORITY_DISPLAY_NAMES[TaskPriority.CURRENT.value] == "Текущая"
         assert PRIORITY_DISPLAY_NAMES[TaskPriority.URGENT.value] == "Срочная"
         assert PRIORITY_DISPLAY_NAMES[TaskPriority.EMERGENCY.value] == "Аварийная"
+
+
+class TestTaskServiceDueAt:
+    """Срок заявки: норматив приоритета или конец плановой даты."""
+
+    @pytest.fixture
+    def org_user(self, db_session, monkeypatch):
+        monkeypatch.setattr(
+            "app.services.task_service.geocoding_service.geocode",
+            lambda _: (59.9, 30.3),
+        )
+        org = OrganizationModel(name="Due Org", slug="due-org", is_active=True)
+        user = UserModel(
+            username="due_dispatcher",
+            password_hash=get_password_hash("test"),
+            role=UserRole.DISPATCHER.value,
+            is_active=True,
+            organization=org,
+        )
+        db_session.add_all([org, user])
+        db_session.commit()
+        return user
+
+    def _create(self, db_session, user, **fields):
+        return TaskService(db_session).create(
+            TaskCreate(
+                title="Срок",
+                address="Невская ул., д. 9",
+                description="Проверка срока",
+                **fields,
+            ),
+            user,
+        )
+
+    def test_priority_norm(self, db_session, org_user):
+        task = self._create(db_session, org_user, priority="EMERGENCY")
+
+        assert task.due_at - task.created_at == timedelta(hours=4)
+
+    def test_planned_date_is_end_of_local_day(self, db_session, org_user):
+        task = self._create(db_session, org_user, planned_date="2026-11-05")
+
+        # Конец 5 ноября по Москве — 21:00 UTC.
+        assert task.due_at == datetime(2026, 11, 5, 21, 0)
+
+    def test_organization_norms(self, db_session, org_user):
+        db_session.add(
+            OrganizationSettingsModel(
+                organization_id=org_user.organization_id,
+                sla_hours={"EMERGENCY": 1, "URGENT": 2, "CURRENT": 3, "PLANNED": 4},
+            )
+        )
+        db_session.commit()
+
+        task = self._create(db_session, org_user, priority="URGENT")
+
+        assert task.due_at - task.created_at == timedelta(hours=2)
+
+    def test_recomputed_on_priority_and_date_changes(self, db_session, org_user):
+        service = TaskService(db_session)
+        task = self._create(db_session, org_user, priority="CURRENT")
+        created = task.created_at
+
+        service.admin_update_task(task.id, TaskUpdate(priority="EMERGENCY"), org_user)
+        assert task.due_at - created == timedelta(hours=4)
+
+        service.update_planned_date(task.id, datetime(2026, 11, 7), org_user)
+        assert task.due_at == datetime(2026, 11, 7, 21, 0)
+
+        service.update_planned_date(task.id, None, org_user)
+        assert task.due_at - created == timedelta(hours=4)
+
+    def test_overdue_counts_by_due_at(self, db_session, org_user):
+        task = self._create(db_session, org_user, priority="PLANNED")
+        task.due_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+            minutes=1
+        )
+        db_session.commit()
+
+        metrics = get_sla_metrics(db_session, period="all", tenant_user=org_user)
+
+        assert metrics["overview"]["active_overdue"] == 1
+
+
+class TestOrgManagers:
+    """Менеджеры организации — по base_access, с кастомными группами."""
+
+    def test_custom_dispatcher_group_included(self, db_session):
+        org = OrganizationModel(name="Managers Org", slug="managers-org")
+        other = OrganizationModel(name="Other Org", slug="other-org")
+        db_session.add_all([org, other])
+        db_session.commit()
+        db_session.add(
+            UserGroupModel(
+                name="senior",
+                label="Старший мастер",
+                base_access="dispatcher",
+                is_system=False,
+                organization_id=org.id,
+            )
+        )
+
+        def user(username, role, organization, active=True):
+            return UserModel(
+                username=username,
+                password_hash="x",
+                role=role,
+                is_active=active,
+                organization_id=organization.id,
+            )
+
+        db_session.add_all(
+            [
+                user("m_admin", UserRole.ADMIN.value, org),
+                user("m_dispatcher", UserRole.DISPATCHER.value, org),
+                user("m_senior", "senior", org),
+                user("m_worker", UserRole.WORKER.value, org),
+                user("m_retired", UserRole.DISPATCHER.value, org, active=False),
+                user("m_foreign", UserRole.DISPATCHER.value, other),
+            ]
+        )
+        db_session.commit()
+
+        managers = org_managers(db_session, org.id)
+
+        assert {u.username for u in managers} == {
+            "m_admin",
+            "m_dispatcher",
+            "m_senior",
+        }

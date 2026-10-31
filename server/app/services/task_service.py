@@ -38,6 +38,7 @@ from app.services.notification_service import (
 )
 from app.services.push import send_push_notification
 from app.services.role_utils import is_worker_user
+from app.services.sla_service import apply_due_at
 from app.services.task_state_machine import TaskStatusMachine
 from app.services.tenant_filter import TenantFilter
 from app.utils import (
@@ -378,6 +379,7 @@ class TaskService:
 
         if tenant is not None:
             tenant.set_org_id(task)
+        apply_due_at(self.db, task)
 
         self.db.add(task)
         # Transaction ownership belongs to the API/use-case boundary.  flush()
@@ -445,6 +447,8 @@ class TaskService:
         update_data = task_data.model_dump(exclude_unset=True)
         if "planned_date" in update_data:
             task.planned_date = update_data["planned_date"]
+        if task_data.priority is not None or "planned_date" in update_data:
+            apply_due_at(self.db, task)
 
         if task_data.is_remote is not None:
             task.is_remote = task_data.is_remote
@@ -692,6 +696,7 @@ class TaskService:
         """
         task = self.get_by_id(task_id)
         task.planned_date = planned_date
+        apply_due_at(self.db, task)
         task.updated_at = datetime.now(timezone.utc)
 
         # Комментарий

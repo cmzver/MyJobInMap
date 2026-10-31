@@ -68,3 +68,21 @@ def is_worker_user(user: Any) -> bool:
     неизвестной роли/отсутствии сессии считаем работником (сужаем доступ).
     """
     return not is_dispatcher_or_admin_user(user)
+
+
+def org_managers(
+    db: Any, organization_id: int | None, exclude_user_id: int | None = None
+) -> list:
+    """Активные admin/dispatcher организации по base_access — с кастомными группами.
+
+    organization_id=None — пользователи без организации (суперадмины), как и
+    прежние выборки по ``UserModel.organization_id == task.organization_id``.
+    """
+    from app.models import UserModel
+
+    query = db.query(UserModel).filter(
+        UserModel.is_active.is_(True), UserModel.organization_id == organization_id
+    )
+    if exclude_user_id is not None:
+        query = query.filter(UserModel.id != exclude_user_id)
+    return [user for user in query.all() if is_dispatcher_or_admin_user(user)]

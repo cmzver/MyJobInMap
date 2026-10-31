@@ -202,6 +202,7 @@ def _base_task_dict(task: TaskModel) -> Dict[str, Any]:
         "created_at": task.created_at,
         "updated_at": task.updated_at,
         "completed_at": task.completed_at,
+        "due_at": task.due_at,
         "planned_date": task.planned_date,
         "assigned_user_id": task.assigned_user_id,
         "assigned_user_name": (

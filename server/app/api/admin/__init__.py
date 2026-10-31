@@ -12,6 +12,7 @@ from app.api.admin.backups import router as backups_router
 from app.api.admin.custom_fields import router as custom_fields_router
 from app.api.admin.database import router as database_router
 from app.api.admin.devices import router as devices_router
+from app.api.admin.organization_settings import router as organization_settings_router
 from app.api.admin.organizations import router as organizations_router
 from app.api.admin.permissions import router as permissions_router
 from app.api.admin.security import router as security_router
@@ -32,6 +33,7 @@ router.include_router(database_router)
 router.include_router(security_router)
 router.include_router(settings_router)
 router.include_router(organizations_router)
+router.include_router(organization_settings_router)
 router.include_router(system_router)
 
 __all__ = ["router", "public_router"]

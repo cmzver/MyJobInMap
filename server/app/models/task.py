@@ -41,6 +41,7 @@ class TaskModel(Base):
         Index("ix_tasks_created_at", "created_at"),
         Index("ix_tasks_completed_at", "completed_at"),
         Index("ix_tasks_created_by_id", "created_by_id"),
+        Index("ix_tasks_org_status_due", "organization_id", "status", "due_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -74,6 +75,9 @@ class TaskModel(Base):
         DateTime, nullable=True
     )  # Планируемая дата выполнения
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Срок выполнения, наивное UTC: конец плановой даты либо создание + норматив
+    # приоритета (sla_service.compute_due_at).
+    due_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Назначенный пользователь
     assigned_user_id: Mapped[Optional[int]] = mapped_column(

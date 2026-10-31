@@ -46,7 +46,7 @@ from app.models.chat import (
 from app.models.enums import TaskPriority, TaskStatus, UserRole
 from app.models.idempotency import IdempotencyKeyModel
 from app.models.notification import NotificationModel, NotificationType
-from app.models.organization import OrganizationModel
+from app.models.organization import OrganizationModel, OrganizationSettingsModel
 from app.models.security import (
     BlockedIPModel,
     IPAllowlistModel,
@@ -106,6 +106,7 @@ __all__ = [
     "PushSubscriptionModel",
     # Organization
     "OrganizationModel",
+    "OrganizationSettingsModel",
     # Task Models
     "TaskModel",
     "CommentModel",

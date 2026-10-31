@@ -187,6 +187,12 @@ class Settings(BaseSettings):
         description="Список разрешённых CORS origins (через запятую в .env)",
     )
 
+    # === Время бизнеса ===
+    BUSINESS_TIMEZONE: str = Field(
+        default="Europe/Moscow",
+        description="Часовой пояс для «сегодня», конца дня и сроков заявок",
+    )
+
     # === Логирование ===
     LOG_LEVEL: str = Field(default="INFO", description="Уровень логирования")
     LOG_FORMAT: str = Field(default="text", description="Формат логов (text/json)")
