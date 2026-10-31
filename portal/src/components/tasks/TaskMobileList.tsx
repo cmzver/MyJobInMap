@@ -2,6 +2,7 @@ import { Fragment } from 'react'
 import { Calendar, ChevronDown, Clock, MapPin, User, UserPlus } from 'lucide-react'
 
 import PriorityBadge from '@/components/PriorityBadge'
+import RepeatBadge from '@/components/tasks/RepeatBadge'
 import StatusBadge from '@/components/StatusBadge'
 import TaskNotificationBubble from '@/components/tasks/TaskNotificationBubble'
 import type { TaskListGroup } from '@/components/tasks/taskListTypes'
@@ -78,6 +79,7 @@ export default function TaskMobileList({
                         <div className="flex items-center justify-between gap-2">
                           <span className="flex min-w-0 items-center gap-1.5 truncate font-mono text-xs text-gray-500 dark:text-gray-400">
                             {task.task_number || `#${task.id}`}
+                            <RepeatBadge repeat={task.repeat_of} className="shrink-0" />
                             {hasUnread && <TaskNotificationBubble count={unreadCount} />}
                           </span>
                           <span className="flex flex-shrink-0 items-center gap-1.5">

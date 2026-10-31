@@ -3,6 +3,7 @@ import { ChevronDown, SlidersHorizontal } from 'lucide-react'
 
 import Button from '@/components/Button'
 import PriorityBadge from '@/components/PriorityBadge'
+import RepeatBadge from '@/components/tasks/RepeatBadge'
 import StatusBadge from '@/components/StatusBadge'
 import TaskNotificationBubble from '@/components/tasks/TaskNotificationBubble'
 import type { TaskListGroup } from '@/components/tasks/taskListTypes'
@@ -72,8 +73,11 @@ function renderTaskCell(task: Task, key: ToggleableTaskTableColumnKey, unreadCou
     case 'title':
       return (
         <>
-          <div className="min-w-0 line-clamp-1 text-sm font-medium text-gray-900 dark:text-white">
-            {task.defect_type || task.title || 'Без описания'}
+          <div className="flex min-w-0 items-center gap-2">
+            <RepeatBadge repeat={task.repeat_of} className="shrink-0" />
+            <div className="min-w-0 truncate text-sm font-medium text-gray-900 dark:text-white">
+              {task.defect_type || task.title || 'Без описания'}
+            </div>
           </div>
           {(task.defect_type ? task.title : task.description) && (
             <div className="mt-0.5 min-w-0 line-clamp-1 text-xs text-gray-500 dark:text-gray-400">

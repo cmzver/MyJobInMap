@@ -2,6 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 
 import apiClient from '@/api/client'
 import type { AnalyticsData, AnalyticsFilters } from '@/types/analytics'
+import type { components } from '@/types/api.generated'
+import type { ReportPeriod } from '@/types/reports'
+
+export type RepeatMetrics = components['schemas']['RepeatMetricsResponse']
 
 type NormalizedAnalyticsFilters = {
   period: AnalyticsFilters['period']
@@ -57,6 +61,18 @@ export function analyticsQueryOptions(filters: AnalyticsFilters) {
 
 export function useAnalytics(filters: AnalyticsFilters) {
   return useQuery(analyticsQueryOptions(filters))
+}
+
+/** Повторные заявки за период — по всем исполнителям. */
+export function useRepeatMetrics(period: ReportPeriod) {
+  return useQuery({
+    queryKey: ['analytics', 'repeats', period] as const,
+    queryFn: async () => {
+      const response = await apiClient.get<RepeatMetrics>('/analytics/repeats', { params: { period } })
+      return response.data
+    },
+    staleTime: 60000,
+  })
 }
 
 export async function downloadAnalyticsReport(filters: AnalyticsFilters) {

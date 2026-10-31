@@ -267,6 +267,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tasks/related": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Related Tasks
+         * @description Заявки на том же месте (адрес + система): открытые, недавно закрытые
+         *     и последние. Для подсказки «на этом адресе уже есть…» в форме и для
+         *     истории адреса в карточке. Мастер видит только свои заявки.
+         */
+        get: operations["get_related_tasks_api_tasks_related_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tasks/{task_id}": {
         parameters: {
             query?: never;
@@ -2682,6 +2704,26 @@ export interface paths {
         };
         /** Export Analytics Excel */
         get: operations["export_analytics_excel_api_analytics_export_excel_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/repeats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Repeat Metrics
+         * @description Повторы за период. Доступ: admin, dispatcher.
+         */
+        get: operations["repeat_metrics_api_analytics_repeats_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5486,6 +5528,11 @@ export interface components {
             act_number_prefix: string;
             /** Act Footer Text */
             act_footer_text?: string | null;
+            /**
+             * Repeat Window Days
+             * @default 30
+             */
+            repeat_window_days: number;
             /** Organization Id */
             organization_id: number;
             sla_hours: components["schemas"]["SlaHours"];
@@ -5523,6 +5570,11 @@ export interface components {
             act_number_prefix: string;
             /** Act Footer Text */
             act_footer_text?: string | null;
+            /**
+             * Repeat Window Days
+             * @default 30
+             */
+            repeat_window_days: number;
             sla_hours?: components["schemas"]["SlaHours"] | null;
         };
         /** OrganizationUpdate */
@@ -5790,6 +5842,126 @@ export interface components {
         RefreshRequest: {
             /** Refresh Token */
             refresh_token: string;
+        };
+        /**
+         * RelatedTask
+         * @description Заявка на том же месте — для подсказки в форме и истории адреса.
+         */
+        RelatedTask: {
+            /** Id */
+            id: number;
+            /** Task Number */
+            task_number: string;
+            /** Title */
+            title: string;
+            /** Status */
+            status: string;
+            /** Defect Type */
+            defect_type?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Completed At */
+            completed_at?: string | null;
+            /** Assigned User Name */
+            assigned_user_name?: string | null;
+        };
+        /** RelatedTasksResponse */
+        RelatedTasksResponse: {
+            /**
+             * Open Tasks
+             * @description Открытые сейчас
+             */
+            open_tasks: components["schemas"]["RelatedTask"][];
+            /**
+             * Recently Closed
+             * @description Закрытые за последние window_days дней
+             */
+            recently_closed: components["schemas"]["RelatedTask"][];
+            /**
+             * History
+             * @description Последние заявки на месте, любой статус
+             */
+            history: components["schemas"]["RelatedTask"][];
+            /** Window Days */
+            window_days: number;
+        };
+        /** RepeatMetricsResponse */
+        RepeatMetricsResponse: {
+            period: components["schemas"]["RepeatPeriodInfo"];
+            /** Window Days */
+            window_days: number;
+            overview: components["schemas"]["RepeatOverview"];
+            /** By Worker */
+            by_worker: components["schemas"]["RepeatWorker"][];
+            /** Top Addresses */
+            top_addresses: components["schemas"]["RepeatPlace"][];
+            /** Top Systems */
+            top_systems: components["schemas"]["RepeatSystem"][];
+        };
+        /** RepeatOverview */
+        RepeatOverview: {
+            /** Created */
+            created: number;
+            /** Duplicates */
+            duplicates: number;
+            /** Returns */
+            returns: number;
+            /** Completed */
+            completed: number;
+            /** Returned */
+            returned: number;
+            /** Return Rate */
+            return_rate: number;
+        };
+        /** RepeatPeriodInfo */
+        RepeatPeriodInfo: {
+            /** Start */
+            start: string;
+            /** End */
+            end: string;
+            /** Days */
+            days: number;
+            /** Label */
+            label: string;
+        };
+        /** RepeatPlace */
+        RepeatPlace: {
+            /** Label */
+            label: string;
+            /** Address Id */
+            address_id?: number | null;
+            /** Tasks */
+            tasks: number;
+            /** Returns */
+            returns: number;
+        };
+        /** RepeatSystem */
+        RepeatSystem: {
+            /** System Id */
+            system_id: number;
+            /** Name */
+            name: string;
+            /** Address Id */
+            address_id?: number | null;
+            /** Address */
+            address: string;
+            /** Tasks */
+            tasks: number;
+            /** Returns */
+            returns: number;
+        };
+        /** RepeatWorker */
+        RepeatWorker: {
+            /** User Id */
+            user_id: number;
+            /** User Name */
+            user_name: string;
+            /** Completed */
+            completed: number;
+            /** Returned */
+            returned: number;
+            /** Return Rate */
+            return_rate: number;
         };
         /**
          * ReplyPreview
@@ -6431,6 +6603,8 @@ export interface components {
              * @description ID организации
              */
             organization_id?: number | null;
+            /** @description Повтор более ранней заявки на том же месте */
+            repeat_of?: components["schemas"]["TaskRepeatRef"] | null;
             /**
              * Comments Count
              * @default 0
@@ -6492,6 +6666,46 @@ export interface components {
              * @default 0
              */
             EMERGENCY: number;
+        };
+        /**
+         * TaskRepeatRef
+         * @description Более ранняя заявка на том же месте, повтором которой стала эта.
+         */
+        TaskRepeatRef: {
+            /** Id */
+            id: number;
+            /** Task Number */
+            task_number: string;
+            /**
+             * Kind
+             * @description duplicate — та была открыта; return — её недавно закрыли
+             * @enum {string}
+             */
+            kind: "duplicate" | "return";
+            /** Status */
+            status: string;
+            /** Defect Type */
+            defect_type?: string | null;
+            /**
+             * Same Defect
+             * @description Та же неисправность
+             * @default false
+             */
+            same_defect: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Completed At */
+            completed_at?: string | null;
+            /**
+             * Assigned User Name
+             * @description Исполнитель той заявки
+             */
+            assigned_user_name?: string | null;
+            /**
+             * Completion Comment
+             * @description Комментарий при закрытии той заявки
+             */
+            completion_comment?: string | null;
         };
         /**
          * TaskResponse
@@ -6656,6 +6870,8 @@ export interface components {
              * @description ID организации
              */
             organization_id?: number | null;
+            /** @description Повтор более ранней заявки на том же месте */
+            repeat_of?: components["schemas"]["TaskRepeatRef"] | null;
             /**
              * Comments
              * @description История комментариев и изменений
@@ -7600,6 +7816,8 @@ export interface operations {
                 planned_date_from?: string | null;
                 /** @description Плановая дата не позже этого дня, включительно. */
                 planned_date_to?: string | null;
+                /** @description Только повторы этого вида (дубли, возвраты). */
+                repeat_kind?: ("duplicate" | "return")[];
             };
             header?: never;
             path?: never;
@@ -7699,6 +7917,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaskSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_related_tasks_api_tasks_related_get: {
+        parameters: {
+            query?: {
+                /** @description История места этой заявки (сама она в ответ не входит) */
+                task_id?: number | null;
+                /** @description Адрес ещё не созданной заявки */
+                address?: string | null;
+                system_id?: number | null;
+                system_type?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelatedTasksResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12262,6 +12516,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    repeat_metrics_api_analytics_repeats_get: {
+        parameters: {
+            query?: {
+                period?: string;
+                /** @description ISO date for custom period */
+                date_from?: string | null;
+                /** @description ISO date for custom period */
+                date_to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepeatMetricsResponse"];
                 };
             };
             /** @description Validation Error */

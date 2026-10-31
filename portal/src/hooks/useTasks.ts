@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient, QueryClient } from '@tanstack/react-query'
-import { tasksApi } from '@/api/tasks'
+import { tasksApi, type RelatedTasksQuery } from '@/api/tasks'
 import type { PaginatedResponse, Task, TaskFilters } from '@/types/task'
 
 // Query keys
@@ -9,6 +9,7 @@ export const taskKeys = {
   list: (filters?: TaskFilters) => [...taskKeys.lists(), filters] as const,
   details: () => [...taskKeys.all, 'detail'] as const,
   detail: (id: number) => [...taskKeys.details(), id] as const,
+  related: (query: RelatedTasksQuery) => [...taskKeys.all, 'related', query] as const,
 }
 
 export const myTaskKeys = {
@@ -86,6 +87,16 @@ export function useTask(id: number) {
     queryKey: taskKeys.detail(id),
     queryFn: () => tasksApi.getTask(id),
     enabled: !!id,
+  })
+}
+
+/** Заявки на том же месте; null — запрос не нужен (адрес ещё не заполнен). */
+export function useRelatedTasks(query: RelatedTasksQuery | null) {
+  return useQuery({
+    queryKey: taskKeys.related(query ?? { address: '' }),
+    queryFn: () => tasksApi.getRelated(query!),
+    enabled: query !== null,
+    staleTime: 30_000,
   })
 }
 

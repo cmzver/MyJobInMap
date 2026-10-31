@@ -16,6 +16,7 @@ import toast from 'react-hot-toast'
 import PageHeader from '@/components/PageHeader'
 import OverviewSection from '@/components/analytics/OverviewSection'
 import SlaSection from '@/components/analytics/SlaSection'
+import RepeatsSection from '@/components/analytics/RepeatsSection'
 import { complianceColor, formatHours } from '@/components/analytics/analyticsUtils'
 import Button from '@/components/Button'
 import Card from '@/components/Card'
@@ -237,6 +238,7 @@ export default function AnalyticsPage() {
 
       <OverviewSection reports={reports} workerFilterLabel={workerFilterLabel} />
       <SlaSection sla={sla} />
+      <RepeatsSection period={period} />
     </div>
   )
 }
