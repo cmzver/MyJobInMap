@@ -97,7 +97,8 @@ def add_history_event(
 
 
 def build_task_filters_for_address(address: AddressModel):
-    filters = []
+    # Привязанные заявки — всегда, даже если адрес в них записан иначе.
+    filters = [TaskModel.address_id == address.id]
     if address.address:
         filters.append(TaskModel.raw_address.ilike(f"%{address.address}%"))
 

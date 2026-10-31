@@ -13,6 +13,7 @@ from app.models import (
     AddressEquipmentModel,
     AddressModel,
     AddressSystemModel,
+    TaskModel,
 )
 
 
@@ -63,6 +64,35 @@ class TestAddressFullEndpoint:
         """404 для несуществующего адреса."""
         response = client.get("/api/addresses/99999/full", headers=auth_headers)
         assert response.status_code == 404
+
+    def test_address_tasks_include_bound_task_written_differently(
+        self, client: TestClient, db_session: Session, auth_headers: dict
+    ):
+        """Заявка, привязанная к адресу, видна в карточке, как бы ни был записан её адрес."""
+        address = AddressModel(
+            address="Невская ул., д. 9, Новоселье",
+            city="Новоселье",
+            street="Невская ул.",
+            building="9",
+        )
+        db_session.add(address)
+        db_session.commit()
+        task = TaskModel(
+            title="Домофон",
+            raw_address="Невская, дом 9, г.п. Новоселье",
+            status="NEW",
+            priority="CURRENT",
+            address_id=address.id,
+        )
+        db_session.add(task)
+        db_session.commit()
+
+        response = client.get(
+            f"/api/addresses/{address.id}/tasks", headers=auth_headers
+        )
+
+        assert response.status_code == 200
+        assert [item["id"] for item in response.json()] == [task.id]
 
 
 class TestAddressSystemsCRUD:
