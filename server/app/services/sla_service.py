@@ -12,13 +12,14 @@ SLA Service
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Dict, Mapping, Optional
 
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
-from app.models import TaskModel, TaskStatus, UserModel
+from app.models import OrganizationSettingsModel, TaskModel, TaskStatus, UserModel
 from app.services.analytics_periods import resolve_analytics_period
+from app.services.business_time import local_day_end_utc, to_naive_utc
 from app.services.tenant_filter import TenantFilter
 
 logger = logging.getLogger(__name__)
@@ -34,13 +35,68 @@ DEFAULT_SLA_HOURS = {
     "3": 8,
     "4": 4,
 }
+# Числовые коды приоритетов из старых данных → имена.
+_PRIORITY_BY_RANK = {"1": "PLANNED", "2": "CURRENT", "3": "URGENT", "4": "EMERGENCY"}
 
 
-def _get_sla_hours(priority: Optional[str]) -> int:
+def _get_sla_hours(
+    priority: Optional[str], hours: Mapping[str, int] = DEFAULT_SLA_HOURS
+) -> int:
     """Получить норматив SLA для приоритета."""
     if not priority:
         return 48  # default
-    return DEFAULT_SLA_HOURS.get(str(priority).upper(), 48)
+    # Из схем приходит TaskPriority — str() у него «TaskPriority.EMERGENCY».
+    return hours.get(str(getattr(priority, "value", priority)).upper(), 48)
+
+
+def get_sla_hours_map(db: Session, organization_id: Optional[int]) -> Dict[str, int]:
+    """Нормативы организации поверх нормативов по умолчанию."""
+    hours = dict(DEFAULT_SLA_HOURS)
+    if organization_id is None:
+        return hours
+    org_settings = db.get(OrganizationSettingsModel, organization_id)
+    for priority, value in ((org_settings and org_settings.sla_hours) or {}).items():
+        hours[priority] = value
+    for rank, priority in _PRIORITY_BY_RANK.items():
+        hours[rank] = hours[priority]
+    return hours
+
+
+def compute_due_at(
+    priority: Optional[str],
+    created_at: Optional[datetime],
+    planned_date: Optional[datetime],
+    hours: Mapping[str, int] = DEFAULT_SLA_HOURS,
+) -> datetime:
+    """Срок заявки, наивное UTC.
+
+    Плановая дата — договорённость о дне визита, она заменяет норматив:
+    срок — конец этого дня. Без неё — создание + норматив приоритета.
+    """
+    if planned_date is not None:
+        return local_day_end_utc(planned_date.date())
+    created = to_naive_utc(created_at or datetime.now(timezone.utc))
+    return created + timedelta(hours=_get_sla_hours(priority, hours))
+
+
+def apply_due_at(db: Session, task: TaskModel) -> None:
+    """Пересчитать срок после смены приоритета, плановой даты или организации."""
+    if task.created_at is None:
+        # Новая заявка: время создания фиксируем здесь же, иначе БД проставит
+        # его при flush чуть позже и срок разойдётся с нормативом.
+        task.created_at = to_naive_utc(datetime.now(timezone.utc))
+    task.due_at = compute_due_at(
+        task.priority,
+        task.created_at,
+        task.planned_date,
+        get_sla_hours_map(db, task.organization_id),
+    )
+
+
+def _completed_in_sla(task: TaskModel, completion_hours: float) -> bool:
+    if task.due_at is not None and task.completed_at is not None:
+        return to_naive_utc(task.completed_at) <= task.due_at
+    return completion_hours <= _get_sla_hours(task.priority)
 
 
 def get_sla_metrics(
@@ -77,6 +133,9 @@ def get_sla_metrics(
     """
     start, end, period_days = resolve_analytics_period(period, date_from, date_to)
     tenant = TenantFilter(tenant_user) if tenant_user is not None else None
+    sla_hours = get_sla_hours_map(
+        db, tenant_user.organization_id if tenant_user is not None else None
+    )
 
     # === Основные метрики ===
     base_query = db.query(TaskModel)
@@ -129,8 +188,7 @@ def get_sla_metrics(
             hours = (done - created).total_seconds() / 3600
             completion_hours_list.append(hours)
 
-            sla_limit = _get_sla_hours(task.priority)
-            if hours <= sla_limit:
+            if _completed_in_sla(task, hours):
                 in_sla_tasks += 1
             else:
                 overdue_tasks += 1
@@ -142,12 +200,16 @@ def get_sla_metrics(
 
     active_overdue = 0
     for task in active:
+        if task.due_at is not None:
+            if to_naive_utc(now) > task.due_at:
+                active_overdue += 1
+            continue
         created = task.created_at
         if created:
             if created.tzinfo is None:
                 created = created.replace(tzinfo=timezone.utc)
             hours_elapsed = (now - created).total_seconds() / 3600
-            sla_limit = _get_sla_hours(task.priority)
+            sla_limit = _get_sla_hours(task.priority, sla_hours)
             if hours_elapsed > sla_limit:
                 active_overdue += 1
 
@@ -208,7 +270,7 @@ def get_sla_metrics(
                     if done.tzinfo is None:
                         done = done.replace(tzinfo=timezone.utc)
                     hours = (done - created).total_seconds() / 3600
-                    if hours <= _get_sla_hours(priority_key):
+                    if _completed_in_sla(task, hours):
                         priority_in_sla += 1
 
         sla_rate = (
@@ -223,7 +285,7 @@ def get_sla_metrics(
                 "label": priority_labels.get(priority_key, priority_key),
                 "total": priority_total,
                 "completed": priority_completed,
-                "sla_hours": _get_sla_hours(priority_key),
+                "sla_hours": _get_sla_hours(priority_key, sla_hours),
                 "sla_compliance_rate": round(sla_rate, 1),
             }
         )
@@ -464,7 +526,7 @@ def _compute_worker_sla(
                     completed_at = completed_at.replace(tzinfo=timezone.utc)
                 hours = (completed_at - created).total_seconds() / 3600
                 total_hours += hours
-                if hours <= _get_sla_hours(task.priority):
+                if _completed_in_sla(task, hours):
                     in_sla += 1
 
         avg_hours = (total_hours / len(worker_tasks)) if worker_tasks else 0

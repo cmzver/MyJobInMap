@@ -90,24 +90,30 @@
 
 ---
 
-## 3. Фаза 0 — фундамент (S)
+## 3. Фаза 0 — фундамент (S) — сделано 2026-10-31
 
-- [ ] Влить `fix/address-matching`, задеплоить (повторы и ТО опираются на надёжный `address_id`).
-- [ ] `organization_settings` — 1:1 к `organizations`: реквизиты (`legal_name`, `inn`,
-  `kpp`, `ogrn`, `legal_address`, `bank_name`, `bik`, `account`, `corr_account`,
-  `director_name`, `director_title`), `logo_file`, `act_number_prefix` (по умолчанию «А»),
-  `act_footer_text` (гарантия, контакты), флаги из п. 2.11, `timezone` (на будущее).
-  API `GET/PUT /api/organization/settings` (право `edit_settings`), портал:
-  «Настройки → Организация и документы».
-- [ ] `org_managers()` по `base_access`; перевести на него `create_task_status_notification`.
-- [ ] Инфраструктура cron в `worker.py` + `app/jobs.py` (CLI) + метрики `record_queue_processed`.
-- [ ] `tasks.due_at` (UTC, индекс `(organization_id, status, due_at)`) и `compute_due_at(task)`:
-  есть `planned_date` → конец этого дня в бизнес-поясе; иначе `created_at + sla_hours[priority]`.
-  Пересчёт при создании и при смене приоритета/плановой даты. Нормативы — настройка
-  `sla_hours` (дефолт из `DEFAULT_SLA_HOURS`), `sla_service` читает её и `due_at`.
-  Бэкфилл открытых заявок — скриптом `scripts/backfill_due_at.py`.
-- [ ] Хранилище файлов: `UPLOADS_DIR/acts/<org>/<yyyy>/`, `UPLOADS_DIR/signatures/`;
-  отдача только через авторизованные эндпоинты (как фото).
+- [x] `fix/address-matching` влит и задеплоен.
+- [x] `organization_settings` (1:1 к `organizations`): реквизиты, `act_number_prefix`,
+  `act_footer_text`, `sla_hours`. API `GET/PUT /api/admin/organization-settings`
+  (`view_settings`/`edit_settings`; суперадмин передаёт `organization_id`). Портал —
+  страница «Организация» (`/portal/organization`) в разделе «Управление»: у админа
+  организации своих настроек раньше не было, страница «Система» только для суперадмина.
+- [x] `org_managers()` по `base_access` (`role_utils`); на него переведены уведомления
+  о статусе и комментариях.
+- [x] `tasks.due_at` + `sla_service.compute_due_at/apply_due_at`: плановая дата → конец
+  этого дня по `BUSINESS_TIMEZONE`, иначе создание + норматив. Пересчёт при создании,
+  правке приоритета/даты, переносе даты, импорте из текста. Аналитика SLA считает по
+  `due_at`. Бэкфилл — в самой миграции `20261031_0001` (снимок нормативов по умолчанию).
+  `due_at` отдаётся в `TaskResponse` (UTC с `Z`).
+
+Отступления от первоначального плана:
+- `due_at` — **наивное UTC**, как все метки в `tasks` (а не `timezone=True`).
+- Нормативы — в настройках **организации**, а не глобальной `sla_hours`: глобальные
+  настройки редактирует только суперадмин.
+- Перенесено в фазы, где появляется первый потребитель: cron-инфраструктура
+  воркера и `app/jobs.py` → фаза 2; каталоги `acts/`, `signatures/`, `logo_file` → 4a;
+  флаги `*_enabled` → в фазы своих функций.
+- Android-модели не регенерировались: `due_at` клиенту пока не нужен (фаза 2).
 
 ---
 
@@ -169,6 +175,8 @@
 версию срока; перенос срока даёт новое срабатывание, повтор задания — нет.
 
 **Сервер.**
+- Инфраструктура cron (перенесена из фазы 0): `cron_jobs` в `worker.py`, `app/jobs.py`
+  (CLI для запуска без Redis), метрики `record_queue_processed`.
 - `services/sla_escalation.py: run_sla_tick(db, now)` — cron каждые 5 мин. Кандидаты
   берутся по индексу `(organization_id, status, due_at)`. Вставка строки эскалации во
   вложенной транзакции: прошла — шлём, `IntegrityError` — уже отправлено (переносимо
@@ -541,7 +549,7 @@ Android: ViewModel мастера, порядок `SUBMIT_ACT` → `UPDATE_STATU
 
 ## 13. Чек-лист
 
-- [ ] Фаза 0 — фундамент
+- [x] Фаза 0 — фундамент
 - [ ] Фаза 1 — повторные заявки
 - [ ] Фаза 2 — сроки и эскалации
 - [ ] Фаза 4a — акты: сервер, PDF, портал

@@ -21,7 +21,11 @@ from app.models import (
 from app.schemas import NotificationResponse, PushNotificationRequest
 from app.services.auth import enforce_worker_task_access
 from app.services.push import _send_push_sync, send_push_notification
-from app.services.role_utils import is_superadmin_user
+from app.services.role_utils import (
+    is_dispatcher_or_admin_user,
+    is_superadmin_user,
+    org_managers,
+)
 from app.services.tenant_filter import TenantFilter
 from app.services.websocket_manager import _event, ws_manager
 from app.utils import get_priority_display_name, get_priority_rank
@@ -173,22 +177,9 @@ def create_task_status_notification(
         )
 
     # Если статус изменён на NEW, IN_PROGRESS или DONE, уведомляем админов/диспетчеров
-    if new_status in ["NEW", "IN_PROGRESS", "DONE"] and changed_by.role not in [
-        "admin",
-        "dispatcher",
-    ]:
-        # Получаем всех админов/диспетчеров
-        admins = (
-            db.query(UserModel)
-            .filter(
-                UserModel.role.in_(["admin", "dispatcher"]),
-                UserModel.is_active == True,  # noqa: E712
-                UserModel.id != changed_by.id,
-                UserModel.organization_id == task.organization_id,
-            )
-            .all()
-        )
-
+    notify_managers = new_status in ("NEW", "IN_PROGRESS", "DONE")
+    if notify_managers and not is_dispatcher_or_admin_user(changed_by):
+        admins = org_managers(db, task.organization_id, exclude_user_id=changed_by.id)
         for admin in admins:
             notifications.append(
                 create_notification(
@@ -299,17 +290,7 @@ def create_comment_notification(
         notify_user_ids.add(task.assigned_user_id)
 
     # Админы/диспетчеры организации (кроме автора)
-    admins = (
-        db.query(UserModel)
-        .filter(
-            UserModel.role.in_(["admin", "dispatcher", "superadmin"]),
-            UserModel.is_active == True,  # noqa: E712
-            UserModel.id != author.id,
-            UserModel.organization_id == task.organization_id,
-        )
-        .all()
-    )
-    for admin in admins:
+    for admin in org_managers(db, task.organization_id, exclude_user_id=author.id):
         notify_user_ids.add(admin.id)
 
     for user_id in notify_user_ids:

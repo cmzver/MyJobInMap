@@ -1,0 +1,33 @@
+"""
+Business Time
+=============
+Время в часовом поясе бизнеса (settings.BUSINESS_TIMEZONE).
+
+Метки времени в БД — наивное UTC, а «плановая дата» — наивное локальное время,
+как его ввёл пользователь. Всё, что опирается на «сегодня» или «конец дня»,
+считается здесь, чтобы не путать одно с другим.
+"""
+
+from datetime import date, datetime, time, timedelta, timezone
+from functools import lru_cache
+from zoneinfo import ZoneInfo
+
+from app.config import settings
+
+
+@lru_cache(maxsize=None)
+def business_tz() -> ZoneInfo:
+    return ZoneInfo(settings.BUSINESS_TIMEZONE)
+
+
+def to_naive_utc(moment: datetime) -> datetime:
+    """Момент как наивное UTC — в том виде, в каком метки лежат в БД."""
+    if moment.tzinfo is not None:
+        moment = moment.astimezone(timezone.utc).replace(tzinfo=None)
+    return moment
+
+
+def local_day_end_utc(day: date) -> datetime:
+    """Конец локального дня (полночь следующего) как наивное UTC."""
+    local_end = datetime.combine(day + timedelta(days=1), time.min, business_tz())
+    return to_naive_utc(local_end)

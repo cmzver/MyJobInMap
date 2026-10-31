@@ -20,6 +20,9 @@ pyaxmlparser==0.3.31
 # Geocoding
 geopy==2.4.1
 
+# База часовых поясов для zoneinfo: в slim-образе системной может не быть
+tzdata==2025.3
+
 # Firebase
 firebase-admin==7.1.0
 
