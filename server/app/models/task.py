@@ -42,6 +42,8 @@ class TaskModel(Base):
         Index("ix_tasks_completed_at", "completed_at"),
         Index("ix_tasks_created_by_id", "created_by_id"),
         Index("ix_tasks_org_status_due", "organization_id", "status", "due_at"),
+        Index("ix_tasks_org_address_key", "organization_id", "address_key"),
+        Index("ix_tasks_repeat_of_task_id", "repeat_of_task_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -110,6 +112,23 @@ class TaskModel(Base):
         ForeignKey("addresses.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
+    )
+    # Место заявки «улица|дом» (repeat_detector.address_key) — находит повторы
+    # и у адресов, которых нет в адресной книге. NULL — адрес не разобрался.
+    address_key: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+
+    # Повтор: на том же месте была открыта заявка (duplicate) или недавно
+    # закрыта (return). Определяется при создании и смене адреса/системы.
+    repeat_of_task_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey(
+            "tasks.id", ondelete="SET NULL", name="fk_tasks_repeat_of_task_id"
+        ),
+        nullable=True,
+    )
+    repeat_kind: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    repeat_of: Mapped[Optional["TaskModel"]] = relationship(
+        "TaskModel", remote_side=[id], foreign_keys=[repeat_of_task_id]
     )
 
     # Система и тип неисправности

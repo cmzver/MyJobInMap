@@ -37,6 +37,7 @@ from app.services.notification_service import (
     send_task_assignment_push,
 )
 from app.services.push import send_push_notification
+from app.services.repeat_detector import apply_repeat
 from app.services.role_utils import is_worker_user
 from app.services.sla_service import apply_due_at
 from app.services.task_state_machine import TaskStatusMachine
@@ -172,6 +173,25 @@ class TaskService:
         правка координат адреса подхватывалась автоматически). None — координаты
         получены геокодером.
         """
+        address = self.match_address_book(raw_address, organization_id)
+        if address is not None:
+            logger.info(
+                "Resolved task coordinates from address book for '%s' -> (%s, %s)",
+                raw_address,
+                address.lat,
+                address.lon,
+            )
+            return address.lat, address.lon, address.id
+
+        lat, lon = geocoding_service.geocode(raw_address)
+        return lat, lon, None
+
+    def match_address_book(
+        self,
+        raw_address: str,
+        organization_id: Optional[int] = None,
+    ) -> Optional[AddressModel]:
+        """Адрес книги с координатами, совпадающий с адресом заявки (без геокодера)."""
         parsed = parse_address(raw_address)
         normalized_raw = geocoding_service.normalize_address(raw_address).lower()
 
@@ -214,17 +234,7 @@ class TaskService:
                 best_score = score
                 best_candidate = candidate
 
-        if best_candidate is not None:
-            logger.info(
-                "Resolved task coordinates from address book for '%s' -> (%s, %s)",
-                raw_address,
-                best_candidate.lat,
-                best_candidate.lon,
-            )
-            return best_candidate.lat, best_candidate.lon, best_candidate.id
-
-        lat, lon = geocoding_service.geocode(raw_address)
-        return lat, lon, None
+        return best_candidate
 
     def get_by_id(self, task_id: int) -> TaskModel:
         """
@@ -380,6 +390,7 @@ class TaskService:
         if tenant is not None:
             tenant.set_org_id(task)
         apply_due_at(self.db, task)
+        apply_repeat(self.db, task)
 
         self.db.add(task)
         # Transaction ownership belongs to the API/use-case boundary.  flush()
@@ -464,6 +475,12 @@ class TaskService:
             task.system_type = task_data.system_type
         if task_data.defect_type is not None:
             task.defect_type = task_data.defect_type
+        if (
+            task_data.address is not None
+            or task_data.system_id is not None
+            or task_data.system_type is not None
+        ):
+            apply_repeat(self.db, task)
 
         old_assigned_user_id = task.assigned_user_id
         new_assigned_user_id = None

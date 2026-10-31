@@ -9,7 +9,7 @@ Task Schemas
 """
 
 from datetime import datetime
-from typing import Generic, List, Optional, TypeVar
+from typing import Generic, List, Literal, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -253,6 +253,52 @@ class PlannedDateUpdate(BaseModel):
 # ============================================================================
 
 
+class TaskRepeatRef(BaseModel):
+    """Более ранняя заявка на том же месте, повтором которой стала эта."""
+
+    id: int
+    task_number: str
+    kind: Literal["duplicate", "return"] = Field(
+        ...,
+        description="duplicate — та была открыта; return — её недавно закрыли",
+    )
+    status: str
+    defect_type: Optional[str] = None
+    same_defect: bool = Field(False, description="Та же неисправность")
+    created_at: Optional[UtcDateTime] = None
+    completed_at: Optional[UtcDateTime] = None
+    assigned_user_name: Optional[str] = Field(
+        None, description="Исполнитель той заявки"
+    )
+    completion_comment: Optional[str] = Field(
+        None, description="Комментарий при закрытии той заявки"
+    )
+
+
+class RelatedTask(BaseModel):
+    """Заявка на том же месте — для подсказки в форме и истории адреса."""
+
+    id: int
+    task_number: str
+    title: str
+    status: str
+    defect_type: Optional[str] = None
+    created_at: Optional[UtcDateTime] = None
+    completed_at: Optional[UtcDateTime] = None
+    assigned_user_name: Optional[str] = None
+
+
+class RelatedTasksResponse(BaseModel):
+    open_tasks: List[RelatedTask] = Field(..., description="Открытые сейчас")
+    recently_closed: List[RelatedTask] = Field(
+        ..., description="Закрытые за последние window_days дней"
+    )
+    history: List[RelatedTask] = Field(
+        ..., description="Последние заявки на месте, любой статус"
+    )
+    window_days: int
+
+
 class _TaskReadBase(BaseModel):
     """Общие поля ответа заявки.
 
@@ -400,6 +446,10 @@ class _TaskReadBase(BaseModel):
     )
 
     organization_id: Optional[int] = Field(None, description="ID организации")
+
+    repeat_of: Optional[TaskRepeatRef] = Field(
+        None, description="Повтор более ранней заявки на том же месте"
+    )
 
 
 class TaskResponse(_TaskReadBase):

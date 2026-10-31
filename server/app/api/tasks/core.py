@@ -8,11 +8,12 @@ CRUD заявок, список с фильтрами/сортировкой, с
 import asyncio
 import logging
 from datetime import date, datetime, time, timedelta, timezone
-from typing import List, Optional
+from types import SimpleNamespace
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import case, func, or_
-from sqlalchemy.orm import Session, joinedload, subqueryload
+from sqlalchemy.orm import Session, joinedload, selectinload, subqueryload
 
 from app.api.addresses import build_task_filters_for_address
 from app.api.deps import TaskAccess, require_task_access
@@ -27,6 +28,7 @@ from app.models.address import AddressModel
 from app.schemas import (
     PaginatedResponse,
     PlannedDateUpdate,
+    RelatedTasksResponse,
     TaskAssignRequest,
     TaskCreate,
     TaskIdsResponse,
@@ -55,6 +57,7 @@ from app.services.notification_service import (
     notification_broadcast_payload,
     send_task_assignment_push,
 )
+from app.services.repeat_detector import address_key, find_related
 from app.services.role_utils import is_dispatcher_or_admin_user, is_worker_user
 from app.services.tenant_filter import TenantFilter
 from app.services.websocket_manager import (
@@ -179,6 +182,9 @@ def get_tasks(
     planned_date_to: Optional[date] = Query(
         None, description="Плановая дата не позже этого дня, включительно."
     ),
+    repeat_kind: List[Literal["duplicate", "return"]] = Query(
+        default=[], description="Только повторы этого вида (дубли, возвраты)."
+    ),
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("view_tasks")),
 ):
@@ -265,6 +271,9 @@ def get_tasks(
             < datetime.combine(planned_date_to + timedelta(days=1), time.min)
         )
 
+    if repeat_kind:
+        query = query.filter(TaskModel.repeat_kind.in_(repeat_kind))
+
     # Считаем общее количество
     total = query.count()
 
@@ -309,6 +318,10 @@ def get_tasks(
             joinedload(TaskModel.assigned_user),
             joinedload(TaskModel.created_by),
             subqueryload(TaskModel.comments),
+            selectinload(TaskModel.repeat_of).options(
+                joinedload(TaskModel.assigned_user),
+                selectinload(TaskModel.comments),
+            ),
         )
         .order_by(*order_by)
         .offset((page - 1) * size)
@@ -361,6 +374,77 @@ def get_tasks_summary(
         status=status.value if status else None,
         assignee_id=assignee_id,
     )
+
+
+@router.get("/related", response_model=RelatedTasksResponse)
+def get_related_tasks(
+    task_id: Optional[int] = Query(
+        None, description="История места этой заявки (сама она в ответ не входит)"
+    ),
+    address: Optional[str] = Query(
+        None, max_length=500, description="Адрес ещё не созданной заявки"
+    ),
+    system_id: Optional[int] = None,
+    system_type: Optional[str] = Query(None, max_length=50),
+    db: Session = Depends(get_db),
+    service: TaskService = Depends(get_task_service),
+    user: UserModel = Depends(require_permission("view_tasks")),
+):
+    """Заявки на том же месте (адрес + система): открытые, недавно закрытые
+    и последние. Для подсказки «на этом адресе уже есть…» в форме и для
+    истории адреса в карточке. Мастер видит только свои заявки."""
+    worker_id = user.id if is_worker_user(user) else None
+    if task_id is not None:
+        task = (
+            TenantFilter(user)
+            .apply(db.query(TaskModel), TaskModel)
+            .filter(TaskModel.id == task_id)
+            .first()
+        )
+        if task is None or (
+            worker_id is not None and task.assigned_user_id != worker_id
+        ):
+            raise HTTPException(status_code=404, detail="Заявка не найдена")
+        probe, organization_id = task, task.organization_id
+    elif address and address.strip():
+        organization_id = user.organization_id
+        book_address = service.match_address_book(address, organization_id)
+        probe = SimpleNamespace(
+            id=None,
+            raw_address=address,
+            address_id=book_address.id if book_address else None,
+            address_key=address_key(address),
+            system_id=system_id,
+            system_type=system_type,
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Укажите task_id или address")
+
+    related = find_related(db, probe, organization_id, assigned_user_id=worker_id)
+    return RelatedTasksResponse(
+        window_days=related["window_days"],
+        **{
+            name: [_related_item(t) for t in related[name]]
+            for name in ("open_tasks", "recently_closed", "history")
+        },
+    )
+
+
+def _related_item(task: TaskModel) -> dict:
+    return {
+        "id": task.id,
+        "task_number": task.task_number or f"Z-{task.id:05d}",
+        "title": task.title,
+        "status": task.status,
+        "defect_type": task.defect_type,
+        "created_at": task.created_at,
+        "completed_at": task.completed_at,
+        "assigned_user_name": (
+            (task.assigned_user.full_name or task.assigned_user.username)
+            if task.assigned_user
+            else None
+        ),
+    }
 
 
 @router.get("/{task_id}", response_model=TaskResponse)

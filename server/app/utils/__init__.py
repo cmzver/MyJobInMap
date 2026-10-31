@@ -16,6 +16,7 @@ from sqlalchemy.orm import object_session
 
 from app.models import TaskModel, TaskPriority, UserModel
 from app.schemas import CommentResponse, TaskListResponse, TaskResponse, UserResponse
+from app.services.repeat_detector import same_defect
 from app.services.role_utils import public_role_value
 from app.services.user_group_service import resolve_base_access, resolve_role_label
 
@@ -178,6 +179,32 @@ def priority_rank_expr(column) -> object:
     )
 
 
+def _user_name(user: Optional[UserModel]) -> Optional[str]:
+    return (user.full_name or user.username) if user else None
+
+
+def _repeat_ref(task: TaskModel) -> Optional[Dict[str, Any]]:
+    """Компактно о заявке, повтором которой стала эта: мастер видит офлайн,
+    кто и с каким комментарием закрывал прошлую."""
+    original = task.repeat_of
+    if original is None or not task.repeat_kind:
+        return None
+    done_comments = [c for c in original.comments or [] if c.new_status == "DONE"]
+    last_done = max(done_comments, key=lambda c: c.id or 0, default=None)
+    return {
+        "id": original.id,
+        "task_number": original.task_number or f"Z-{original.id:05d}",
+        "kind": task.repeat_kind,
+        "status": original.status,
+        "defect_type": original.defect_type,
+        "same_defect": same_defect(task, original),
+        "created_at": original.created_at,
+        "completed_at": original.completed_at,
+        "assigned_user_name": _user_name(original.assigned_user),
+        "completion_comment": last_done.text[:500] if last_done else None,
+    }
+
+
 def _base_task_dict(task: TaskModel) -> Dict[str, Any]:
     """
 
@@ -224,6 +251,7 @@ def _base_task_dict(task: TaskModel) -> Dict[str, Any]:
         "system_type": task.system_type,
         "defect_type": task.defect_type,
         "organization_id": task.organization_id,
+        "repeat_of": _repeat_ref(task),
     }
 
 

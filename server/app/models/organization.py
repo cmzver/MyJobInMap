@@ -105,6 +105,10 @@ class OrganizationSettingsModel(Base):
     # Нормативы срока по приоритету, часы: {"EMERGENCY": 4, ...}.
     # NULL — нормативы по умолчанию (sla_service.DEFAULT_SLA_HOURS).
     sla_hours: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # Заявка на том же месте, закрытая не раньше стольких дней назад, — возврат.
+    repeat_window_days: Mapped[int] = mapped_column(
+        Integer, default=30, server_default="30", nullable=False
+    )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=utcnow, onupdate=utcnow, nullable=True
