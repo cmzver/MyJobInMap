@@ -170,6 +170,86 @@ class TestTaskServiceCreate:
         assert task.address_id == known_address.id
 
 
+class TestTaskServiceResolveCoordinates:
+    """Координаты заявки из адресной книги: тот же дом — да, соседний — нет."""
+
+    @pytest.fixture
+    def book(self, db_session, monkeypatch):
+        addresses = [
+            AddressModel(
+                address="Невская ул., д. 9, Новоселье",
+                city="Новоселье",
+                street="Невская ул.",
+                building="9",
+                lat=59.81,
+                lon=30.22,
+                is_active=True,
+            ),
+            AddressModel(
+                address="Невская ул., д. 11/1, Санкт-Петербург",
+                city="Санкт-Петербург",
+                street="Невская ул.",
+                building="11/1",
+                lat=59.9386,
+                lon=30.3141,
+                is_active=True,
+            ),
+            AddressModel(
+                address="Центральная ул., д. 3, Новоселье",
+                city="Новоселье",
+                street="Центральная ул.",
+                building="3",
+                lat=59.82,
+                lon=30.23,
+                is_active=True,
+            ),
+        ]
+        db_session.add_all(addresses)
+        db_session.commit()
+        monkeypatch.setattr(
+            "app.services.task_service.geocoding_service.geocode",
+            lambda _: (1.0, 2.0),
+        )
+        return addresses
+
+    @pytest.mark.parametrize(
+        "raw_address, book_index",
+        [
+            # Улица без типа, посёлок через «г.п.».
+            ("Невская, д. 9, г.п. Новоселье", 0),
+            ("Невская ул., 9, Лен. обл. гп. Новоселье", 0),
+            ("СПб, Невская ул., д. 11/1", 1),
+            ("Центральная ул., д.3, Лен. обл. гп. Новоселье", 2),
+        ],
+    )
+    def test_same_house_takes_book_coordinates(
+        self, db_session, book, raw_address, book_index
+    ):
+        lat, lon, address_id = TaskService(db_session).resolve_coordinates(raw_address)
+
+        assert address_id == book[book_index].id
+        assert (lat, lon) == (book[book_index].lat, book[book_index].lon)
+
+    @pytest.mark.parametrize(
+        "raw_address",
+        [
+            # Дом 1 — не дом 11/1.
+            "Невская ул., д. 1, Санкт-Петербург",
+            # Тот же номер на другой улице.
+            "Садовая ул., д. 9, Новоселье",
+            # Та же улица и дом в другом посёлке.
+            "Центральная ул., д. 3, д. Кудрово",
+            # Без номера дома не понять, какой это дом.
+            "Невская ул., Новоселье",
+        ],
+    )
+    def test_other_house_goes_to_geocoder(self, db_session, book, raw_address):
+        lat, lon, address_id = TaskService(db_session).resolve_coordinates(raw_address)
+
+        assert address_id is None
+        assert (lat, lon) == (1.0, 2.0)
+
+
 class TestTaskServiceUpdateStatus:
     """Tests for TaskService.update_status method."""
 

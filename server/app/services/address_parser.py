@@ -7,11 +7,17 @@ Address Parser Service
 - "Ленинский пр. , д. 82, корп. 3, СПб"
 - "г. Санкт-Петербург, ул. Невский проспект, д. 1"
 - "Центральная ул., д.3, корп. 1, Лен. обл. гп. Новоселье"
+- "Невская, д. 9, г.п. Новоселье" — улица без типа
+- "Замковая ул., 1" — дом без «д.»
+
+Адрес режется по запятым, и каждая часть разбирается сама по себе: регион,
+населённый пункт, улица, дом, корпус, подъезд. Улица без типа и посёлок без
+«г.п.» узнаются по месту: улица идёт до номера дома, посёлок — после.
 """
 
 import re
 from dataclasses import dataclass
-from typing import Optional
+from typing import FrozenSet, List, Optional, Tuple
 
 
 @dataclass
@@ -46,54 +52,152 @@ CITY_ALIASES = {
     "москва": "Москва",
 }
 
-# Паттерны для извлечения города
-CITY_PATTERNS = [
-    r"(?:г\.|город|г)\s*([А-Яа-яЁё\-\s]+?)(?:,|$)",
-    r"(Санкт-Петербург|СПб|Москва|Мск)",
-    r"Лен(?:\.|енинградская)?\s*обл(?:\.|асть)?\s*(?:,?\s*(?:гп?\.?|пос\.?|пгт\.?|г\.?))?\s*([А-Яа-яЁё\-\s]+?)(?:,|$)",
-]
+_LETTERS = "А-Яа-яЁёA-Za-z"
+# Сокращения вроде «п.» ищутся только отдельным словом: иначе «п.» в «корп. 7»
+# читается как подъезд.
+_WORD_START = rf"(?<![{_LETTERS}])"
+_WORD_END = rf"(?![{_LETTERS}])"
 
-# Паттерны для извлечения улицы
-STREET_PATTERNS = [
-    # Проспект
-    r"([А-Яа-яЁё\-\s]+?)\s*(?:пр\.|просп\.|проспект)",
-    r"(?:пр\.|просп\.|проспект)\s*([А-Яа-яЁё\-\s]+?)(?:,|д\.|дом|\d)",
-    # Улица
-    r"([А-Яа-яЁё\-\s]+?)\s*(?:ул\.|улица)",
-    r"(?:ул\.|улица)\s*([А-Яа-яЁё\-\s]+?)(?:,|д\.|дом|\d)",
-    # Переулок
-    r"([А-Яа-яЁё\-\s]+?)\s*(?:пер\.|переулок)",
-    r"(?:пер\.|переулок)\s*([А-Яа-яЁё\-\s]+?)(?:,|д\.|дом|\d)",
-    # Шоссе
-    r"([А-Яа-яЁё\-\s]+?)\s*(?:ш\.|шоссе)",
-    r"(?:ш\.|шоссе)\s*([А-Яа-яЁё\-\s]+?)(?:,|д\.|дом|\d)",
-    # Бульвар
-    r"([А-Яа-яЁё\-\s]+?)\s*(?:б-р\.|бульвар|бул\.)",
-    r"(?:б-р\.|бульвар|бул\.)\s*([А-Яа-яЁё\-\s]+?)(?:,|д\.|дом|\d)",
-    # Набережная
-    r"([А-Яа-яЁё\-\s]+?)\s*(?:наб\.|набережная)",
-    r"(?:наб\.|набережная)\s*([А-Яа-яЁё\-\s]+?)(?:,|д\.|дом|\d)",
-    # Площадь
-    r"([А-Яа-яЁё\-\s]+?)\s*(?:пл\.|площадь)",
-    r"(?:пл\.|площадь)\s*([А-Яа-яЁё\-\s]+?)(?:,|д\.|дом|\d)",
+# Тип улицы → как он пишется в разобранном адресе. Проезд раньше проспекта,
+# иначе «пр-д» прочитается как «пр.».
+STREET_TYPES = [
+    ("пр-д", r"проезд|пр-д\.?"),
+    ("пр.", r"проспект|просп\.?|пр-т\.?|пр\.?"),
+    ("ул.", r"улица|ул\.?"),
+    ("пер.", r"переулок|пер\.?"),
+    ("ш.", r"шоссе|ш\.?"),
+    ("б-р", r"бульвар|б-р\.?|бул\.?"),
+    ("наб.", r"набережная|наб\.?"),
+    ("пл.", r"площадь|пл\.?"),
+    ("ал.", r"аллея|ал\.?"),
 ]
+_STREET_TYPE_RE = re.compile(
+    _WORD_START
+    + "(?:"
+    + "|".join(f"(?P<t{i}>{alts})" for i, (_, alts) in enumerate(STREET_TYPES))
+    + ")"
+    + _WORD_END,
+    re.IGNORECASE,
+)
 
-# Паттерны для извлечения дома/корпуса
-BUILDING_PATTERNS = [
-    # Дом с корпусом: "д. 82, корп. 3" или "д.82к3"
-    r"(?:д\.|дом)\s*(\d+)\s*,?\s*(?:корп\.|корпус|к\.?)\s*(\d+)",
-    # Просто дом: "д. 82" или "дом 82"
-    r"(?:д\.|дом)\s*(\d+[А-Яа-яA-Za-z]?)",
-    # Дом со строением: "д. 82, стр. 1"
-    r"(?:д\.|дом)\s*(\d+)\s*,?\s*(?:стр\.|строение)\s*(\d+)",
-    # Литера: "д. 82А" или "д. 82 лит. А"
-    r"(?:д\.|дом)\s*(\d+)\s*(?:лит\.|литера)?\s*([А-Яа-яA-Za-z])",
+# «82», «82А», «11/1»; буква после номера — литера, если за ней не идёт
+# цифра («82к3» — это дом 82, корпус 3).
+_HOUSE_NUMBER = (
+    rf"\d{{1,4}}(?:[{_LETTERS}](?![\d{_LETTERS}]))?"
+    rf"(?:/\d{{1,4}}(?:[{_LETTERS}](?![\d{_LETTERS}]))?)?"
+)
+_HOUSE_PATTERN = (
+    rf"(?:(?:дом|д)\.?\s*)?(?P<house>{_HOUSE_NUMBER})"
+    r"(?:\s*(?:корпус|корп|кор|к)\.?\s*(?P<corpus>\d+))?"
+    r"(?:\s*(?:строение|стр)\.?\s*(?P<structure>\d+))?"
+    rf"(?:\s*(?:литера?|лит)\.?\s*(?P<litera>[{_LETTERS}]){_WORD_END})?"
+)
+_HOUSE_RE = re.compile(_HOUSE_PATTERN, re.IGNORECASE)
+# Дом в конце части без запятой: «ул. Ленина 10», «Невская д. 9».
+_TRAILING_HOUSE_RE = re.compile(rf"^(?P<head>.*?\S)\s+{_HOUSE_PATTERN}$", re.IGNORECASE)
+_CORPUS_RE = re.compile(r"(?:корпус|корп|кор|к)\.?\s*(\d+)", re.IGNORECASE)
+_STRUCTURE_RE = re.compile(r"(?:строение|стр)\.?\s*(\d+)", re.IGNORECASE)
+_LITERA_RE = re.compile(rf"(?:литера?|лит)\.?\s*([{_LETTERS}])", re.IGNORECASE)
+
+_ENTRANCE_RES = [
+    re.compile(
+        rf"{_WORD_START}(?:подъезд|под\.|парадная|парад\.|п\.)\s*№?\s*(\d+)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"{_WORD_START}(\d+)\s*(?:-?[йя])?\s*(?:подъезд|парадная){_WORD_END}",
+        re.IGNORECASE,
+    ),
 ]
+_APARTMENT_RE = re.compile(
+    rf"{_WORD_START}(?:квартира|кв|офис|оф|помещение|пом)\.?\s*№?\s*\d+[{_LETTERS}]?",
+    re.IGNORECASE,
+)
+# «Лен. обл.», «Ленинградская область», «Всеволожский р-н» — не город.
+_REGION_RE = re.compile(
+    rf"{_WORD_START}[{_LETTERS}\-]+(?:\.\s*|\s+)"
+    rf"(?:область|обл\.?|край|республика|респ\.?|район|р-н\.?){_WORD_END}",
+    re.IGNORECASE,
+)
+_SKIPPED_PART_RE = re.compile(r"(?:россия|рф|\d{6})", re.IGNORECASE)
+_SETTLEMENT_RE = re.compile(
+    r"^(?:г\.?\s*п|гп|пгт|рп|город|г|посёлок|поселок|пос|п|деревня|дер|д|село|с)"
+    rf"(?:\.\s*|\s+)(?P<name>[{_LETTERS}][{_LETTERS}\-\s]*)$",
+    re.IGNORECASE,
+)
+_CITY_ALIAS_PATTERN = (
+    r"(?:санкт[\s-]петербург|с\.?-петербург|спб|петербург|питер|москва|мск)"
+)
+# Город без запятой перед улицей или после неё: «СПб ул. Ленина 1».
+_LEADING_CITY_RE = re.compile(
+    rf"^(?P<city>{_CITY_ALIAS_PATTERN}){_WORD_END}\.?\s+(?P<rest>\S.*)$",
+    re.IGNORECASE,
+)
+_TRAILING_CITY_RE = re.compile(
+    rf"^(?P<rest>.*\S)\s+(?P<city>{_CITY_ALIAS_PATTERN})\.?$", re.IGNORECASE
+)
+_PLACE_NAME_RE = re.compile(
+    rf"[{_LETTERS}][{_LETTERS}\-]*(?:\s+[{_LETTERS}\-]+){{0,2}}"
+)
+
+
+def _clean(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip(" .-")
+
+
+def _alias_city(text: str) -> Optional[str]:
+    key = re.sub(r"\s+", "-", text.strip(" .").lower())
+    return CITY_ALIASES.get(key)
+
+
+def _normalize_city(name: str) -> str:
+    name = _clean(name)
+    alias = _alias_city(name)
+    if alias:
+        return alias
+    return name if any(char.isupper() for char in name) else name.title()
+
+
+def street_name(street: str) -> str:
+    """Название улицы без типа: «Невская ул.» → «Невская»."""
+    return _clean(_STREET_TYPE_RE.sub(" ", street))
+
+
+def _typed_street(text: str) -> Optional[str]:
+    types = [
+        STREET_TYPES[int(m.lastgroup[1:])][0] for m in _STREET_TYPE_RE.finditer(text)
+    ]
+    if not types:
+        return None
+    name = street_name(text)
+    if not name:
+        return None
+    # «ул. Невский проспект» — проспект, а не улица.
+    specific = [kind for kind in types if kind != "ул."]
+    return f"{name} {specific[0] if specific else 'ул.'}"
+
+
+def _take_entrance(text: str) -> Tuple[str, Optional[str]]:
+    for pattern in _ENTRANCE_RES:
+        match = pattern.search(text)
+        if match:
+            return _clean(
+                text[: match.start()] + " " + text[match.end() :]
+            ), match.group(1)
+    return text, None
+
+
+def _apply_house(result: ParsedAddress, match: re.Match) -> None:
+    result.building = match.group("house") + (match.group("litera") or "")
+    if match.group("corpus"):
+        result.corpus = match.group("corpus")
+    elif match.group("structure"):
+        result.corpus = f"стр.{match.group('structure')}"
 
 
 def parse_address(full_address: str) -> ParsedAddress:
     """
-    Парсит полный адрес и извлекает город, улицу и номер дома.
+    Парсит полный адрес и извлекает город, улицу, дом, корпус и подъезд.
 
     Args:
         full_address: Полный адрес в свободной форме
@@ -101,97 +205,132 @@ def parse_address(full_address: str) -> ParsedAddress:
     Returns:
         ParsedAddress с извлечёнными компонентами
     """
-    if not full_address:
-        return ParsedAddress()
-
     result = ParsedAddress()
-    text = full_address.strip()
+    if not full_address:
+        return result
 
-    # 1. Извлекаем город
-    for pattern in CITY_PATTERNS:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            city = match.group(1) if match.lastindex else match.group(0)
-            city = city.strip(" ,.")
-            # Нормализуем
-            city_lower = city.lower()
-            if city_lower in CITY_ALIASES:
-                result.city = CITY_ALIASES[city_lower]
-            else:
-                result.city = city.title()
-            break
+    # Части, которые не распознались сами: голое название улицы или посёлка.
+    untyped: List[Tuple[int, str]] = []
+    building_index: Optional[int] = None
 
-    # Проверяем сокращения в конце: ", СПб" или ", Мск"
-    if not result.city:
-        suffix_match = re.search(
-            r",?\s*(СПб|Мск|Санкт-Петербург|Москва)\s*$", text, re.IGNORECASE
-        )
-        if suffix_match:
-            city = suffix_match.group(1).strip()
-            city_lower = city.lower()
-            if city_lower in CITY_ALIASES:
-                result.city = CITY_ALIASES[city_lower]
-            else:
-                result.city = city.title()
+    for index, raw_part in enumerate(re.split(r"[,;\n]", full_address)):
+        part = _clean(_REGION_RE.sub(" ", raw_part))
+        if not part or _SKIPPED_PART_RE.fullmatch(part):
+            continue
 
-    # 2. Извлекаем улицу
-    for pattern in STREET_PATTERNS:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            street = match.group(1).strip(" ,.")
-            # Удаляем город из улицы если попал
-            if result.city and result.city.lower() in street.lower():
-                continue
-            # Определяем тип улицы
-            if re.search(r"пр\.|просп\.|проспект", text, re.IGNORECASE):
-                result.street = f"{street} пр."
-            elif re.search(r"пер\.|переулок", text, re.IGNORECASE):
-                result.street = f"{street} пер."
-            elif re.search(r"ш\.|шоссе", text, re.IGNORECASE):
-                result.street = f"{street} ш."
-            elif re.search(r"б-р\.|бульвар|бул\.", text, re.IGNORECASE):
-                result.street = f"{street} б-р"
-            elif re.search(r"наб\.|набережная", text, re.IGNORECASE):
-                result.street = f"{street} наб."
-            elif re.search(r"пл\.|площадь", text, re.IGNORECASE):
-                result.street = f"{street} пл."
-            else:
-                result.street = f"{street} ул."
-            break
+        part, entrance = _take_entrance(part)
+        if entrance and result.entrance is None:
+            result.entrance = entrance
+        part = _clean(_APARTMENT_RE.sub(" ", part))
+        if not part:
+            continue
 
-    # 3. Извлекаем дом/корпус
-    for pattern in BUILDING_PATTERNS:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            if match.lastindex and match.lastindex >= 2:
-                # Дом + корпус/строение/литера
-                house = match.group(1)
-                suffix = match.group(2)
-                result.building = house
-                # Определяем тип корпуса
-                if re.search(r"корп\.|корпус|к\.?", pattern, re.IGNORECASE):
-                    result.corpus = suffix
-                elif re.search(r"стр\.|строение", pattern, re.IGNORECASE):
-                    result.corpus = f"стр.{suffix}"
-                else:
-                    # Литера - добавляем к номеру дома
-                    result.building = f"{house}{suffix}"
-            else:
-                result.building = match.group(1)
-            break
+        alias = _alias_city(part)
+        if alias:
+            result.city = result.city or alias
+            continue
+        city_match = _LEADING_CITY_RE.match(part) or _TRAILING_CITY_RE.match(part)
+        if city_match:
+            result.city = result.city or _normalize_city(city_match.group("city"))
+            part = city_match.group("rest")
 
-    # 4. Извлекаем подъезд
-    entrance_patterns = [
-        r"(?:подъезд|под\.|п\.)\s*(\d+)",
-        r"(?:парадная|парад\.)\s*(\d+)",
-    ]
-    for pattern in entrance_patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            result.entrance = match.group(1)
-            break
+        house_match = _HOUSE_RE.fullmatch(part)
+        if house_match:
+            if result.building is None:
+                _apply_house(result, house_match)
+                building_index = index
+            continue
+        corpus_match = _CORPUS_RE.fullmatch(part)
+        if corpus_match:
+            result.corpus = result.corpus or corpus_match.group(1)
+            continue
+        structure_match = _STRUCTURE_RE.fullmatch(part)
+        if structure_match:
+            result.corpus = result.corpus or f"стр.{structure_match.group(1)}"
+            continue
+        litera_match = _LITERA_RE.fullmatch(part)
+        if litera_match:
+            if result.building and result.building[-1].isdigit():
+                result.building += litera_match.group(1)
+            continue
+
+        trailing_match = _TRAILING_HOUSE_RE.match(part)
+        if trailing_match:
+            if result.building is None:
+                _apply_house(result, trailing_match)
+                building_index = index
+            part = trailing_match.group("head")
+
+        street = _typed_street(part)
+        if street:
+            result.street = result.street or street
+            continue
+        settlement_match = _SETTLEMENT_RE.match(part)
+        if settlement_match:
+            result.city = result.city or _normalize_city(settlement_match.group("name"))
+            continue
+        untyped.append((index, part))
+
+    # Улица идёт до номера дома: «Невская, д. 9, Новоселье».
+    if result.street is None:
+        for position, (index, text) in enumerate(untyped):
+            if building_index is None or index <= building_index:
+                result.street = text
+                del untyped[position]
+                break
+    # Из оставшихся город — последнее похожее на название места.
+    if result.city is None:
+        for _, text in reversed(untyped):
+            if _PLACE_NAME_RE.fullmatch(text):
+                result.city = _normalize_city(text)
+                break
 
     return result
+
+
+def _words(text: str) -> FrozenSet[str]:
+    return frozenset(re.findall(rf"[{_LETTERS}\d\-]+", text.lower().replace("ё", "е")))
+
+
+def street_key(street: Optional[str]) -> FrozenSet[str]:
+    """Слова названия улицы без типа — для сравнения «ул. Невская» и «Невская»."""
+    return _words(street_name(street)) if street else frozenset()
+
+
+def building_key(building: Optional[str]) -> str:
+    """Номер дома для сравнения: «д. 82 лит. А» и «82а» — один дом."""
+    if not building:
+        return ""
+    text = _clean(building).lower().replace("ё", "е")
+    match = _HOUSE_RE.fullmatch(text)
+    if match:
+        return match.group("house") + (match.group("litera") or "")
+    return re.sub(r"\s+", "", text)
+
+
+def corpus_key(corpus: Optional[str]) -> str:
+    """Корпус для сравнения: «корп. 2» и «2», «стр. 1» и «стр.1»."""
+    if not corpus:
+        return ""
+    text = _clean(corpus).lower()
+    corpus_match = _CORPUS_RE.fullmatch(text)
+    if corpus_match:
+        return corpus_match.group(1)
+    structure_match = _STRUCTURE_RE.fullmatch(text)
+    if structure_match:
+        return f"стр{structure_match.group(1)}"
+    return re.sub(r"\s+", "", text)
+
+
+def city_key(city: Optional[str]) -> str:
+    """Город для сравнения: «гп. Новоселье» и «Новоселье», «СПб» и «Санкт-Петербург»."""
+    if not city:
+        return ""
+    text = _clean(_REGION_RE.sub(" ", city))
+    settlement_match = _SETTLEMENT_RE.match(text)
+    if settlement_match:
+        text = settlement_match.group("name")
+    return _normalize_city(text).lower().replace("ё", "е") if text else ""
 
 
 def compose_address(

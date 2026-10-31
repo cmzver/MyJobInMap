@@ -8,6 +8,7 @@ Task Service
 """
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional, Tuple
 
@@ -19,7 +20,15 @@ from app.models import CommentModel, TaskModel, TaskStatus, UserModel, get_db
 from app.models.address import AddressModel
 from app.schemas import TaskCreate, TaskUpdate
 from app.services import metrics
-from app.services.address_parser import parse_address
+from app.services.address_parser import (
+    ParsedAddress,
+    building_key,
+    city_key,
+    corpus_key,
+    parse_address,
+    street_key,
+    street_name,
+)
 from app.services.geocoding import geocoding_service
 from app.services.notification_service import (
     broadcast_created_notification,
@@ -95,19 +104,45 @@ def has_valid_task_coordinates(lat: Optional[float], lon: Optional[float]) -> bo
     return True
 
 
-def _string_match_score(left: Optional[str], right: Optional[str]) -> int:
-    if not left or not right:
+def _address_match_score(
+    parsed: ParsedAddress, normalized_raw: str, candidate: AddressModel
+) -> int:
+    """Насколько адрес книги совпадает с адресом заявки; 0 — это другой дом.
+
+    Совпасть должны дом и улица, а город и корпус — не противоречить: на
+    «Центральной ул., д. 3» в Новоселье и в Кудрово разные координаты.
+    """
+    normalized_candidate = geocoding_service.normalize_address(
+        candidate.address or ""
+    ).lower()
+    if normalized_candidate and normalized_candidate == normalized_raw:
+        return 100
+
+    from_text = parse_address(candidate.address or "")
+    building = candidate.building or from_text.building
+    if not parsed.building or building_key(parsed.building) != building_key(building):
         return 0
 
-    normalized_left = left.strip().lower()
-    normalized_right = right.strip().lower()
-    if not normalized_left or not normalized_right:
+    mine = street_key(parsed.street)
+    theirs = street_key(candidate.street or from_text.street)
+    if not mine or not theirs:
         return 0
-    if normalized_left == normalized_right:
-        return 18
-    if normalized_left in normalized_right or normalized_right in normalized_left:
-        return 10
-    return 0
+    if mine == theirs:
+        score = 36
+    elif mine <= theirs or theirs <= mine:
+        score = 28
+    else:
+        return 0
+
+    for left, right in (
+        (city_key(parsed.city), city_key(candidate.city or from_text.city)),
+        (corpus_key(parsed.corpus), corpus_key(candidate.corpus or from_text.corpus)),
+    ):
+        if left and right:
+            if left != right:
+                return 0
+            score += 18
+    return score
 
 
 class TaskService:
@@ -149,30 +184,21 @@ class TaskService:
                 AddressModel.organization_id == organization_id
             )
 
-        search_clauses = []
-        if parsed.street:
-            search_clauses.extend(
-                [
-                    AddressModel.street.ilike(f"%{parsed.street}%"),
-                    AddressModel.address.ilike(f"%{parsed.street}%"),
-                ]
+        # Отбор по слову из названия улицы, а не по номеру дома: «%1%» подходит
+        # почти к любому адресу, и нужный мог не попасть в выборку.
+        street_words = re.findall(r"[^\W\d_]{3,}", street_name(parsed.street or ""))
+        if street_words:
+            street_word = max(street_words, key=len)
+            candidates_query = candidates_query.filter(
+                or_(
+                    AddressModel.street.ilike(f"%{street_word}%"),
+                    AddressModel.address.ilike(f"%{street_word}%"),
+                )
             )
-        if parsed.building:
-            search_clauses.extend(
-                [
-                    AddressModel.building.ilike(f"%{parsed.building}%"),
-                    AddressModel.address.ilike(f"%{parsed.building}%"),
-                ]
+        else:
+            candidates_query = candidates_query.filter(
+                func.lower(AddressModel.address) == raw_address.strip().lower()
             )
-        if parsed.city:
-            search_clauses.extend(
-                [
-                    AddressModel.city.ilike(f"%{parsed.city}%"),
-                    AddressModel.address.ilike(f"%{parsed.city}%"),
-                ]
-            )
-        if search_clauses:
-            candidates_query = candidates_query.filter(or_(*search_clauses))
 
         best_candidate = None
         best_score = 0
@@ -182,41 +208,12 @@ class TaskService:
             if not has_valid_task_coordinates(candidate.lat, candidate.lon):
                 continue
 
-            score = 0
-            normalized_candidate = geocoding_service.normalize_address(
-                candidate.address or ""
-            ).lower()
-            if normalized_candidate and normalized_candidate == normalized_raw:
-                score += 100
-            elif normalized_candidate and (
-                normalized_candidate in normalized_raw
-                or normalized_raw in normalized_candidate
-            ):
-                score += 55
-
-            score += _string_match_score(parsed.street, candidate.street)
-            score += _string_match_score(parsed.building, candidate.building)
-            score += _string_match_score(parsed.corpus, candidate.corpus)
-            score += _string_match_score(parsed.city, candidate.city)
-
-            if (
-                candidate.address
-                and parsed.street
-                and parsed.street.lower() in candidate.address.lower()
-            ):
-                score += 12
-            if (
-                candidate.address
-                and parsed.building
-                and parsed.building.lower() in candidate.address.lower()
-            ):
-                score += 16
-
+            score = _address_match_score(parsed, normalized_raw, candidate)
             if score > best_score:
                 best_score = score
                 best_candidate = candidate
 
-        if best_candidate is not None and best_score >= 34:
+        if best_candidate is not None:
             logger.info(
                 "Resolved task coordinates from address book for '%s' -> (%s, %s)",
                 raw_address,
