@@ -27,7 +27,7 @@ import com.fieldworker.data.local.entity.TaskEntity
         ConversationEntity::class,
         MessageEntity::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = true
 )
 abstract class FieldWorkerDatabase : RoomDatabase() {
@@ -189,6 +189,16 @@ abstract class FieldWorkerDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE tasks ADD COLUMN repeatDate TEXT DEFAULT NULL")
                 db.execSQL("ALTER TABLE tasks ADD COLUMN repeatAssigneeName TEXT DEFAULT NULL")
                 db.execSQL("ALTER TABLE tasks ADD COLUMN repeatComment TEXT DEFAULT NULL")
+            }
+        }
+
+        /**
+         * Migration 10 -> 11: срок заявки (due_at с сервера) — для чипа срока и
+         * сортировки «по сроку» без сети. Дозаполнится первой полной синхронизацией.
+         */
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN dueAt TEXT DEFAULT NULL")
             }
         }
     }

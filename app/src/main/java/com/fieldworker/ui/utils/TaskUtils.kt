@@ -112,6 +112,33 @@ object TaskUtils {
         }
     }
 
+    /** Момент с сервера (UTC с «Z» или со смещением) во времени устройства. */
+    fun parseMoment(value: String?): LocalDateTime? {
+        if (value.isNullOrBlank()) return null
+        return try {
+            java.time.OffsetDateTime.parse(value)
+                .atZoneSameInstant(java.time.ZoneId.systemDefault())
+                .toLocalDateTime()
+        } catch (e: DateTimeParseException) {
+            parseDateTime(value)
+        }
+    }
+
+    fun isMomentPast(value: String?, now: LocalDateTime = LocalDateTime.now()): Boolean =
+        parseMoment(value)?.isBefore(now) ?: false
+
+    /** Срок для ленты: «сегодня 18:00», «завтра 09:00», «05.11 18:00». */
+    fun formatDue(value: String, now: LocalDateTime = LocalDateTime.now()): String {
+        val moment = parseMoment(value) ?: return value
+        val time = moment.format(DateTimeFormatter.ofPattern("HH:mm"))
+        return when (moment.toLocalDate()) {
+            now.toLocalDate() -> "сегодня $time"
+            now.toLocalDate().plusDays(1) -> "завтра $time"
+            now.toLocalDate().minusDays(1) -> "вчера $time"
+            else -> moment.format(DateTimeFormatter.ofPattern("dd.MM HH:mm"))
+        }
+    }
+
     fun isDateOverdue(dateString: String?): Boolean {
         if (dateString.isNullOrBlank()) return false
         val dateTime = parseDateTime(dateString) ?: return false
@@ -272,7 +299,8 @@ enum class TaskSortOrder(val displayName: String) {
     BY_DISTANCE("По расстоянию"),
     BY_PRIORITY_DESC("По приоритету ↓"),
     BY_PRIORITY_ASC("По приоритету ↑"),
-    BY_STATUS("По статусу")
+    BY_STATUS("По статусу"),
+    BY_DUE("По сроку")
 }
 
 /**
@@ -289,6 +317,10 @@ fun List<Task>.sortedBy(
         TaskSortOrder.BY_PRIORITY_DESC -> this.sortedByDescending { it.priority.value }
         TaskSortOrder.BY_PRIORITY_ASC -> this.sortedBy { it.priority.value }
         TaskSortOrder.BY_STATUS -> this.sortedBy { it.status.ordinal }
+        // Горящие сверху; без срока — в конце
+        TaskSortOrder.BY_DUE -> this.sortedWith(
+            compareBy<Task>({ it.dueAt == null }, { TaskUtils.parseMoment(it.dueAt) })
+        )
         TaskSortOrder.BY_DISTANCE -> {
             if (userLat != null && userLon != null) {
                 this.sortedBy { task ->

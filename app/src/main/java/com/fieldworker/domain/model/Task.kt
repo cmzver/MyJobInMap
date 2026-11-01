@@ -27,7 +27,9 @@ data class Task(
     val systemType: String? = null,
     val defectType: String? = null,
     val commentsCount: Int = 0,
-    val repeatOf: TaskRepeat? = null
+    val repeatOf: TaskRepeat? = null,
+    /** Срок выполнения (UTC с «Z»): конец плановой даты или создание + норматив. */
+    val dueAt: String? = null
 ) {
     /**
      * Проверяет, есть ли у задачи валидные координаты для отображения на карте

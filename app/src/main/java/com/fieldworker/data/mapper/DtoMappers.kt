@@ -51,7 +51,8 @@ fun TaskListResponse.toDomain(): Task = Task(
     systemType = systemType,
     defectType = defectType,
     commentsCount = commentsCount?.toInt() ?: 0,
-    repeatOf = repeatOf?.toDomain()
+    repeatOf = repeatOf?.toDomain(),
+    dueAt = dueAt
 )
 
 /**
@@ -85,7 +86,8 @@ fun TaskResponse.toDomain(): Task = Task(
     systemType = systemType,
     defectType = defectType,
     commentsCount = comments?.size ?: 0,
-    repeatOf = repeatOf?.toDomain()
+    repeatOf = repeatOf?.toDomain(),
+    dueAt = dueAt
 )
 
 /**

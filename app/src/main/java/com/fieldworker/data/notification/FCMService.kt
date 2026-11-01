@@ -108,6 +108,12 @@ class FCMService : FirebaseMessagingService() {
                         showNewTaskNotification(title, body, taskId)
                     }
                 }
+                // Напоминание о сроке: по нажатию открывается заявка
+                "sla" -> {
+                    if (preferences.getNotifyStatusChange()) {
+                        showSlaNotification(title, body, taskId)
+                    }
+                }
                 "status_change" -> {
                     if (preferences.getNotifyStatusChange()) {
                         showStatusChangeNotification(title, body, taskId)
@@ -226,6 +232,18 @@ class FCMService : FirebaseMessagingService() {
             withBigText = true,
             chatId = chatId,
             chatMessageId = messageId
+        )
+    }
+
+    private fun showSlaNotification(title: String, body: String, taskId: String?) {
+        showNotification(
+            channelId = CHANNEL_ID_TASKS,
+            title = title,
+            body = body,
+            id = "sla:${taskId.orEmpty()}:$title".hashCode(),
+            priority = NotificationCompat.PRIORITY_HIGH,
+            withBigText = true,
+            taskId = taskId?.takeIf { it.isNotBlank() }
         )
     }
 

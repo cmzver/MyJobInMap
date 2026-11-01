@@ -44,6 +44,7 @@ data class TaskEntity(
     val repeatDate: String? = null,
     val repeatAssigneeName: String? = null,
     val repeatComment: String? = null,
+    val dueAt: String? = null,
     // Метаданные для синхронизации
     val lastSyncedAt: Long = System.currentTimeMillis(),
     val isLocallyModified: Boolean = false,
@@ -86,7 +87,8 @@ data class TaskEntity(
                 assigneeName = repeatAssigneeName,
                 completionComment = repeatComment
             )
-        }
+        },
+        dueAt = dueAt
     )
     
     companion object {
@@ -122,7 +124,8 @@ data class TaskEntity(
             repeatSameDefect = task.repeatOf?.sameDefect ?: false,
             repeatDate = task.repeatOf?.date,
             repeatAssigneeName = task.repeatOf?.assigneeName,
-            repeatComment = task.repeatOf?.completionComment
+            repeatComment = task.repeatOf?.completionComment,
+            dueAt = task.dueAt
         )
     }
 }
