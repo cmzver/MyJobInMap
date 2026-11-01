@@ -5,19 +5,25 @@ Act Service
 сервер, номер — без пропусков в пределах организации и года.
 
 Выпущенный акт неизменяем. PDF рисуется из снимков (content_snapshot,
-requisites_snapshot); document_hash — SHA-256 канонического JSON снимков,
-по нему проверяют подлинность распечатки. Исправить акт — выпустить новый
-с supersedes_act_id: прежний аннулируется.
+requisites_snapshot); document_hash — SHA-256 канонического JSON снимков и
+подписей, по нему проверяют подлинность распечатки. Исправить акт — выпустить
+новый с supersedes_act_id: прежний аннулируется.
+
+С телефона мастера акт приходит сразу подписанным на экране (ActSigning),
+с отказом клиента от подписи или ждущим подписи — как с портала.
 """
 
 import hashlib
 import json
 import uuid
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
+from io import BytesIO
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Callable, List, Optional, Tuple
 
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -33,7 +39,7 @@ from app.models import (
     TaskModel,
     UserModel,
 )
-from app.schemas.act import ActCreate
+from app.schemas.act import ActCreate, ActMobileCreate
 from app.services.business_time import business_tz, to_naive_utc
 from app.services.organization_settings_service import (
     DEFAULT_ACT_NUMBER_PREFIX,
@@ -42,7 +48,14 @@ from app.services.organization_settings_service import (
 
 PENDING = "pending_signature"
 SIGNED = "signed"
+REFUSED = "refused"
 CANCELLED = "cancelled"
+
+MAX_SIGNATURE_BYTES = 1024 * 1024
+# Время подписи с телефона принимаем, пока оно правдоподобно: акт мог
+# пролежать в офлайн-очереди, но не месяц и не «в будущем».
+_SIGNED_AT_PAST = timedelta(days=30)
+_SIGNED_AT_FUTURE = timedelta(minutes=5)
 
 SCAN_TYPES = {
     "application/pdf": ".pdf",
@@ -84,10 +97,51 @@ def _user_name(user: Optional[UserModel]) -> Optional[str]:
     return (user.full_name or user.username) if user else None
 
 
-def document_hash(content: dict, requisites: dict) -> str:
-    """SHA-256 канонического JSON: одинаковые снимки — одинаковый хеш."""
+@dataclass
+class ActSigning:
+    """Что пришло с телефона мастера вместе с актом."""
+
+    customer_png: Optional[bytes] = None
+    worker_png: Optional[bytes] = None
+    strokes: Optional[Any] = None
+    signed_at: Optional[datetime] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    device: Optional[str] = None
+    refusal_reason: Optional[str] = None
+
+    @classmethod
+    def from_payload(
+        cls,
+        data: ActMobileCreate,
+        customer_png: Optional[bytes],
+        worker_png: Optional[bytes],
+        strokes: Optional[Any],
+    ) -> "ActSigning":
+        return cls(
+            customer_png=customer_png or None,
+            worker_png=worker_png or None,
+            strokes=strokes,
+            signed_at=data.signed_at,
+            lat=data.sign_lat,
+            lon=data.sign_lon,
+            device=(data.sign_device or "").strip() or None,
+            refusal_reason=(data.refusal_reason or "").strip() or None,
+        )
+
+
+def document_hash(
+    content: dict, requisites: dict, signatures: Optional[dict] = None
+) -> str:
+    """SHA-256 канонического JSON: одинаковые снимки — одинаковый хеш.
+
+    signatures — SHA-256 картинок подписей: подменить подпись, не изменив
+    хеш, нельзя."""
+    document = {"content": content, "requisites": requisites}
+    if signatures:
+        document["signatures"] = signatures
     canonical = json.dumps(
-        {"content": content, "requisites": requisites},
+        document,
         sort_keys=True,
         ensure_ascii=False,
         separators=(",", ":"),
@@ -187,10 +241,49 @@ def _comment(db: Session, task_id: Optional[int], text: str, user: UserModel) ->
         )
 
 
+def _store_signature(organization_id: int, png: bytes) -> Tuple[str, str]:
+    """Сохранить подпись (PNG до 1 МБ). Возвращает (путь в acts_dir, SHA-256)."""
+    if len(png) > MAX_SIGNATURE_BYTES:
+        raise ActServiceError("Подпись больше 1 МБ", 413)
+    try:
+        with Image.open(BytesIO(png)) as image:
+            if image.format != "PNG":
+                raise ActServiceError("Подпись — PNG", 415)
+            image.verify()
+    except (UnidentifiedImageError, OSError):
+        raise ActServiceError("Не удалось прочитать подпись", 415)
+    digest = hashlib.sha256(png).hexdigest()
+    relative = Path(str(organization_id)) / f"sig-{digest[:24]}.png"
+    target = acts_dir() / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not target.exists():
+        target.write_bytes(png)
+    return relative.as_posix(), digest
+
+
+def _signed_moment(claimed: Optional[datetime], now: datetime) -> datetime:
+    if claimed is None:
+        return now
+    if claimed.tzinfo is None:
+        claimed = claimed.replace(tzinfo=timezone.utc)
+    if not now - _SIGNED_AT_PAST <= claimed <= now + _SIGNED_AT_FUTURE:
+        return now
+    return claimed
+
+
 def create_act(
-    db: Session, task: TaskModel, data: ActCreate, user: UserModel
+    db: Session,
+    task: TaskModel,
+    data: ActCreate,
+    user: UserModel,
+    signing: Optional[ActSigning] = None,
+    stage: Optional[Callable[[ActModel], None]] = None,
 ) -> ActModel:
-    """Выпустить акт по заявке: номер, снимки, хеш. Ждёт подписи."""
+    """Выпустить акт по заявке: номер, снимки, хеш.
+
+    Без signing — ждёт подписи (печать, скан). С подписью клиента — подписан
+    на экране; с причиной отказа — отказ. stage вызывается после flush, до
+    коммита: так ответ для Idempotency-Key сохраняется в той же транзакции."""
     if task.organization_id is None:
         raise ActServiceError("Акт оформляется только по заявке организации", 400)
     organization_id = task.organization_id
@@ -256,12 +349,44 @@ def create_act(
     }
     requisites = _requisites(db, organization_id)
 
+    status, signatures, signed_at = PENDING, {}, None
+    customer_file = worker_file = None
+    if signing is not None:
+        if signing.worker_png:
+            worker_file, signatures["worker"] = _store_signature(
+                organization_id, signing.worker_png
+            )
+        if signing.customer_png:
+            customer_file, signatures["customer"] = _store_signature(
+                organization_id, signing.customer_png
+            )
+            status = SIGNED
+            signed_at = _signed_moment(signing.signed_at, issued_at)
+            content["signature"] = {
+                "via": "screen",
+                "signed_local": signed_at.astimezone(business_tz()).strftime(
+                    "%d.%m.%Y %H:%M"
+                ),
+            }
+        elif signing.refusal_reason:
+            status = REFUSED
+            content["refusal_reason"] = signing.refusal_reason
+
     act = ActModel(
         organization_id=organization_id,
         task_id=task.id,
         number=number,
         kind="task",
-        status=PENDING,
+        status=status,
+        signed_via="screen" if status == SIGNED else None,
+        signed_at=to_naive_utc(signed_at) if signed_at else None,
+        customer_signature_file=customer_file,
+        worker_signature_file=worker_file,
+        signature_strokes=signing.strokes if signing and customer_file else None,
+        sign_lat=signing.lat if signing else None,
+        sign_lon=signing.lon if signing else None,
+        sign_device=signing.device if signing else None,
+        refusal_reason=content.get("refusal_reason"),
         customer_name=content["customer"]["name"],
         customer_role=data.customer_role,
         customer_phone=content["customer"]["phone"],
@@ -273,7 +398,7 @@ def create_act(
         total_amount=total,
         content_snapshot=content,
         requisites_snapshot=requisites,
-        document_hash=document_hash(content, requisites),
+        document_hash=document_hash(content, requisites, signatures),
         supersedes_act_id=superseded.id if superseded else None,
         created_by_id=user.id,
         created_at=to_naive_utc(issued_at),
@@ -282,7 +407,15 @@ def create_act(
     db.add(act)
     if superseded is not None:
         _cancel(superseded, f"Заменён актом №{number}", user)
-    _comment(db, task.id, f"Оформлен акт №{number} на сумму {total} ₽", user)
+    text = f"Оформлен акт №{number} на сумму {total} ₽"
+    if status == SIGNED:
+        text += ", подписан клиентом на экране"
+    elif status == REFUSED:
+        text += f". Клиент отказался подписать: {content['refusal_reason']}"
+    _comment(db, task.id, text, user)
+    db.flush()
+    if stage is not None:
+        stage(act)
     db.commit()
     db.refresh(act)
     return act
@@ -344,10 +477,16 @@ def attach_signed_scan(
     return act
 
 
-def scan_path(act: ActModel) -> Optional[Path]:
-    if not act.scan_file:
+def stored_file(relative: Optional[str]) -> Optional[Path]:
+    """Файл акта (скан, подпись) по пути из БД — без выхода из каталога актов."""
+    if not relative:
         return None
-    path = (acts_dir() / act.scan_file).resolve()
-    if acts_dir().resolve() not in path.parents or not path.is_file():
+    base = acts_dir().resolve()
+    path = (base / relative).resolve()
+    if base not in path.parents or not path.is_file():
         return None
     return path
+
+
+def scan_path(act: ActModel) -> Optional[Path]:
+    return stored_file(act.scan_file)

@@ -3,17 +3,21 @@ Acts API
 ========
 Акты выполненных работ и прайс-лист организации.
 
-Права: view_acts — смотреть, create_acts — оформлять и прикладывать скан
-подписанного, manage_acts — аннулировать и вести прайс. Мастер видит только
-акты своих заявок.
+Права: view_acts — смотреть, create_acts — оформлять (в том числе с подписью
+клиента на телефоне) и прикладывать скан подписанного, manage_acts —
+аннулировать и вести прайс. Мастер видит только акты своих заявок.
 """
 
+import json
 from datetime import date, datetime, time, timedelta
 from typing import List, Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse, Response
+from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import TaskAccess, require_task_access
@@ -28,6 +32,7 @@ from app.schemas.act import (
     ActCancelRequest,
     ActCreate,
     ActListResponse,
+    ActMobileCreate,
     ActResponse,
     ActStatus,
     CatalogItemCreate,
@@ -38,12 +43,15 @@ from app.services import require_permission
 from app.services.act_pdf import render_act_pdf
 from app.services.act_service import (
     MAX_SCAN_BYTES,
+    MAX_SIGNATURE_BYTES,
     ActServiceError,
+    ActSigning,
     attach_signed_scan,
     cancel_act,
     create_act,
     scan_path,
 )
+from app.services.idempotency import IdempotencyKey, cached_response, stage_response
 from app.services.role_utils import is_worker_user
 from app.services.tenant_filter import TenantFilter
 
@@ -81,6 +89,8 @@ def act_to_response(act: ActModel) -> ActResponse:
         created_by_name=(act.content_snapshot or {}).get("issued_by"),
         cancelled_at=act.cancelled_at,
         cancel_reason=act.cancel_reason,
+        refusal_reason=act.refusal_reason,
+        has_customer_signature=bool(act.customer_signature_file),
         lines=[
             {
                 "id": line.id,
@@ -230,6 +240,88 @@ def create_task_act(
         act = create_act(db, access.task, data, access.user)
     except ActServiceError as exc:
         raise _error(exc)
+    return act_to_response(act)
+
+
+async def _read_signature(upload: Optional[UploadFile]) -> Optional[bytes]:
+    if upload is None:
+        return None
+    return await upload.read(MAX_SIGNATURE_BYTES + 1)
+
+
+@router.post(
+    "/api/tasks/{task_id}/acts/mobile", response_model=ActResponse, status_code=201
+)
+async def create_task_act_mobile(
+    payload: str = Form(..., description="ActMobileCreate в JSON"),
+    customer_signature: Optional[UploadFile] = File(
+        None, description="Подпись клиента, PNG"
+    ),
+    worker_signature: Optional[UploadFile] = File(
+        None, description="Подпись мастера, PNG"
+    ),
+    strokes: Optional[str] = Form(
+        None, description="Траектория росчерка клиента (JSON) — доказательство подписи"
+    ),
+    access: TaskAccess = Depends(
+        require_task_access("create_acts", worker_detail="Нет доступа к этой заявке")
+    ),
+    idempotency_key: IdempotencyKey = None,
+    db: Session = Depends(get_db),
+):
+    """Акт с телефона мастера: подписан на экране, с отказом от подписи или
+    ждёт подписи. Повтор из офлайн-очереди с тем же Idempotency-Key вернёт
+    уже выпущенный акт — второго не будет."""
+    user = access.user
+    scope = f"act:{access.task.id}"
+    cached = cached_response(db, user.id, idempotency_key, scope)
+    if cached is not None:
+        return cached
+    try:
+        data = ActMobileCreate.model_validate_json(payload)
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=jsonable_encoder(
+                exc.errors(include_url=False, include_context=False)
+            ),
+        )
+    try:
+        stroke_data = json.loads(strokes) if strokes else None
+    except ValueError:
+        raise HTTPException(status_code=422, detail="strokes — не JSON")
+
+    signing = ActSigning.from_payload(
+        data,
+        await _read_signature(customer_signature),
+        await _read_signature(worker_signature),
+        stroke_data,
+    )
+    try:
+        act = create_act(
+            db,
+            access.task,
+            data,
+            user,
+            signing=signing,
+            stage=lambda created: stage_response(
+                db,
+                user.id,
+                idempotency_key,
+                scope,
+                act_to_response(created).model_dump(mode="json"),
+                201,
+            ),
+        )
+    except ActServiceError as exc:
+        raise _error(exc)
+    except IntegrityError:
+        # Повтор, пришедший, пока первый запрос ещё выполнялся, — его ответ
+        db.rollback()
+        cached = cached_response(db, user.id, idempotency_key, scope)
+        if cached is None:
+            raise
+        return cached
     return act_to_response(act)
 
 
