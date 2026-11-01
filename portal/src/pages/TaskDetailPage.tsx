@@ -32,6 +32,7 @@ import {
 } from '@/hooks/useTasks'
 import RepeatMarkModal from '@/components/tasks/RepeatMarkModal'
 import TaskOperationsSection from '@/components/tasks/TaskOperationsSection'
+import TaskRemoteSection from '@/components/tasks/TaskRemoteSection'
 import TaskActsSection from '@/components/acts/TaskActsSection'
 import { useUsers } from '@/hooks/useUsers'
 import { useComments, useAddComment } from '@/hooks/useComments'
@@ -353,6 +354,7 @@ export default function TaskDetailPage() {
   const canViewActs = permissions?.permissions?.view_acts ?? isAdmin
   const canCreateActs = permissions?.permissions?.create_acts ?? isAdmin
   const canManageActs = permissions?.permissions?.manage_acts ?? isAdmin
+  const canChangeStatus = permissions?.permissions?.change_task_status ?? isAdmin
   const historyEvents = [
     {
       id: `created-${task.id}`,
@@ -633,6 +635,8 @@ export default function TaskDetailPage() {
               onClose={() => setShowRepeatModal(false)}
             />
           )}
+
+          <TaskRemoteSection task={task} canResolve={canChangeStatus} />
 
           <TaskOperationsSection task={task} />
 

@@ -398,6 +398,18 @@ class IntercomPanelResponse(IntercomPanelBase):
     updated_at: UtcDateTime
 
 
+class TaskPanelResponse(BaseModel):
+    """Панель адреса заявки — без сетевых реквизитов: исполнителю они не нужны."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    address_id: int
+    label: Optional[str] = None
+    entrance: Optional[str] = None
+    model: Optional[str] = None
+
+
 # ============================================
 # Intercom Panel Action Schemas (live device I/O)
 # ============================================

@@ -48,6 +48,8 @@ export type CreateAssigneeData = components['schemas']['AddressAssigneeCreate']
 
 // Сетевые домофонные панели (Beward) на адресе
 export type IntercomPanel = components['schemas']['IntercomPanelResponse']
+/** Панель адреса заявки — без сетевых реквизитов. */
+export type TaskPanel = components['schemas']['TaskPanelResponse']
 export type CreateIntercomPanelData = components['schemas']['IntercomPanelCreate']
 export type UpdateIntercomPanelData = components['schemas']['IntercomPanelUpdate']
 export type PanelLockStatus = components['schemas']['PanelLockStatusResponse']

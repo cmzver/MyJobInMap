@@ -10,7 +10,11 @@ import type {
   PanelLockStatus,
   PanelDoorAction,
   PanelMifareScanCode,
+  TaskPanel,
 } from '@/types/address'
+
+const taskParams = (taskId?: number) =>
+  taskId != null ? { params: { task_id: taskId } } : undefined
 
 export const intercomApi = {
   // --- CRUD панелей ---
@@ -51,16 +55,21 @@ export const intercomApi = {
 
   // --- Живые действия (on-demand) ---
 
-  async openDoor(addressId: number, panelId: number): Promise<PanelDoorAction> {
+  // taskId — действие из карточки заявки: оно попадёт в её историю.
+  async openDoor(addressId: number, panelId: number, taskId?: number): Promise<PanelDoorAction> {
     const { data } = await apiClient.post<PanelDoorAction>(
       `/addresses/${addressId}/panels/${panelId}/door/open`,
+      undefined,
+      taskParams(taskId),
     )
     return data
   },
 
-  async closeDoor(addressId: number, panelId: number): Promise<PanelDoorAction> {
+  async closeDoor(addressId: number, panelId: number, taskId?: number): Promise<PanelDoorAction> {
     const { data } = await apiClient.post<PanelDoorAction>(
       `/addresses/${addressId}/panels/${panelId}/door/close`,
+      undefined,
+      taskParams(taskId),
     )
     return data
   },
@@ -78,11 +87,25 @@ export const intercomApi = {
   async getMifareScanCode(
     addressId: number,
     panelId: number,
+    taskId?: number,
   ): Promise<PanelMifareScanCode> {
     const { data } = await apiClient.get<PanelMifareScanCode>(
       `/addresses/${addressId}/panels/${panelId}/mifare-scan-code`,
+      taskParams(taskId),
     )
     return data
+  },
+
+  // --- Из карточки заявки ---
+
+  async getTaskPanels(taskId: number): Promise<TaskPanel[]> {
+    const { data } = await apiClient.get<TaskPanel[]>(`/tasks/${taskId}/panels`)
+    return data
+  },
+
+  /** Кадр с панели — в фото заявки («после»). */
+  async saveSnapshotPhoto(taskId: number, panelId: number): Promise<void> {
+    await apiClient.post(`/tasks/${taskId}/panels/${panelId}/snapshot-photo`)
   },
 
   // JPEG-кадр как Blob (Bearer-токен не пройдёт через <img src>, тянем через axios).

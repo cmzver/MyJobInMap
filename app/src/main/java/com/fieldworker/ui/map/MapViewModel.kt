@@ -659,6 +659,16 @@ class MapViewModel @Inject constructor(
      * после закрытия карточки (или открытия другой), отбрасывается — иначе
      * поздний ответ заново открывал шторку.
      */
+    /**
+     * Перечитать открытую заявку, её историю и фото — после действия, которое
+     * сделал сервер (удалённое решение, дверь, кадр с панели).
+     */
+    fun reloadTaskDetails(taskId: Long) {
+        if (_uiState.value.selectedTask?.id != taskId) return
+        loadTaskDetails(taskId)
+        loadTaskPhotos(taskId)
+    }
+
     private fun loadTaskDetails(taskId: Long) {
         viewModelScope.launch {
             val offline = _uiState.value.isOffline

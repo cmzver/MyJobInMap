@@ -216,6 +216,13 @@ class TaskUpdate(_TaskWritableBase):
     )
 
 
+class RemoteResolveRequest(BaseModel):
+    """Решено удалённо — без выезда: что сделали (обязательно)."""
+
+    comment: str = Field(..., min_length=3, max_length=1000)
+    expected_version: Optional[int] = Field(None, ge=1)
+
+
 class TaskStatusUpdate(BaseModel):
     expected_version: Optional[int] = Field(None, ge=1)
 
