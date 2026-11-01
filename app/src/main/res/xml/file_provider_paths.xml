@@ -4,6 +4,10 @@
     <cache-path
         name="updates"
         path="updates/" />
+    <!-- PDF актов: открыть во внешнем просмотрщике или поделиться -->
+    <cache-path
+        name="acts"
+        path="acts/" />
     <!-- Снимки камеры для фото к заявке -->
     <files-path
         name="camera"

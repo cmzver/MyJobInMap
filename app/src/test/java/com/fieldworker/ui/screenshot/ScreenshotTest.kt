@@ -79,6 +79,12 @@ class ScreenshotTest(
             "chat_list_offline" to { ChatListOfflinePreview() },
             "chat_screen" to { ChatScreenFullPreview() },
             "chat_screen_dark" to { ChatScreenDarkCompactPreview() },
+            "act_editor" to { ActEditorPreview() },
+            "act_editor_empty" to { ActEditorEmptyPreview() },
+            "act_signing" to { ActSigningPreview() },
+            "act_signing_dark" to { ActSigningDarkPreview() },
+            "signature_pad" to { SignaturePadPreview() },
+            "task_acts" to { TaskActsSectionPreview() },
             "theme_light" to { LightThemePreview() },
             "theme_dark" to { DarkThemePreview() },
         ).map { (name, content) -> arrayOf(name, content) }

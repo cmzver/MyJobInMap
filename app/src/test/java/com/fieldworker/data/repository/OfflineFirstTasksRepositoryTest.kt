@@ -1,7 +1,9 @@
 package com.fieldworker.data.repository
 
+import com.fieldworker.data.api.ActsApi
 import com.fieldworker.data.api.TasksApi
 import android.net.Uri
+import com.fieldworker.data.image.PendingActStore
 import com.fieldworker.data.image.PendingPhotoStore
 import com.fieldworker.data.local.LocalTransactionRunner
 import com.fieldworker.data.local.dao.CommentDao
@@ -20,6 +22,7 @@ import com.fieldworker.data.remote.generated.TaskResponse
 import com.fieldworker.data.remote.generated.TaskPriority as GenTaskPriority
 import com.fieldworker.data.remote.generated.TaskStatus as GenTaskStatus
 import com.fieldworker.domain.model.TaskStatus
+import java.io.File
 import java.math.BigDecimal
 import io.mockk.*
 import io.mockk.impl.annotations.MockK
@@ -79,6 +82,12 @@ class OfflineFirstTasksRepositoryTest {
 
     @MockK
     private lateinit var pendingPhotoStore: PendingPhotoStore
+
+    @MockK
+    private lateinit var actsApi: ActsApi
+
+    @MockK
+    private lateinit var pendingActStore: PendingActStore
 
     @get:Rule
     val tempFolder = TemporaryFolder()
@@ -142,7 +151,9 @@ class OfflineFirstTasksRepositoryTest {
             transactionRunner = transactionRunner,
             networkMonitor = networkMonitor,
             serverHealthCheck = serverHealthCheck,
-            pendingPhotoStore = pendingPhotoStore
+            pendingPhotoStore = pendingPhotoStore,
+            actsApi = actsApi,
+            pendingActStore = pendingActStore
         )
     }
 
@@ -598,6 +609,59 @@ class OfflineFirstTasksRepositoryTest {
         assertEquals(0, result.retryableFailures)
         assertEquals(1, result.permanentFailures)
         coVerify { pendingActionDao.markAsFailed(11L, "Server error: 422", 5) }
+    }
+
+    private fun actAction(id: Long, taskId: Long = 1L): PendingAction {
+        val dir = tempFolder.newFolder("act-$id")
+        every { pendingActStore.customerSignature(dir) } returns
+            File(dir, "customer.png").apply { writeBytes(byteArrayOf(1)) }
+        every { pendingActStore.workerSignature(dir) } returns null
+        every { pendingActStore.strokes(dir) } returns "[[[1,2,0]]]"
+        return PendingAction(
+            id = id,
+            taskId = taskId,
+            actionType = ActionType.SUBMIT_ACT,
+            filePath = dir.absolutePath,
+            payloadJson = "{\"work_summary\":\"Заменена трубка\"}",
+            operationId = "op-act-$id"
+        )
+    }
+
+    @Test
+    fun `queued act goes out before status change of the same task`() = runTest {
+        val act = actAction(40L)
+        val status = PendingAction(id = 41L, taskId = 1L, actionType = ActionType.UPDATE_STATUS, newStatus = "DONE")
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        givenQueue(act, status)
+        coEvery { actsApi.createMobileAct(any(), any(), any(), any(), any(), any()) } returns
+            Response.success(mockk(relaxed = true))
+        coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } returns
+            Response.error(503, "unavailable".toResponseBody())
+
+        repository.syncPendingActions()
+
+        coVerifyOrder {
+            actsApi.createMobileAct(1L, any(), isNull(inverse = true), isNull(), any(), "op-act-40")
+            tasksApi.updateTaskStatus(1L, any(), any())
+        }
+        coVerify { pendingActionDao.deletePendingActionById(40L) }
+        verify { pendingActStore.delete(act.filePath) }
+    }
+
+    @Test
+    fun `failed act holds back status change of the same task`() = runTest {
+        val act = actAction(42L)
+        val status = PendingAction(id = 43L, taskId = 1L, actionType = ActionType.UPDATE_STATUS, newStatus = "DONE")
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        givenQueue(act, status)
+        coEvery { actsApi.createMobileAct(any(), any(), any(), any(), any(), any()) } returns
+            Response.error(503, "unavailable".toResponseBody())
+
+        repository.syncPendingActions()
+
+        // Заявка не закроется раньше, чем на сервере появится её акт
+        coVerify(exactly = 0) { tasksApi.updateTaskStatus(any(), any(), any()) }
+        verify(exactly = 0) { pendingActStore.delete(any()) }
     }
 
     @Test
