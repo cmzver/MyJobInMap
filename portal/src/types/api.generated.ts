@@ -674,6 +674,69 @@ export interface paths {
         patch: operations["assign_task_api_tasks__task_id__assign_patch"];
         trace?: never;
     };
+    "/api/tasks/{task_id}/panels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Task Panels
+         * @description Включённые панели адреса заявки — если пользователь может ими управлять.
+         */
+        get: operations["get_task_panels_api_tasks__task_id__panels_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tasks/{task_id}/panels/{panel_id}/snapshot-photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save Panel Snapshot
+         * @description Кадр с камеры панели — в фото заявки («после»): доказательство, что
+         *     вопрос решён удалённо.
+         */
+        post: operations["save_panel_snapshot_api_tasks__task_id__panels__panel_id__snapshot_photo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tasks/{task_id}/resolve-remotely": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Remotely
+         * @description Решено удалённо: назначить на себя, если никто не назначен, провести
+         *     NEW → IN_PROGRESS → DONE с историей и отметить заявку удалённой — одной
+         *     транзакцией. Повтор с тем же Idempotency-Key вернёт прежний ответ.
+         */
+        post: operations["resolve_remotely_api_tasks__task_id__resolve_remotely_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tasks/{task_id}/comments": {
         parameters: {
             query?: never;
@@ -3200,6 +3263,7 @@ export interface paths {
         /**
          * Get Panel Mifare Scan Code
          * @description Код режима записи ключей ('Сканировать по коду') и флаг активности.
+         *     Из карточки заявки запрос отмечается в её истории — без самого кода.
          */
         get: operations["get_panel_mifare_scan_code_api_addresses__address_id__panels__panel_id__mifare_scan_code_get"];
         put?: never;
@@ -7253,6 +7317,16 @@ export interface components {
             window_days: number;
         };
         /**
+         * RemoteResolveRequest
+         * @description Решено удалённо — без выезда: что сделали (обязательно).
+         */
+        RemoteResolveRequest: {
+            /** Comment */
+            comment: string;
+            /** Expected Version */
+            expected_version?: number | null;
+        };
+        /**
          * RepeatMarkRequest
          * @description Отметка повтора или дубля вручную; original_task_id=null — снять отметку.
          */
@@ -8049,6 +8123,22 @@ export interface components {
              * @default 0
              */
             comments_count: number;
+        };
+        /**
+         * TaskPanelResponse
+         * @description Панель адреса заявки — без сетевых реквизитов: исполнителю они не нужны.
+         */
+        TaskPanelResponse: {
+            /** Id */
+            id: number;
+            /** Address Id */
+            address_id: number;
+            /** Label */
+            label?: string | null;
+            /** Entrance */
+            entrance?: string | null;
+            /** Model */
+            model?: string | null;
         };
         /**
          * TaskPreview
@@ -10402,6 +10492,107 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["TaskAssignRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_task_panels_api_tasks__task_id__panels_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskPanelResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_panel_snapshot_api_tasks__task_id__panels__panel_id__snapshot_photo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                panel_id: number;
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_remotely_api_tasks__task_id__resolve_remotely_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Повтор с тем же ключом вернёт сохранённый ответ (Android-outbox). */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemoteResolveRequest"];
             };
         };
         responses: {
@@ -15235,7 +15426,10 @@ export interface operations {
     };
     open_panel_door_api_addresses__address_id__panels__panel_id__door_open_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Из карточки заявки */
+                task_id?: number | null;
+            };
             header?: never;
             path: {
                 address_id: number;
@@ -15267,7 +15461,10 @@ export interface operations {
     };
     close_panel_door_api_addresses__address_id__panels__panel_id__door_close_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Из карточки заявки */
+                task_id?: number | null;
+            };
             header?: never;
             path: {
                 address_id: number;
@@ -15331,7 +15528,10 @@ export interface operations {
     };
     get_panel_mifare_scan_code_api_addresses__address_id__panels__panel_id__mifare_scan_code_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Из карточки заявки */
+                task_id?: number | null;
+            };
             header?: never;
             path: {
                 address_id: number;

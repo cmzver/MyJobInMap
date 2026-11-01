@@ -18,7 +18,7 @@ export const myTaskKeys = {
   list: (userId?: number | null) => [...myTaskKeys.all, userId ?? null] as const,
 }
 
-function syncTaskInPaginatedLists(queryClient: QueryClient, task: Task) {
+export function syncTaskInPaginatedLists(queryClient: QueryClient, task: Task) {
   queryClient.setQueriesData<PaginatedResponse<Task>>({ queryKey: taskKeys.lists() }, (current) => {
     if (!current) return current
 

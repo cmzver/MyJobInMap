@@ -126,6 +126,12 @@ export const tasksApi = {
     return data
   },
 
+  /** Решено удалённо: назначить на себя при необходимости и закрыть одной операцией. */
+  async resolveRemotely(id: number, comment: string): Promise<Task> {
+    const { data } = await apiClient.post<Task>(`/tasks/${id}/resolve-remotely`, { comment })
+    return data
+  },
+
   // Delete task
   async deleteTask(id: number): Promise<void> {
     await apiClient.delete(`/tasks/${id}`)
