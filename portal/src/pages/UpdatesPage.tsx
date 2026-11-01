@@ -110,10 +110,10 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
           description="Управление версиями Android-приложения"
           actions={
             <>
-              <Button variant="ghost" onClick={() => refetch()} disabled={isFetching}>
+              <Button size="sm" variant="ghost" onClick={() => refetch()} disabled={isFetching}>
                 <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
               </Button>
-              <Button onClick={() => setShowUploadModal(true)}>
+              <Button size="sm" onClick={() => setShowUploadModal(true)}>
                 <Upload className="w-4 h-4 mr-2" />
                 Загрузить APK
               </Button>
@@ -179,25 +179,24 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
       ) : (
         <SettingsCard title="Версии" icon={Smartphone} bodyClassName="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50/80 dark:bg-gray-800/60">
-                <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Версия</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Код</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Размер</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Тип</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Описание</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Дата</th>
-                  <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Действия</th>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Версия</th>
+                  <th>Код</th>
+                  <th>Размер</th>
+                  <th>Тип</th>
+                  <th>Описание</th>
+                  <th>Дата</th>
+                  <th className="text-right">Действия</th>
                 </tr>
               </thead>
               <tbody>
                 {updates.map((update) => (
                   <tr
                     key={update.version_code}
-                    className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                   >
-                    <td className="px-4 py-1.5 font-medium text-gray-900 dark:text-white">
+                    <td>
                       <div className="flex items-center gap-2">
                         <span>v{update.version_name}</span>
                         {latestUpdate?.version_code === update.version_code && (
@@ -205,26 +204,26 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-1.5 text-gray-600 dark:text-gray-300">
+                    <td>
                       {update.version_code}
                     </td>
-                    <td className="px-4 py-1.5 text-gray-600 dark:text-gray-300">
+                    <td>
                       {formatFileSize(update.file_size)}
                     </td>
-                    <td className="px-4 py-1.5">
+                    <td>
                       {update.is_mandatory ? (
                         <Badge variant="danger">Обязательное</Badge>
                       ) : (
                         <Badge variant="gray">Обычное</Badge>
                       )}
                     </td>
-                    <td className="px-4 py-1.5 text-gray-600 dark:text-gray-300 max-w-[200px] truncate">
+                    <td className="max-w-[200px] truncate">
                       {update.release_notes || '—'}
                     </td>
-                    <td className="px-4 py-1.5 text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                    <td className="whitespace-nowrap">
                       {formatDateTime(update.created_at)}
                     </td>
-                    <td className="px-4 py-1.5 text-right">
+                    <td className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         {latestUpdate?.version_code === update.version_code ? (
                           <a

@@ -8,13 +8,13 @@ import { useAddresses } from '@/hooks/useAddresses'
 import { useUsers } from '@/hooks/useUsers'
 import { showApiError } from '@/utils/apiError'
 import PageHeader from '@/components/PageHeader'
+import Badge from '@/components/Badge'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
 import Modal from '@/components/Modal'
 import QueryStatePanel from '@/components/QueryStatePanel'
 import { useAuthStore } from '@/store/authStore'
 
-const inputClass = 'w-full rounded-md border border-gray-300 bg-transparent p-2 text-sm dark:border-gray-600'
 const initial = (): Omit<MaintenancePlan, 'id' | 'next_date'> => ({
   title: '', description: '', address_id: 0, equipment_id: null, assigned_user_id: null,
   priority: 'PLANNED', frequency: 'monthly', interval: 1, start_date: format(new Date(), 'yyyy-MM-dd'),
@@ -55,28 +55,28 @@ export default function MaintenancePage() {
     save.mutate({ data: { ...form, excluded_dates: dates }, id: editing })
   }
   return <div className="space-y-5">
-    <PageHeader title="Плановое обслуживание" description="Заявки создаются автоматически в день обслуживания." actions={<Button onClick={() => edit()}>Добавить расписание</Button>} />
+    <PageHeader title="Плановое обслуживание" description="Заявки создаются автоматически в день обслуживания." actions={<Button size="sm" onClick={() => edit()}>Добавить расписание</Button>} />
     {plans.isPending ? <QueryStatePanel state="loading" /> : plans.isError ? <QueryStatePanel state="error" onRetry={() => plans.refetch()} /> : plans.data.length === 0 ? <QueryStatePanel state="empty" title="Расписаний пока нет" /> :
-      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700"><table className="w-full text-left text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-800"><tr>{['Работа', 'Адрес', 'Период', 'Следующая дата', 'Состояние', ''].map((label) => <th key={label} className="p-3 font-medium">{label}</th>)}</tr></thead>
-        <tbody>{plans.data.map((plan) => <tr key={plan.id} className="border-t border-gray-200 dark:border-gray-700">
-          <td className="p-3">{plan.title}</td><td className="p-3"><Link className="text-primary-600 hover:underline" to={`/addresses/${plan.address_id}`}>{addresses.data?.items.find((address) => address.id === plan.address_id)?.address ?? `Адрес #${plan.address_id}`}</Link></td>
-          <td className="p-3">{frequencyLabels[plan.frequency]}: {plan.interval}</td><td className="p-3">{plan.next_date}</td><td className="p-3">{plan.enabled ? 'Включено' : 'Приостановлено'}</td>
-          <td className="p-3"><Button variant="ghost" size="sm" onClick={() => edit(plan)}>Изменить</Button><Button variant="ghost" size="sm" disabled={save.isPending} onClick={() => save.mutate({ data: { ...plan, enabled: !plan.enabled }, id: plan.id })}>{plan.enabled ? 'Пауза' : 'Включить'}</Button></td>
+      <div className="data-table-wrap"><table className="data-table">
+        <thead><tr>{['Работа', 'Адрес', 'Период', 'Следующая дата', 'Состояние', ''].map((label) => <th key={label}>{label}</th>)}</tr></thead>
+        <tbody>{plans.data.map((plan) => <tr key={plan.id}>
+          <td>{plan.title}</td><td className="max-w-xs truncate"><Link className="text-primary-600 hover:underline" to={`/addresses/${plan.address_id}`}>{addresses.data?.items.find((address) => address.id === plan.address_id)?.address ?? `Адрес #${plan.address_id}`}</Link></td>
+          <td>{frequencyLabels[plan.frequency]}: {plan.interval}</td><td>{plan.next_date}</td><td>{plan.enabled ? <Badge variant="success">Включено</Badge> : <Badge>Приостановлено</Badge>}</td>
+          <td className="whitespace-nowrap text-right"><Button variant="ghost" size="sm" onClick={() => edit(plan)}>Изменить</Button><Button variant="ghost" size="sm" disabled={save.isPending} onClick={() => save.mutate({ data: { ...plan, enabled: !plan.enabled }, id: plan.id })}>{plan.enabled ? 'Пауза' : 'Включить'}</Button></td>
         </tr>)}</tbody>
       </table></div>}
     <Modal isOpen={open} onClose={() => setOpen(false)} title={editing ? 'Изменить расписание' : 'Новое расписание'}>
       <form onSubmit={submit} className="space-y-4">
         <Input label="Название работы" required maxLength={200} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
         <Input label="Поиск адреса" value={search} onChange={(e) => setSearch(e.target.value)} />
-        <label className="block text-sm">Адрес<select required className={inputClass} value={form.address_id || ''} onChange={(e) => setForm({ ...form, address_id: Number(e.target.value), equipment_id: null })}><option value="">Выберите адрес</option>{addresses.data?.items.map((address) => <option key={address.id} value={address.id}>{address.address}</option>)}</select></label>
-        <label className="block text-sm">Оборудование<select className={inputClass} value={form.equipment_id ?? ''} onChange={(e) => setForm({ ...form, equipment_id: Number(e.target.value) || null })}><option value="">Весь объект</option>{equipment.data?.map((item) => <option key={item.id} value={item.id}>{item.name} {item.serial_number}</option>)}</select></label>
-        <label className="block text-sm">Исполнитель<select className={inputClass} value={form.assigned_user_id ?? ''} onChange={(e) => setForm({ ...form, assigned_user_id: Number(e.target.value) || null })}><option value="">Назначить позже</option>{users.data?.filter((u) => u.is_active).map((u) => <option key={u.id} value={u.id}>{u.full_name || u.username}</option>)}</select></label>
-        <div className="grid grid-cols-2 gap-3"><label className="text-sm">Повторять через<input required type="number" min="1" max="365" className={inputClass} value={form.interval} onChange={(e) => setForm({ ...form, interval: Number(e.target.value) })} /></label><label className="text-sm">Период<select className={inputClass} value={form.frequency} onChange={(e) => setForm({ ...form, frequency: e.target.value as MaintenancePlan['frequency'] })}>{Object.entries(frequencyLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
+        <label className="block"><span className="field-label">Адрес</span><select required className="field" value={form.address_id || ''} onChange={(e) => setForm({ ...form, address_id: Number(e.target.value), equipment_id: null })}><option value="">Выберите адрес</option>{addresses.data?.items.map((address) => <option key={address.id} value={address.id}>{address.address}</option>)}</select></label>
+        <label className="block"><span className="field-label">Оборудование</span><select className="field" value={form.equipment_id ?? ''} onChange={(e) => setForm({ ...form, equipment_id: Number(e.target.value) || null })}><option value="">Весь объект</option>{equipment.data?.map((item) => <option key={item.id} value={item.id}>{item.name} {item.serial_number}</option>)}</select></label>
+        <label className="block"><span className="field-label">Исполнитель</span><select className="field" value={form.assigned_user_id ?? ''} onChange={(e) => setForm({ ...form, assigned_user_id: Number(e.target.value) || null })}><option value="">Назначить позже</option>{users.data?.filter((u) => u.is_active).map((u) => <option key={u.id} value={u.id}>{u.full_name || u.username}</option>)}</select></label>
+        <div className="grid grid-cols-2 gap-3"><label className="block"><span className="field-label">Повторять через</span><input required type="number" min="1" max="365" className="field" value={form.interval} onChange={(e) => setForm({ ...form, interval: Number(e.target.value) })} /></label><label className="block"><span className="field-label">Период</span><select className="field" value={form.frequency} onChange={(e) => setForm({ ...form, frequency: e.target.value as MaintenancePlan['frequency'] })}>{Object.entries(frequencyLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
         <div className="grid grid-cols-2 gap-3"><Input label="Начало" type="date" required value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /><Input label="Окончание" type="date" min={form.start_date} value={form.end_date ?? ''} onChange={(e) => setForm({ ...form, end_date: e.target.value || null })} /></div>
         <Input label="Исключить даты (ГГГГ-ММ-ДД через запятую)" value={exceptions} onChange={(e) => setExceptions(e.target.value)} />
-        <label className="block text-sm">Описание<textarea className={inputClass} maxLength={2000} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>
-        <label className="flex gap-2 text-sm"><input type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />Расписание включено</label>
+        <label className="block"><span className="field-label">Описание</span><textarea className="field" maxLength={2000} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>
+        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"><input className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />Расписание включено</label>
         {formError && <p role="alert" className="text-sm text-red-600">{formError}</p>}
         <div className="flex justify-end gap-2"><Button variant="ghost" type="button" onClick={() => setOpen(false)}>Отмена</Button><Button type="submit" isLoading={save.isPending}>Сохранить</Button></div>
       </form>

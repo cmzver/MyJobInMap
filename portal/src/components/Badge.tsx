@@ -24,7 +24,7 @@ function Badge({ children, variant = 'gray', className, title }: BadgeProps) {
       data-variant={variant}
       title={title}
       className={cn(
-        'badge inline-flex max-w-full items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+        'badge inline-flex h-5 max-w-full items-center whitespace-nowrap rounded-full px-2 text-xs font-medium leading-none',
         variants[variant],
         className
       )}

@@ -9,10 +9,14 @@ import {
 
 describe('taskTableConfig', () => {
   it('keeps the selection column first and preserves configured column order', () => {
-    expect(getVisibleTaskTableColumnOrder(defaultVisibleTaskTableColumns)).toEqual([
+    expect(getVisibleTaskTableColumnOrder({ ...defaultVisibleTaskTableColumns, creator: true })).toEqual([
       'select',
       ...toggleableTaskTableColumns.map(({ key }) => key),
     ])
+  })
+
+  it('hides the rarely needed creator column by default', () => {
+    expect(getVisibleTaskTableColumnOrder(defaultVisibleTaskTableColumns)).not.toContain('creator')
   })
 
   it('omits hidden columns without removing the selection column', () => {

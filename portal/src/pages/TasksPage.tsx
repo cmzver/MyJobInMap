@@ -66,30 +66,32 @@ const SEARCH_DEBOUNCE_MS = 350
 const COLUMN_STORAGE_KEY = 'tasks-table-column-widths'
 const COLUMN_VISIBILITY_STORAGE_KEY = 'tasks-table-visible-columns'
 
+// Ячейки однострочные, длинное обрезается с подсказкой — колонки узкие, и
+// все десять помещаются на экран 1440 без прокрутки.
 const defaultColumnWidths: Record<ColumnKey, number> = {
-  select: 44,
-  number: 90,
-  title: 240,
-  address: 260,
-  status: 132,
-  priority: 132,
-  assignee: 160,
-  creator: 160,
-  date: 150,
+  select: 40,
+  number: 80,
+  title: 210,
+  address: 190,
+  status: 108,
+  priority: 104,
+  assignee: 124,
+  creator: 116,
+  date: 100,
   sla: 140,
 }
 
 const columnMinWidths: Record<ColumnKey, number> = {
-  select: 44,
-  number: 88,
-  title: 180,
-  address: 190,
-  status: 132,
-  priority: 132,
-  assignee: 140,
-  creator: 140,
-  date: 132,
-  sla: 110,
+  select: 40,
+  number: 76,
+  title: 150,
+  address: 140,
+  status: 104,
+  priority: 100,
+  assignee: 104,
+  creator: 100,
+  date: 96,
+  sla: 128,
 }
 
 const columnMaxWidths: Record<ColumnKey, number> = {

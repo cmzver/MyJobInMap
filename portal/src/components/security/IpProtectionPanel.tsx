@@ -292,30 +292,30 @@ function BlockedTable() {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="border-b border-gray-200 text-left text-xs uppercase text-gray-500 dark:border-gray-700 dark:text-gray-400">
+      <table className="data-table">
+        <thead className="text-left">
           <tr>
-            <th className="py-1.5 pr-3">IP</th>
-            <th className="py-1.5 pr-3">Причина</th>
-            <th className="py-1.5 pr-3">Источник</th>
-            <th className="py-1.5 pr-3">Истекает</th>
-            <th className="py-1.5 pr-3">Откл.</th>
-            <th className="py-1.5 pr-3"></th>
+            <th>IP</th>
+            <th>Причина</th>
+            <th>Источник</th>
+            <th>Истекает</th>
+            <th>Откл.</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {blocked.map((b) => (
-            <tr key={b.id} className="border-b border-gray-100 dark:border-gray-800">
-              <td className="py-1.5 pr-3 font-mono">{b.ip_address}</td>
-              <td className="max-w-[260px] truncate py-1.5 pr-3 text-gray-600 dark:text-gray-300" title={b.reason ?? ''}>{b.reason}</td>
-              <td className="py-1.5 pr-3">
+            <tr key={b.id}>
+              <td className="font-mono">{b.ip_address}</td>
+              <td className="max-w-[260px] truncate" title={b.reason ?? ''}>{b.reason}</td>
+              <td>
                 <Badge variant={b.is_manual ? 'info' : 'warning'}>{b.is_manual ? 'вручную' : 'авто'}</Badge>
               </td>
-              <td className="py-1.5 pr-3 text-gray-600 dark:text-gray-300">
+              <td>
                 {b.is_permanent || !b.expires_at ? <Badge variant="danger">навсегда</Badge> : formatDateTime(b.expires_at)}
               </td>
-              <td className="py-1.5 pr-3 text-gray-500">{b.hit_count}</td>
-              <td className="py-1.5 pr-3 text-right">
+              <td>{b.hit_count}</td>
+              <td className="text-right">
                 <Button size="sm" variant="ghost" onClick={() => handleUnblock(b.ip_address)}>
                   Разблокировать
                 </Button>
@@ -393,17 +393,17 @@ function EventsFeed() {
   }
 
   return (
-    <div className="max-h-80 overflow-y-auto rounded-lg border border-gray-100 dark:border-gray-800">
-      <table className="w-full text-sm">
+    <div className="data-table-wrap max-h-80 overflow-y-auto">
+      <table className="data-table">
         <tbody>
           {events.map((ev: SecurityEvent) => {
             const meta = EVENT_LABELS[ev.event_type] ?? { label: ev.event_type, variant: 'gray' as const }
             return (
-              <tr key={ev.id} className="border-b border-gray-100 last:border-0 dark:border-gray-800">
-                <td className="whitespace-nowrap px-3 py-1.5 text-xs text-gray-400">{formatDateTime(ev.created_at)}</td>
-                <td className="px-3 py-1.5"><Badge variant={meta.variant}>{meta.label}</Badge></td>
-                <td className="px-3 py-1.5 font-mono">{ev.ip_address}</td>
-                <td className="max-w-[220px] truncate px-3 py-1.5 text-gray-500" title={ev.username || ev.detail || ''}>
+              <tr key={ev.id} className="last:border-0">
+                <td className="whitespace-nowrap">{formatDateTime(ev.created_at)}</td>
+                <td><Badge variant={meta.variant}>{meta.label}</Badge></td>
+                <td className="font-mono">{ev.ip_address}</td>
+                <td className="max-w-[220px] truncate" title={ev.username || ev.detail || ''}>
                   {ev.username ? `логин: ${ev.username}` : ev.detail}
                 </td>
               </tr>

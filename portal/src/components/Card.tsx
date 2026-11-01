@@ -6,44 +6,33 @@ interface CardProps {
   className?: string
   title?: string
   action?: ReactNode
+  /** Прежний флаг: карточки теперь всегда в одном (компактном) стиле. */
   compact?: boolean
+  /** Без внутренних отступов — для таблицы во всю ширину карточки. */
+  flush?: boolean
 }
 
-function Card({ children, className, title, action, compact = false }: CardProps) {
+/** Карточка портала: рамка, заголовок-надзаголовок, отступ 16px. Одна на все экраны. */
+function Card({ children, className, title, action, flush = false }: CardProps) {
   return (
     <div
       className={cn(
-        compact
-          ? 'bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 transition-colors'
-          : 'bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/30 transition-colors',
+        'rounded-xl border border-gray-200 bg-white transition-colors dark:border-gray-700 dark:bg-gray-800',
+        flush && 'overflow-hidden',
         className,
       )}
     >
       {(title || action) && (
-        <div
-          className={cn(
-            'border-b border-gray-200 dark:border-gray-700 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between',
-            compact ? 'px-4 py-3' : 'px-6 py-4',
-          )}
-        >
+        <div className="flex flex-col gap-2 border-b border-gray-200 px-4 py-2.5 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
           {title && (
-            <h3
-              className={cn(
-                'min-w-0',
-                compact
-                  ? 'text-sm font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400'
-                  : 'text-lg font-semibold text-gray-900 dark:text-white',
-              )}
-            >
+            <h3 className="min-w-0 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
               {title}
             </h3>
           )}
           {action && <div className="w-full sm:w-auto sm:shrink-0">{action}</div>}
         </div>
       )}
-      <div className={cn(compact ? 'p-4' : 'p-6')}>
-        {children}
-      </div>
+      <div className={cn(!flush && 'p-4', flush && 'overflow-x-auto')}>{children}</div>
     </div>
   )
 }

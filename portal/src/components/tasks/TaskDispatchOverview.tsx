@@ -52,7 +52,7 @@ export default function TaskDispatchOverview({
       </div>
 
       <div className="max-w-full overflow-x-auto overscroll-x-contain">
-        <table className="w-full min-w-[820px] table-fixed border-collapse text-sm">
+        <table className="data-table min-w-[820px] table-fixed">
           <colgroup>
             <col className="w-44" />
             {dispatchStatuses.map((status) => (
@@ -62,36 +62,34 @@ export default function TaskDispatchOverview({
             <col className="w-24" />
             <col className="w-20" />
           </colgroup>
-          <thead className="bg-gray-50 text-left text-xs font-medium text-gray-500 dark:bg-gray-900/40 dark:text-gray-400">
+          <thead className="text-left">
             <tr>
               <th
-                scope="col"
-                className="sticky left-0 z-10 border-r border-gray-200 bg-gray-50 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-900"
+                scope="col" className="sticky left-0 z-10 border-r"
               >
                 Исполнитель
               </th>
               {dispatchStatuses.map((status) => (
-                <th key={status} scope="col" className="whitespace-nowrap px-2 py-2.5 text-center">
+                <th key={status} scope="col" className="whitespace-nowrap text-center">
                   {getStatusLabel(status)}
                 </th>
               ))}
-              <th scope="col" className="whitespace-nowrap px-2 py-2.5 text-center">
+              <th scope="col" className="whitespace-nowrap text-center">
                 Активные
               </th>
-              <th scope="col" className="whitespace-nowrap px-2 py-2.5 text-center">
+              <th scope="col" className="whitespace-nowrap text-center">
                 Срочные
               </th>
-              <th scope="col" className="whitespace-nowrap px-2 py-2.5 text-center">
+              <th scope="col" className="whitespace-nowrap text-center">
                 Всего
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+          <tbody>
             {rows.map((row) => (
-              <tr key={row.key} className="group h-12 hover:bg-gray-50 dark:hover:bg-gray-700/40">
+              <tr key={row.key} className="group h-12">
                 <th
-                  scope="row"
-                  className="sticky left-0 z-[1] truncate border-r border-gray-100 bg-white px-4 py-2 text-left font-medium text-gray-900 group-hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:group-hover:bg-gray-700"
+                  scope="row" className="sticky left-0 z-[1] truncate border-r group-hover:bg-gray-50 dark:group-hover:bg-gray-700"
                   title={row.assigneeName}
                 >
                   {row.assigneeName}
@@ -115,7 +113,7 @@ export default function TaskDispatchOverview({
                     )}
                   </td>
                 ))}
-                <td className="px-2 py-2 text-center align-middle font-semibold tabular-nums text-gray-900 dark:text-white">
+                <td className="text-center tabular-nums">
                   {row.active > 0 ? (
                     <button
                       type="button"
@@ -154,7 +152,7 @@ export default function TaskDispatchOverview({
                     row.urgent
                   )}
                 </td>
-                <td className="px-2 py-2 text-center align-middle tabular-nums text-gray-600 dark:text-gray-300">
+                <td className="text-center tabular-nums">
                   {row.total > 0 ? (
                     <button
                       type="button"

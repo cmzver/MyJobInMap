@@ -432,12 +432,12 @@ export default function AddressDetailPage() {
         description="Карточка объекта"
         actions={
           <>
-            <Button variant="outline" onClick={() => setAddressModal(true)}>
+            <Button size="sm" variant="outline" onClick={() => setAddressModal(true)}>
               <Edit className="h-4 w-4 mr-2" />
               Редактировать
             </Button>
             {address.lat && address.lon && (
-              <Button
+              <Button size="sm"
                 variant="outline"
                 onClick={() => window.open(`https://yandex.ru/maps/?pt=${address.lon},${address.lat}&z=17`, '_blank')}
               >
@@ -665,16 +665,16 @@ export default function AddressDetailPage() {
               </Card>
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full">
+                <table className="data-table min-w-full">
                   <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-700">
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Тип</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Название</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Модель</th>
-                      <th className="text-center py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Кол-во</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Расположение</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Статус</th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Действия</th>
+                    <tr>
+                      <th>Тип</th>
+                      <th>Название</th>
+                      <th>Модель</th>
+                      <th className="text-center">Кол-во</th>
+                      <th>Расположение</th>
+                      <th>Статус</th>
+                      <th className="text-right">Действия</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -684,8 +684,8 @@ export default function AddressDetailPage() {
                       const StatusIcon = statusConfig.Icon
                       
                       return (
-                        <tr key={item.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                          <td className="py-3 px-4">
+                        <tr key={item.id}>
+                          <td>
                             <div className="flex items-center gap-2">
                               <ItemIcon className="h-4 w-4 text-gray-400" />
                               <span className="text-sm text-gray-600 dark:text-gray-300">
@@ -693,30 +693,30 @@ export default function AddressDetailPage() {
                               </span>
                             </div>
                           </td>
-                          <td className="py-3 px-4">
+                          <td>
                             <Link to={`/equipment/${item.id}`} className="font-medium text-primary-600 hover:underline">{item.name}</Link>
                             {item.serial_number && (
                               <p className="text-xs text-gray-400">S/N: {item.serial_number}</p>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-300">
+                          <td>
                             {item.model || '—'}
                           </td>
-                          <td className="py-3 px-4 text-center">
+                          <td className="text-center">
                             <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">
                               {item.quantity}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-300">
+                          <td>
                             {item.location || '—'}
                           </td>
-                          <td className="py-3 px-4">
+                          <td>
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${statusConfig.bg} ${statusConfig.color}`}>
                               <StatusIcon className="h-3 w-3" />
                               {statusConfig.label}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-right">
+                          <td className="text-right">
                             <div className="flex justify-end gap-1">
                               <Button variant="ghost" size="sm">
                                 <Eye className="h-4 w-4" />
@@ -769,21 +769,21 @@ export default function AddressDetailPage() {
               </Card>
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full">
+                <table className="data-table min-w-full">
                   <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-700">
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Название</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Тип</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Размер</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Действует до</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Добавлен</th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Действия</th>
+                    <tr>
+                      <th>Название</th>
+                      <th>Тип</th>
+                      <th>Размер</th>
+                      <th>Действует до</th>
+                      <th>Добавлен</th>
+                      <th className="text-right">Действия</th>
                     </tr>
                   </thead>
                   <tbody>
                     {documents.map((doc) => (
-                      <tr key={doc.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                        <td className="py-3 px-4">
+                      <tr key={doc.id}>
+                        <td>
                           <div className="flex items-center gap-2">
                             <FileText className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                             <span className="font-medium text-gray-900 dark:text-white" title={doc.name}>
@@ -791,23 +791,23 @@ export default function AddressDetailPage() {
                             </span>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-300">
+                        <td>
                           {documentTypeLabels[doc.doc_type]}
                         </td>
-                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-300">
+                        <td>
                           {formatFileSize(doc.file_size)}
                         </td>
-                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-300">
+                        <td>
                           {doc.valid_until ? (
                             <span className={new Date(doc.valid_until) < new Date() ? 'text-red-500' : ''}>
                               {formatDate(doc.valid_until)}
                             </span>
                           ) : '—'}
                         </td>
-                        <td className="py-3 px-4 text-sm text-gray-500 dark:text-gray-400">
+                        <td>
                           {formatDate(doc.created_at)}
                         </td>
-                        <td className="py-3 px-4 text-right">
+                        <td className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button variant="ghost" size="sm" title="Открыть">
                               <Eye className="h-4 w-4" />

@@ -9,6 +9,7 @@ import type { UserGroup } from '@/types/user'
 import { mutationToast } from '@/utils/apiError'
 import Badge from '@/components/Badge'
 import Button from '@/components/Button'
+import Modal from '@/components/Modal'
 import Input from '@/components/Input'
 import Textarea from '@/components/Textarea'
 import Spinner from '@/components/Spinner'
@@ -346,17 +347,16 @@ export default function GroupsManager({ showOrgSelector = false }: GroupsManager
           <Spinner />
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-          <table className="w-full">
-            <thead className="bg-gray-50/80 dark:bg-gray-800/60">
-              <tr className="border-b border-gray-200 dark:border-gray-700">
-                <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>
                   Разрешение
                 </th>
                 {groups.map((group) => (
                   <th
-                    key={group.name}
-                    className="px-4 py-2 text-center text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                    key={group.name} className="text-center"
                   >
                     {group.label}
                   </th>
@@ -365,14 +365,14 @@ export default function GroupsManager({ showOrgSelector = false }: GroupsManager
             </thead>
             <tbody>
               {PERMISSION_ROWS.map((row) => (
-                <tr key={row.id} className="border-b border-gray-100 transition-colors last:border-0 hover:bg-gray-50/80 dark:border-gray-800 dark:hover:bg-gray-800/40">
-                  <td className="px-4 py-1 text-sm text-gray-700 dark:text-gray-300">
+                <tr key={row.id} className="last:border-0">
+                  <td>
                     {row.label}
                   </td>
                   {groups.map((group) => {
                     const checked = permissions?.[group.name]?.[row.id] ?? (group.name === 'admin')
                     return (
-                      <td key={group.name} className="px-4 py-1 text-center">
+                      <td key={group.name} className="text-center">
                         <input
                           type="checkbox"
                           checked={checked}
@@ -396,19 +396,9 @@ export default function GroupsManager({ showOrgSelector = false }: GroupsManager
         </div>
       )}
 
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white shadow-xl dark:bg-gray-800">
-            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {editing ? 'Редактировать группу' : 'Новая группа'}
-              </h3>
-              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      <Modal isOpen={showModal} onClose={closeModal} title={editing ? 'Редактировать группу' : 'Новая группа'} size="sm">
             <form onSubmit={handleSubmit}>
-              <div className="space-y-4 px-6 py-4">
+              <div className="space-y-4">
                 {(!editing || !editing.is_system) && (
                   <Input
                     label="Идентификатор *"
@@ -430,14 +420,12 @@ export default function GroupsManager({ showOrgSelector = false }: GroupsManager
                   rows={2}
                 />
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Базовый доступ
-                  </label>
+                  <label className="field-label">Базовый доступ</label>
                   <select
                     value={form.base_access}
                     disabled={editing?.is_system}
                     onChange={(e) => setForm({ ...form, base_access: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    className="field disabled:opacity-60"
                   >
                     <option value="dispatcher">Диспетчер (управление заявками)</option>
                     <option value="worker">Исполнитель</option>
@@ -447,7 +435,7 @@ export default function GroupsManager({ showOrgSelector = false }: GroupsManager
                   </p>
                 </div>
               </div>
-              <div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-900/50">
+              <div className="flex justify-end gap-2 pt-4">
                 <Button type="button" variant="secondary" onClick={closeModal}>
                   Отмена
                 </Button>
@@ -456,9 +444,7 @@ export default function GroupsManager({ showOrgSelector = false }: GroupsManager
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
     </SettingsCard>
   )
 }

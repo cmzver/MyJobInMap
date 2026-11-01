@@ -181,33 +181,33 @@ export default function FinancePage() {
         </div>
         
         <div className="overflow-x-auto -mx-4 sm:-mx-6 px-4 sm:px-6">
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-800/50">
+          <table className="data-table">
+            <thead>
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th>
                   Исполнитель
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="text-right">
                   Всего заявок
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="text-right">
                   Выполнено
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="text-right">
                   В работе
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="text-right">
                   Платных
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="text-right">
                   Удалённых
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="text-right">
                   Заработано
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody>
               {workersLoading ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center">
@@ -228,9 +228,8 @@ export default function FinancePage() {
                 workerStats.map((worker) => (
                   <tr 
                     key={worker.user_id}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                   >
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
                           <User className="w-4 h-4 text-gray-500" />
@@ -240,32 +239,32 @@ export default function FinancePage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-right">
+                    <td className="whitespace-nowrap text-right">
                       <span className="text-sm text-gray-900 dark:text-white font-medium">
                         {worker.total_tasks}
                       </span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-right">
+                    <td className="whitespace-nowrap text-right">
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                         {worker.completed_tasks}
                       </span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-right">
+                    <td className="whitespace-nowrap text-right">
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
                         {worker.in_progress_tasks}
                       </span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-right">
+                    <td className="whitespace-nowrap text-right">
                       <span className="text-sm text-gray-900 dark:text-white font-medium">
                         {worker.paid_tasks}
                       </span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-right">
+                    <td className="whitespace-nowrap text-right">
                       <span className="text-sm text-orange-600 dark:text-orange-400 font-medium">
                         {worker.remote_tasks}
                       </span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-right">
+                    <td className="whitespace-nowrap text-right">
                       <span className="text-sm text-green-600 dark:text-green-400 font-semibold">
                         {formatCurrency(worker.total_earned)}
                       </span>
@@ -279,25 +278,25 @@ export default function FinancePage() {
             {workerStats && workerStats.length > 0 && (
               <tfoot className="bg-gray-100 dark:bg-gray-800/70 font-semibold">
                 <tr>
-                  <td className="px-4 py-3 text-gray-900 dark:text-white">
+                  <td>
                     Итого
                   </td>
-                  <td className="px-4 py-3 text-right text-gray-900 dark:text-white">
+                  <td className="text-right">
                     {workerStats.reduce((sum, w) => sum + w.total_tasks, 0)}
                   </td>
-                  <td className="px-4 py-3 text-right text-green-600 dark:text-green-400">
+                  <td className="text-right text-green-600 dark:text-green-400">
                     {workerStats.reduce((sum, w) => sum + w.completed_tasks, 0)}
                   </td>
-                  <td className="px-4 py-3 text-right text-orange-600 dark:text-orange-400">
+                  <td className="text-right text-orange-600 dark:text-orange-400">
                     {workerStats.reduce((sum, w) => sum + w.in_progress_tasks, 0)}
                   </td>
-                  <td className="px-4 py-3 text-right text-gray-900 dark:text-white">
+                  <td className="text-right">
                     {workerStats.reduce((sum, w) => sum + w.paid_tasks, 0)}
                   </td>
-                  <td className="px-4 py-3 text-right text-orange-600 dark:text-orange-400">
+                  <td className="text-right text-orange-600 dark:text-orange-400">
                     {workerStats.reduce((sum, w) => sum + w.remote_tasks, 0)}
                   </td>
-                  <td className="px-4 py-3 text-right text-green-600 dark:text-green-400">
+                  <td className="text-right text-green-600 dark:text-green-400">
                     {formatCurrency(workerStats.reduce((sum, w) => sum + w.total_earned, 0))}
                   </td>
                 </tr>
