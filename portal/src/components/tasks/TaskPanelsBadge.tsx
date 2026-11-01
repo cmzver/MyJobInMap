@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { Camera, CheckCircle2, DoorOpen, KeyRound, Lock, Server, Unlock } from 'lucide-react'
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
@@ -17,6 +18,37 @@ import { showApiError, showApiSuccess } from '@/utils/apiError'
 
 function panelTitle(panel: TaskPanel): string {
   return panel.label || (panel.entrance ? `Подъезд ${panel.entrance}` : `Панель ${panel.id}`)
+}
+
+function RowIcon({
+  title,
+  busy,
+  onClick,
+  children,
+}: {
+  title: string
+  busy: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      disabled={busy}
+      className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:opacity-60 dark:hover:bg-gray-700 dark:hover:text-gray-200 ${busy ? 'animate-pulse' : ''}`}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** Номер подъезда для естественного порядка: 1, 2, …, 10, а не 1, 10, 2. */
+function panelOrder(panel: TaskPanel): number {
+  const match = (panel.entrance || panel.label || '').match(/\d+/)
+  return match ? parseInt(match[0], 10) : Number.MAX_SAFE_INTEGER
 }
 
 function PanelRow({ panel, taskId }: { panel: TaskPanel; taskId: number }) {
@@ -38,61 +70,60 @@ function PanelRow({ panel, taskId }: { panel: TaskPanel; taskId: number }) {
   }
 
   const lockText =
-    lock.data?.is_open === true ? 'открыта' : lock.data?.is_open === false ? 'закрыта' : null
+    lock.data?.is_open === true ? 'дверь открыта' : lock.data?.is_open === false ? 'дверь закрыта' : null
 
   return (
-    <li className="py-3 first:pt-0 last:pb-0">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium text-gray-900 dark:text-white">{panelTitle(panel)}</span>
-        {panel.model && <span className="text-xs text-gray-500 dark:text-gray-400">{panel.model}</span>}
-        {lockText && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">· дверь {lockText}</span>
-        )}
+    <li className="flex items-center gap-2 py-1.5 text-sm">
+      <div className="flex min-w-0 flex-1 items-baseline gap-2">
+        <span className="shrink-0 font-medium text-gray-900 dark:text-white">{panelTitle(panel)}</span>
+        <span className="truncate text-xs text-gray-500 dark:text-gray-400">
+          {[panel.model, lockText].filter(Boolean).join(' · ')}
+          {scanCode.data && (
+            <>
+              {panel.model || lockText ? ' · ' : ''}код{' '}
+              <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">{scanCode.data.code ?? '—'}</span>
+              {!scanCode.data.active && ' (выкл.)'}
+            </>
+          )}
+          {lock.isError && <span className="text-red-600 dark:text-red-400"> · не отвечает</span>}
+        </span>
       </div>
-      {scanCode.data && (
-        <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
-          Код записи ключей: <span className="font-mono font-semibold">{scanCode.data.code ?? '—'}</span>
-          {!scanCode.data.active && <span className="text-gray-500"> (режим выключен на панели)</span>}
-        </p>
-      )}
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        <Button size="sm" isLoading={door.isPending} onClick={() => setConfirmOpen(true)}>
-          <DoorOpen className="mr-1 h-4 w-4" />
-          Открыть дверь
-        </Button>
-        <Button size="sm" variant="ghost" isLoading={lock.isFetching} onClick={() => lock.refetch()}>
-          {lock.data?.is_open ? <Unlock className="mr-1 h-4 w-4" /> : <Lock className="mr-1 h-4 w-4" />}
-          Замок
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          isLoading={scanCode.isPending}
-          onClick={() =>
-            scanCode.mutate(panel.id, {
-              onError: (error) => showApiError(error, 'Не удалось получить код'),
-            })
-          }
-        >
-          <KeyRound className="mr-1 h-4 w-4" />
-          Код ключей
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          isLoading={snapshot.isPending}
-          onClick={() =>
-            snapshot.mutate(panel.id, {
-              onSuccess: () => showApiSuccess('Кадр с панели добавлен в фото'),
-              onError: (error) => showApiError(error, 'Не удалось получить кадр'),
-            })
-          }
-        >
-          <Camera className="mr-1 h-4 w-4" />
-          Кадр в фото
-        </Button>
-      </div>
-      {lock.isError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">Панель не ответила</p>}
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 shrink-0 px-2.5 text-primary-700 dark:text-primary-400"
+        isLoading={door.isPending}
+        onClick={() => setConfirmOpen(true)}
+      >
+        <DoorOpen className="mr-1 h-4 w-4" />
+        Открыть
+      </Button>
+      <RowIcon title="Проверить замок" busy={lock.isFetching} onClick={() => lock.refetch()}>
+        {lock.data?.is_open ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+      </RowIcon>
+      <RowIcon
+        title="Код записи ключей"
+        busy={scanCode.isPending}
+        onClick={() =>
+          scanCode.mutate(panel.id, {
+            onError: (error) => showApiError(error, 'Не удалось получить код'),
+          })
+        }
+      >
+        <KeyRound className="h-3.5 w-3.5" />
+      </RowIcon>
+      <RowIcon
+        title="Кадр с панели — в фото заявки"
+        busy={snapshot.isPending}
+        onClick={() =>
+          snapshot.mutate(panel.id, {
+            onSuccess: () => showApiSuccess('Кадр с панели добавлен в фото'),
+            onError: (error) => showApiError(error, 'Не удалось получить кадр'),
+          })
+        }
+      >
+        <Camera className="h-3.5 w-3.5" />
+      </RowIcon>
 
       {confirmOpen && (
         <Modal isOpen onClose={() => setConfirmOpen(false)} title="Открыть дверь?" size="sm">
@@ -176,9 +207,9 @@ export default function TaskPanelsBadge({ task, canResolve }: { task: TaskDetail
       </button>
 
       {panelsOpen && (
-        <Modal isOpen onClose={() => setPanelsOpen(false)} title="Сетевые панели" size="lg">
+        <Modal isOpen onClose={() => setPanelsOpen(false)} title="Сетевые панели" size="md">
           <ul className="divide-y divide-gray-100 dark:divide-gray-700">
-            {panels.map((panel) => (
+            {[...panels].sort((a, b) => panelOrder(a) - panelOrder(b) || a.id - b.id).map((panel) => (
               <PanelRow key={panel.id} panel={panel} taskId={task.id} />
             ))}
           </ul>

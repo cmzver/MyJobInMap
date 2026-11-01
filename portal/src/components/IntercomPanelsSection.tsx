@@ -259,17 +259,17 @@ function PanelCard({
   })()
 
   return (
-    <li className="flex flex-col gap-2 px-4 py-2.5 text-sm sm:flex-row sm:items-center">
+    <li className="flex flex-col gap-1 px-4 py-1.5 text-sm sm:flex-row sm:items-center sm:gap-2">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <Server className="h-4 w-4 shrink-0 text-gray-400" />
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5">
             <span className="font-medium text-gray-900 dark:text-white">{panel.label || panel.ip}</span>
             {panel.entrance && !/подъезд/i.test(panel.label || '') && <Pill cls="bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">подъезд {panel.entrance}</Pill>}
             {!panel.is_active && <Pill cls="bg-gray-100 text-gray-500 dark:bg-gray-700">выключена</Pill>}
             {lockBadge && <Pill cls={lockBadge.cls}>{lockBadge.text}</Pill>}
           </div>
-          <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+          <p className="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">
             {panel.ip}{panel.port !== 80 ? `:${panel.port}` : ''}
             {panel.model && ` · ${panel.model}`}
             {scanQuery.data && (
@@ -286,7 +286,8 @@ function PanelCard({
       <div className="flex shrink-0 flex-wrap items-center gap-0.5">
         <Button
           size="sm"
-          className="mr-1 h-7 px-2.5"
+          variant="outline"
+          className="mr-1 h-7 px-2.5 text-primary-700 dark:text-primary-400"
           onClick={() => setConfirmAction('open')}
           isLoading={openDoor.isPending}
           disabled={doorPending}
