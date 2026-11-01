@@ -45,6 +45,7 @@ from app.services.backup_scheduler import (
     stop_scheduler,
 )
 from app.services.ip_guard import ip_guard
+from app.services.periodic_jobs import start_periodic_jobs, stop_periodic_jobs
 from app.services.websocket_manager import ws_manager
 
 # ============================================================================
@@ -124,6 +125,8 @@ async def lifespan(app: FastAPI):
 
     # Запуск планировщика бэкапов (если включён)
     start_scheduler()
+    # Напоминания о сроках заявок и дайджест просрочки
+    start_periodic_jobs()
 
     logger.info("✅ Server ready!")
     logger.info(f"   📡 API docs: http://localhost:{settings.PORT}/docs")
@@ -133,6 +136,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("🛑 Shutting down server...")
+    await stop_periodic_jobs()
     stop_scheduler()
     engine.dispose()
 

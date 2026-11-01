@@ -4,7 +4,7 @@ import type { TaskPriority, TaskSort, TaskStatus } from '@/types/task'
 const STORAGE_KEY = 'tasks-saved-views-v1'
 const VALID_STATUSES: TaskStatus[] = ['NEW', 'IN_PROGRESS', 'DONE', 'CANCELLED']
 const VALID_PRIORITIES: TaskPriority[] = ['EMERGENCY', 'URGENT', 'CURRENT', 'PLANNED']
-const VALID_SORTS: TaskSort[] = ['created_at_desc', 'created_at_asc']
+const VALID_SORTS: TaskSort[] = ['created_at_desc', 'created_at_asc', 'due_at_asc']
 const VALID_GROUPS = ['', 'status', 'assignee', 'priority']
 const VALID_DISPLAY_MODES: TaskDisplayMode[] = ['list', 'dispatch']
 

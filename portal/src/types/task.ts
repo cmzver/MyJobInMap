@@ -4,7 +4,9 @@ import type { components } from './api.generated'
 // (single source of truth) — regenerate with `npm run gen:api`.
 export type TaskStatus = components['schemas']['TaskStatus']
 export type TaskPriority = components['schemas']['TaskPriority']
-export type TaskSort = 'created_at_desc' | 'created_at_asc'
+export type TaskSort = 'created_at_desc' | 'created_at_asc' | 'due_at_asc'
+/** Открытые заявки по сроку: истёк / истекает в ближайшие 24 ч. */
+export type DueFilter = 'overdue' | 'soon'
 
 // List/map/card shape (carries comments_count). The detail endpoint returns the
 // richer TaskDetail (with the full comments history).
@@ -43,6 +45,7 @@ export interface TaskFilters {
   search?: string
   address_id?: number
   repeat_kinds?: RepeatKind[]
+  due?: DueFilter
   sort?: TaskSort
   date_from?: string
   date_to?: string

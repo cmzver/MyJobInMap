@@ -6,7 +6,7 @@ import Input from '@/components/Input'
 import PageHeader from '@/components/PageHeader'
 import QueryStatePanel from '@/components/QueryStatePanel'
 import Textarea from '@/components/Textarea'
-import { SettingsCard } from '@/components/settings/SettingsSection'
+import { SettingsCard, SettingsToggle } from '@/components/settings/SettingsSection'
 import { PRIORITY_LABELS } from '@/config/taskConstants'
 import { useOrganizations } from '@/hooks/useOrganizations'
 import {
@@ -46,6 +46,7 @@ type FormState = {
   hours: Record<keyof SlaHours, string>
   defaultHours: boolean
   repeatWindowDays: string
+  escalations: boolean
 }
 
 function toForm(settings: OrganizationSettings): FormState {
@@ -61,6 +62,7 @@ function toForm(settings: OrganizationSettings): FormState {
     ) as Record<keyof SlaHours, string>,
     defaultHours: !settings.sla_hours_customized,
     repeatWindowDays: String(settings.repeat_window_days),
+    escalations: settings.sla_escalations_enabled ?? true,
   }
 }
 
@@ -111,6 +113,7 @@ function OrganizationSettingsForm({ organizationId }: { organizationId?: number 
         act_footer_text: form.actFooterText.trim() || null,
         sla_hours,
         repeat_window_days: Number(form.repeatWindowDays),
+        sla_escalations_enabled: form.escalations,
       },
       {
         onSuccess: () => showApiSuccess('Настройки организации сохранены'),
@@ -191,6 +194,14 @@ function OrganizationSettingsForm({ organizationId }: { organizationId?: number 
               onChange={(event) => setHour(priority, event.target.value)}
             />
           ))}
+        </div>
+        <div className="mt-4">
+          <SettingsToggle
+            title="Напоминания о сроках"
+            description="Исполнителю и диспетчерам — когда срок подходит или истёк, аварийная или срочная заявка ждёт исполнителя или начала работы; утром — сводка просроченных. Ночью (22–8) пуши только по аварийным."
+            checked={form.escalations}
+            onChange={(checked) => setForm({ ...form, escalations: checked })}
+          />
         </div>
       </SettingsCard>
 

@@ -230,10 +230,35 @@ fun TaskCard(
                             maxLines = 1,
                         )
                     }
+                    if (ui.dueLabel != null) {
+                        BulletDot()
+                        Text(
+                            text = "${if (ui.isDueOverdue) "просрочено" else "срок"} ${ui.dueLabel}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (ui.isDueOverdue) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            fontWeight = if (ui.isDueOverdue) FontWeight.SemiBold else FontWeight.Normal,
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+private fun isTaskOpen(task: Task) =
+    task.status == TaskStatus.NEW || task.status == TaskStatus.IN_PROGRESS
+
+private fun dueLabelFor(task: Task): String? {
+    val dueAt = task.dueAt ?: return null
+    if (task.plannedDate != null || !isTaskOpen(task)) return null
+    val urgent = task.priority == Priority.EMERGENCY || task.priority == Priority.URGENT
+    if (!urgent && !TaskUtils.isMomentPast(dueAt)) return null
+    return TaskUtils.formatDue(dueAt)
 }
 
 @Composable
@@ -282,6 +307,9 @@ private data class TaskCardUi(
     val formattedDate: String,
     val formattedPlannedDate: String?,
     val isPlannedOverdue: Boolean,
+    /** Срок по нормативу — у срочных, аварийных и просроченных, если нет плановой даты. */
+    val dueLabel: String?,
+    val isDueOverdue: Boolean,
     val displayNumber: String,
     val primaryTitle: String,
 )
@@ -305,6 +333,8 @@ private fun rememberTaskCardUi(
             && task.status != TaskStatus.CANCELLED
             && task.status != TaskStatus.UNKNOWN
             && TaskUtils.isDateOverdue(task.plannedDate),
+        dueLabel = dueLabelFor(task),
+        isDueOverdue = isTaskOpen(task) && TaskUtils.isMomentPast(task.dueAt),
         displayNumber = displayNumber,
         primaryTitle = taskHeadline(task, displayNumber),
     )

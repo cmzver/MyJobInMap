@@ -193,6 +193,13 @@ def get_tasks(
     repeat_kind: List[Literal["duplicate", "return"]] = Query(
         default=[], description="Только повторы этого вида (дубли, возвраты)."
     ),
+    due: Optional[Literal["overdue", "soon"]] = Query(
+        None,
+        description=(
+            "Открытые заявки со сроком: overdue — истёк, soon — истекает в "
+            "ближайшие 24 часа."
+        ),
+    ),
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("view_tasks")),
 ):
@@ -282,6 +289,18 @@ def get_tasks(
     if repeat_kind:
         query = query.filter(TaskModel.repeat_kind.in_(repeat_kind))
 
+    if due is not None:
+        now = _to_naive_utc(datetime.now(timezone.utc))
+        query = query.filter(
+            TaskModel.status.in_([TaskStatus.NEW.value, TaskStatus.IN_PROGRESS.value])
+        )
+        if due == "overdue":
+            query = query.filter(TaskModel.due_at < now)
+        else:
+            query = query.filter(
+                TaskModel.due_at >= now, TaskModel.due_at < now + timedelta(hours=24)
+            )
+
     # Считаем общее количество
     total = query.count()
 
@@ -297,6 +316,13 @@ def get_tasks(
         order_by = [TaskModel.created_at.asc()]
     elif sort_value == "created_at_desc":
         order_by = [TaskModel.created_at.desc()]
+    elif sort_value == "due_at_asc":
+        # Сначала самые горящие; без срока — в конце.
+        order_by = [
+            TaskModel.due_at.is_(None),
+            TaskModel.due_at.asc(),
+            TaskModel.id.asc(),
+        ]
     else:
         # Дефолтная (без явного sort) «умная» сортировка: заявки с
         # непрочитанными уведомлениями и более высоким приоритетом — наверх.

@@ -3,11 +3,13 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
   Activity,
+  AlarmClock,
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
   ClipboardList,
   Clock,
+  Hourglass,
   Users,
   Zap,
 } from 'lucide-react'
@@ -32,6 +34,8 @@ interface DashboardStats {
   cancelledTasks: number
   totalWorkers: number
   activeWorkers: number
+  overdueTasks: number
+  dueSoonTasks: number
 }
 
 interface DayActivity {
@@ -149,6 +153,20 @@ export default function DashboardPage() {
   ]
 
   const controlCards = [
+    {
+      title: 'Просрочено',
+      value: stats?.overdueTasks ?? 0,
+      meta: 'срок истёк, не закрыты',
+      icon: AlarmClock,
+      to: buildTaskListUrl({ due: 'overdue' }),
+    },
+    {
+      title: 'Горит',
+      value: stats?.dueSoonTasks ?? 0,
+      meta: 'срок истекает за сутки',
+      icon: Hourglass,
+      to: buildTaskListUrl({ due: 'soon' }),
+    },
     {
       title: 'Срочные заявки',
       value: activity?.urgentTasks.length ?? 0,

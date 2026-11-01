@@ -242,6 +242,10 @@ class TaskEntityTest {
         )
 
         assertEquals(repeat, TaskEntity.fromDomain(task).toDomain().repeatOf)
+        assertEquals(
+            "2026-11-02T09:00:00Z",
+            TaskEntity.fromDomain(task.copy(dueAt = "2026-11-02T09:00:00Z")).toDomain().dueAt
+        )
         assertNull(TaskEntity.fromDomain(task.copy(repeatOf = null)).toDomain().repeatOf)
     }
 }

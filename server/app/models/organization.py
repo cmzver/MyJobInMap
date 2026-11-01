@@ -7,7 +7,16 @@ Organization Model
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    true,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, utcnow
@@ -108,6 +117,10 @@ class OrganizationSettingsModel(Base):
     # Заявка на том же месте, закрытая не раньше стольких дней назад, — возврат.
     repeat_window_days: Mapped[int] = mapped_column(
         Integer, default=30, server_default="30", nullable=False
+    )
+    # Напоминания о сроках заявок (sla_escalation) и утренний дайджест просрочки.
+    sla_escalations_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=true(), nullable=False
     )
 
     updated_at: Mapped[datetime] = mapped_column(

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models import TaskModel, UserModel, get_db
 from app.services import get_current_user_required
+from app.services.business_time import to_naive_utc
 from app.services.tenant_filter import TenantFilter
 from app.utils import normalize_priority_value, priority_rank_expr
 
@@ -49,6 +50,9 @@ class DashboardStatsResponse(BaseModel):
     cancelledTasks: int
     totalWorkers: int
     activeWorkers: int
+    # Открытые заявки: срок истёк / истекает в ближайшие сутки
+    overdueTasks: int = 0
+    dueSoonTasks: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -89,6 +93,17 @@ def get_dashboard_stats(
     completed_tasks = sum(1 for t in tasks if t.status == "DONE")
     cancelled_tasks = sum(1 for t in tasks if t.status == "CANCELLED")
 
+    now = to_naive_utc(datetime.now(timezone.utc))
+    open_due = [
+        to_naive_utc(t.due_at)
+        for t in tasks
+        if t.status in ("NEW", "IN_PROGRESS") and t.due_at is not None
+    ]
+    overdue_tasks = sum(1 for due in open_due if due < now)
+    due_soon_tasks = sum(
+        1 for due in open_due if now <= due < now + timedelta(hours=24)
+    )
+
     # Статистика по работникам
     workers_query = tenant.apply(db.query(UserModel), UserModel).filter(
         UserModel.role.in_(["worker", "dispatcher"]), UserModel.is_active == True
@@ -113,6 +128,8 @@ def get_dashboard_stats(
         cancelledTasks=cancelled_tasks,
         totalWorkers=total_workers,
         activeWorkers=active_workers,
+        overdueTasks=overdue_tasks,
+        dueSoonTasks=due_soon_tasks,
     )
 
 
