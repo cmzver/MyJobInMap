@@ -185,6 +185,9 @@ class TestPublicLink:
         assert _sign(client, token, consent="false").status_code == 400
         assert _sign(client, token, name=" ").status_code == 400
         assert _sign(client, token, png=b"not a png").status_code == 415
+        broken = bytearray(_png())
+        broken[-20] ^= 0xFF  # порча данных: контрольная сумма PNG не сойдётся
+        assert _sign(client, token, png=bytes(broken)).status_code == 415
         assert client.get(f"/api/public/acts/{token}").json()["can_sign"] is True
 
 

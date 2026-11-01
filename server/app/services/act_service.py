@@ -263,7 +263,8 @@ def _store_signature(organization_id: int, png: bytes) -> Tuple[str, str]:
             if image.format != "PNG":
                 raise ActServiceError("Подпись — PNG", 415)
             image.verify()
-    except (UnidentifiedImageError, OSError):
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
+        # Pillow отвечает на битый PNG (неверная контрольная сумма) SyntaxError
         raise ActServiceError("Не удалось прочитать подпись", 415)
     digest = hashlib.sha256(png).hexdigest()
     relative = Path(str(organization_id)) / f"sig-{digest[:24]}.png"
