@@ -3,15 +3,11 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
-  AlarmClock,
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
   ClipboardList,
   Clock,
-  Hourglass,
-  Users,
-  Zap,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { ru } from 'date-fns/locale'
@@ -86,13 +82,7 @@ export default function DashboardPage() {
     },
   })
 
-  const {
-    data: activity,
-    isLoading: activityLoading,
-    isFetching: activityFetching,
-    isError: activityError,
-    refetch: refetchActivity,
-  } = useQuery({
+  const { data: activity, isLoading: activityLoading } = useQuery({
     queryKey: ['dashboard-activity'],
     queryFn: async () => {
       const response = await apiClient.get<DashboardActivity>('/dashboard/activity')
@@ -115,7 +105,6 @@ export default function DashboardPage() {
   })
 
   const recentPreview = recentTasks ?? []
-  const urgentPreview = useMemo(() => activity?.urgentTasks.slice(0, 4) ?? [], [activity?.urgentTasks])
   const maxActivityValue = useMemo(() => {
     const values = activity?.activity.map((day) => Math.max(day.created, day.completed)) ?? []
     return Math.max(1, ...values)
@@ -139,7 +128,7 @@ export default function DashboardPage() {
     {
       title: 'В работе',
       value: stats?.inProgressTasks ?? 0,
-      meta: 'назначены в работу',
+      meta: 'назначены',
       icon: Clock,
       to: buildTaskListUrl({ statuses: ['IN_PROGRESS'] }),
     },
@@ -152,53 +141,15 @@ export default function DashboardPage() {
     },
   ]
 
-  const controlCards = [
-    {
-      title: 'Просрочено',
-      value: stats?.overdueTasks ?? 0,
-      meta: 'срок истёк, не закрыты',
-      icon: AlarmClock,
-      to: buildTaskListUrl({ due: 'overdue' }),
-    },
-    {
-      title: 'Горит',
-      value: stats?.dueSoonTasks ?? 0,
-      meta: 'срок истекает за сутки',
-      icon: Hourglass,
-      to: buildTaskListUrl({ due: 'soon' }),
-    },
-    {
-      title: 'Срочные заявки',
-      value: activity?.urgentTasks.length ?? 0,
-      meta: 'нуждаются в приоритете',
-      icon: Zap,
-      to: buildTaskListUrl({ priorities: ['EMERGENCY', 'URGENT'] }),
-    },
-    {
-      title: 'Активные исполнители',
-      value: stats?.activeWorkers ?? 0,
-      meta: `из ${stats?.totalWorkers ?? 0}`,
-      icon: Users,
-      to: '/analytics',
-    },
-    {
-      title: 'Отменено',
-      value: stats?.cancelledTasks ?? 0,
-      meta: 'снято с исполнения',
-      icon: AlertTriangle,
-      to: buildTaskListUrl({ statuses: ['CANCELLED'] }),
-    },
-  ]
-
   return (
     <div className="space-y-4">
       <PageHeader
         title="Дашборд"
-        description="Сводка по очереди заявок, работе исполнителей и активности за неделю."
+        description="Сводка по очереди заявок и активности за неделю."
       />
 
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+        <div>
           {statsLoading ? (
             <SkeletonStats count={4} className="grid-cols-2 gap-3 lg:grid-cols-4" />
           ) : statsError && !stats ? (
@@ -251,36 +202,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {statsLoading || activityLoading ? (
-          <SkeletonStats count={3} className="grid-cols-1 gap-3" />
-        ) : (statsError && !stats) || (activityError && !activity) ? (
-          <QueryStatePanel
-            state="error"
-            title="Не удалось загрузить контроль смены"
-            onRetry={() => Promise.all([refetchStats(), refetchActivity()])}
-            isRetrying={statsFetching || activityFetching}
-          />
-        ) : (
-          <Card flush title="Контроль смены">
-            <ul className="divide-y divide-gray-100 dark:divide-gray-700">
-              {controlCards.map((card) => (
-                <li key={card.title} className="relative flex items-center gap-3 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/40">
-                  <Link to={card.to} aria-label={`${card.title}: ${card.value}. Открыть подробности`} className="absolute inset-0" />
-                  <card.icon className="h-4 w-4 shrink-0 text-gray-400" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-gray-900 dark:text-white">{card.title}</p>
-                    <p className="truncate text-xs text-gray-500 dark:text-gray-400">{card.meta}</p>
-                  </div>
-                  <span className="text-lg font-semibold tabular-nums text-gray-900 dark:text-white">{card.value}</span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2">
+        <div>
           <Card flush title="Последние заявки" action={<MoreLink to="/tasks">Все заявки</MoreLink>}>
             {tasksLoading ? (
               <div className="p-4"><SkeletonTaskList count={3} /></div>
@@ -311,40 +233,6 @@ export default function DashboardPage() {
             )}
           </Card>
         </div>
-
-        <Card
-          flush
-          title="Требуют внимания"
-          action={<MoreLink to={buildTaskListUrl({ priorities: ['EMERGENCY', 'URGENT'] })}>Список</MoreLink>}
-        >
-          {activityLoading ? (
-            <div className="flex justify-center py-6"><Spinner /></div>
-          ) : activityError && !activity ? (
-            <QueryStatePanel
-              state="error"
-              title="Не удалось загрузить срочные заявки"
-              onRetry={refetchActivity}
-              isRetrying={activityFetching}
-              className="border-0"
-            />
-          ) : urgentPreview.length > 0 ? (
-            <ul className="divide-y divide-gray-100 dark:divide-gray-700">
-              {urgentPreview.map((task) => (
-                <li key={task.id}>
-                  <TaskRow
-                    to={`/tasks/${task.id}`}
-                    title={task.title}
-                    priority={task.priority as TaskPriority}
-                    status={task.status as TaskStatus}
-                    meta={`${task.assignee_name || 'Не назначен'}${task.planned_date ? ` · срок ${format(parseISO(task.planned_date), 'd MMM, HH:mm', { locale: ru })}` : ''}`}
-                  />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">Срочных заявок нет.</p>
-          )}
-        </Card>
       </div>
     </div>
   )
