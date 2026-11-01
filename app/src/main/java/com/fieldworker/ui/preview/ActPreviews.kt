@@ -16,6 +16,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.fieldworker.data.remote.generated.ActResponse
 import com.fieldworker.data.remote.generated.CatalogItemResponse
+import com.fieldworker.data.remote.generated.TaskPanelResponse
+import com.fieldworker.data.repository.ScanCode
 import com.fieldworker.domain.model.ActDraft
 import com.fieldworker.domain.model.ActLineDraft
 import com.fieldworker.domain.model.ActPaymentMethod
@@ -27,6 +29,8 @@ import com.fieldworker.ui.act.ActEditorViewModel
 import com.fieldworker.ui.act.PublicLinkContent
 import com.fieldworker.ui.act.TaskActsContent
 import com.fieldworker.ui.act.TaskActsViewModel
+import com.fieldworker.ui.remote.TaskRemoteContent
+import com.fieldworker.ui.remote.TaskRemoteViewModel
 import com.fieldworker.ui.components.SignaturePad
 import com.fieldworker.ui.components.SignatureState
 import com.fieldworker.ui.theme.FieldWorkerTheme
@@ -251,3 +255,34 @@ internal fun PublicLinkPreview() {
         }
     }
 }
+
+@Preview(name = "TaskRemoteSection - Panels", showBackground = true)
+@Composable
+internal fun TaskRemoteSectionPreview() {
+    FieldWorkerTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                TaskRemoteContent(
+                    panels = listOf(
+                        TaskRemoteViewModel.PanelState(
+                            panel = TaskPanelResponse(id = 1, addressId = 7, label = "Подъезд 1", model = "Beward DKS15198"),
+                            doorOpen = false,
+                            scanCode = ScanCode(code = "55787", active = true),
+                        ),
+                        TaskRemoteViewModel.PanelState(
+                            panel = TaskPanelResponse(id = 2, addressId = 7, entrance = "2", model = "Beward DKS15198"),
+                            isBusy = true,
+                        ),
+                    ),
+                    canResolve = true,
+                    onOpenDoor = {},
+                    onCheckLock = {},
+                    onScanCode = {},
+                    onSnapshot = {},
+                    onResolve = {},
+                )
+            }
+        }
+    }
+}
+

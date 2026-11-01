@@ -73,6 +73,7 @@ import androidx.paging.compose.LazyPagingItems
 import com.fieldworker.R
 import com.fieldworker.domain.model.AddressDetails
 import com.fieldworker.ui.act.LocalTaskActsSection
+import com.fieldworker.ui.remote.LocalTaskRemoteSection
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
@@ -897,6 +898,7 @@ fun TaskDetailContent(
     val context = LocalContext.current
     // Блок «Акты» даёт экран с навигацией; в превью его нет
     val actsSection = LocalTaskActsSection.current
+    val remoteSection = LocalTaskRemoteSection.current
     
     // Состояния для спойлеров
     var isPhotosExpanded by remember { mutableStateOf(false) }
@@ -1042,6 +1044,10 @@ fun TaskDetailContent(
 
             task.repeatOf?.let { repeat ->
                 item { TaskRepeatSection(repeat) }
+            }
+
+            remoteSection?.let { section ->
+                item { section(task) }
             }
 
             actsSection?.let { section ->

@@ -42,6 +42,8 @@ import androidx.navigation.navArgument
 import com.fieldworker.ui.act.ActEditorScreen
 import com.fieldworker.ui.act.ActEditorViewModel
 import com.fieldworker.ui.act.LocalTaskActsSection
+import com.fieldworker.ui.remote.LocalTaskRemoteSection
+import com.fieldworker.ui.remote.TaskRemoteSection
 import com.fieldworker.ui.act.TaskActsSection
 import com.fieldworker.domain.model.Task
 import androidx.paging.compose.collectAsLazyPagingItems
@@ -303,7 +305,15 @@ fun MainScreen(
                     )
                 }
             }
-            CompositionLocalProvider(LocalTaskActsSection provides actsSection) {
+            val remoteSection: @Composable (Task) -> Unit = remember(viewModel) {
+                { task ->
+                    TaskRemoteSection(task = task, onTaskChanged = { viewModel.reloadTaskDetails(task.id) })
+                }
+            }
+            CompositionLocalProvider(
+                LocalTaskActsSection provides actsSection,
+                LocalTaskRemoteSection provides remoteSection,
+            ) {
             NavHost(
                 navController = navController,
                 startDestination = Screen.Map.route
