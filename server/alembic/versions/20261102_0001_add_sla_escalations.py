@@ -4,7 +4,7 @@
 заданий. Уникальные ключи защищают от повторной отправки.
 
 Revision ID: 20261102_0001
-Revises: 20261101_0001
+Revises: 20261101_0002
 Create Date: 2026-11-02
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "20261102_0001"
-down_revision = "20261101_0001"
+down_revision = "20261101_0002"
 branch_labels = None
 depends_on = None
 
