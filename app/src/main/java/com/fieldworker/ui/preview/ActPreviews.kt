@@ -24,6 +24,7 @@ import com.fieldworker.domain.model.PendingActKind
 import com.fieldworker.ui.act.ActEditActions
 import com.fieldworker.ui.act.ActEditorContent
 import com.fieldworker.ui.act.ActEditorViewModel
+import com.fieldworker.ui.act.PublicLinkContent
 import com.fieldworker.ui.act.TaskActsContent
 import com.fieldworker.ui.act.TaskActsViewModel
 import com.fieldworker.ui.components.SignaturePad
@@ -166,8 +167,19 @@ internal fun SignaturePadPreview() {
     }
 }
 
+private val previewPendingServerAct = ActResponse(
+    id = 42,
+    number = "ТС-2026-000042",
+    status = ActResponse.Status.PENDING_SIGNATURE,
+    paymentMethod = ActResponse.PaymentMethod.CASH,
+    totalAmount = BigDecimal("1500.00"),
+    documentHash = "",
+    createdAt = "2026-11-01T12:30:00",
+)
+
 private val previewServerActs = TaskActsViewModel.ServerActs(
     acts = listOf(
+        previewPendingServerAct,
         ActResponse(
             id = 41,
             number = "ТС-2026-000041",
@@ -218,6 +230,22 @@ internal fun TaskActsSectionPreview() {
                     serverActs = TaskActsViewModel.ServerActs(unavailable = true),
                     onCreateAct = {},
                     onOpenPdf = {},
+                )
+            }
+        }
+    }
+}
+
+@Preview(name = "Act public link - QR", showBackground = true)
+@Composable
+internal fun PublicLinkPreview() {
+    FieldWorkerTheme {
+        Surface(color = MaterialTheme.colorScheme.surface) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                PublicLinkContent(
+                    act = previewPendingServerAct,
+                    url = "https://balalayka.duckdns.org/portal/a/aUoA2CTBjnadKm_p_gEgzGUvte0UMPGIbYqWTFn6NN4",
+                    expiresAt = "2026-11-15T12:30:00Z",
                 )
             }
         }

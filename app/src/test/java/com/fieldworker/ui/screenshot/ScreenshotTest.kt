@@ -85,6 +85,7 @@ class ScreenshotTest(
             "act_signing_dark" to { ActSigningDarkPreview() },
             "signature_pad" to { SignaturePadPreview() },
             "task_acts" to { TaskActsSectionPreview() },
+            "act_link" to { PublicLinkPreview() },
             "theme_light" to { LightThemePreview() },
             "theme_dark" to { DarkThemePreview() },
         ).map { (name, content) -> arrayOf(name, content) }
