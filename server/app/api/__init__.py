@@ -6,6 +6,7 @@ Export routers. Все эндпоинты монтируются под /api/.
 
 from fastapi import APIRouter
 
+from app.api.acts import router as acts_router
 from app.api.addresses import router as addresses_router
 from app.api.admin import public_router as public_settings_router
 from app.api.admin import router as admin_router
@@ -28,6 +29,7 @@ api_router = APIRouter()
 # Подключение всех роутеров
 api_router.include_router(auth_router)
 api_router.include_router(tasks_router)
+api_router.include_router(acts_router)
 api_router.include_router(photos_router)
 api_router.include_router(devices_router)
 api_router.include_router(push_router)

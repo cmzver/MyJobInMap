@@ -39,6 +39,9 @@ const PERMISSION_ROWS = [
   { id: 'edit_settings', label: 'Настройки (ред.)' },
   { id: 'view_addresses', label: 'Адреса (просмотр)' },
   { id: 'edit_addresses', label: 'Адреса (ред.)' },
+  { id: 'view_acts', label: 'Акты (просмотр)' },
+  { id: 'create_acts', label: 'Акты (оформление)' },
+  { id: 'manage_acts', label: 'Акты (аннулирование, прайс)' },
 ]
 
 const BASE_ACCESS_LABELS: Record<string, string> = {

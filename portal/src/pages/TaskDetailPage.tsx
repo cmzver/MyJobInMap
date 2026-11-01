@@ -31,6 +31,7 @@ import {
   useMarkRepeat,
 } from '@/hooks/useTasks'
 import RepeatMarkModal from '@/components/tasks/RepeatMarkModal'
+import TaskActsSection from '@/components/acts/TaskActsSection'
 import { useUsers } from '@/hooks/useUsers'
 import { useComments, useAddComment } from '@/hooks/useComments'
 import { useMarkTaskNotificationsRead, useUnreadTaskNotifications } from '@/hooks/useNotifications'
@@ -347,6 +348,10 @@ export default function TaskDetailPage() {
   const sla = getSla(task.due_at ?? task.planned_date, task.status)
   const canEdit = permissions?.permissions?.edit_tasks ?? normalizeRoleForAccess(user?.role, user?.baseAccess) === 'admin'
   const canDelete = permissions?.permissions?.delete_tasks ?? normalizeRoleForAccess(user?.role, user?.baseAccess) === 'admin'
+  const isAdmin = normalizeRoleForAccess(user?.role, user?.baseAccess) === 'admin'
+  const canViewActs = permissions?.permissions?.view_acts ?? isAdmin
+  const canCreateActs = permissions?.permissions?.create_acts ?? isAdmin
+  const canManageActs = permissions?.permissions?.manage_acts ?? isAdmin
   const historyEvents = [
     {
       id: `created-${task.id}`,
@@ -626,6 +631,10 @@ export default function TaskDetailPage() {
               isOpen={showRepeatModal}
               onClose={() => setShowRepeatModal(false)}
             />
+          )}
+
+          {canViewActs && (
+            <TaskActsSection task={task} canCreate={canCreateActs} canManage={canManageActs} />
           )}
 
           <CollapsibleCard

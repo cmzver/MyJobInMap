@@ -1,19 +1,27 @@
 import { useEffect, useState } from 'react'
-import { Clock, FileText, History, Landmark, RotateCcw, Save } from 'lucide-react'
+import { Clock, Eye, FileText, History, Landmark, RotateCcw, Save } from 'lucide-react'
 import Button from '@/components/Button'
 import EmptyState from '@/components/EmptyState'
 import Input from '@/components/Input'
 import PageHeader from '@/components/PageHeader'
 import QueryStatePanel from '@/components/QueryStatePanel'
 import Textarea from '@/components/Textarea'
-import { SettingsCard, SettingsToggle } from '@/components/settings/SettingsSection'
+import { SettingsCard, SettingsRows, SettingsToggle } from '@/components/settings/SettingsSection'
+import ServiceCatalogCard from '@/components/acts/ServiceCatalogCard'
+import ActLogoField from '@/components/acts/ActLogoField'
 import { PRIORITY_LABELS } from '@/config/taskConstants'
 import { useOrganizations } from '@/hooks/useOrganizations'
 import {
   useOrganizationSettings,
   useSaveOrganizationSettings,
 } from '@/hooks/useOrganizationSettings'
-import type { OrganizationSettings, SlaHours } from '@/api/organizationSettings'
+import {
+  organizationSettingsApi,
+  type ActTemplate,
+  type OrganizationSettings,
+  type OrganizationSettingsUpdate,
+  type SlaHours,
+} from '@/api/organizationSettings'
 import { useAuthStore } from '@/store/authStore'
 import { showApiError, showApiSuccess } from '@/utils/apiError'
 
@@ -47,7 +55,14 @@ type FormState = {
   defaultHours: boolean
   repeatWindowDays: string
   escalations: boolean
+  template: ActTemplate
 }
+
+const TEMPLATE_TOGGLES = [
+  { key: 'show_bank_details', title: 'Банковские реквизиты', description: 'Счёт и банк в шапке акта.' },
+  { key: 'show_prices', title: 'Цены и итог', description: 'Выключите, если акт подтверждает работы без сумм (например, по договору).' },
+  { key: 'show_stamp_place', title: 'Место для печати', description: '«М.П.» под подписью исполнителя.' },
+] as const
 
 function toForm(settings: OrganizationSettings): FormState {
   const requisites = Object.fromEntries(
@@ -63,6 +78,8 @@ function toForm(settings: OrganizationSettings): FormState {
     defaultHours: !settings.sla_hours_customized,
     repeatWindowDays: String(settings.repeat_window_days),
     escalations: settings.sla_escalations_enabled ?? true,
+    // Сервер всегда отдаёт бланк целиком (поля со значениями по умолчанию).
+    template: { ...settings.act_template } as ActTemplate,
   }
 }
 
@@ -100,21 +117,39 @@ function OrganizationSettingsForm({ organizationId }: { organizationId?: number 
       defaultHours: true,
     })
 
-  const handleSave = () => {
-    const sla_hours = form.defaultHours
+  const setTemplate = (fields: Partial<ActTemplate>) =>
+    setForm({ ...form, template: { ...form.template, ...fields } })
+
+  const payload = (): OrganizationSettingsUpdate => ({
+    ...Object.fromEntries(
+      REQUISITE_FIELDS.map(({ key }) => [key, form.requisites[key].trim() || null])
+    ),
+    act_number_prefix: form.actNumberPrefix.trim() || 'А',
+    act_footer_text: form.actFooterText.trim() || null,
+    act_template: { ...form.template, contacts: form.template.contacts?.trim() || null },
+    sla_hours: form.defaultHours
       ? null
-      : (Object.fromEntries(PRIORITIES.map((p) => [p, Number(form.hours[p])])) as SlaHours)
+      : (Object.fromEntries(PRIORITIES.map((p) => [p, Number(form.hours[p])])) as SlaHours),
+    repeat_window_days: Number(form.repeatWindowDays),
+    sla_escalations_enabled: form.escalations,
+  })
+
+  const openPreview = async () => {
+    // Окно открываем до запроса, иначе браузер сочтёт его всплывающим.
+    const target = window.open('', '_blank')
+    try {
+      const url = URL.createObjectURL(await organizationSettingsApi.previewAct(payload(), organizationId))
+      if (target) target.location.href = url
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (error) {
+      target?.close()
+      showApiError(error, 'Не удалось построить предпросмотр')
+    }
+  }
+
+  const handleSave = () => {
     save.mutate(
-      {
-        ...Object.fromEntries(
-          REQUISITE_FIELDS.map(({ key }) => [key, form.requisites[key].trim() || null])
-        ),
-        act_number_prefix: form.actNumberPrefix.trim() || 'А',
-        act_footer_text: form.actFooterText.trim() || null,
-        sla_hours,
-        repeat_window_days: Number(form.repeatWindowDays),
-        sla_escalations_enabled: form.escalations,
-      },
+      payload(),
       {
         onSuccess: () => showApiSuccess('Настройки организации сохранены'),
         onError: (error) => showApiError(error, 'Не удалось сохранить настройки'),
@@ -145,26 +180,101 @@ function OrganizationSettingsForm({ organizationId }: { organizationId?: number 
         </div>
       </SettingsCard>
 
-      <SettingsCard title="Акты" icon={FileText} description="Нумерация и текст внизу акта.">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-[12rem_1fr]">
+      <SettingsCard
+        title="Бланк акта"
+        icon={FileText}
+        description="Как выглядит акт выполненных работ. Выпущенные акты не меняются — у каждого остаётся бланк, с которым он оформлен."
+        action={
+          <Button size="sm" variant="secondary" onClick={openPreview}>
+            <Eye className="mr-1.5 h-4 w-4" />
+            Предпросмотр PDF
+          </Button>
+        }
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <ActLogoField organizationId={organizationId} hasLogo={Boolean(query.data?.has_act_logo)} />
+          </div>
           <Input
-            label="Префикс номера"
-            maxLength={10}
-            value={form.actNumberPrefix}
-            onChange={(event) => setForm({ ...form, actNumberPrefix: event.target.value })}
+            label="Заголовок"
+            maxLength={120}
+            value={form.template.title}
+            onChange={(event) => setTemplate({ title: event.target.value })}
           />
-          <p className="self-end pb-2 text-sm text-gray-500 dark:text-gray-400">
-            Номер акта: {form.actNumberPrefix.trim() || 'А'}-{new Date().getFullYear()}-000001
-          </p>
+          <div>
+            <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Фирменный цвет</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                aria-label="Фирменный цвет"
+                className="h-10 w-14 cursor-pointer rounded border border-gray-300 bg-white p-1 dark:border-gray-600 dark:bg-gray-700"
+                value={form.template.accent_color}
+                onChange={(event) => setTemplate({ accent_color: event.target.value.toUpperCase() })}
+              />
+              <span className="font-mono text-sm text-gray-600 dark:text-gray-300">{form.template.accent_color}</span>
+            </div>
+          </div>
+          <div>
+            <Input
+              label="Префикс номера"
+              maxLength={10}
+              value={form.actNumberPrefix}
+              onChange={(event) => setForm({ ...form, actNumberPrefix: event.target.value })}
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Номер акта: {form.actNumberPrefix.trim() || 'А'}-{new Date().getFullYear()}-000001
+            </p>
+          </div>
+          <Input
+            label="Контакты под реквизитами"
+            placeholder="тел. +7 (812) 000-00-00 · сайт"
+            maxLength={300}
+            value={form.template.contacts ?? ''}
+            onChange={(event) => setTemplate({ contacts: event.target.value })}
+          />
+          <Input
+            label="Подпись исполнителя"
+            maxLength={40}
+            value={form.template.executor_label}
+            onChange={(event) => setTemplate({ executor_label: event.target.value })}
+          />
+          <Input
+            label="Подпись заказчика"
+            maxLength={40}
+            value={form.template.customer_label}
+            onChange={(event) => setTemplate({ customer_label: event.target.value })}
+          />
+          <div className="md:col-span-2">
+            <Textarea
+              label="Текст о приёмке работ"
+              rows={2}
+              maxLength={1000}
+              value={form.template.acceptance_text}
+              onChange={(event) => setTemplate({ acceptance_text: event.target.value })}
+            />
+          </div>
           <div className="md:col-span-2">
             <Textarea
               label="Текст внизу акта"
               placeholder="Например: гарантия на выполненные работы — 6 месяцев."
-              rows={3}
+              rows={2}
               maxLength={2000}
               value={form.actFooterText}
               onChange={(event) => setForm({ ...form, actFooterText: event.target.value })}
             />
+          </div>
+          <div className="md:col-span-2">
+            <SettingsRows>
+            {TEMPLATE_TOGGLES.map((toggle) => (
+              <SettingsToggle
+                key={toggle.key}
+                title={toggle.title}
+                description={toggle.description}
+                checked={form.template[toggle.key]}
+                onChange={(checked) => setTemplate({ [toggle.key]: checked })}
+              />
+            ))}
+            </SettingsRows>
           </div>
         </div>
       </SettingsCard>
@@ -277,6 +387,9 @@ export default function OrganizationSettingsPage() {
           organizationId={isSuperadmin ? selectedOrgId : undefined}
         />
       )}
+
+      {/* Прайс ведётся пользователями организации (API берёт организацию из входа) */}
+      {!isSuperadmin && <ServiceCatalogCard />}
     </div>
   )
 }

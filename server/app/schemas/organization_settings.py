@@ -14,6 +14,36 @@ class SlaHours(BaseModel):
     PLANNED: int = Field(..., ge=1, le=8760)
 
 
+DEFAULT_ACCEPTANCE_TEXT = (
+    "Работы выполнены в полном объёме. Заказчик претензий по объёму, качеству "
+    "и срокам выполнения работ не имеет."
+)
+
+
+class ActTemplate(BaseModel):
+    """Бланк акта организации: что и как печатать.
+
+    Копируется в снимок акта при выпуске — правка бланка не меняет уже
+    выпущенные акты."""
+
+    title: str = Field("Акт выполненных работ", min_length=1, max_length=120)
+    accent_color: str = Field("#E65100", pattern=r"^#[0-9A-Fa-f]{6}$")
+    contacts: Optional[str] = Field(
+        None, max_length=300, description="Строка под реквизитами: телефон, сайт"
+    )
+    executor_label: str = Field("Исполнитель", min_length=1, max_length=40)
+    customer_label: str = Field("Заказчик", min_length=1, max_length=40)
+    acceptance_text: str = Field(
+        DEFAULT_ACCEPTANCE_TEXT,
+        min_length=1,
+        max_length=1000,
+        description="Печатается, если у заказчика нет претензий",
+    )
+    show_bank_details: bool = True
+    show_prices: bool = True
+    show_stamp_place: bool = True
+
+
 class OrganizationSettingsBase(BaseModel):
     legal_name: Optional[str] = Field(None, max_length=300)
     inn: Optional[str] = Field(None, pattern=r"^(\d{10}|\d{12})$")
@@ -28,6 +58,7 @@ class OrganizationSettingsBase(BaseModel):
     director_title: Optional[str] = Field(None, max_length=100)
     act_number_prefix: str = Field("А", min_length=1, max_length=10)
     act_footer_text: Optional[str] = Field(None, max_length=2000)
+    act_template: ActTemplate = Field(default_factory=ActTemplate)
     repeat_window_days: int = Field(30, ge=1, le=365)
     sla_escalations_enabled: bool = True
 
@@ -42,3 +73,4 @@ class OrganizationSettingsResponse(OrganizationSettingsBase):
     # Действующие нормативы: свои организации или по умолчанию.
     sla_hours: SlaHours
     sla_hours_customized: bool
+    has_act_logo: bool = False

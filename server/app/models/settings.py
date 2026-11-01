@@ -772,6 +772,9 @@ def init_default_settings(db: Session):
         ("admin", "edit_settings", True),
         ("admin", "view_addresses", True),
         ("admin", "edit_addresses", True),
+        ("admin", "view_acts", True),
+        ("admin", "create_acts", True),
+        ("admin", "manage_acts", True),
         # Dispatcher - ограниченный доступ
         ("dispatcher", "view_dashboard", True),
         ("dispatcher", "view_tasks", True),
@@ -793,6 +796,9 @@ def init_default_settings(db: Session):
         ("dispatcher", "edit_settings", False),
         ("dispatcher", "view_addresses", True),
         ("dispatcher", "edit_addresses", True),
+        ("dispatcher", "view_acts", True),
+        ("dispatcher", "create_acts", True),
+        ("dispatcher", "manage_acts", True),
         # Worker - минимальный доступ
         ("worker", "view_dashboard", False),
         ("worker", "view_tasks", True),
@@ -814,6 +820,9 @@ def init_default_settings(db: Session):
         ("worker", "edit_settings", False),
         ("worker", "view_addresses", True),
         ("worker", "edit_addresses", False),
+        ("worker", "view_acts", True),
+        ("worker", "create_acts", True),
+        ("worker", "manage_acts", False),
     ]
 
     # Создаём настройки если не существуют
