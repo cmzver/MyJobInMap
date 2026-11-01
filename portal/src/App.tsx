@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
-import { Suspense, useEffect, useRef } from 'react'
+import { Suspense, lazy, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import { getHomePathForRole, isOrgAdmin } from '@/config/menuConfig'
@@ -12,6 +12,10 @@ import ErrorBoundary from '@/components/ErrorBoundary'
 import Spinner from '@/components/Spinner'
 import LoginPage from '@/pages/LoginPage'
 import DashboardLayout from '@/layouts/DashboardLayout'
+
+// Страницы без входа: акт по ссылке и проверка подлинности распечатки
+const PublicActPage = lazy(() => import('@/pages/public/PublicActPage'))
+const ActVerifyPage = lazy(() => import('@/pages/public/ActVerifyPage'))
 
 // Fallback компонент для загрузки
 function PageLoader() {
@@ -114,6 +118,22 @@ function App() {
           <Route
             path="/login"
             element={isAuthenticated ? <Navigate to={homePath} replace /> : <LoginPage />}
+          />
+          <Route
+            path="/a/:token"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <PublicActPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/acts/verify"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <ActVerifyPage />
+              </Suspense>
+            }
           />
 
           {/* Protected routes */}

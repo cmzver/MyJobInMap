@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
-import { FilePlus2, FileText, Paperclip, Upload } from 'lucide-react'
+import { FilePlus2, FileText, Link2, Paperclip, Upload } from 'lucide-react'
 import Badge from '@/components/Badge'
 import Button from '@/components/Button'
 import Card from '@/components/Card'
 import Modal from '@/components/Modal'
 import Textarea from '@/components/Textarea'
 import ActFormModal from '@/components/acts/ActFormModal'
-import { ACT_STATUS, formatRub } from '@/components/acts/actLabels'
+import PublicLinkModal from '@/components/acts/PublicLinkModal'
+import { ACT_STATUS, formatRub, hasActiveLink } from '@/components/acts/actLabels'
 import { useCancelAct, useTaskActs, useUploadActScan } from '@/hooks/useActs'
 import { actsApi, type Act } from '@/api/acts'
 import type { TaskDetail } from '@/types/task'
@@ -67,6 +68,7 @@ export default function TaskActsSection({
   const [formOpen, setFormOpen] = useState(false)
   const [supersedes, setSupersedes] = useState<Act | null>(null)
   const [cancelTarget, setCancelTarget] = useState<Act | null>(null)
+  const [linkTarget, setLinkTarget] = useState<Act | null>(null)
 
   const open = (action: () => Promise<void>) =>
     action().catch((error) => showApiError(error, 'Не удалось открыть файл'))
@@ -117,7 +119,7 @@ export default function TaskActsSection({
         <p className="text-sm text-gray-500 dark:text-gray-400">Загружаем…</p>
       ) : acts.length === 0 ? (
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Актов нет. Оформите акт, распечатайте его на подпись и приложите скан подписанного.
+          Актов нет. Оформите акт и дайте клиенту ссылку на подпись — или распечатайте и приложите скан подписанного.
         </p>
       ) : (
         <ul className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -135,6 +137,9 @@ export default function TaskActsSection({
                     от {formatDateOnly(act.created_at)} · {formatRub(act.total_amount)}
                     {act.customer_name && ` · ${act.customer_name}`}
                     {act.cancel_reason && ` · ${act.cancel_reason}`}
+                    {act.status === 'pending_signature' &&
+                      hasActiveLink(act) &&
+                      ` · ссылка клиенту до ${formatDateOnly(act.public_link_expires_at)}`}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -146,6 +151,12 @@ export default function TaskActsSection({
                     <Button size="sm" variant="ghost" onClick={() => open(() => actsApi.openScan(act.id))}>
                       <Paperclip className="mr-1 h-4 w-4" />
                       Скан
+                    </Button>
+                  )}
+                  {canCreate && (act.status === 'pending_signature' || act.status === 'signed') && (
+                    <Button size="sm" variant="ghost" onClick={() => setLinkTarget(act)}>
+                      <Link2 className="mr-1 h-4 w-4" />
+                      Ссылка клиенту
                     </Button>
                   )}
                   {canCreate && act.status === 'pending_signature' && (
@@ -189,6 +200,7 @@ export default function TaskActsSection({
         <ActFormModal task={task} supersedes={supersedes} isOpen={formOpen} onClose={() => setFormOpen(false)} />
       )}
       {cancelTarget && <CancelActModal act={cancelTarget} onClose={() => setCancelTarget(null)} />}
+      {linkTarget && <PublicLinkModal act={linkTarget} onClose={() => setLinkTarget(null)} />}
     </Card>
   )
 }

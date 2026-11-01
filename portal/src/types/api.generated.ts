@@ -542,6 +542,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tasks/{task_id}/acts/mobile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Task Act Mobile
+         * @description Акт с телефона мастера: подписан на экране, с отказом от подписи или
+         *     ждёт подписи. Повтор из офлайн-очереди с тем же Idempotency-Key вернёт
+         *     уже выпущенный акт — второго не будет.
+         */
+        post: operations["create_task_act_mobile_api_tasks__task_id__acts_mobile_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/acts": {
         parameters: {
             query?: never;
@@ -617,6 +639,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/acts/{act_id}/public-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Public Link
+         * @description Ссылка для клиента: подписать акт позже или забрать PDF. Показывается
+         *     один раз; новая ссылка заменяет прежнюю.
+         */
+        post: operations["create_public_link_api_acts__act_id__public_link_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/acts/{act_id}/cancel": {
         parameters: {
             query?: never;
@@ -628,6 +671,80 @@ export interface paths {
         put?: never;
         /** Cancel Act Endpoint */
         post: operations["cancel_act_endpoint_api_acts__act_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/acts/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Verify
+         * @description Подлинность распечатки: номер и контрольная сумма из подвала PDF.
+         */
+        get: operations["verify_api_public_acts_verify_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/acts/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Public Act */
+        get: operations["get_public_act_api_public_acts__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/acts/{token}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Public Act Pdf */
+        get: operations["get_public_act_pdf_api_public_acts__token__pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/acts/{token}/sign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign Public Act
+         * @description Клиент подписывает акт по ссылке — один раз, пока ссылка действует.
+         */
+        post: operations["sign_public_act_api_public_acts__token__sign_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3867,6 +3984,16 @@ export interface components {
             /** Size */
             size: number;
         };
+        /**
+         * ActPublicLink
+         * @description Ссылка для клиента: подписать акт или забрать PDF. Показывается один раз.
+         */
+        ActPublicLink: {
+            /** Url */
+            url: string;
+            /** Expires At */
+            expires_at: string;
+        };
         /** ActResponse */
         ActResponse: {
             /** Id */
@@ -3929,6 +4056,15 @@ export interface components {
             cancelled_at?: string | null;
             /** Cancel Reason */
             cancel_reason?: string | null;
+            /** Refusal Reason */
+            refusal_reason?: string | null;
+            /**
+             * Has Customer Signature
+             * @default false
+             */
+            has_customer_signature: boolean;
+            /** Public Link Expires At */
+            public_link_expires_at?: string | null;
             /** Lines */
             lines?: components["schemas"]["ActLineResponse"][];
         };
@@ -3986,6 +4122,35 @@ export interface components {
              * @default true
              */
             show_stamp_place: boolean;
+        };
+        /**
+         * ActVerification
+         * @description Проверка подлинности распечатки по номеру и контрольной сумме.
+         */
+        ActVerification: {
+            /** Number */
+            number: string;
+            /** Organization */
+            organization?: string | null;
+            /** Issued Local */
+            issued_local?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending_signature" | "signed" | "refused" | "cancelled";
+            /** Signed Via */
+            signed_via?: string | null;
+            /** Signed Local */
+            signed_local?: string | null;
+            /** Worker */
+            worker?: string | null;
+            /** Total */
+            total?: string | null;
+            /** Document Hash */
+            document_hash: string;
+            /** Replaced By */
+            replaced_by?: string | null;
         };
         /**
          * AddressAssigneeCreate
@@ -4898,6 +5063,29 @@ export interface components {
              */
             permanent: boolean;
         };
+        /** Body_create_task_act_mobile_api_tasks__task_id__acts_mobile_post */
+        Body_create_task_act_mobile_api_tasks__task_id__acts_mobile_post: {
+            /**
+             * Payload
+             * @description ActMobileCreate в JSON
+             */
+            payload: string;
+            /**
+             * Customer Signature
+             * @description Подпись клиента, PNG
+             */
+            customer_signature?: string | null;
+            /**
+             * Worker Signature
+             * @description Подпись мастера, PNG
+             */
+            worker_signature?: string | null;
+            /**
+             * Strokes
+             * @description Траектория росчерка клиента (JSON) — доказательство подписи
+             */
+            strokes?: string | null;
+        };
         /** Body_login_api_auth_login_post */
         Body_login_api_auth_login_post: {
             /** Grant Type */
@@ -4933,6 +5121,21 @@ export interface components {
             text?: string | null;
             /** Reply To Id */
             reply_to_id?: number | null;
+        };
+        /** Body_sign_public_act_api_public_acts__token__sign_post */
+        Body_sign_public_act_api_public_acts__token__sign_post: {
+            /**
+             * Signature
+             * Format: binary
+             * @description Подпись клиента, PNG
+             */
+            signature: string;
+            /** Signer Name */
+            signer_name: string;
+            /** Consent */
+            consent: boolean;
+            /** Strokes */
+            strokes?: string | null;
         };
         /** Body_upload_act_scan_api_acts__act_id__scan_post */
         Body_upload_act_scan_api_acts__act_id__scan_post: {
@@ -6325,6 +6528,79 @@ export interface components {
             email?: string | null;
             /** Phone */
             phone?: string | null;
+        };
+        /** PublicActLine */
+        PublicActLine: {
+            /** Name */
+            name: string;
+            /** Line Type */
+            line_type: string;
+            /** Unit */
+            unit?: string | null;
+            /** Qty */
+            qty: string;
+            /** Price */
+            price?: string | null;
+            /** Amount */
+            amount?: string | null;
+        };
+        /**
+         * PublicActView
+         * @description Акт для клиента по ссылке — то же, что в PDF, без телефона заказчика.
+         */
+        PublicActView: {
+            /** Number */
+            number: string;
+            /** Title */
+            title: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending_signature" | "signed" | "refused" | "cancelled";
+            /** Organization */
+            organization?: string | null;
+            /** Issued Local */
+            issued_local?: string | null;
+            /** Task Number */
+            task_number?: string | null;
+            /** Address */
+            address?: string | null;
+            /** Worker */
+            worker?: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Work Summary */
+            work_summary?: string | null;
+            /** Customer Remarks */
+            customer_remarks?: string | null;
+            /**
+             * No Claims
+             * @default true
+             */
+            no_claims: boolean;
+            /** Acceptance Text */
+            acceptance_text?: string | null;
+            /**
+             * Show Prices
+             * @default true
+             */
+            show_prices: boolean;
+            /** Lines */
+            lines?: components["schemas"]["PublicActLine"][];
+            /** Total */
+            total?: string | null;
+            /** Signed Via */
+            signed_via?: string | null;
+            /** Signed Local */
+            signed_local?: string | null;
+            /**
+             * Can Sign
+             * @default false
+             */
+            can_sign: boolean;
+            /** Expires At */
+            expires_at: string;
         };
         /** PushKeys */
         PushKeys: {
@@ -9087,6 +9363,44 @@ export interface operations {
             };
         };
     };
+    create_task_act_mobile_api_tasks__task_id__acts_mobile_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Повтор с тем же ключом вернёт сохранённый ответ (Android-outbox). */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_create_task_act_mobile_api_tasks__task_id__acts_mobile_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_acts_api_acts_get: {
         parameters: {
             query?: {
@@ -9253,6 +9567,37 @@ export interface operations {
             };
         };
     };
+    create_public_link_api_acts__act_id__public_link_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                act_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActPublicLink"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     cancel_act_endpoint_api_acts__act_id__cancel_post: {
         parameters: {
             query?: never;
@@ -9275,6 +9620,135 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_api_public_acts_verify_get: {
+        parameters: {
+            query: {
+                number: string;
+                h: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActVerification"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_public_act_api_public_acts__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicActView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_public_act_pdf_api_public_acts__token__pdf_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sign_public_act_api_public_acts__token__sign_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_sign_public_act_api_public_acts__token__sign_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicActView"];
                 };
             };
             /** @description Validation Error */
