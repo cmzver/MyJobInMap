@@ -58,6 +58,7 @@ import kotlinx.serialization.Contextual
  * @param cancelReason 
  * @param refusalReason 
  * @param hasCustomerSignature 
+ * @param publicLinkExpiresAt 
  * @param lines 
  */
 @Serializable
@@ -141,6 +142,9 @@ data class ActResponse (
 
     @SerialName(value = "has_customer_signature")
     val hasCustomerSignature: kotlin.Boolean? = false,
+
+    @SerialName(value = "public_link_expires_at")
+    val publicLinkExpiresAt: kotlin.String? = null,
 
     @SerialName(value = "lines")
     val lines: kotlin.collections.List<ActLineResponse>? = null

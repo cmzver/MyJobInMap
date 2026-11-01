@@ -30,7 +30,7 @@ export default function ActLogoField({
         <input
           ref={input}
           type="file"
-          accept="image/png,image/jpeg"
+          accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/tiff,image/avif"
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0]
@@ -55,7 +55,7 @@ export default function ActLogoField({
             Убрать
           </Button>
         )}
-        <p className="w-full text-xs text-gray-500 dark:text-gray-400">PNG или JPG до 2 МБ, лучше на прозрачном фоне.</p>
+        <p className="w-full text-xs text-gray-500 dark:text-gray-400">PNG, JPG или WebP до 10 МБ, лучше на прозрачном фоне.</p>
       </div>
     </div>
   )

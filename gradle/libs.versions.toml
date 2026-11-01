@@ -56,6 +56,9 @@ coil = "2.5.0"
 # Maps
 osmdroid = "6.1.18"
 
+# QR (только генерация: ссылка на акт)
+zxing = "3.5.3"
+
 # Google Services Plugin
 googleServices = "4.4.0"
 desugarJdkLibs = "2.1.4"
@@ -113,6 +116,7 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 
 # osmdroid
 osmdroid = { module = "org.osmdroid:osmdroid-android", version.ref = "osmdroid" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 
 # Coil
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }

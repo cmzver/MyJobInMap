@@ -1,5 +1,6 @@
 package com.fieldworker.data.api
 
+import com.fieldworker.data.remote.generated.ActPublicLink
 import com.fieldworker.data.remote.generated.ActResponse
 import com.fieldworker.data.remote.generated.CatalogItemResponse
 import okhttp3.MultipartBody
@@ -41,6 +42,10 @@ interface ActsApi {
         @Part("strokes") strokes: RequestBody?,
         @Header("Idempotency-Key") idempotencyKey: String? = null,
     ): Response<ActResponse>
+
+    /** Ссылка клиенту: подписать акт или забрать PDF. Новая заменяет прежнюю. */
+    @POST("api/acts/{id}/public-link")
+    suspend fun createPublicLink(@Path("id") actId: Long): Response<ActPublicLink>
 
     @Streaming
     @GET("api/acts/{id}/pdf")

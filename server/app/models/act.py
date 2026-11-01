@@ -69,6 +69,8 @@ class ActModel(Base):
     __table_args__ = (
         UniqueConstraint("organization_id", "number", name="uq_acts_org_number"),
         Index("ix_acts_org_created", "organization_id", "created_at"),
+        # Страница проверки подлинности ищет акт по номеру без организации
+        Index("ix_acts_number", "number"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -83,7 +85,8 @@ class ActModel(Base):
     kind: Mapped[str] = mapped_column(String(16), default="task", nullable=False)
     # pending_signature — выпущен, ждёт подписи; signed; refused; cancelled
     status: Mapped[str] = mapped_column(String(20), nullable=False)
-    # Как подписан: paper — скан бумажного, screen — на телефоне мастера
+    # Как подписан: paper — скан бумажного, screen — на телефоне мастера,
+    # link — клиентом по ссылке
     signed_via: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     signed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     scan_file: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -99,7 +102,17 @@ class ActModel(Base):
     sign_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     sign_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     sign_device: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    # IP подписавшего по ссылке — для спора о подписи
+    sign_ip: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     refusal_reason: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # Ссылка для клиента без входа: подписать позже или забрать PDF. В БД —
+    # только SHA-256 токена; новая ссылка заменяет прежнюю.
+    public_token_hash: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True, unique=True, index=True
+    )
+    public_link_expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
 
     customer_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     # resident | chairman | uk_rep | other

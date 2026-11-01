@@ -45,9 +45,9 @@ import kotlinx.serialization.Contextual
  * @param priority PLANNED, CURRENT, URGENT, EMERGENCY
  * @param createdAt Дата создания (UTC)
  * @param updatedAt Дата последнего обновления (UTC)
- * @param version
- * @param equipmentId
- * @param addressId
+ * @param version 
+ * @param equipmentId 
+ * @param addressId 
  * @param taskNumber Номер заявки (автогенерируется)
  * @param customerName Имя клиента
  * @param customerPhone Телефон клиента

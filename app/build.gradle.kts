@@ -25,8 +25,8 @@ android {
         applicationId = "com.fieldworker"
         minSdk = 24
         targetSdk = 34
-        versionCode = 24100
-        versionName = "2.41.0"
+        versionCode = 24200
+        versionName = "2.42.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -159,6 +159,9 @@ dependencies {
     
     // Coil - Image Loading
     implementation(libs.coil.compose)
+
+    // ZXing core — QR ссылки на акт для клиента (только генерация)
+    implementation(libs.zxing.core)
     
     // Firebase
     implementation(platform(libs.firebase.bom))

@@ -627,11 +627,23 @@ class MapViewModelTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
-        viewModel.testConnection("http://localhost:8001")
+        // Без схемы URL падает сразу (MalformedURLException), в сеть не ходит
+        viewModel.testConnection("not-a-url")
         // Продвигаем scheduler чтобы выполнился первый шаг корутины
         testDispatcher.scheduler.runCurrent()
 
         assertEquals(ConnectionStatus.TESTING, viewModel.connectionStatus.value)
+
+        // Проверка идёт на Dispatchers.IO: дожидаемся её конца, иначе продолжение
+        // вернётся на Main уже после resetMain и уронит следующий тест.
+        val deadline = System.currentTimeMillis() + 5_000
+        while (viewModel.connectionStatus.value == ConnectionStatus.TESTING &&
+            System.currentTimeMillis() < deadline
+        ) {
+            Thread.sleep(10)
+            testDispatcher.scheduler.runCurrent()
+        }
+        assertTrue(viewModel.connectionStatus.value is ConnectionStatus.ERROR)
     }
 
     // ==================== Ошибки ====================

@@ -17,6 +17,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import { myTaskKeys } from '@/hooks/useTasks'
+import { commentKeys } from '@/hooks/useComments'
 import { chatApi } from '@/api/chat'
 import { chatKeys } from '@/hooks/useChat'
 import {
@@ -161,6 +162,17 @@ export function useWebSocket() {
             queryClient.invalidateQueries({ queryKey: ['tasks'] })
             queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
             toast('📌 Вам назначена заявка: ' + (data.data.task_number ?? ''), { icon: '👤' })
+            break
+
+          // Клиент подписал акт по ссылке — без участия сотрудника
+          case 'act_updated':
+            queryClient.invalidateQueries({ queryKey: ['acts'] })
+            if (typeof data.data.task_id === 'number') {
+              queryClient.invalidateQueries({ queryKey: commentKeys.list(data.data.task_id) })
+            }
+            if (data.data.status === 'signed') {
+              toast.success(`Клиент подписал акт №${String(data.data.number ?? '')}`)
+            }
             break
 
           case 'task_deleted':

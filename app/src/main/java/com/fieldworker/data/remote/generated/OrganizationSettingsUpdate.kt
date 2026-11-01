@@ -23,6 +23,7 @@
 
 package com.fieldworker.data.remote.generated
 
+import com.fieldworker.data.remote.generated.ActTemplate
 import com.fieldworker.data.remote.generated.SlaHours
 
 import kotlinx.serialization.Serializable
@@ -45,7 +46,9 @@ import kotlinx.serialization.Contextual
  * @param directorTitle 
  * @param actNumberPrefix 
  * @param actFooterText 
+ * @param actTemplate 
  * @param repeatWindowDays 
+ * @param slaEscalationsEnabled 
  * @param slaHours 
  */
 @Serializable
@@ -91,8 +94,14 @@ data class OrganizationSettingsUpdate (
     @SerialName(value = "act_footer_text")
     val actFooterText: kotlin.String? = null,
 
+    @SerialName(value = "act_template")
+    val actTemplate: ActTemplate? = null,
+
     @SerialName(value = "repeat_window_days")
     val repeatWindowDays: kotlin.Long? = 30,
+
+    @SerialName(value = "sla_escalations_enabled")
+    val slaEscalationsEnabled: kotlin.Boolean? = true,
 
     @SerialName(value = "sla_hours")
     val slaHours: SlaHours? = null

@@ -1,4 +1,4 @@
-import type { ActStatus } from '@/api/acts'
+import type { Act, ActStatus } from '@/api/acts'
 
 export const ACT_STATUS: Record<ActStatus, { label: string; variant: 'warning' | 'success' | 'danger' | 'gray' }> = {
   pending_signature: { label: 'Ждёт подписи', variant: 'warning' },
@@ -32,4 +32,9 @@ const rub = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFr
 /** «1 500,00 ₽» */
 export function formatRub(value: number): string {
   return `${rub.format(value)} ₽`
+}
+
+/** Активна ли выданная клиенту ссылка (сама ссылка показывается один раз). */
+export function hasActiveLink(act: Act): boolean {
+  return !!act.public_link_expires_at && new Date(act.public_link_expires_at).getTime() > Date.now()
 }

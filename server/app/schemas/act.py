@@ -146,6 +146,9 @@ class ActResponse(BaseModel):
     cancel_reason: Optional[str] = None
     refusal_reason: Optional[str] = None
     has_customer_signature: bool = False
+    # Ссылка для клиента выдана и действует до этого времени (сама ссылка
+    # показывается один раз — при выдаче)
+    public_link_expires_at: Optional[UtcDateTime] = None
     lines: List[ActLineResponse] = Field(default_factory=list)
 
 
@@ -158,3 +161,59 @@ class ActListResponse(BaseModel):
 
 class ActCancelRequest(BaseModel):
     reason: str = Field(..., min_length=3, max_length=500)
+
+
+class ActPublicLink(BaseModel):
+    """Ссылка для клиента: подписать акт или забрать PDF. Показывается один раз."""
+
+    url: str
+    expires_at: UtcDateTime
+
+
+class PublicActLine(BaseModel):
+    name: str
+    line_type: str
+    unit: Optional[str] = None
+    qty: str
+    price: Optional[str] = None
+    amount: Optional[str] = None
+
+
+class PublicActView(BaseModel):
+    """Акт для клиента по ссылке — то же, что в PDF, без телефона заказчика."""
+
+    number: str
+    title: str
+    status: ActStatus
+    organization: Optional[str] = None
+    issued_local: Optional[str] = None
+    task_number: Optional[str] = None
+    address: Optional[str] = None
+    worker: Optional[str] = None
+    customer_name: Optional[str] = None
+    work_summary: Optional[str] = None
+    customer_remarks: Optional[str] = None
+    no_claims: bool = True
+    acceptance_text: Optional[str] = None
+    show_prices: bool = True
+    lines: List[PublicActLine] = Field(default_factory=list)
+    total: Optional[str] = None
+    signed_via: Optional[str] = None
+    signed_local: Optional[str] = None
+    can_sign: bool = False
+    expires_at: UtcDateTime
+
+
+class ActVerification(BaseModel):
+    """Проверка подлинности распечатки по номеру и контрольной сумме."""
+
+    number: str
+    organization: Optional[str] = None
+    issued_local: Optional[str] = None
+    status: ActStatus
+    signed_via: Optional[str] = None
+    signed_local: Optional[str] = None
+    worker: Optional[str] = None
+    total: Optional[str] = None
+    document_hash: str
+    replaced_by: Optional[str] = None

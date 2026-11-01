@@ -94,3 +94,12 @@ export function useUploadActScan() {
     onSuccess: refresh,
   })
 }
+
+/** Выдать клиенту ссылку на акт. В списке обновится срок действия ссылки. */
+export function useCreatePublicLink() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => actsApi.createPublicLink(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: actKeys.all }),
+  })
+}

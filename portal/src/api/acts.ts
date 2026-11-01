@@ -11,6 +11,7 @@ export type ActStatus = Act['status']
 export type CatalogItem = components['schemas']['CatalogItemResponse']
 export type CatalogItemCreate = components['schemas']['CatalogItemCreate']
 export type CatalogItemUpdate = components['schemas']['CatalogItemUpdate']
+export type ActPublicLink = components['schemas']['ActPublicLink']
 
 export interface ActListParams {
   status?: ActStatus[]
@@ -92,6 +93,12 @@ export const actsApi = {
     const { data } = await apiClient.post<Act>(`/acts/${id}/scan`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
+    return data
+  },
+
+  /** Ссылка клиенту: подписать или забрать PDF. Новая заменяет прежнюю. */
+  async createPublicLink(id: number): Promise<ActPublicLink> {
+    const { data } = await apiClient.post<ActPublicLink>(`/acts/${id}/public-link`)
     return data
   },
 

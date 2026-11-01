@@ -16,6 +16,7 @@ from app.api.chat import router as chat_router
 from app.api.devices import router as devices_router
 from app.api.notifications import router as notifications_router
 from app.api.photos import router as photos_router
+from app.api.public_acts import router as public_acts_router
 from app.api.push import router as push_router
 from app.api.support import router as support_router
 from app.api.tasks import router as tasks_router
@@ -30,6 +31,7 @@ api_router = APIRouter()
 api_router.include_router(auth_router)
 api_router.include_router(tasks_router)
 api_router.include_router(acts_router)
+api_router.include_router(public_acts_router)
 api_router.include_router(photos_router)
 api_router.include_router(devices_router)
 api_router.include_router(push_router)

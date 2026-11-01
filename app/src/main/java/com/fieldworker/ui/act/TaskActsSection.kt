@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,6 +35,7 @@ import com.fieldworker.data.remote.generated.ActResponse
 import com.fieldworker.data.repository.ActsRepository
 import com.fieldworker.domain.model.PendingAct
 import com.fieldworker.domain.model.Task
+import com.fieldworker.ui.components.QrCode
 import com.fieldworker.ui.list.OfflineSectionNote
 import com.fieldworker.ui.list.SectionSpinner
 import com.fieldworker.ui.list.TaskSectionCard
@@ -65,6 +68,15 @@ class TaskActsViewModel @Inject constructor(
     /** Акты с сервера: null — ещё не загружены; unavailable — нет связи. */
     data class ServerActs(val acts: List<ActResponse>? = null, val unavailable: Boolean = false)
 
+    /** Ссылка клиенту: запрашивается или готова — показать QR. */
+    sealed interface LinkState {
+        data class Loading(val actId: Long) : LinkState
+        data class Ready(val act: ActResponse, val url: String, val expiresAt: String) : LinkState
+    }
+
+    private val _link = MutableStateFlow<LinkState?>(null)
+    val link: StateFlow<LinkState?> = _link.asStateFlow()
+
     private val taskId = MutableStateFlow<Long?>(null)
     private val _serverActs = MutableStateFlow(ServerActs())
     val serverActs: StateFlow<ServerActs> = _serverActs.asStateFlow()
@@ -93,6 +105,26 @@ class TaskActsViewModel @Inject constructor(
         }
     }
 
+    fun requestLink(act: ActResponse, onError: (String) -> Unit) {
+        if (_link.value is LinkState.Loading) return
+        _link.value = LinkState.Loading(act.id)
+        viewModelScope.launch {
+            actsRepository.publicLink(act.id)
+                .onSuccess {
+                    _link.value = LinkState.Ready(act, it.url, it.expiresAt)
+                    refresh()
+                }
+                .onFailure {
+                    _link.value = null
+                    onError(it.message ?: "Ссылка доступна при связи с сервером")
+                }
+        }
+    }
+
+    fun dismissLink() {
+        _link.value = null
+    }
+
     fun openPdf(act: ActResponse, onReady: (File) -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             actsRepository.downloadPdf(act)
@@ -111,6 +143,8 @@ fun TaskActsSection(
     val context = LocalContext.current
     val serverActs by viewModel.serverActs.collectAsStateWithLifecycle()
     val pendingActs by viewModel.pendingActs.collectAsStateWithLifecycle()
+    val link by viewModel.link.collectAsStateWithLifecycle()
+    val toast = { message: String -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() }
 
     LaunchedEffect(task.id) { viewModel.load(task.id) }
     // Акт ушёл из очереди — значит, выпущен: подтягиваем его номер с сервера
@@ -125,13 +159,50 @@ fun TaskActsSection(
         serverActs = serverActs,
         onCreateAct = onCreateAct,
         onOpenPdf = { act ->
-            viewModel.openPdf(
-                act,
-                onReady = { file -> openPdf(context, file) },
-                onError = { message -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() },
-            )
+            viewModel.openPdf(act, onReady = { file -> openPdf(context, file) }, onError = toast)
         },
+        onLink = { act -> viewModel.requestLink(act, onError = toast) },
+        linkLoadingId = (link as? TaskActsViewModel.LinkState.Loading)?.actId,
     )
+
+    (link as? TaskActsViewModel.LinkState.Ready)?.let { ready ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissLink,
+            title = { Text("Ссылка клиенту") },
+            text = { PublicLinkContent(act = ready.act, url = ready.url, expiresAt = ready.expiresAt) },
+            confirmButton = { TextButton(onClick = viewModel::dismissLink) { Text("Готово") } },
+            dismissButton = {
+                TextButton(onClick = { shareLink(context, ready.act, ready.url) }) { Text("Поделиться") }
+            },
+        )
+    }
+}
+
+/** QR и подсказка для клиента — содержимое диалога (и превью без окна). */
+@Composable
+internal fun PublicLinkContent(act: ActResponse, url: String, expiresAt: String) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        QrCode(content = url, modifier = Modifier.size(220.dp))
+        Text(
+            text = if (act.status == ActResponse.Status.PENDING_SIGNATURE) {
+                "Пусть клиент наведёт камеру на код: акт №${act.number} откроется у него на телефоне, " +
+                    "там он и распишется."
+            } else {
+                "Пусть клиент наведёт камеру на код и скачает акт №${act.number} — это его экземпляр."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            text = "Ссылка действует до ${TaskUtils.formatShortDate(expiresAt)}. " +
+                "Новая ссылка заменяет прежнюю.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 /** Содержимое блока без ViewModel — для превью и скриншотов. */
@@ -141,6 +212,8 @@ internal fun TaskActsContent(
     serverActs: TaskActsViewModel.ServerActs,
     onCreateAct: () -> Unit,
     onOpenPdf: (ActResponse) -> Unit,
+    onLink: (ActResponse) -> Unit = {},
+    linkLoadingId: Long? = null,
 ) {
     TaskSectionCard(
         title = "Акты",
@@ -161,7 +234,12 @@ internal fun TaskActsContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 else -> acts.orEmpty().forEach { act ->
-                    ServerActRow(act = act, onOpen = { onOpenPdf(act) })
+                    ServerActRow(
+                        act = act,
+                        isLinkLoading = linkLoadingId == act.id,
+                        onOpen = { onOpenPdf(act) },
+                        onLink = { onLink(act) },
+                    )
                 }
             }
         }
@@ -189,19 +267,29 @@ private fun PendingActRow(act: PendingAct) {
 }
 
 @Composable
-private fun ServerActRow(act: ActResponse, onOpen: () -> Unit) {
+private fun ServerActRow(
+    act: ActResponse,
+    isLinkLoading: Boolean,
+    onOpen: () -> Unit,
+    onLink: () -> Unit,
+) {
+    val linkable = act.status == ActResponse.Status.PENDING_SIGNATURE || act.status == ActResponse.Status.SIGNED
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "№${act.number} · ${formatRub(act.totalAmount)}",
+                text = "№${act.number}",
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "${statusLabel(act.status)} · ${TaskUtils.formatShortDate(act.createdAt)}",
+                text = "${formatRub(act.totalAmount)} · ${statusLabel(act.status)} · " +
+                    TaskUtils.formatShortDate(act.createdAt),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        if (linkable) {
+            TextButton(onClick = onLink, enabled = !isLinkLoading) { Text("Ссылка") }
         }
         TextButton(onClick = onOpen) { Text("PDF") }
     }
@@ -212,6 +300,13 @@ private fun statusLabel(status: ActResponse.Status): String = when (status) {
     ActResponse.Status.SIGNED -> "подписан"
     ActResponse.Status.REFUSED -> "отказ от подписи"
     ActResponse.Status.CANCELLED -> "аннулирован"
+}
+
+private fun shareLink(context: Context, act: ActResponse, url: String) {
+    val intent = Intent(Intent.ACTION_SEND)
+        .setType("text/plain")
+        .putExtra(Intent.EXTRA_TEXT, "Акт №${act.number}: $url")
+    context.startActivity(Intent.createChooser(intent, "Отправить ссылку").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
 
 private fun openPdf(context: Context, file: File) {

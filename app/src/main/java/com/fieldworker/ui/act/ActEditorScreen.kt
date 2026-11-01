@@ -76,7 +76,8 @@ private val rub: NumberFormat = NumberFormat.getNumberInstance(Locale.forLanguag
     maximumFractionDigits = 2
 }
 
-internal fun formatRub(value: BigDecimal): String = "${rub.format(value)} ₽"
+/** «1 500,00 ₽» — знак рубля не отрывается от суммы при переносе. */
+internal fun formatRub(value: BigDecimal): String = "${rub.format(value)}\u00A0₽"
 
 /** Действия шага «Работы»: от ViewModel, в превью — заглушки. */
 internal class ActEditActions(

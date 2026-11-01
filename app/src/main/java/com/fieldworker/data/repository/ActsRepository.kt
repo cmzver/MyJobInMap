@@ -10,6 +10,7 @@ import com.fieldworker.data.local.entity.ActionType
 import com.fieldworker.data.local.entity.PendingAction
 import com.fieldworker.data.mapper.ActSigningMeta
 import com.fieldworker.data.mapper.buildActPayload
+import com.fieldworker.data.remote.generated.ActPublicLink
 import com.fieldworker.data.remote.generated.ActResponse
 import com.fieldworker.data.remote.generated.CatalogItemResponse
 import com.fieldworker.domain.model.ActDraft
@@ -185,6 +186,23 @@ class ActsRepository @Inject constructor(
         } catch (e: Exception) {
             pendingActStore.delete(dir?.absolutePath)
             Result.failure(Exception("Не удалось сохранить акт: ${e.message}", e))
+        }
+    }
+
+    /** Ссылка клиенту на акт: показать QR или отправить в мессенджер. */
+    suspend fun publicLink(actId: Long): Result<ActPublicLink> = withContext(Dispatchers.IO) {
+        try {
+            val response = actsApi.createPublicLink(actId)
+            val body = response.body()
+            if (response.isSuccessful && body != null) {
+                Result.success(body)
+            } else {
+                Result.failure(Exception("Ошибка: ${response.code()}"))
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(Exception("Ссылка доступна при связи с сервером", e))
         }
     }
 

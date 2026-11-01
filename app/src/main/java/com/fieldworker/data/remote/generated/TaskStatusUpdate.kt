@@ -30,10 +30,10 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Contextual
 
 /**
- *
+ * 
  *
  * @param status 
- * @param expectedVersion
+ * @param expectedVersion 
  * @param comment Комментарий к смене статуса. Обязателен для DONE и CANCELLED
  */
 @Serializable

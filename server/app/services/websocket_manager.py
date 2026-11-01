@@ -495,3 +495,25 @@ async def broadcast_chat_conversation_updated(
         member_user_ids,
         _event("chat_conversation_updated", payload),
     )
+
+
+async def broadcast_act_updated(
+    act_id: int,
+    task_id: Optional[int],
+    number: str,
+    status: str,
+    organization_id: Optional[int] = None,
+) -> None:
+    """Broadcast: акт изменился без участия сотрудника (подписан по ссылке)."""
+    await ws_manager.broadcast(
+        _event(
+            "act_updated",
+            {
+                "act_id": act_id,
+                "task_id": task_id,
+                "number": number,
+                "status": status,
+            },
+        ),
+        organization_id=organization_id,
+    )

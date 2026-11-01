@@ -38,6 +38,8 @@ import kotlinx.serialization.Contextual
  * @param cancelledTasks 
  * @param totalWorkers 
  * @param activeWorkers 
+ * @param overdueTasks 
+ * @param dueSoonTasks 
  */
 @Serializable
 
@@ -62,7 +64,13 @@ data class DashboardStatsResponse (
     val totalWorkers: kotlin.Long,
 
     @SerialName(value = "activeWorkers")
-    val activeWorkers: kotlin.Long
+    val activeWorkers: kotlin.Long,
+
+    @SerialName(value = "overdueTasks")
+    val overdueTasks: kotlin.Long? = 0,
+
+    @SerialName(value = "dueSoonTasks")
+    val dueSoonTasks: kotlin.Long? = 0
 
 ) {
 

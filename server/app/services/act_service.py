@@ -11,10 +11,17 @@ requisites_snapshot); document_hash — SHA-256 канонического JSON 
 
 С телефона мастера акт приходит сразу подписанным на экране (ActSigning),
 с отказом клиента от подписи или ждущим подписи — как с портала.
+
+Ждущий подписи акт клиент подписывает сам по ссылке без входа; по той же
+ссылке забирают PDF подписанного. Подлинность распечатки проверяют по номеру
+и контрольной сумме из подвала.
 """
 
+import copy
 import hashlib
+import hmac
 import json
+import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -52,6 +59,12 @@ REFUSED = "refused"
 CANCELLED = "cancelled"
 
 MAX_SIGNATURE_BYTES = 1024 * 1024
+MAX_STROKES_POINTS = 20_000
+PUBLIC_LINK_TTL = timedelta(days=14)
+# Ссылку дают на акт, который ждёт подписи (подписать) или подписан (забрать PDF)
+_LINKABLE = (PENDING, SIGNED)
+# Столько знаков контрольной суммы печатается в подвале PDF
+HASH_PREFIX_LENGTH = 16
 # Время подписи с телефона принимаем, пока оно правдоподобно: акт мог
 # пролежать в офлайн-очереди, но не месяц и не «в будущем».
 _SIGNED_AT_PAST = timedelta(days=30)
@@ -250,7 +263,8 @@ def _store_signature(organization_id: int, png: bytes) -> Tuple[str, str]:
             if image.format != "PNG":
                 raise ActServiceError("Подпись — PNG", 415)
             image.verify()
-    except (UnidentifiedImageError, OSError):
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
+        # Pillow отвечает на битый PNG (неверная контрольная сумма) SyntaxError
         raise ActServiceError("Не удалось прочитать подпись", 415)
     digest = hashlib.sha256(png).hexdigest()
     relative = Path(str(organization_id)) / f"sig-{digest[:24]}.png"
@@ -426,6 +440,9 @@ def _cancel(act: ActModel, reason: str, user: UserModel) -> None:
     act.cancel_reason = reason
     act.cancelled_by_id = user.id
     act.cancelled_at = to_naive_utc(datetime.now(timezone.utc))
+    # Аннулированный акт по ссылке не подписать и не скачать
+    act.public_token_hash = None
+    act.public_link_expires_at = None
 
 
 def cancel_act(db: Session, act: ActModel, reason: str, user: UserModel) -> ActModel:
@@ -490,3 +507,133 @@ def stored_file(relative: Optional[str]) -> Optional[Path]:
 
 def scan_path(act: ActModel) -> Optional[Path]:
     return stored_file(act.scan_file)
+
+
+# ------------------------------------------------------- ссылка для клиента
+
+
+def _token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def issue_public_link(db: Session, act: ActModel) -> Tuple[str, datetime]:
+    """Ссылка для клиента: подписать акт или забрать PDF подписанного.
+
+    Токен показывается один раз — в БД только его хеш; новая ссылка
+    заменяет прежнюю."""
+    if act.status not in _LINKABLE:
+        raise ActServiceError(
+            "Ссылку дают на акт, который ждёт подписи или уже подписан", 400
+        )
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + PUBLIC_LINK_TTL
+    act.public_token_hash = _token_hash(token)
+    act.public_link_expires_at = to_naive_utc(expires_at)
+    db.commit()
+    db.refresh(act)
+    return token, expires_at
+
+
+def act_by_public_token(
+    db: Session, token: str, for_update: bool = False
+) -> Optional[ActModel]:
+    """Акт по токену ссылки; None — ссылка неверная, устарела или акт
+    аннулирован."""
+    if not token or len(token) > 128:
+        return None
+    query = db.query(ActModel).filter(ActModel.public_token_hash == _token_hash(token))
+    if for_update:
+        query = query.with_for_update()
+    act = query.first()
+    if act is None or act.status not in _LINKABLE:
+        return None
+    expires_at = act.public_link_expires_at
+    if expires_at is None or expires_at <= to_naive_utc(datetime.now(timezone.utc)):
+        return None
+    return act
+
+
+def _strokes(value: Any) -> Optional[list]:
+    """Траектория росчерка [[[x, y, t], ...], ...] — без мусора и лишнего."""
+    if not isinstance(value, list):
+        return None
+    points = 0
+    for stroke in value:
+        if not isinstance(stroke, list):
+            return None
+        for point in stroke:
+            if not (
+                isinstance(point, list)
+                and len(point) == 3
+                and all(isinstance(n, (int, float)) for n in point)
+            ):
+                return None
+        points += len(stroke)
+    return value if 0 < points <= MAX_STROKES_POINTS else None
+
+
+def sign_by_link(
+    db: Session,
+    act: ActModel,
+    png: bytes,
+    strokes: Any,
+    signer_name: str,
+    ip: Optional[str] = None,
+    device: Optional[str] = None,
+) -> ActModel:
+    """Клиент подписал акт по ссылке: подпись, ФИО, время сервера, IP и
+    браузер. Хеш пересчитывается — в него входят подписи."""
+    if act.status != PENDING:
+        raise ActServiceError("Акт уже подписан", 409)
+    name = " ".join(signer_name.split())[:200]
+    if len(name) < 2:
+        raise ActServiceError("Укажите фамилию и инициалы", 400)
+    customer_file, customer_digest = _store_signature(act.organization_id, png)
+    signatures = {"customer": customer_digest}
+    worker_path = stored_file(act.worker_signature_file)
+    if worker_path is not None:
+        signatures["worker"] = hashlib.sha256(worker_path.read_bytes()).hexdigest()
+
+    now = datetime.now(timezone.utc)
+    content = copy.deepcopy(act.content_snapshot or {})
+    content.setdefault("customer", {})["name"] = name
+    content["signature"] = {
+        "via": "link",
+        "signed_local": now.astimezone(business_tz()).strftime("%d.%m.%Y %H:%M"),
+    }
+    act.content_snapshot = content
+    act.customer_name = name
+    act.customer_signature_file = customer_file
+    act.signature_strokes = _strokes(strokes)
+    act.status = SIGNED
+    act.signed_via = "link"
+    act.signed_at = to_naive_utc(now)
+    act.sign_ip = (ip or "")[:64] or None
+    act.sign_device = (device or "")[:100] or None
+    act.document_hash = document_hash(
+        content, act.requisites_snapshot or {}, signatures
+    )
+    if act.task_id is not None:
+        db.add(
+            CommentModel(
+                task_id=act.task_id,
+                text=f"Акт №{act.number} подписан клиентом по ссылке: {name}",
+            )
+        )
+    db.commit()
+    db.refresh(act)
+    return act
+
+
+def verify_act(db: Session, number: str, hash_prefix: str) -> Optional[ActModel]:
+    """Акт по номеру и контрольной сумме из подвала распечатки (не меньше 16
+    знаков). Номер без суммы не раскрывает ничего."""
+    prefix = (hash_prefix or "").strip().lower()
+    if not HASH_PREFIX_LENGTH <= len(prefix) <= 64 or any(
+        char not in "0123456789abcdef" for char in prefix
+    ):
+        return None
+    for act in db.query(ActModel).filter(ActModel.number == number.strip()).all():
+        if hmac.compare_digest(act.document_hash[: len(prefix)], prefix):
+            return act
+    return None
