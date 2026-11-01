@@ -60,9 +60,11 @@ def require_task_access(
     detail: str = "Permission denied",
     worker_detail: str = "Access denied",
 ) -> Callable:
+    # Сначала вход, потом поиск заявки: иначе без токена по 404/401 видно,
+    # какие номера заявок существуют. FastAPI решает зависимости по порядку.
     async def _dependency(
-        task: TaskModel = Depends(get_task_or_404),
         user: UserModel = Depends(get_current_user_required),
+        task: TaskModel = Depends(get_task_or_404),
         db: Session = Depends(get_db),
     ) -> TaskAccess:
         if not check_permission(db, user, permission):

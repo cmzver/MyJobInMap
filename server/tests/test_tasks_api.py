@@ -85,6 +85,19 @@ class TestTaskRetrieval:
         assert data["items"] == []
         assert data["total"] == 0
 
+    def test_task_existence_is_hidden_without_auth(self, client, admin_token):
+        """Без токена существующая и несуществующая заявка неотличимы: 401."""
+        created = client.post(
+            "/api/tasks",
+            json={"title": "Test task", "address": "Test St"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        task_id = created.json()["id"]
+
+        for path in (f"/api/tasks/{task_id}", "/api/tasks/999999"):
+            assert client.get(path).status_code == 401
+            assert client.get(f"{path}/comments").status_code == 401
+
     def test_get_tasks_after_creation(self, client, admin_token):
         """Test getting tasks after creation."""
         # Create task
