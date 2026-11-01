@@ -261,7 +261,8 @@ class TestSlaService:
         db_session.add_all([task1, task2])
         db_session.commit()
 
-        result = get_sla_metrics(db_session, period="month")
+        # «Всё время»: календарный месяц 1-го числа утром не включает вчерашние заявки.
+        result = get_sla_metrics(db_session, period="all")
         assert result["overview"]["completed_tasks"] == 2
         assert result["overview"]["sla_compliance_rate"] == 50.0  # 1 из 2 в SLA
 

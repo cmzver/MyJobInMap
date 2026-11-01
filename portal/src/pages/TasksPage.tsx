@@ -62,8 +62,8 @@ const defaultColumnWidths: Record<ColumnKey, number> = {
   number: 90,
   title: 240,
   address: 260,
-  status: 130,
-  priority: 130,
+  status: 132,
+  priority: 132,
   assignee: 160,
   creator: 160,
   date: 150,
@@ -192,6 +192,10 @@ const fitColumnWidthsToContainer = (
   const boundedTarget = Math.min(maxTotal, Math.max(targetWidth, minTotal))
 
   if (currentTotal === boundedTarget) return widths
+  // Ширины, которые выставил пользователь, под экран не ужимаем — пусть лучше
+  // появится прокрутка. Ужимаются только стандартные.
+  const isDefaultLayout = visibleColumnOrder.every((key) => widths[key] === defaultColumnWidths[key])
+  if (currentTotal > boundedTarget && !isDefaultLayout) return widths
 
   return currentTotal > boundedTarget
     ? distributeColumnWidths(widths, visibleColumnOrder, currentTotal - boundedTarget, 'shrink')
@@ -582,8 +586,13 @@ export default function TasksPage() {
       columnKeys.forEach((key) => {
         applyColumnWidth(key, widths[key])
       })
+      // Во время перетаскивания таблица может стать шире контейнера.
+      if (tableRef.current) {
+        const total = visibleColumnOrder.reduce((sum, key) => sum + widths[key], 0)
+        tableRef.current.style.width = `${total}px`
+      }
     },
-    [applyColumnWidth]
+    [applyColumnWidth, visibleColumnOrder]
   )
 
   const handleResizeMove = useCallback(
@@ -602,24 +611,19 @@ export default function TasksPage() {
       const diff = desiredWidth - startWidth
       if (diff === 0) return
 
-      // The dragged column changes; the difference is absorbed proportionally by the
-      // columns to its right so the table stays exactly the container width (no scroll).
-      // The column can only grow until *every* column to its right has hit its min width.
-      const sumOthers = (widths: Record<ColumnKey, number>) =>
-        others.reduce((total, columnKey) => total + widths[columnKey], 0)
-
-      const beforeOthers = sumOthers(startWidths)
+      // The dragged column always takes the width the user drags it to. The columns to
+      // its right absorb the difference while they can (the table keeps its width);
+      // once they hit their limits the table itself grows and scrolls horizontally.
       const adjusted = distributeColumnWidths(
         startWidths,
         others,
         Math.abs(diff),
         diff > 0 ? 'shrink' : 'grow'
       )
-      const appliedToOthers = Math.abs(sumOthers(adjusted) - beforeOthers)
 
       const next = {
         ...adjusted,
-        [key]: startWidth + (diff > 0 ? appliedToOthers : -appliedToOthers),
+        [key]: desiredWidth,
       }
 
       const prev = active.latestWidths

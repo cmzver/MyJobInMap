@@ -114,7 +114,7 @@ export default function RepeatsSection({ period }: { period: ReportPeriod }) {
           icon={RotateCcw}
         />
         <Tile title="Возвратов" value={overview.returns} meta={`Из ${overview.created} новых заявок`} icon={History} />
-        <Tile title="Дублей" value={overview.duplicates} meta="Открытая заявка на месте уже была" icon={Copy} />
+        <Tile title="Дублей" value={overview.duplicates} meta="Отмечены вручную" icon={Copy} />
       </div>
 
       {workers.length > 0 && (

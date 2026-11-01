@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient, QueryClient } from '@tanstack/react-query'
 import { tasksApi, type RelatedTasksQuery } from '@/api/tasks'
+import { commentKeys } from '@/hooks/useComments'
 import type { PaginatedResponse, Task, TaskFilters } from '@/types/task'
 
 // Query keys
@@ -97,6 +98,22 @@ export function useRelatedTasks(query: RelatedTasksQuery | null) {
     queryFn: () => tasksApi.getRelated(query!),
     enabled: query !== null,
     staleTime: 30_000,
+  })
+}
+
+/** Отметка дубля вручную; обновляет карточку, списки и историю места. */
+export function useMarkDuplicate() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, originalTaskId }: { id: number; originalTaskId: number | null }) =>
+      tasksApi.markDuplicate(id, originalTaskId),
+    onSuccess: (task) => {
+      queryClient.setQueryData(taskKeys.detail(task.id), task)
+      queryClient.invalidateQueries({ queryKey: taskKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: [...taskKeys.all, 'related'] })
+      queryClient.invalidateQueries({ queryKey: commentKeys.list(task.id) })
+    },
   })
 }
 
