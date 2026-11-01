@@ -13,7 +13,7 @@ export function RepeatNotice({
   isClearing = false,
 }: {
   repeat: TaskRepeatRef
-  /** Снять отметку дубля (только для дублей и тех, кто правит заявки). */
+  /** Снять отметку (для тех, кто правит заявки). */
   onClear?: () => void
   isClearing?: boolean
 }) {

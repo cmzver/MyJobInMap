@@ -313,7 +313,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/tasks/{task_id}/duplicate-of": {
+    "/api/tasks/{task_id}/repeat-of": {
         parameters: {
             query?: never;
             header?: never;
@@ -322,13 +322,14 @@ export interface paths {
         };
         get?: never;
         /**
-         * Mark Task Duplicate
-         * @description Отметить заявку дублем другой (той же организации) или снять отметку.
+         * Mark Task Repeat
+         * @description Отметить заявку повтором или дублем другой (той же организации) или
+         *     снять отметку.
          *
-         *     Дубли автоматически не определяются — их отмечает диспетчер. Отметка и её
-         *     снятие пишутся в историю заявки.
+         *     Автоматически повторы не определяются — их отмечает диспетчер. Отметка и
+         *     её снятие пишутся в историю заявки.
          */
-        put: operations["mark_task_duplicate_api_tasks__task_id__duplicate_of_put"];
+        put: operations["mark_task_repeat_api_tasks__task_id__repeat_of_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -5032,17 +5033,6 @@ export interface components {
          */
         DocumentType: "contract" | "estimate" | "act" | "scheme" | "passport" | "other";
         /**
-         * DuplicateMarkRequest
-         * @description Отметка дубля вручную: исходная заявка или null — снять отметку.
-         */
-        DuplicateMarkRequest: {
-            /**
-             * Original Task Id
-             * @description Заявка, дублем которой является эта; null — не дубль
-             */
-            original_task_id?: number | null;
-        };
-        /**
          * EquipmentStatus
          * @description ������� ������������
          * @enum {string}
@@ -5918,6 +5908,24 @@ export interface components {
             history: components["schemas"]["RelatedTask"][];
             /** Window Days */
             window_days: number;
+        };
+        /**
+         * RepeatMarkRequest
+         * @description Отметка повтора или дубля вручную; original_task_id=null — снять отметку.
+         */
+        RepeatMarkRequest: {
+            /**
+             * Original Task Id
+             * @description Заявка, которую повторяет эта; null — снять отметку
+             */
+            original_task_id?: number | null;
+            /**
+             * Kind
+             * @description duplicate — та же заявка ещё раз; return — проблема вернулась
+             * @default duplicate
+             * @enum {string}
+             */
+            kind: "duplicate" | "return";
         };
         /** RepeatMetricsResponse */
         RepeatMetricsResponse: {
@@ -8062,7 +8070,7 @@ export interface operations {
             };
         };
     };
-    mark_task_duplicate_api_tasks__task_id__duplicate_of_put: {
+    mark_task_repeat_api_tasks__task_id__repeat_of_put: {
         parameters: {
             query?: never;
             header?: never;
@@ -8073,7 +8081,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["DuplicateMarkRequest"];
+                "application/json": components["schemas"]["RepeatMarkRequest"];
             };
         };
         responses: {

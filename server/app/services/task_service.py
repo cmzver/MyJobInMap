@@ -37,7 +37,7 @@ from app.services.notification_service import (
     send_task_assignment_push,
 )
 from app.services.push import send_push_notification
-from app.services.repeat_detector import apply_repeat
+from app.services.repeat_detector import apply_address_key
 from app.services.role_utils import is_worker_user
 from app.services.sla_service import apply_due_at
 from app.services.task_state_machine import TaskStatusMachine
@@ -390,7 +390,7 @@ class TaskService:
         if tenant is not None:
             tenant.set_org_id(task)
         apply_due_at(self.db, task)
-        apply_repeat(self.db, task)
+        apply_address_key(task)
 
         self.db.add(task)
         # Transaction ownership belongs to the API/use-case boundary.  flush()
@@ -475,12 +475,8 @@ class TaskService:
             task.system_type = task_data.system_type
         if task_data.defect_type is not None:
             task.defect_type = task_data.defect_type
-        if (
-            task_data.address is not None
-            or task_data.system_id is not None
-            or task_data.system_type is not None
-        ):
-            apply_repeat(self.db, task)
+        if task_data.address is not None:
+            apply_address_key(task)
 
         old_assigned_user_id = task.assigned_user_id
         new_assigned_user_id = None
