@@ -13,7 +13,16 @@ from datetime import date, datetime, time, timedelta
 from typing import List, Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse, Response
 from pydantic import ValidationError
@@ -33,6 +42,7 @@ from app.schemas.act import (
     ActCreate,
     ActListResponse,
     ActMobileCreate,
+    ActPublicLink,
     ActResponse,
     ActStatus,
     CatalogItemCreate,
@@ -49,9 +59,11 @@ from app.services.act_service import (
     attach_signed_scan,
     cancel_act,
     create_act,
+    issue_public_link,
     scan_path,
 )
 from app.services.idempotency import IdempotencyKey, cached_response, stage_response
+from app.services.public_url import public_base_url
 from app.services.role_utils import is_worker_user
 from app.services.tenant_filter import TenantFilter
 
@@ -91,6 +103,7 @@ def act_to_response(act: ActModel) -> ActResponse:
         cancel_reason=act.cancel_reason,
         refusal_reason=act.refusal_reason,
         has_customer_signature=bool(act.customer_signature_file),
+        public_link_expires_at=act.public_link_expires_at,
         lines=[
             {
                 "id": line.id,
@@ -400,12 +413,13 @@ def _attachment(filename: str) -> str:
 @router.get("/api/acts/{act_id}/pdf")
 def get_act_pdf(
     act_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("view_acts")),
 ):
     act = _get_act(db, act_id, user)
     return Response(
-        content=render_act_pdf(act),
+        content=render_act_pdf(act, public_base_url(request)),
         media_type="application/pdf",
         headers={"Content-Disposition": _attachment(f"Акт {act.number}.pdf")},
     )
@@ -441,6 +455,25 @@ def get_act_scan(
     return FileResponse(
         path,
         headers={"Content-Disposition": _attachment(f"Акт {act.number}{path.suffix}")},
+    )
+
+
+@router.post("/api/acts/{act_id}/public-link", response_model=ActPublicLink)
+def create_public_link(
+    act_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(require_permission("create_acts")),
+):
+    """Ссылка для клиента: подписать акт позже или забрать PDF. Показывается
+    один раз; новая ссылка заменяет прежнюю."""
+    act = _get_act(db, act_id, user)
+    try:
+        token, expires_at = issue_public_link(db, act)
+    except ActServiceError as exc:
+        raise _error(exc)
+    return ActPublicLink(
+        url=f"{public_base_url(request)}/portal/a/{token}", expires_at=expires_at
     )
 
 

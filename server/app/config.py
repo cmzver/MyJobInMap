@@ -7,7 +7,7 @@ Configuration
 
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Set
+from typing import List, Optional, Set
 
 from pydantic import Field, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -115,6 +115,15 @@ class Settings(BaseSettings):
     )
     RATE_LIMIT_WINDOW_SECONDS: int = Field(
         default=60, ge=10, description="Окно rate limiting (сек)"
+    )
+
+    # === Публичные ссылки (акты: подпись клиентом, проверка подлинности) ===
+    PUBLIC_BASE_URL: Optional[str] = Field(
+        default=None,
+        description=(
+            "Адрес портала снаружи, например https://example.ru; без него "
+            "берётся из запроса (Host и X-Forwarded-Proto от прокси)"
+        ),
     )
 
     # === Защита от перебора / DDoS (IP guard) ===

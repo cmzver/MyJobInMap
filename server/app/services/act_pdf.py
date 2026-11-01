@@ -15,8 +15,12 @@ from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import List, Optional
+from urllib.parse import quote
 from xml.sax.saxutils import escape
 
+from reportlab.graphics import renderPDF
+from reportlab.graphics.barcode.qr import QrCodeWidget
+from reportlab.graphics.shapes import Drawing
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_RIGHT
 from reportlab.lib.pagesizes import A4
@@ -38,7 +42,7 @@ from reportlab.platypus import (
 
 from app.models import ActModel
 from app.schemas.organization_settings import ActTemplate
-from app.services.act_service import stored_file
+from app.services.act_service import HASH_PREFIX_LENGTH, stored_file
 from app.services.business_time import business_tz
 from app.services.organization_settings_service import logo_path
 
@@ -66,7 +70,10 @@ PAYMENT_METHODS = {
 }
 
 # Ширина текста: поля 16 мм и внутренний отступ рамки ReportLab по 6 pt.
-PAGE_WIDTH = A4[0] - 32 * mm - 12
+# Рамка Platypus отступает от полей на 6 pt с каждой стороны
+FRAME_PADDING = 6
+PAGE_WIDTH = A4[0] - 32 * mm - 2 * FRAME_PADDING
+QR_SIZE = 15 * mm
 # Подпись с экрана вписываем в эту рамку над линией.
 SIGNATURE_BOX = (60 * mm, 18 * mm)
 
@@ -344,10 +351,10 @@ def _signatures(
         return flow + [_p(note, SMALL) for note in notes]
 
     customer_notes = []
-    if content.get("signature"):
-        customer_notes.append(
-            f"Подписано на экране {content['signature'].get('signed_local', '')}"
-        )
+    signature = content.get("signature")
+    if signature:
+        how = "по ссылке" if signature.get("via") == "link" else "на экране"
+        customer_notes.append(f"Подписано {how} {signature.get('signed_local', '')}")
     if content.get("refusal_reason"):
         customer_notes.append(f"От подписи отказался: {content['refusal_reason']}")
 
@@ -381,24 +388,57 @@ def _signatures(
     return table
 
 
+def _draw_qr(canvas, value: str, x: float, y: float, size: float) -> None:
+    widget = QrCodeWidget(value, barLevel="M", barBorder=0)
+    left, bottom, right, top = widget.getBounds()
+    drawing = Drawing(
+        size,
+        size,
+        transform=[size / (right - left), 0, 0, size / (top - bottom), 0, 0],
+    )
+    drawing.add(widget)
+    renderPDF.draw(drawing, canvas, x, y)
+
+
+def verify_page_url(base_url: str) -> str:
+    return f"{base_url.rstrip('/')}/portal/acts/verify"
+
+
 def render_act_document(
     number: str,
     content: dict,
     requisites: dict,
     document_hash: str,
     signature_files: Optional[dict] = None,
+    verify_url: Optional[str] = None,
 ) -> bytes:
+    """PDF акта. verify_url — ссылка на страницу проверки подлинности с
+    номером и контрольной суммой: в подвале появляется QR."""
     _register_fonts()
     template = ActTemplate(**(requisites.get("template") or {}))
     buffer = BytesIO()
     footer = f"Акт № {number} · контрольная сумма {document_hash[:16]}"
+    verify_hint = (
+        f"Проверить подлинность: {verify_url.split('?')[0]} — номер и контрольная сумма"
+        if verify_url
+        else None
+    )
 
     def on_page(canvas, doc):
         canvas.saveState()
         canvas.setFont(FONT, 7)
         canvas.setFillColor(MUTED)
-        canvas.drawString(16 * mm, 10 * mm, footer)
-        canvas.drawRightString(A4[0] - 16 * mm, 10 * mm, f"стр. {doc.page}")
+        # Подвал по краям текста, а не страницы: у рамки свой отступ
+        left = 16 * mm + FRAME_PADDING
+        right = A4[0] - 16 * mm - FRAME_PADDING
+        if verify_url:
+            _draw_qr(canvas, verify_url, right - QR_SIZE, 3 * mm, QR_SIZE)
+            right -= QR_SIZE + 3 * mm
+            canvas.drawString(left, 11 * mm, footer)
+            canvas.drawString(left, 7 * mm, verify_hint)
+        else:
+            canvas.drawString(left, 10 * mm, footer)
+        canvas.drawRightString(right, 10 * mm, f"стр. {doc.page}")
         canvas.restoreState()
 
     doc = SimpleDocTemplate(
@@ -448,7 +488,14 @@ def render_act_document(
     return buffer.getvalue()
 
 
-def render_act_pdf(act: ActModel) -> bytes:
+def render_act_pdf(act: ActModel, base_url: Optional[str] = None) -> bytes:
+    """PDF выпущенного акта; с base_url — QR на проверку подлинности."""
+    verify_url = None
+    if base_url:
+        verify_url = (
+            f"{verify_page_url(base_url)}?n={quote(act.number, safe='')}"
+            f"&h={act.document_hash[:HASH_PREFIX_LENGTH]}"
+        )
     return render_act_document(
         act.number,
         act.content_snapshot or {},
@@ -458,6 +505,7 @@ def render_act_pdf(act: ActModel) -> bytes:
             "executor": stored_file(act.worker_signature_file),
             "customer": stored_file(act.customer_signature_file),
         },
+        verify_url=verify_url,
     )
 
 
