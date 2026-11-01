@@ -27,10 +27,10 @@ from app.models import (
 )
 from app.models.address import AddressModel
 from app.schemas import (
-    DuplicateMarkRequest,
     PaginatedResponse,
     PlannedDateUpdate,
     RelatedTasksResponse,
+    RepeatMarkRequest,
     TaskAssignRequest,
     TaskCreate,
     TaskIdsResponse,
@@ -64,7 +64,7 @@ from app.services.repeat_detector import (
     RepeatMarkError,
     address_key,
     find_related,
-    mark_duplicate,
+    mark_repeat,
 )
 from app.services.role_utils import is_dispatcher_or_admin_user, is_worker_user
 from app.services.tenant_filter import TenantFilter
@@ -467,18 +467,19 @@ def get_task(
     return task_to_response(access.task)
 
 
-@router.put("/{task_id}/duplicate-of", response_model=TaskResponse)
-def mark_task_duplicate(
-    payload: DuplicateMarkRequest,
+@router.put("/{task_id}/repeat-of", response_model=TaskResponse)
+def mark_task_repeat(
+    payload: RepeatMarkRequest,
     access: TaskAccess = Depends(
         require_task_access("edit_tasks", worker_detail="Нет доступа к этой заявке")
     ),
     db: Session = Depends(get_db),
 ):
-    """Отметить заявку дублем другой (той же организации) или снять отметку.
+    """Отметить заявку повтором или дублем другой (той же организации) или
+    снять отметку.
 
-    Дубли автоматически не определяются — их отмечает диспетчер. Отметка и её
-    снятие пишутся в историю заявки."""
+    Автоматически повторы не определяются — их отмечает диспетчер. Отметка и
+    её снятие пишутся в историю заявки."""
     task, user = access.task, access.user
     original = None
     if payload.original_task_id is not None:
@@ -494,18 +495,22 @@ def mark_task_duplicate(
         if original is None:
             raise HTTPException(status_code=404, detail="Исходная заявка не найдена")
 
-    before = task.repeat_of if task.repeat_kind == DUPLICATE else None
+    before = (task.repeat_of, task.repeat_kind) if task.repeat_of else None
     try:
-        mark_duplicate(db, task, original)
+        mark_repeat(db, task, original, payload.kind)
     except RepeatMarkError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
-    after = task.repeat_of if task.repeat_kind == DUPLICATE else None
+    after = (task.repeat_of, task.repeat_kind) if task.repeat_of else None
 
-    if (before and before.id) != (after and after.id):
+    def _label(mark) -> str:
+        kind_name = "дубль" if mark[1] == DUPLICATE else "повтор"
+        return f"{kind_name} заявки №{mark[0].task_number or mark[0].id}"
+
+    if (before and (before[0].id, before[1])) != (after and (after[0].id, after[1])):
         text = (
-            f"Отмечена как дубль заявки №{after.task_number or after.id}"
+            f"Отмечена как {_label(after)}"
             if after is not None
-            else f"Снята отметка «дубль заявки №{before.task_number or before.id}»"
+            else f"Снята отметка «{_label(before)}»"
         )
         db.add(
             CommentModel(

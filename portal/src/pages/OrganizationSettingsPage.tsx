@@ -197,14 +197,14 @@ function OrganizationSettingsForm({ organizationId }: { organizationId?: number 
       <SettingsCard
         title="Повторные заявки"
         icon={History}
-        description="Заявку на том же адресе и системе, где прошлую закрыли не раньше этого срока, отмечаем как возврат. Дубли отмечают вручную в карточке заявки."
+        description="Подсказка в форме новой заявки показывает заявки, закрытые на этом месте за последние N дней. Повторы и дубли отмечают вручную в карточке заявки."
       >
         <div className="max-w-[12rem]">
           <Input
             type="number"
             min={1}
             max={365}
-            label="Окно возврата, дней"
+            label="Закрытые за, дней"
             value={form.repeatWindowDays}
             onChange={(event) => setForm({ ...form, repeatWindowDays: event.target.value })}
           />

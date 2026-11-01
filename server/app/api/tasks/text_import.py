@@ -25,7 +25,7 @@ from app.schemas import (
     ParseTaskRequest,
 )
 from app.services import check_permission, require_permission
-from app.services.repeat_detector import apply_repeat
+from app.services.repeat_detector import apply_address_key
 from app.services.sla_service import apply_due_at
 from app.services.task_parser import parse_dispatcher_message
 from app.services.task_service import TaskService
@@ -282,7 +282,7 @@ def create_task_from_text(
 
     tenant.set_org_id(db_task)
     apply_due_at(db, db_task)
-    apply_repeat(db, db_task)
+    apply_address_key(db_task)
     db.add(db_task)
     db.flush()
 

@@ -374,11 +374,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 f"⚠️ Координаты не определены"
             )
         
-        # Возврат: на этом адресе недавно закрыли заявку (дубли отмечают вручную)
-        repeat = task.get("repeat_of")
-        if repeat and repeat.get("kind") == "return" and not result.get("updated_existing"):
-            reply += f"\n🔁 Повтор: недавно закрыта заявка {repeat.get('task_number')}"
-
         # Добавляем информацию о назначении
         if assigned_name:
             reply += f"\n👷 Назначена: {assigned_name}"

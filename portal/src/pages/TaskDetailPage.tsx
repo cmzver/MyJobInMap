@@ -28,9 +28,9 @@ import {
   useDeleteTask,
   useAssignTask,
   useRelatedTasks,
-  useMarkDuplicate,
+  useMarkRepeat,
 } from '@/hooks/useTasks'
-import DuplicateMarkModal from '@/components/tasks/DuplicateMarkModal'
+import RepeatMarkModal from '@/components/tasks/RepeatMarkModal'
 import { useUsers } from '@/hooks/useUsers'
 import { useComments, useAddComment } from '@/hooks/useComments'
 import { useMarkTaskNotificationsRead, useUnreadTaskNotifications } from '@/hooks/useNotifications'
@@ -111,8 +111,8 @@ export default function TaskDetailPage() {
   const [comment, setComment] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showSendToChat, setShowSendToChat] = useState(false)
-  const [showDuplicateModal, setShowDuplicateModal] = useState(false)
-  const markDuplicate = useMarkDuplicate()
+  const [showRepeatModal, setShowRepeatModal] = useState(false)
+  const markRepeat = useMarkRepeat()
   const [pendingStatus, setPendingStatus] = useState<TaskStatus | null>(null)
   const [statusComment, setStatusComment] = useState('')
   const [statusCommentError, setStatusCommentError] = useState('')
@@ -459,10 +459,10 @@ export default function TaskDetailPage() {
                   Редактировать
                 </Button>
               )}
-              {canEdit && task.repeat_of?.kind !== 'duplicate' && (
-                <Button variant="outline" size="sm" onClick={() => setShowDuplicateModal(true)}>
+              {canEdit && !task.repeat_of && (
+                <Button variant="outline" size="sm" onClick={() => setShowRepeatModal(true)}>
                   <Copy className="h-4 w-4 mr-2" />
-                  Дубль
+                  Повтор / дубль
                 </Button>
               )}
               {canDelete && (
@@ -604,14 +604,14 @@ export default function TaskDetailPage() {
           {task.repeat_of && (
             <RepeatNotice
               repeat={task.repeat_of}
-              isClearing={markDuplicate.isPending}
+              isClearing={markRepeat.isPending}
               onClear={
-                canEdit && task.repeat_of.kind === 'duplicate'
+                canEdit
                   ? () =>
-                      markDuplicate.mutate(
+                      markRepeat.mutate(
                         { id: task.id, originalTaskId: null },
                         {
-                          onSuccess: () => showApiSuccess('Отметка дубля снята'),
+                          onSuccess: () => showApiSuccess('Отметка снята'),
                           onError: (err) => showApiError(err, 'Не удалось снять отметку'),
                         },
                       )
@@ -619,12 +619,12 @@ export default function TaskDetailPage() {
               }
             />
           )}
-          {showDuplicateModal && (
-            <DuplicateMarkModal
+          {showRepeatModal && (
+            <RepeatMarkModal
               taskId={task.id}
               related={addressHistory}
-              isOpen={showDuplicateModal}
-              onClose={() => setShowDuplicateModal(false)}
+              isOpen={showRepeatModal}
+              onClose={() => setShowRepeatModal(false)}
             />
           )}
 

@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { Task, TaskDetail, PaginatedResponse, TaskFilters } from '@/types/task'
+import type { Task, TaskDetail, PaginatedResponse, TaskFilters, RepeatKind } from '@/types/task'
 import type { components } from '@/types/api.generated'
 
 // Request payloads are derived from the backend OpenAPI schema (single source
@@ -73,10 +73,15 @@ export const tasksApi = {
     return data
   },
 
-  /** Отметить заявку дублем другой; null — снять отметку. */
-  async markDuplicate(id: number, originalTaskId: number | null): Promise<TaskDetail> {
-    const { data } = await apiClient.put<TaskDetail>(`/tasks/${id}/duplicate-of`, {
+  /** Отметить заявку повтором или дублем другой; null — снять отметку. */
+  async markRepeat(
+    id: number,
+    originalTaskId: number | null,
+    kind: RepeatKind = 'duplicate',
+  ): Promise<TaskDetail> {
+    const { data } = await apiClient.put<TaskDetail>(`/tasks/${id}/repeat-of`, {
       original_task_id: originalTaskId,
+      kind,
     })
     return data
   },

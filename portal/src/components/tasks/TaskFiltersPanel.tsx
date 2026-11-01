@@ -215,7 +215,7 @@ export default function TaskFiltersPanel({
             onChange={onAssigneeChange}
             placeholder="Все исполнители"
           />
-          <Select label="Повторы" options={REPEAT_FILTER_OPTIONS} value={repeatFilter} onChange={onRepeatChange} placeholder="Все заявки" className="h-9 text-sm" />
+          <Select label="Повтор / дубль" options={REPEAT_FILTER_OPTIONS} value={repeatFilter} onChange={onRepeatChange} placeholder="Все заявки" className="h-9 text-sm" />
           <div className="flex items-end sm:col-span-2 xl:col-span-6 xl:justify-end">
             <Button variant="ghost" size="sm" onClick={onClearFilters} disabled={!hasActiveFilters} className="h-9 px-3">
               Сбросить фильтры

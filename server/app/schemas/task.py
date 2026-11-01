@@ -275,11 +275,15 @@ class TaskRepeatRef(BaseModel):
     )
 
 
-class DuplicateMarkRequest(BaseModel):
-    """Отметка дубля вручную: исходная заявка или null — снять отметку."""
+class RepeatMarkRequest(BaseModel):
+    """Отметка повтора или дубля вручную; original_task_id=null — снять отметку."""
 
     original_task_id: Optional[int] = Field(
-        None, description="Заявка, дублем которой является эта; null — не дубль"
+        None, description="Заявка, которую повторяет эта; null — снять отметку"
+    )
+    kind: Literal["duplicate", "return"] = Field(
+        "duplicate",
+        description="duplicate — та же заявка ещё раз; return — проблема вернулась",
     )
 
 
