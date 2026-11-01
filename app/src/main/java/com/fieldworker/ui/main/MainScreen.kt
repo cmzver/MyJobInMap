@@ -55,6 +55,8 @@ import com.fieldworker.ui.components.PhotoUploadConfirmDialog
 import com.fieldworker.ui.components.rememberPhotoDraft
 import com.fieldworker.ui.components.rememberPickPhotoLauncher
 import com.fieldworker.ui.components.rememberTakePhotoLauncher
+import com.fieldworker.ui.day.MyDayScreen
+import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.list.TaskAssignmentUi
 import com.fieldworker.ui.list.TaskListScreen
 import com.fieldworker.ui.map.MapScreen
@@ -284,8 +286,9 @@ fun MainScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             if (uiState.showFailedActions) {
                 FailedActionsDialog(
-                    actions = uiState.failedActions,
+                    actions = uiState.syncActions,
                     onRetry = { viewModel.retryFailedAction(it) },
+                    onEdit = { id, value, comment -> viewModel.editFailedAction(id, value, comment) },
                     onDiscard = { viewModel.discardFailedAction(it) },
                     onDismiss = { viewModel.hideFailedActions() }
                 )
@@ -305,6 +308,12 @@ fun MainScreen(
                 navController = navController,
                 startDestination = Screen.Map.route
             ) {
+                composable(Screen.MyDay.route) {
+                    MyDayScreen(
+                        onOpenTask = { task -> viewModel.selectTask(task); navController.navigate(Screen.ObjectCard.route) },
+                        onStartTask = { task -> viewModel.updateTaskStatus(task.id, TaskStatus.IN_PROGRESS) },
+                    )
+                }
                 composable(Screen.Map.route) {
                     MapScreen(
                         viewModel = viewModel,
@@ -678,6 +687,7 @@ fun MainScreen(
 
 private fun mainTitleFor(screen: Screen, canManageTasks: Boolean): String {
     return when (screen) {
+        Screen.MyDay -> "Мой день"
         Screen.Map -> "Карта выездов"
         // Диспетчер/админ видит все заявки организации, а не только свои
         Screen.TaskList -> if (canManageTasks) "Заявки" else "Мои заявки"
@@ -692,7 +702,7 @@ private fun mainTitleFor(screen: Screen, canManageTasks: Boolean): String {
 }
 
 /**
- * Нижняя навигация: четыре раздела, счётчики новых заявок и непрочитанных
+ * Нижняя навигация: пять разделов, счётчики новых заявок и непрочитанных
  * чатов видны всегда. «Ещё» подсвечен и во вложенных разделах настроек.
  */
 @Composable

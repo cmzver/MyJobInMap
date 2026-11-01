@@ -127,6 +127,10 @@ async def lifespan(app: FastAPI):
     start_scheduler()
     # Напоминания о сроках заявок и дайджест просрочки
     start_periodic_jobs()
+    from app.services.outbox_service import start_outbox
+
+    if settings.OUTBOX_ENABLED:
+        start_outbox()
 
     logger.info("✅ Server ready!")
     logger.info(f"   📡 API docs: http://localhost:{settings.PORT}/docs")
@@ -136,6 +140,9 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("🛑 Shutting down server...")
+    from app.services.outbox_service import stop_outbox
+
+    await stop_outbox()
     await stop_periodic_jobs()
     stop_scheduler()
     engine.dispose()
@@ -331,6 +338,22 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={
             "error": "Внутренняя ошибка сервера",
             "request_id": request_id,
+        },
+    )
+
+
+from sqlalchemy.orm.exc import StaleDataError
+
+
+@app.exception_handler(StaleDataError)
+async def concurrent_task_update_handler(request: Request, exc: StaleDataError):
+    return JSONResponse(
+        status_code=409,
+        content={
+            "detail": {
+                "code": "task_conflict",
+                "message": "Заявка изменена другим запросом. Обновите её и сравните изменения.",
+            }
         },
     )
 

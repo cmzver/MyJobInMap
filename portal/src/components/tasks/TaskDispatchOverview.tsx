@@ -1,16 +1,17 @@
 import type { Task, TaskPriority, TaskStatus } from '@/types/task'
 import { getStatusLabel } from '@/config/taskConstants'
 import { STATUS_TEXT_CLASSES } from '@/config/taskStatusVisuals'
-import { buildTaskDispatchOverview, dispatchStatuses } from './taskDispatchOverviewModel'
+import { buildTaskDispatchOverview, dispatchStatuses, type TaskDispatchRow } from './taskDispatchOverviewModel'
 
 interface TaskDispatchOverviewProps {
-  tasks: readonly Task[]
+  tasks?: readonly Task[]
+  rows?: TaskDispatchRow[]
   total: number
   onSelect: (selection: TaskDispatchSelection) => void
 }
 
 export interface TaskDispatchSelection {
-  assigneeId: number
+  assigneeId: number | null
   statuses?: TaskStatus[]
   priorities?: TaskPriority[]
 }
@@ -19,17 +20,17 @@ const cellButtonClass =
   'inline-flex h-8 min-w-8 items-center justify-center rounded-md px-1.5 font-semibold tabular-nums hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 dark:hover:bg-gray-700 dark:focus:ring-offset-gray-800'
 
 export default function TaskDispatchOverview({
-  tasks,
+  tasks = [],
+  rows: serverRows,
   total,
   onSelect,
 }: TaskDispatchOverviewProps) {
-  const rows = buildTaskDispatchOverview(tasks)
-  const isPartial = total > tasks.length
+  const rows = serverRows ?? buildTaskDispatchOverview(tasks)
+  const isPartial = !serverRows && total > tasks.length
   const selectRow = (
     assigneeId: number | null,
     filters: Omit<TaskDispatchSelection, 'assigneeId'> = {}
   ) => {
-    if (assigneeId == null) return
     onSelect({ assigneeId, ...filters })
   }
 
@@ -100,7 +101,7 @@ export default function TaskDispatchOverview({
                     key={status}
                     className={`px-2 py-2 text-center align-middle tabular-nums ${STATUS_TEXT_CLASSES[status]}`}
                   >
-                    {row.assigneeId != null && row.counts[status] > 0 ? (
+                    {row.counts[status] > 0 ? (
                       <button
                         type="button"
                         className={cellButtonClass}
@@ -115,7 +116,7 @@ export default function TaskDispatchOverview({
                   </td>
                 ))}
                 <td className="px-2 py-2 text-center align-middle font-semibold tabular-nums text-gray-900 dark:text-white">
-                  {row.assigneeId != null && row.active > 0 ? (
+                  {row.active > 0 ? (
                     <button
                       type="button"
                       className={cellButtonClass}
@@ -135,7 +136,7 @@ export default function TaskDispatchOverview({
                 <td
                   className={`px-2 py-2 text-center align-middle font-semibold tabular-nums ${row.urgent > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'}`}
                 >
-                  {row.assigneeId != null && row.urgent > 0 ? (
+                  {row.urgent > 0 ? (
                     <button
                       type="button"
                       className={cellButtonClass}
@@ -154,7 +155,7 @@ export default function TaskDispatchOverview({
                   )}
                 </td>
                 <td className="px-2 py-2 text-center align-middle tabular-nums text-gray-600 dark:text-gray-300">
-                  {row.assigneeId != null && row.total > 0 ? (
+                  {row.total > 0 ? (
                     <button
                       type="button"
                       className={cellButtonClass}

@@ -3,6 +3,7 @@ import { BookmarkPlus, Trash2 } from 'lucide-react'
 import Button from '@/components/Button'
 import Input from '@/components/Input'
 import Modal from '@/components/Modal'
+import { useAuthStore } from '@/store/authStore'
 import type { TaskSavedView, TaskSavedViewSettings } from '@/hooks/useTaskSavedViews'
 
 interface TaskSavedViewsProps {
@@ -10,7 +11,7 @@ interface TaskSavedViewsProps {
   activeViewId: string
   currentSettings: TaskSavedViewSettings
   onApply: (view: TaskSavedView) => void
-  onSave: (name: string, settings: TaskSavedViewSettings) => void
+  onSave: (name: string, settings: TaskSavedViewSettings, shared?: boolean) => void | Promise<void>
   onDelete: (view: TaskSavedView) => void
 }
 
@@ -22,6 +23,10 @@ export default function TaskSavedViews({
   onSave,
   onDelete,
 }: TaskSavedViewsProps) {
+  const user = useAuthStore((state) => state.user)
+  const canShare = user?.baseAccess === 'admin' || user?.baseAccess === 'dispatcher'
+  const [shared, setShared] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [isSaveOpen, setIsSaveOpen] = useState(false)
   const [name, setName] = useState('')
   const [error, setError] = useState('')
@@ -34,7 +39,7 @@ export default function TaskSavedViews({
     }
   }, [isSaveOpen])
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     const normalizedName = name.trim()
     if (normalizedName.length < 2) {
@@ -46,8 +51,12 @@ export default function TaskSavedViews({
       return
     }
 
-    onSave(normalizedName, currentSettings)
-    setIsSaveOpen(false)
+    setSaving(true)
+    try {
+      await onSave(normalizedName, currentSettings, shared)
+      setIsSaveOpen(false)
+    } catch { setError('Не удалось сохранить вид. Попробуйте ещё раз') }
+    finally { setSaving(false) }
   }
 
   return (
@@ -67,14 +76,14 @@ export default function TaskSavedViews({
         >
           <option value="">Текущие фильтры</option>
           {views.map((view) => (
-            <option key={view.id} value={view.id}>{view.name}</option>
+            <option key={view.id} value={view.id}>{view.name}{view.shared ? ' · Общий' : ''}</option>
           ))}
         </select>
         <Button type="button" variant="outline" size="sm" onClick={() => setIsSaveOpen(true)} className="h-9">
           <BookmarkPlus className="mr-2 h-4 w-4" />
           Сохранить вид
         </Button>
-        {activeView && (
+        {activeView && activeView.can_edit !== false && (
           <button
             type="button"
             aria-label={`Удалить сохранённый вид «${activeView.name}»`}
@@ -101,12 +110,16 @@ export default function TaskSavedViews({
             placeholder="Например, Аварийные без исполнителя"
             error={error}
           />
+          {canShare && <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} />
+            Общий вид организации
+          </label>}
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Сохраняются поиск, фильтры, сортировка и группировка.
           </p>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setIsSaveOpen(false)}>Отмена</Button>
-            <Button type="submit">Сохранить</Button>
+            <Button type="submit" isLoading={saving}>Сохранить</Button>
           </div>
         </form>
       </Modal>

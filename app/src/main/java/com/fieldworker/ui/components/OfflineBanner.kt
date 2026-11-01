@@ -127,15 +127,16 @@ fun OfflineBanner(
                 modifier = Modifier.padding(start = 8.dp)
             )
 
-            if (hasFailedActions) {
+            if (hasFailedActions || hasPendingActions) {
                 TextButton(onClick = onReviewFailed) {
                     Text(
-                        text = "Разобрать",
+                        text = "Подробнее",
                         color = contentColor,
                         style = MaterialTheme.typography.labelMedium
                     )
                 }
-            } else if (hasPendingActions && !isOffline) {
+            }
+            if (hasPendingActions && !isOffline) {
                 TextButton(onClick = onSyncClick) {
                     Text(
                         text = "Синхр.",

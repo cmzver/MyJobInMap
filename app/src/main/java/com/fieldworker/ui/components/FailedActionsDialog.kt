@@ -2,7 +2,6 @@ package com.fieldworker.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -19,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fieldworker.domain.model.FailedAction
@@ -33,15 +33,24 @@ fun FailedActionsDialog(
     onRetry: (Long) -> Unit,
     onDiscard: (Long) -> Unit,
     onDismiss: () -> Unit,
+    onEdit: (Long, String, String) -> Unit = { _, _, _ -> },
 ) {
+    var editing by remember { mutableStateOf<FailedAction?>(null) }
+    editing?.let { action ->
+        EditOfflineActionDialog(action = action, onDismiss = { editing = null }, onSave = { value, comment ->
+            editing = null; onEdit(action.id, value, comment)
+        })
+        return
+    }
     // Отмена уничтожает офлайн-правку — подтверждаем вторым нажатием
+    var confirmRetryId by remember { mutableStateOf<Long?>(null) }
     var confirmDiscardId by remember { mutableStateOf<Long?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Не отправлено",
+                text = "Синхронизация",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
@@ -66,11 +75,12 @@ fun FailedActionsDialog(
                         Text(
                             text = action.reason,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
+                            color = if (action.isFailed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Row(
+                        action.serverState?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
+                            horizontalAlignment = Alignment.End
                         ) {
                             val confirming = confirmDiscardId == action.id
                             TextButton(
@@ -88,8 +98,14 @@ fun FailedActionsDialog(
                                     color = MaterialTheme.colorScheme.error
                                 )
                             }
-                            TextButton(onClick = { onRetry(action.id) }) {
-                                Text("Повторить")
+                            if (action.editKind != null) TextButton(onClick = { editing = action }) { Text("Исправить") }
+                            if (action.isFailed) TextButton(onClick = {
+                                if (action.isConflict && confirmRetryId != action.id) confirmRetryId = action.id
+                                else { confirmRetryId = null; onRetry(action.id) }
+                            }) {
+                                Text(if (action.isConflict) {
+                                    if (confirmRetryId == action.id) "Подтвердить моё изменение" else "Сохранить моё"
+                                } else "Повторить")
                             }
                         }
                     }

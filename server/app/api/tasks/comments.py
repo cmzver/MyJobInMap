@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import TaskAccess, require_task_access
-from app.models import CommentModel, get_db
+from app.models import CommentModel, TaskModel, get_db
 from app.schemas import CommentCreate, CommentResponse
 from app.services.idempotency import IdempotencyKey, cached_response, stage_response
 
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/tasks", tags=["Tasks"])
 
 
 @router.post("/{task_id}/comments", response_model=CommentResponse)
-async def add_comment(
+def add_comment(
     task_id: int,
     comment: CommentCreate,
     access: TaskAccess = Depends(
@@ -45,7 +45,12 @@ async def add_comment(
     db.add(db_comment)
     # comments_count входит в список заявок — инкрементальная синхронизация
     # (updated_since) должна увидеть заявку изменённой.
-    task.updated_at = datetime.now(timezone.utc)
+    db.query(TaskModel).filter(TaskModel.id == task.id).update(
+        {TaskModel.updated_at: datetime.now(timezone.utc)}, synchronize_session=False
+    )
+    from app.services.notification_service import create_comment_notification
+
+    create_comment_notification(db, task, comment.text, user, commit=False)
     if idempotency_key:
         db.flush()  # нужен id комментария для сохранённого ответа
         stage_response(
@@ -57,13 +62,6 @@ async def add_comment(
         )
     db.commit()
     db.refresh(db_comment)
-
-    # In-app уведомление + FCM push
-    from app.services.notification_service import create_comment_notification
-    from app.utils import send_comment_notification
-
-    create_comment_notification(db, task, comment.text, user)
-    send_comment_notification(task, comment.text, user.id)
 
     return db_comment
 

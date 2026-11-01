@@ -5,7 +5,7 @@ import { showApiError } from '@/utils/apiError'
 import { Plus, RefreshCw, AlertTriangle, List, TableProperties } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useUnreadTaskNotifications } from '@/hooks/useNotifications'
-import { useTasks } from '@/hooks/useTasks'
+import { useTasks, useDispatchOverview } from '@/hooks/useTasks'
 import { usePortalInterfaceSettings } from '@/hooks/useSettings'
 import { useUsers } from '@/hooks/useUsers'
 import { MAX_TASKS_PAGE_SIZE, tasksApi } from '@/api/tasks'
@@ -299,7 +299,7 @@ const sanitizeRepeatFilter = (value: string | null): RepeatKind | '' =>
   value === 'duplicate' || value === 'return' ? value : ''
 
 const sanitizeAssigneeFilters = (values: string[]): string[] =>
-  Array.from(new Set(values.filter((value) => /^\d+$/.test(value))))
+  Array.from(new Set(values.filter((value) => value === 'unassigned' || /^\d+$/.test(value))))
 
 const areStringArraysEqual = (left: readonly string[], right: readonly string[]) =>
   left.length === right.length && left.every((value, index) => value === right[index])
@@ -402,8 +402,12 @@ export default function TasksPage() {
       sort: sortBy,
       groupBy,
       displayMode,
+      repeat: repeatFilter,
+      due: dueFilter,
     }),
     [
+      repeatFilter,
+      dueFilter,
       addressIdFilter,
       addressTitleFilter,
       assigneeFilter,
@@ -434,6 +438,7 @@ export default function TasksPage() {
       ...(search && { search }),
       ...(statusFilter.length > 0 && { statuses: statusFilter }),
       ...(priorityFilter.length > 0 && { priorities: priorityFilter }),
+      ...(assigneeFilter.includes('unassigned') && { unassigned: true }),
       ...(assigneeFilter.length > 0 && {
         assignee_ids: assigneeFilter.map(Number).filter((value) => Number.isFinite(value)),
       }),
@@ -470,6 +475,7 @@ export default function TasksPage() {
   const { data, isLoading, isError, error, refetch, isFetching } = useTasks(filters, {
     refetchInterval: autoRefreshIntervalMs,
   })
+  const dispatch = useDispatchOverview(filters, displayMode === 'dispatch')
   const { data: unreadTaskNotifications = [] } = useUnreadTaskNotifications({
     enabled: Boolean(user),
   })
@@ -535,7 +541,7 @@ export default function TasksPage() {
   }
 
   const applyDispatchSelection = ({ assigneeId, statuses, priorities }: TaskDispatchSelection) => {
-    setAssigneeFilter([String(assigneeId)])
+    setAssigneeFilter([assigneeId == null ? 'unassigned' : String(assigneeId)])
     if (statuses) setStatusFilter(statuses)
     if (priorities) setPriorityFilter(priorities)
     setPage(1)
@@ -569,8 +575,8 @@ export default function TasksPage() {
     setAssigneeFilter(view.settings.assignees)
     setAddressIdFilter(view.settings.addressId)
     setAddressTitleFilter(view.settings.addressTitle)
-    setRepeatFilter('')
-    setDueFilter('')
+    setRepeatFilter(view.settings.repeat ?? '')
+    setDueFilter(view.settings.due ?? '')
     setSortBy(view.settings.sort)
     setGroupBy(view.settings.groupBy)
     setDisplayMode(view.settings.displayMode)
@@ -579,19 +585,20 @@ export default function TasksPage() {
     toast.success(`Применён вид «${view.name}»`)
   }
 
-  const saveCurrentView = (name: string, settings: TaskSavedViewSettings) => {
+  const saveCurrentView = async (name: string, settings: TaskSavedViewSettings, shared = false) => {
     try {
-      saveView(name, settings)
+      await saveView(name, settings, shared)
       toast.success(`Вид «${name}» сохранён`)
-    } catch {
-      toast.error('Не удалось сохранить вид в браузере')
+    } catch (error) {
+      toast.error('Не удалось сохранить вид на сервере')
+      throw error
     }
   }
 
-  const deleteSavedView = (view: TaskSavedView) => {
+  const deleteSavedView = async (view: TaskSavedView) => {
     if (!window.confirm(`Удалить сохранённый вид «${view.name}»?`)) return
     try {
-      deleteView(view.id)
+      await deleteView(view.id)
       toast.success(`Вид «${view.name}» удалён`)
     } catch {
       toast.error('Не удалось удалить сохранённый вид')
@@ -939,7 +946,7 @@ export default function TasksPage() {
         type: 'assignee' as const,
         label: 'Исполнитель',
         value:
-          assignableUsers.find((user) => String(user.id) === assigneeId)?.full_name || assigneeId,
+          assigneeId === 'unassigned' ? 'Без исполнителя' : assignableUsers.find((user) => String(user.id) === assigneeId)?.full_name || assigneeId,
         rawValue: assigneeId,
       })),
       ...(addressIdFilter
@@ -1630,9 +1637,11 @@ export default function TasksPage() {
             </Modal>
 
             {displayMode === 'dispatch' ? (
-              <TaskDispatchOverview
-                tasks={data.items}
-                total={data.total}
+              dispatch.isPending ? <p role="status">Загрузка полной сводки…</p> : dispatch.isError ? (
+                <div role="alert">Не удалось загрузить сводку. <Button onClick={() => dispatch.refetch()}>Повторить</Button></div>
+              ) : <TaskDispatchOverview
+                rows={dispatch.data?.rows ?? []}
+                total={dispatch.data?.total ?? 0}
                 onSelect={applyDispatchSelection}
               />
             ) : (

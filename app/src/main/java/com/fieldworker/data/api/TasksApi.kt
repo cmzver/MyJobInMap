@@ -24,11 +24,25 @@ import retrofit2.http.POST
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.PUT
+import kotlinx.serialization.Serializable
 
 /**
  * Retrofit API интерфейс для работы с задачами.
  */
+@Serializable
+data class DayRouteRequest(val task_ids: List<Long>)
+
+@Serializable
+data class MyDayResponse(val day: String, val tasks: List<TaskListResponse>)
+
 interface TasksApi {
+    @GET("api/my-day")
+    suspend fun getMyDay(@Query("day") day: String): Response<MyDayResponse>
+
+    @PUT("api/my-day")
+    suspend fun saveDayRoute(@Query("day") day: String, @Body route: DayRouteRequest): Response<DayRouteRequest>
+
     
     /**
      * Получить список задач. Скоуп решает сервер: работник получает только свои,

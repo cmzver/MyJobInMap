@@ -47,6 +47,11 @@ class TaskModel(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
+    __mapper_args__ = {"version_id_col": version}
+
     task_number: Mapped[Optional[str]] = mapped_column(
         String, nullable=True, index=True
     )  # Номер от диспетчера
@@ -110,6 +115,14 @@ class TaskModel(Base):
     address_id: Mapped[Optional[int]] = mapped_column(
         Integer,
         ForeignKey("addresses.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    equipment_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey(
+            "address_equipment.id", ondelete="SET NULL", name="fk_tasks_equipment_id"
+        ),
         nullable=True,
         index=True,
     )

@@ -27,7 +27,7 @@ import com.fieldworker.data.local.entity.TaskEntity
         ConversationEntity::class,
         MessageEntity::class,
     ],
-    version = 12,
+    version = 13,
     exportSchema = true
 )
 abstract class FieldWorkerDatabase : RoomDatabase() {
@@ -206,6 +206,16 @@ abstract class FieldWorkerDatabase : RoomDatabase() {
         val MIGRATION_11_12 = object : Migration(11, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE pending_actions ADD COLUMN payloadJson TEXT DEFAULT NULL")
+            }
+        }
+        /** Версия сервера и сохранённые конфликты не теряются при перезапуске. */
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN serverVersion INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN equipmentId INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN addressId INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE pending_actions ADD COLUMN expectedVersion INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE pending_actions ADD COLUMN serverConflict TEXT DEFAULT NULL")
             }
         }
     }

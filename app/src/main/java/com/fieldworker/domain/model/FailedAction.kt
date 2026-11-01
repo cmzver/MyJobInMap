@@ -11,4 +11,12 @@ data class FailedAction(
     val taskLabel: String,
     val description: String,
     val reason: String,
+    val isFailed: Boolean = true,
+    val isConflict: Boolean = false,
+    val serverState: String? = null,
+    val editKind: OfflineChangeKind? = null,
+    val editValue: String = "",
+    val editComment: String = "",
 )
+
+enum class OfflineChangeKind { STATUS, PLANNED_DATE, COMMENT }

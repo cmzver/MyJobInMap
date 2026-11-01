@@ -2,6 +2,7 @@ package com.fieldworker.ui.navigation
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
@@ -22,6 +23,8 @@ sealed class Screen(
     val label: String = "",
     val icon: ImageVector? = null
 ) {
+    data object MyDay : Screen(route = "my_day", label = "Мой день", icon = Icons.Default.DateRange)
+
     /** Карта с заявками */
     data object Map : Screen(
         route = "map",
@@ -78,6 +81,6 @@ sealed class Screen(
     companion object {
         /** Tabs для нижней панели навигации */
         val bottomNavItems: List<Screen>
-            get() = listOf(Map, TaskList, Chat, Settings)
+            get() = listOf(MyDay, Map, TaskList, Chat, Settings)
     }
 }

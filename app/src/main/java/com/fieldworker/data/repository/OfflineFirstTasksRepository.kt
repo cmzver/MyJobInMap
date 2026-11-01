@@ -34,12 +34,19 @@ import com.fieldworker.data.network.NetworkMonitor
 import com.fieldworker.data.network.ServerHealthCheck
 import com.fieldworker.data.network.toUserMessage
 import com.fieldworker.domain.model.Comment
+import com.fieldworker.domain.model.OfflineChangeKind
 import com.fieldworker.domain.model.FailedAction
 import com.fieldworker.domain.model.PendingPhoto
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.domain.model.photoTypeDisplayName
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -135,6 +142,9 @@ class OfflineFirstTasksRepository @Inject constructor(
         .getFailedActionsFlow(MAX_PENDING_RETRIES)
         .map { actions -> actions.map { it.toFailedAction() } }
         .flowOn(Dispatchers.IO)
+
+    val syncActions: Flow<List<FailedAction>> = pendingActionDao.getAllActionsFlow()
+        .map { actions -> actions.map { it.toFailedAction() } }.flowOn(Dispatchers.IO)
 
     /** Монотонное время последней полной выгрузки; null — в этом процессе её не было. */
     private var lastFullSyncAtMs: Long? = null
@@ -365,11 +375,12 @@ class OfflineFirstTasksRepository @Inject constructor(
         try {
             // Один ключ на прямую отправку и очередь: если ответ потерялся,
             // повтор из очереди не сменит статус второй раз
+            val expectedVersion = taskDao.getTaskById(taskId)?.serverVersion
             val operationId = UUID.randomUUID().toString()
-            val response = sendNow {
+            val response = if (hasUnsentTaskChanges(taskId)) null else sendNow {
                 tasksApi.updateTaskStatus(
                     id = taskId,
-                    status = TaskStatusUpdate(status = GenTaskStatus.valueOf(newStatus.name), comment = comment),
+                    status = TaskStatusUpdate(status = GenTaskStatus.valueOf(newStatus.name), comment = comment, expectedVersion = expectedVersion),
                     idempotencyKey = operationId
                 )
             }
@@ -408,7 +419,8 @@ class OfflineFirstTasksRepository @Inject constructor(
                             actionType = ActionType.UPDATE_STATUS,
                             newStatus = newStatus.name,
                             comment = comment.ifEmpty { null },
-                            operationId = operationId
+                            operationId = operationId,
+                            expectedVersion = expectedVersion
                         )
                     )
                     updatedTask = taskDao.getTaskById(taskId)?.toDomain()
@@ -505,11 +517,12 @@ class OfflineFirstTasksRepository @Inject constructor(
         plannedDate: String?
     ): Result<Task> = withContext(Dispatchers.IO) {
         try {
+            val expectedVersion = taskDao.getTaskById(taskId)?.serverVersion
             val operationId = UUID.randomUUID().toString()
-            val response = sendNow {
+            val response = if (hasUnsentTaskChanges(taskId)) null else sendNow {
                 tasksApi.updatePlannedDate(
                     id = taskId,
-                    plannedDate = PlannedDateUpdate(plannedDate = plannedDate),
+                    plannedDate = PlannedDateUpdate(plannedDate = plannedDate, expectedVersion = expectedVersion),
                     idempotencyKey = operationId
                 )
             }
@@ -545,7 +558,8 @@ class OfflineFirstTasksRepository @Inject constructor(
                             taskId = taskId,
                             actionType = ActionType.UPDATE_PLANNED_DATE,
                             plannedDate = plannedDate,
-                            operationId = operationId
+                            operationId = operationId,
+                            expectedVersion = expectedVersion
                         )
                     )
                     updatedTask = updated.toDomain()
@@ -654,7 +668,8 @@ class OfflineFirstTasksRepository @Inject constructor(
                     blockedTaskIds += action.taskId
                     continue
                 }
-                val outcome = trySend(action)
+                val current = pendingActionDao.getPendingActionById(action.id) ?: continue
+                val outcome = trySend(current)
                 result = result.counting(outcome)
                 if (outcome.stopsPass) break
                 if (outcome != SyncOutcome.SUCCESS) blockedTaskIds += action.taskId
@@ -716,13 +731,15 @@ class OfflineFirstTasksRepository @Inject constructor(
                     id = action.taskId,
                     status = TaskStatusUpdate(
                         status = GenTaskStatus.valueOf(status),
-                        comment = action.comment ?: ""
+                        comment = action.comment ?: "",
+                        expectedVersion = action.expectedVersion
                     ),
                     idempotencyKey = action.operationId.ifBlank { null }
                 )
                 handleResponse(action, response) { body ->
                     transactionRunner.run {
                         pendingActionDao.deletePendingActionById(action.id)
+                        pendingActionDao.advanceVersion(action.taskId, body.version ?: 1L)
                         if (!hasUnsentTaskChanges(action.taskId)) {
                             taskDao.upsertTask(TaskEntity.fromDomain(body.toDomain()))
                             taskDao.markAsSynced(action.taskId)
@@ -762,13 +779,15 @@ class OfflineFirstTasksRepository @Inject constructor(
             val response = tasksApi.updatePlannedDate(
                 id = action.taskId,
                 plannedDate = PlannedDateUpdate(
-                    plannedDate = action.plannedDate
+                    plannedDate = action.plannedDate,
+                    expectedVersion = action.expectedVersion
                 ),
                 idempotencyKey = action.operationId.ifBlank { null }
             )
             handleResponse(action, response) { body ->
                 transactionRunner.run {
                     pendingActionDao.deletePendingActionById(action.id)
+                    pendingActionDao.advanceVersion(action.taskId, body.version ?: 1L)
                     if (!hasUnsentTaskChanges(action.taskId)) {
                         taskDao.upsertTask(TaskEntity.fromDomain(body.toDomain()))
                         taskDao.markAsSynced(action.taskId)
@@ -837,6 +856,10 @@ class OfflineFirstTasksRepository @Inject constructor(
                 pendingActionDao.incrementRetryCount(action.id, "Empty response body")
                 SyncOutcome.RETRYABLE_FAILURE
             }
+            response.code() == 409 -> {
+                pendingActionDao.saveConflict(action.id, response.errorBody()?.string())
+                SyncOutcome.PERMANENT_FAILURE
+            }
             else -> recordHttpFailure(action, response.code())
         }
     }
@@ -903,9 +926,67 @@ class OfflineFirstTasksRepository @Inject constructor(
 
     /** Вернуть «провалившееся» действие в очередь и сразу попробовать отправить. */
     suspend fun retryFailedAction(actionId: Long): PendingSyncResult = withContext(Dispatchers.IO) {
-        pendingActionDao.resetRetries(actionId)
+        val action = pendingActionDao.getPendingActionById(actionId) ?: return@withContext PendingSyncResult()
+        if (action.lastError == "Server error: 409") {
+            // Повторное подтверждение относится только к версии, показанной пользователю.
+            val version = runCatching { Json.parseToJsonElement(action.serverConflict.orEmpty())
+                .jsonObject["detail"]?.jsonObject?.get("current_version")?.jsonPrimitive?.longOrNull }.getOrNull()
+            if (version == null) {
+                val body = try { tasksApi.getTaskDetail(action.taskId).body() }
+                    catch (e: CancellationException) { throw e }
+                    catch (_: Exception) { null }
+                if (body != null) {
+                    val snapshot = buildJsonObject {
+                        put("detail", buildJsonObject {
+                            put("current_version", body.version ?: 1L)
+                            put("current_status", body.status.value)
+                            put("current_planned_date", body.plannedDate)
+                        })
+                    }
+                    pendingActionDao.saveConflict(actionId, snapshot.toString())
+                }
+                return@withContext PendingSyncResult(permanentFailures = 1)
+            }
+            pendingActionDao.resolveConflict(actionId, version, UUID.randomUUID().toString())
+        } else pendingActionDao.resetRetries(actionId)
         syncPendingActions()
     }
+
+    /** Исправление заведомо отклонённой сервером операции; новая версия требует нового ключа. */
+    suspend fun editFailedAction(actionId: Long, value: String, comment: String): PendingSyncResult =
+        withContext(Dispatchers.IO) {
+            pendingSyncMutex.withLock {
+                val action = pendingActionDao.getPendingActionById(actionId) ?: return@withLock
+                if (action.retryCount < MAX_PENDING_RETRIES || action.lastError !in listOf("Server error: 400", "Server error: 409", "Server error: 422")) return@withLock
+                val version = runCatching { Json.parseToJsonElement(action.serverConflict.orEmpty())
+                    .jsonObject["detail"]?.jsonObject?.get("current_version")?.jsonPrimitive?.longOrNull }.getOrNull()
+                val edited = when (action.actionType) {
+                    ActionType.UPDATE_STATUS -> action.copy(newStatus = value, comment = comment)
+                    ActionType.UPDATE_PLANNED_DATE -> action.copy(plannedDate = value.ifBlank { null })
+                    ActionType.ADD_COMMENT -> action.copy(comment = value)
+                    else -> return@withLock
+                }.copy(retryCount = 0, lastError = null, serverConflict = null,
+                    expectedVersion = version ?: action.expectedVersion,
+                    operationId = UUID.randomUUID().toString())
+                transactionRunner.run {
+                    pendingActionDao.updatePendingAction(edited)
+                    if (action.actionType.mutatesTask) {
+                        val entity = taskDao.getTaskById(action.taskId)
+                        val pending = pendingActionDao.getPendingActionsForTask(action.taskId)
+                        val status = pending.lastOrNull { it.actionType == ActionType.UPDATE_STATUS }
+                        val date = pending.lastOrNull { it.actionType == ActionType.UPDATE_PLANNED_DATE }
+                        if (entity != null) taskDao.upsertTask(entity.copy(
+                            status = status?.newStatus ?: entity.status,
+                            plannedDate = if (date != null) date.plannedDate else entity.plannedDate,
+                            isLocallyModified = true))
+                    } else if (action.tempId != null) {
+                        commentDao.getCommentsForTask(action.taskId).find { it.tempId == action.tempId }
+                            ?.let { commentDao.upsertComment(it.copy(text = value)) }
+                    }
+                }
+            }
+            syncPendingActions()
+        }
 
     /**
      * Отменить действие из очереди: удалить его и локальные следы (черновик
@@ -982,7 +1063,23 @@ class OfflineFirstTasksRepository @Inject constructor(
             taskId = taskId,
             taskLabel = label,
             description = description,
-            reason = failureReason(lastError),
+            reason = if (retryCount >= MAX_PENDING_RETRIES) failureReason(lastError) else "Ожидает отправки",
+            editKind = if (lastError in listOf("Server error: 400", "Server error: 409", "Server error: 422")) when (actionType) {
+                ActionType.UPDATE_STATUS -> OfflineChangeKind.STATUS
+                ActionType.UPDATE_PLANNED_DATE -> OfflineChangeKind.PLANNED_DATE
+                ActionType.ADD_COMMENT -> OfflineChangeKind.COMMENT
+                else -> null
+            } else null,
+            editValue = newStatus ?: plannedDate?.substringBefore('T') ?: comment.orEmpty(),
+            editComment = comment.orEmpty(),
+            isFailed = retryCount >= MAX_PENDING_RETRIES,
+            isConflict = lastError == "Server error: 409",
+            serverState = serverConflict?.let { snapshot -> runCatching {
+                val detail = Json.parseToJsonElement(snapshot).jsonObject["detail"]?.jsonObject
+                val status = detail?.get("current_status")?.jsonPrimitive?.content
+                val planned = detail?.get("current_planned_date")?.jsonPrimitive?.content
+                "На сервере: ${status?.let { TaskStatus.fromString(it).displayName } ?: "—"}; дата: ${planned ?: "—"}"
+            }.getOrNull() },
         )
     }
 

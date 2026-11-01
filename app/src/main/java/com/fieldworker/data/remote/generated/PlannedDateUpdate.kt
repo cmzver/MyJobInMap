@@ -29,13 +29,17 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Contextual
 
 /**
- * Planned date update payload.
  *
+ *
+ * @param expectedVersion
  * @param plannedDate 
  */
 @Serializable
 
 data class PlannedDateUpdate (
+
+    @SerialName(value = "expected_version")
+    val expectedVersion: kotlin.Long? = null,
 
     @SerialName(value = "planned_date")
     val plannedDate: kotlin.String? = null

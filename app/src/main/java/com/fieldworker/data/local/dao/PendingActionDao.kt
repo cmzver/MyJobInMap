@@ -116,4 +116,18 @@ interface PendingActionDao {
     /** Вернуть действие в очередь (ручной «Повторить»). */
     @Query("UPDATE pending_actions SET retryCount = 0, lastError = NULL WHERE id = :actionId")
     suspend fun resetRetries(actionId: Long)
+
+    @Query("SELECT * FROM pending_actions ORDER BY createdAt ASC, id ASC")
+    fun getAllActionsFlow(): Flow<List<PendingAction>>
+
+    @Query("UPDATE pending_actions SET expectedVersion = :version WHERE taskId = :taskId AND actionType IN ('UPDATE_STATUS', 'UPDATE_PLANNED_DATE')")
+    suspend fun advanceVersion(taskId: Long, version: Long)
+
+    @Query("UPDATE pending_actions SET retryCount = 5, lastError = 'Server error: 409', serverConflict = :snapshot WHERE id = :id")
+    suspend fun saveConflict(id: Long, snapshot: String?)
+
+    @Query("UPDATE pending_actions SET expectedVersion = :version, retryCount = 0, lastError = NULL, serverConflict = NULL, operationId = :operationId WHERE id = :id")
+    suspend fun resolveConflict(id: Long, version: Long, operationId: String)
+    @Update
+    suspend fun updatePendingAction(action: PendingAction)
 }

@@ -43,6 +43,7 @@ def create_notification(
     *,
     commit: bool = True,
     broadcast: bool = True,
+    durable_external: bool = False,
 ) -> NotificationModel:
     """
     Создать уведомление для пользователя
@@ -71,11 +72,13 @@ def create_notification(
     )
 
     db.add(notification)
+    db.flush()
+    db.refresh(notification)
+    from app.services.outbox_service import stage_notification
+
+    stage_notification(db, notification, external=durable_external)
     if commit:
         db.commit()
-    else:
-        db.flush()
-    db.refresh(notification)
 
     if broadcast:
         broadcast_created_notification(notification)
@@ -173,6 +176,7 @@ def create_task_status_notification(
                 task_id=task.id,
                 commit=False,
                 broadcast=False,
+                durable_external=True,
             )
         )
 
@@ -191,6 +195,7 @@ def create_task_status_notification(
                     task_id=task.id,
                     commit=False,
                     broadcast=False,
+                    durable_external=True,
                 )
             )
 
@@ -236,6 +241,7 @@ def create_task_assignment_notification(
         task_id=task.id,
         commit=False,
         broadcast=False,
+        durable_external=send_push,
     )
 
     if commit:
@@ -243,27 +249,8 @@ def create_task_assignment_notification(
         broadcast_created_notification(notification)
 
     # FCM push уведомление
-    if send_push:
-        send_task_assignment_push(task, assigned_to)
 
     return [notification]
-
-
-def send_task_assignment_push(task: TaskModel, assigned_to: UserModel) -> None:
-    """Queue the external side effect after the database commit."""
-    priority_name = get_priority_display_name(task.priority)
-    push_title = (
-        f"Новая заявка ({priority_name})"
-        if get_priority_rank(task.priority) >= 3
-        else "Вам назначена заявка"
-    )
-    send_push_notification(
-        title=push_title,
-        body=f"№{task.task_number}: {task.title[:50]}...",
-        notification_type="task_assigned",
-        task_id=task.id,
-        user_ids=[assigned_to.id],
-    )
 
 
 def create_comment_notification(
@@ -271,6 +258,8 @@ def create_comment_notification(
     task: TaskModel,
     comment_text: str,
     author: UserModel,
+    *,
+    commit: bool = True,
 ) -> None:
     """
     Создать уведомление при новом комментарии к заявке.
@@ -293,15 +282,27 @@ def create_comment_notification(
     for admin in org_managers(db, task.organization_id, exclude_user_id=author.id):
         notify_user_ids.add(admin.id)
 
+    notifications = []
     for user_id in notify_user_ids:
-        create_notification(
-            db=db,
-            user_id=user_id,
-            title=title,
-            message=message,
-            notification_type="task",
-            task_id=task.id,
+        notifications.append(
+            create_notification(
+                db=db,
+                user_id=user_id,
+                title=title,
+                message=message,
+                notification_type="task",
+                task_id=task.id,
+                durable_external=True,
+                commit=False,
+                broadcast=False,
+            )
         )
+
+    if commit:
+        db.commit()
+        for notification in notifications:
+            broadcast_created_notification(notification)
+    return notifications
 
 
 class NotificationServiceError(Exception):

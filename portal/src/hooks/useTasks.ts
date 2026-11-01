@@ -268,3 +268,15 @@ export function useAssignTask() {
     },
   })
 }
+
+export function useDispatchOverview(filters: TaskFilters, enabled: boolean) {
+  const scope = { ...filters }
+  delete scope.page
+  delete scope.size
+  return useQuery({
+    queryKey: [...taskKeys.lists(), 'dispatch', scope],
+    queryFn: () => tasksApi.getDispatch(scope),
+    enabled,
+    staleTime: 30_000,
+  })
+}

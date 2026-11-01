@@ -42,6 +42,7 @@ export interface TaskFilters {
   priorities?: TaskPriority[]
   assignee_id?: number
   assignee_ids?: number[]
+  unassigned?: boolean
   search?: string
   address_id?: number
   repeat_kinds?: RepeatKind[]

@@ -110,6 +110,7 @@ data class MapUiState(
     val isOffline: Boolean = false,
     val pendingActionsCount: Int = 0,
     val failedActions: List<FailedAction> = emptyList(),
+    val syncActions: List<FailedAction> = emptyList(),
     val showFailedActions: Boolean = false,
     val lastSyncTime: Long? = null,
     // Доступ текущего пользователя
@@ -423,19 +424,36 @@ class MapViewModel @Inject constructor(
                     it.copy(
                         failedActions = failed,
                         // Разобрали всё — диалог больше не нужен
-                        showFailedActions = it.showFailedActions && failed.isNotEmpty()
+                        showFailedActions = it.showFailedActions
                     )
                 }
             }
         }
     }
 
+    init {
+        viewModelScope.launch {
+            getTasksUseCase.syncActions.collect { actions ->
+                _uiState.update { it.copy(syncActions = actions, showFailedActions = it.showFailedActions && actions.isNotEmpty()) }
+            }
+        }
+    }
+
     fun showFailedActions() {
-        _uiState.update { it.copy(showFailedActions = it.failedActions.isNotEmpty()) }
+        _uiState.update { it.copy(showFailedActions = it.syncActions.isNotEmpty()) }
     }
 
     fun hideFailedActions() {
         _uiState.update { it.copy(showFailedActions = false) }
+    }
+
+    fun editFailedAction(actionId: Long, value: String, comment: String) {
+        viewModelScope.launch {
+            val result = getTasksUseCase.editFailedAction(actionId, value, comment)
+            if (result.permanentFailures > 0 || result.retryableFailures > 0) {
+                _uiState.update { it.copy(error = "Изменение сохранено в очереди. Проверьте результат отправки") }
+            }
+        }
     }
 
     fun retryFailedAction(actionId: Long) {

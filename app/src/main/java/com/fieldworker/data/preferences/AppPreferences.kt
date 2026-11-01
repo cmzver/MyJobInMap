@@ -275,6 +275,16 @@ class AppPreferences @Inject constructor(
         setSecureValue(KEY_REFRESH_TOKEN, token)
     }
     
+    fun getDayRoute(day: String): List<Long> = prefs.getString("day-route:${getUserId()}:$day", "")
+        .orEmpty().split(',').mapNotNull { it.toLongOrNull() }
+
+    fun isDayRoutePending(day: String): Boolean = prefs.getBoolean("day-route-pending:${getUserId()}:$day", false)
+
+    fun saveDayRoute(day: String, ids: List<Long>, pending: Boolean) {
+        prefs.edit().putString("day-route:${getUserId()}:$day", ids.joinToString(","))
+            .putBoolean("day-route-pending:${getUserId()}:$day", pending).apply()
+    }
+
     fun getUserId(): Long {
         return securePrefs.getLong(KEY_USER_ID, prefs.getLong(KEY_USER_ID, -1))
     }

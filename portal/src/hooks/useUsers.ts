@@ -12,10 +12,11 @@ export const userKeys = {
 }
 
 // Get all users
-export function useUsers() {
+export function useUsers(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: userKeys.list(),
     queryFn: () => usersApi.getUsers(),
+    enabled: options?.enabled,
   })
 }
 

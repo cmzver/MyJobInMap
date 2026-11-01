@@ -1,3 +1,4 @@
+import SlaCalendarSection from '@/components/SlaCalendarSection'
 import { useEffect, useState } from 'react'
 import { Clock, Eye, FileText, History, Landmark, RotateCcw, Save } from 'lucide-react'
 import Button from '@/components/Button'
@@ -387,6 +388,8 @@ export default function OrganizationSettingsPage() {
           organizationId={isSuperadmin ? selectedOrgId : undefined}
         />
       )}
+
+      {(isSuperadmin ? selectedOrgId : organizationId) != null && <SlaCalendarSection key={selectedOrgId ?? organizationId} organizationId={(isSuperadmin ? selectedOrgId : organizationId)!} />}
 
       {/* Прайс ведётся пользователями организации (API берёт организацию из входа) */}
       {!isSuperadmin && <ServiceCatalogCard />}

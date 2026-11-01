@@ -14,12 +14,13 @@ Periodic Jobs
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from app.config import settings
 from app.models.base import SessionLocal
 from app.services import metrics
+from app.services.business_time import business_tz
 from app.services.notification_service import broadcast_created_notification_async
 from app.services.sla_escalation import Payload, run_overdue_digest, run_sla_tick
 
@@ -34,6 +35,13 @@ _task: Optional[asyncio.Task] = None
 def run_due_jobs(now: Optional[datetime] = None) -> List[Payload]:
     """Один проход всех заданий. Возвращает события для WebSocket."""
     with SessionLocal() as db:
+        from app.services.maintenance_service import run_maintenance
+
+        local_day = None
+        if now:
+            aware = now if now.tzinfo else now.replace(tzinfo=timezone.utc)
+            local_day = aware.astimezone(business_tz()).date()
+        run_maintenance(db, local_day)
         return run_sla_tick(db, now) + run_overdue_digest(db, now)
 
 

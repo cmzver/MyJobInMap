@@ -1,5 +1,6 @@
 import apiClient from './client'
 import type { Task, TaskDetail, PaginatedResponse, TaskFilters, RepeatKind } from '@/types/task'
+import type { TaskDispatchRow } from '@/components/tasks/taskDispatchOverviewModel'
 import type { components } from '@/types/api.generated'
 
 // Request payloads are derived from the backend OpenAPI schema (single source
@@ -36,9 +37,7 @@ export async function fetchAllTaskPages(filters: URLSearchParams): Promise<Task[
   return first.data.items.concat(...rest.map((response) => response.data.items))
 }
 
-export const tasksApi = {
-  // Get paginated list of tasks
-  async getTasks(filters?: TaskFilters): Promise<PaginatedResponse<Task>> {
+export function taskFilterParams(filters?: TaskFilters): URLSearchParams {
     const params = new URLSearchParams()
 
     const statuses = filters?.statuses?.length ? filters.statuses : filters?.status ? [filters.status] : []
@@ -52,6 +51,7 @@ export const tasksApi = {
     statuses.forEach((status) => params.append('status', status))
     priorities.forEach((priority) => params.append('priority', priority))
     assigneeIds.forEach((assigneeId) => params.append('assignee_id', String(assigneeId)))
+    if (filters?.unassigned) params.set('unassigned', 'true')
     if (filters?.address_id) params.append('address_id', String(filters.address_id))
     filters?.repeat_kinds?.forEach((kind) => params.append('repeat_kind', kind))
     if (filters?.due) params.append('due', filters.due)
@@ -59,6 +59,21 @@ export const tasksApi = {
     if (filters?.sort) params.append('sort', filters.sort)
     if (filters?.page) params.append('page', String(filters.page))
     if (filters?.size) params.append('size', String(filters.size))
+
+    return params
+}
+
+export const tasksApi = {
+  async getDispatch(filters?: TaskFilters): Promise<{ rows: TaskDispatchRow[]; total: number }> {
+    const params = taskFilterParams(filters)
+    params.delete('page')
+    params.delete('size')
+    const { data } = await apiClient.get('/tasks/dispatch', { params })
+    return data
+  },
+  // Get paginated list of tasks
+  async getTasks(filters?: TaskFilters): Promise<PaginatedResponse<Task>> {
+    const params = taskFilterParams(filters)
 
     const { data } = await apiClient.get<PaginatedResponse<Task>>(
       `/tasks?${params.toString()}`

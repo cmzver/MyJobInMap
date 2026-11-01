@@ -49,10 +49,8 @@ from app.services.notification_service import (
     create_notification,
     notification_broadcast_payload,
 )
-from app.services.push import send_push_notification
 from app.services.role_utils import org_managers
 from app.services.sla_service import get_sla_hours_map
-from app.services.web_push import send_web_push
 from app.utils import get_priority_display_name, normalize_priority_value
 
 logger = logging.getLogger(__name__)
@@ -166,21 +164,9 @@ def _text(rule: str, task: TaskModel, now: datetime) -> Tuple[str, str]:
 
 
 @dataclass
-class _Delivery:
-    """Внешние пуши — после коммита, чтобы не уведомлять о несохранённом."""
-
-    title: str
-    body: str
-    task_id: Optional[int]
-    user_ids: List[int]
-    url: str
-    emergency: bool = False
-
-
-@dataclass
 class _Outbox:
+    now: datetime = field(default_factory=lambda: to_naive_utc(utcnow()))
     payloads: List[Payload] = field(default_factory=list)
-    deliveries: List[_Delivery] = field(default_factory=list)
 
     def notify(
         self,
@@ -192,6 +178,7 @@ class _Outbox:
         emergency: bool = False,
         url: Optional[str] = None,
     ) -> None:
+        users = list(users)
         user_ids = []
         for user in users:
             notification = create_notification(
@@ -207,29 +194,30 @@ class _Outbox:
             self.payloads.append(notification_broadcast_payload(notification))
             user_ids.append(user.id)
         if user_ids:
-            url = url or (f"/tasks/{task_id}" if task_id else "/tasks")
-            self.deliveries.append(
-                _Delivery(title, body, task_id, user_ids, url, emergency=emergency)
-            )
+            from app.models.sla_calendar import SlaCalendarModel
+            from app.services.sla_calendar import next_working_time
 
-    def send_pushes(self, now: datetime) -> None:
-        quiet = is_quiet_time(now)
-        for delivery in self.deliveries:
-            if quiet and not delivery.emergency:
-                continue
-            send_push_notification(
-                title=delivery.title,
-                body=delivery.body,
-                notification_type=NOTIFICATION_TYPE,
-                task_id=delivery.task_id,
-                user_ids=delivery.user_ids,
+            org_id = users[0].organization_id
+            calendar = db.get(SlaCalendarModel, org_id) if org_id is not None else None
+            deferred = (
+                next_working_time(calendar, self.now)
+                if calendar and calendar.enabled and not emergency
+                else None
             )
-            send_web_push(
-                title=delivery.title,
-                body=delivery.body,
-                url=delivery.url,
-                user_ids=delivery.user_ids,
-            )
+            if emergency or deferred is not None or not is_quiet_time(self.now):
+                from app.services.outbox_service import stage_push
+
+                stage_push(
+                    db,
+                    title=title,
+                    body=body,
+                    user_ids=user_ids,
+                    task_id=task_id,
+                    notification_type=NOTIFICATION_TYPE,
+                    url=url,
+                    organization_id=org_id,
+                    not_before=deferred,
+                )
 
 
 def enabled_organization_ids(db: Session) -> List[int]:
@@ -260,6 +248,9 @@ def _claim(db: Session, entry: TaskEscalationModel) -> bool:
 
 def run_sla_tick(db: Session, now: Optional[datetime] = None) -> List[Payload]:
     """Разослать напоминания о сроках. Возвращает события для WebSocket."""
+    from app.services.transactions import ensure_transaction
+
+    ensure_transaction(db)
     now = to_naive_utc(now or utcnow())
     org_ids = enabled_organization_ids(db)
     if not org_ids:
@@ -297,7 +288,7 @@ def run_sla_tick(db: Session, now: Optional[datetime] = None) -> List[Payload]:
     }
     norms: Dict[int, Dict[str, int]] = {}
     managers: Dict[int, List[UserModel]] = {}
-    outbox = _Outbox()
+    outbox = _Outbox(now=now)
 
     for task in candidates:
         org_id = task.organization_id
@@ -336,7 +327,6 @@ def run_sla_tick(db: Session, now: Optional[datetime] = None) -> List[Payload]:
             )
 
     db.commit()
-    outbox.send_pushes(now)
     if outbox.payloads:
         logger.info("SLA: отправлено напоминаний — %d", len(outbox.payloads))
     return outbox.payloads
@@ -344,13 +334,16 @@ def run_sla_tick(db: Session, now: Optional[datetime] = None) -> List[Payload]:
 
 def run_overdue_digest(db: Session, now: Optional[datetime] = None) -> List[Payload]:
     """Утренний дайджест менеджерам: сколько открытых заявок просрочено."""
+    from app.services.transactions import ensure_transaction
+
+    ensure_transaction(db)
     now = to_naive_utc(now or utcnow())
     local = now.replace(tzinfo=timezone.utc).astimezone(business_tz())
     start, end = DIGEST_HOURS
     if not start <= local.hour < end:
         return []
 
-    outbox = _Outbox()
+    outbox = _Outbox(now=now)
     for org_id in enabled_organization_ids(db):
         run = JobRunModel(job="overdue_digest", run_key=f"{local.date()}:{org_id}")
         try:
@@ -378,5 +371,4 @@ def run_overdue_digest(db: Session, now: Optional[datetime] = None) -> List[Payl
             )
 
     db.commit()
-    outbox.send_pushes(now)
     return outbox.payloads

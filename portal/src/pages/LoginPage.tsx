@@ -31,9 +31,12 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated && user?.role) {
-      navigate(getHomePathForRole(user.role), { replace: true })
+      const from = (location.state as { from?: string } | null)?.from
+      const target = from?.startsWith('/') && !from.startsWith('//') && !from.startsWith('/login')
+        ? from : getHomePathForRole(user.role, user.baseAccess)
+      navigate(target, { replace: true })
     }
-  }, [isAuthenticated, navigate, user?.role])
+  }, [isAuthenticated, navigate, user?.role, user?.baseAccess, location.state])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()

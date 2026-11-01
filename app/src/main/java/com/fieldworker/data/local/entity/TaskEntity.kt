@@ -45,6 +45,10 @@ data class TaskEntity(
     val repeatAssigneeName: String? = null,
     val repeatComment: String? = null,
     val dueAt: String? = null,
+    @androidx.room.ColumnInfo(defaultValue = "1")
+    val serverVersion: Long = 1,
+    val equipmentId: Long? = null,
+    val addressId: Long? = null,
     // Метаданные для синхронизации
     val lastSyncedAt: Long = System.currentTimeMillis(),
     val isLocallyModified: Boolean = false,
@@ -88,7 +92,10 @@ data class TaskEntity(
                 completionComment = repeatComment
             )
         },
-        dueAt = dueAt
+        dueAt = dueAt,
+        version = serverVersion,
+        equipmentId = equipmentId,
+        addressId = addressId
     )
     
     companion object {
@@ -125,7 +132,10 @@ data class TaskEntity(
             repeatDate = task.repeatOf?.date,
             repeatAssigneeName = task.repeatOf?.assigneeName,
             repeatComment = task.repeatOf?.completionComment,
-            dueAt = task.dueAt
+            dueAt = task.dueAt,
+            serverVersion = task.version,
+            equipmentId = task.equipmentId,
+            addressId = task.addressId
         )
     }
 }
