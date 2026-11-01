@@ -47,58 +47,55 @@ export default function AddressAssigneesSection({ addressId }: { addressId: numb
 
   return (
     <Card
-      title="Доступ к адресу"
+      flush
+      title="Доступ"
       action={
-        <Button size="sm" onClick={() => setAddModal(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Назначить
-        </Button>
+        <button
+          type="button"
+          onClick={() => setAddModal(true)}
+          title="Назначить сотрудника"
+          aria-label="Назначить сотрудника"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
       }
     >
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Назначенные сотрудники видят этот адрес в мобильном разделе «Мои адреса»
-        и могут открывать двери его сетевых панелей.
-      </p>
-
       {isLoading ? (
-        <div className="py-6 flex justify-center">
+        <div className="py-4 flex justify-center">
           <Spinner />
         </div>
       ) : assignees.length === 0 ? (
-        <div className="text-sm text-gray-500 dark:text-gray-400 py-6 text-center">
-          Никто не назначен на этот адрес.
-        </div>
+        <p className="px-4 py-3 text-sm text-gray-400 dark:text-gray-500">Никто не назначен</p>
       ) : (
-        <div className="space-y-2">
+        <ul className="divide-y divide-gray-100 dark:divide-gray-700">
           {assignees.map((a) => (
-            <div
-              key={a.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full">
-                  <UserCheck className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                </div>
-                <div className="min-w-0">
-                  <p className="font-medium text-gray-900 dark:text-white truncate">
-                    {a.full_name || a.username || `#${a.user_id}`}
-                  </p>
-                  {a.role_label && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{a.role_label}</p>
-                  )}
-                </div>
+            <li key={a.id} className="flex items-center gap-2 px-4 py-2">
+              <UserCheck className="h-4 w-4 shrink-0 text-gray-400" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                  {a.full_name || a.username || `#${a.user_id}`}
+                </p>
+                {a.role_label && (
+                  <p className="truncate text-xs text-gray-500 dark:text-gray-400">{a.role_label}</p>
+                )}
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
+              <button
+                type="button"
                 onClick={() => handleRemove(a.user_id)}
                 title="Снять доступ"
+                aria-label="Снять доступ"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-700 dark:hover:text-red-400"
               >
-                <Trash2 className="h-4 w-4 text-red-500" />
-              </Button>
-            </div>
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
+      <p className="border-t border-gray-100 px-4 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        Видят адрес в «Мои адреса» и открывают двери панелей.
+      </p>
 
       <Modal isOpen={addModal} onClose={() => setAddModal(false)} title="Назначить на адрес">
         {availableUsers.length === 0 ? (

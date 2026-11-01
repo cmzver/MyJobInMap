@@ -1,27 +1,23 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { formatDateOnly as formatDate } from '@/utils/dateFormat'
 import toast from 'react-hot-toast'
 import { showApiError, showApiSuccess } from '@/utils/apiError'
-import { 
-  ArrowLeft, 
-  MapPin, 
-  Building2, 
-  FileText, 
-  Wrench, 
-  Package, 
-  Users, 
-  ClipboardList,
-  History,
+import { cn } from '@/utils/cn'
+import {
+  ArrowLeft,
+  ArrowRight,
+  MapPin,
+  FileText,
+  Wrench,
+  Package,
   Phone,
   Mail,
-  DollarSign,
   Plus,
   Edit,
   Trash2,
   Download,
-  Eye,
   ExternalLink,
   AlertCircle,
   CheckCircle,
@@ -38,7 +34,6 @@ import {
   Lock,
   Settings,
   Zap,
-  UserCheck
 } from 'lucide-react'
 import { 
   useAddressFull, 
@@ -59,7 +54,7 @@ import { addressesApi } from '@/api/addresses'
 import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
 import Card from '@/components/Card'
-import MetricCard from '@/components/MetricCard'
+import Badge from '@/components/Badge'
 import Spinner from '@/components/Spinner'
 import Modal from '@/components/Modal'
 import IntercomPanelsSection from '@/components/IntercomPanelsSection'
@@ -169,19 +164,15 @@ const contactTypeLabels: Record<ContactType, string> = {
   other: 'Другое',
 }
 
-type TabType = 'info' | 'systems' | 'equipment' | 'panels' | 'access' | 'documents' | 'contacts' | 'tasks' | 'history'
+type TabType = 'systems' | 'equipment' | 'documents'
 
-const tabs: { id: TabType; label: string; Icon: typeof Building2 }[] = [
-  { id: 'info', label: 'Информация', Icon: Building2 },
+const tabs: { id: TabType; label: string; Icon: typeof Wrench }[] = [
   { id: 'systems', label: 'Системы', Icon: Wrench },
   { id: 'equipment', label: 'Оборудование', Icon: Package },
-  { id: 'panels', label: 'Панели', Icon: Server },
-  { id: 'access', label: 'Доступ', Icon: UserCheck },
   { id: 'documents', label: 'Документы', Icon: FileText },
-  { id: 'contacts', label: 'Контакты', Icon: Users },
-  { id: 'tasks', label: 'Заявки', Icon: ClipboardList },
-  { id: 'history', label: 'История', Icon: History },
 ]
+
+const isTab = (value: string | null): value is TabType => tabs.some((tab) => tab.id === value)
 
 // Форматирование размера файла
 function formatFileSize(bytes: number): string {
@@ -190,16 +181,76 @@ function formatFileSize(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + ' МБ'
 }
 
-// Поле «лейбл сверху, значение под ним» — без растянутого justify-between
-function Field({ label, value }: { label: string; value: ReactNode }) {
-  const isEmpty = value === null || value === undefined || value === '' || value === 0
+const isBlank = (value: ReactNode) => value === null || value === undefined || value === '' || value === 0
+
+/** Число с подписью — ячейка мини-полосы в боковой колонке. */
+function Stat({ label, value, tone }: { label: string; value: ReactNode; tone?: string }) {
   return (
-    <div className="min-w-0">
-      <p className="eyebrow">{label}</p>
-      <div className="mt-1 text-sm font-medium text-gray-900 dark:text-white break-words">
-        {isEmpty ? <span className="text-gray-400 dark:text-gray-500">—</span> : value}
-      </div>
+    <div className="flex min-w-0 flex-col-reverse px-2 py-2.5 text-center">
+      <dt className="mt-0.5 truncate text-[11px] text-gray-500 dark:text-gray-400">{label}</dt>
+      <dd className={cn('text-base font-semibold tabular-nums text-gray-900 dark:text-white', tone, isBlank(value) && 'text-gray-300 dark:text-gray-600')}>
+        {isBlank(value) ? '—' : value}
+      </dd>
     </div>
+  )
+}
+
+/** Строка «подпись — значение» узкой колонки. */
+function Fact({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="shrink-0 text-gray-500 dark:text-gray-400">{label}</dt>
+      <dd className="min-w-0 truncate text-right font-medium text-gray-900 dark:text-white">
+        {isBlank(value) ? <span className="font-normal text-gray-400 dark:text-gray-500">—</span> : value}
+      </dd>
+    </div>
+  )
+}
+
+function IconButton({
+  title,
+  onClick,
+  danger = false,
+  children,
+}: {
+  title: string
+  onClick: () => void
+  danger?: boolean
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      className={cn(
+        'inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700',
+        danger ? 'hover:text-red-600 dark:hover:text-red-400' : 'hover:text-gray-700 dark:hover:text-gray-200',
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+function RowActions({ children }: { children: ReactNode }) {
+  return <div className="flex shrink-0 justify-end gap-0.5">{children}</div>
+}
+
+function StatusPill({ className, children }: { className?: string; children: ReactNode }) {
+  return (
+    <span className={cn('inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-full px-2 text-xs font-medium', className)}>
+      {children}
+    </span>
+  )
+}
+
+function EmptyRow({ Icon, text }: { Icon: typeof Wrench; text: string }) {
+  return (
+    <p className="flex items-center justify-center gap-2 px-4 py-8 text-sm text-gray-500 dark:text-gray-400">
+      <Icon className="h-4 w-4 text-gray-400" /> {text}
+    </p>
   )
 }
 
@@ -208,7 +259,16 @@ export default function AddressDetailPage() {
   const navigate = useNavigate()
   const addressId = Number(id)
   
-  const [activeTab, setActiveTab] = useState<TabType>('info')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  // Панели теперь внутри «Оборудования»: старые ссылки ?tab=panels ведут туда же
+  const activeTab: TabType = tabParam === 'panels' ? 'equipment' : isTab(tabParam) ? tabParam : 'systems'
+  const selectTab = (tab: TabType) =>
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', tab)
+      return next
+    }, { replace: true })
   
   // Состояния модальных окон
   const [addressModal, setAddressModal] = useState(false)
@@ -422,9 +482,14 @@ export default function AddressDetailPage() {
     dismantled: equipment.filter(e => e.status === 'dismantled').length,
   }
 
+  const tabCounts: Record<TabType, number> = {
+    systems: systems.length,
+    equipment: equipment.length + panels.length,
+    documents: documents.length,
+  }
+
   return (
-    <div className="p-6 space-y-6">
-      {/* Заголовок */}
+    <div className="space-y-4 p-6">
       <PageHeader
         onBack={() => navigate('/addresses')}
         icon={MapPin}
@@ -449,232 +514,244 @@ export default function AddressDetailPage() {
         }
       />
 
-      {/* Метрики */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <MetricCard icon={Wrench} label="Систем" value={systems.length} />
-        <MetricCard
-          icon={Package}
-          label="Оборудование"
-          value={equipment.length}
-          note={equipmentByStatus.faulty > 0 ? `${equipmentByStatus.faulty} неисправно` : undefined}
-          noteTone="text-red-500"
-        />
-        <MetricCard
-          icon={ClipboardList}
-          label="Заявок всего"
-          value={taskStats.total}
-          note={(taskStats.new + taskStats.in_progress) > 0 ? `${taskStats.new + taskStats.in_progress} активных` : undefined}
-          noteTone="text-primary-600 dark:text-primary-400"
-        />
-        <MetricCard
-          icon={DollarSign}
-          label="Абонплата"
-          value={`${totalMonthlyCost.toLocaleString('ru-RU')} ₽`}
-          note="в месяц"
-        />
-      </div>
-
-      {/* Табы */}
-      <div className="border-b border-gray-200 dark:border-gray-700">
-        <nav className="flex gap-4 overflow-x-auto pb-px">
-          {tabs.map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              onClick={() => setActiveTab(id)}
-              className={`
-                flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap
-                ${activeTab === id
-                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
-                }
-              `}
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-              {id === 'systems' && systems.length > 0 && (
-                <span className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 rounded-full">
-                  {systems.length}
-                </span>
-              )}
-              {id === 'equipment' && equipment.length > 0 && (
-                <span className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 rounded-full">
-                  {equipment.length}
-                </span>
-              )}
-              {id === 'documents' && documents.length > 0 && (
-                <span className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 rounded-full">
-                  {documents.length}
-                </span>
-              )}
-              {id === 'tasks' && (taskStats.new + taskStats.in_progress) > 0 && (
-                <span className="px-2 py-0.5 text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full">
-                  {taskStats.new + taskStats.in_progress}
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {/* Контент табов */}
-      <div className="min-h-[400px]">
-        {/* Информация */}
-        {activeTab === 'info' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card title="Основная информация">
-              <div className="grid grid-cols-2 gap-x-4 gap-y-4">
-                <Field label="Город" value={address.city} />
-                <Field label="Улица" value={address.street} />
-                <Field
-                  label="Дом"
-                  value={address.building
-                    ? `${address.building}${address.corpus ? ` корп. ${address.corpus}` : ''}`
-                    : null}
-                />
-              </div>
-            </Card>
-
-            <Card title="Информация о здании">
-              <div className="grid grid-cols-3 gap-x-4 gap-y-4">
-                <Field label="Подъездов" value={address.entrance_count} />
-                <Field label="Этажей" value={address.floor_count} />
-                <Field label="Квартир" value={address.apartment_count} />
-              </div>
-            </Card>
-
-            <Card title="Управляющая компания">
-              <div className="grid grid-cols-2 gap-x-4 gap-y-4">
-                <Field label="Название" value={address.management_company} />
-                <Field
-                  label="Телефон"
-                  value={address.management_phone ? (
-                    <a
-                      href={`tel:${address.management_phone}`}
-                      className="text-primary-600 hover:underline dark:text-primary-400"
-                    >
-                      {address.management_phone}
-                    </a>
-                  ) : null}
-                />
-              </div>
-            </Card>
-
-            <Card title="Заметки">
-              <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                {address.notes || 'Нет заметок'}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[17rem_minmax(0,1fr)] xl:grid-cols-[19rem_minmax(0,1fr)]">
+        {/* Паспорт объекта: короткие факты — узкой колонкой, а не на всю ширину */}
+        <aside className="space-y-4">
+          <Card flush title="Объект">
+            <dl className="grid grid-cols-3 divide-x divide-gray-100 border-b border-gray-100 dark:divide-gray-700 dark:border-gray-700">
+              <Stat label="Подъездов" value={address.entrance_count} />
+              <Stat label="Этажей" value={address.floor_count} />
+              <Stat label="Квартир" value={address.apartment_count} />
+            </dl>
+            <dl className="space-y-2 px-4 py-3 text-sm">
+              <Fact label="УК" value={address.management_company} />
+              <Fact
+                label="Телефон УК"
+                value={address.management_phone ? (
+                  <a href={`tel:${address.management_phone}`} className="text-primary-600 hover:underline dark:text-primary-400">
+                    {address.management_phone}
+                  </a>
+                ) : null}
+              />
+              <Fact
+                label="Абонплата"
+                value={totalMonthlyCost > 0 ? `${totalMonthlyCost.toLocaleString('ru-RU')} ₽/мес` : null}
+              />
+            </dl>
+            <div className="border-t border-gray-100 px-4 py-3 dark:border-gray-700">
+              <p className="eyebrow">Заметки</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">
+                {address.notes || <span className="text-gray-400 dark:text-gray-500">Нет заметок</span>}
               </p>
-            </Card>
-          </div>
-        )}
-
-        {/* Системы */}
-        {activeTab === 'systems' && (
-          <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Системы на обслуживании
-              </h3>
-              <Button onClick={() => setSystemModal({ open: true, system: null })}>
-                <Plus className="h-4 w-4 mr-2" />
-                Добавить систему
-              </Button>
             </div>
-            
-            {systems.length === 0 ? (
-              <Card className="p-8 text-center">
-                <Wrench className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-500 dark:text-gray-400">Системы не добавлены</p>
-              </Card>
+          </Card>
+
+          <Card
+            flush
+            title={`Заявки · ${taskStats.total}`}
+            action={
+              <Link
+                to={`/tasks?address_id=${address.id}&address_title=${encodeURIComponent(address.address || '')}`}
+                className="flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400"
+              >
+                Все <ArrowRight size={14} />
+              </Link>
+            }
+          >
+            <dl className="grid grid-cols-4 divide-x divide-gray-100 dark:divide-gray-700">
+              <Stat label="Новые" value={taskStats.new} tone="text-red-600 dark:text-red-400" />
+              <Stat label="В работе" value={taskStats.in_progress} tone="text-orange-600 dark:text-orange-400" />
+              <Stat label="Готово" value={taskStats.done} tone="text-green-600 dark:text-green-400" />
+              <Stat label="Отмена" value={taskStats.cancelled} />
+            </dl>
+            <div className="border-t border-gray-100 px-4 py-2 dark:border-gray-700">
+              <Link
+                to={`/tasks/new?address=${encodeURIComponent(address.address)}`}
+                className="flex items-center gap-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+              >
+                <Plus className="h-4 w-4" /> Создать заявку
+              </Link>
+            </div>
+          </Card>
+
+          <Card
+            flush
+            title="Контакты"
+            action={
+              <IconButton title="Добавить контакт" onClick={() => setContactModal({ open: true, contact: null })}>
+                <Plus className="h-4 w-4" />
+              </IconButton>
+            }
+          >
+            {contacts.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-gray-400 dark:text-gray-500">Контактов нет</p>
             ) : (
-              <div className="grid gap-4">
-                {systems.map((system) => {
-                  const SystemIcon = systemTypeIcons[system.system_type]
-                  const statusConfig = systemStatusConfig[system.status]
-                  
-                  return (
-                    <Card key={system.id} compact>
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="flex min-w-0 items-start gap-4">
-                          <div className={`p-3 rounded-lg ${statusConfig.bg}`}>
-                            <SystemIcon className={`h-6 w-6 ${statusConfig.color}`} />
-                          </div>
-                          <div className="min-w-0">
-                            <h4 className="font-semibold text-gray-900 dark:text-white">
-                              {system.name}
-                            </h4>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {systemTypeLabels[system.system_type]}
-                              {system.contract_number && ` • Договор: ${system.contract_number}`}
-                            </p>
-                            <div className="flex flex-wrap gap-4 mt-2 text-sm">
-                              <span className={`px-2 py-0.5 rounded ${statusConfig.bg} ${statusConfig.color}`}>
-                                {statusConfig.label}
-                              </span>
-                              {system.monthly_cost && (
-                                <span className="text-gray-500 dark:text-gray-400">
-                                  {system.monthly_cost.toLocaleString('ru-RU')} ₽/мес
-                                </span>
-                              )}
-                              {system.service_end_date && (
-                                <span className="text-gray-500 dark:text-gray-400">
-                                  До: {formatDate(system.service_end_date)}
-                                </span>
-                              )}
-                            </div>
-                            {system.notes && (
-                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                                {system.notes}
-                              </p>
-                            )}
-                          </div>
+              <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+                {contacts.map((contact) => (
+                  <li key={contact.id} className="group flex items-start gap-2 px-4 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-gray-900 dark:text-white" title={contact.name}>{contact.name}</p>
+                      <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                        {contactTypeLabels[contact.contact_type]}
+                        {contact.is_primary && <span className="font-medium text-primary-600 dark:text-primary-400"> · основной</span>}
+                        {contact.notes && ` · ${contact.notes}`}
+                      </p>
+                      {(contact.phone || contact.email) && (
+                        <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs">
+                          {contact.phone && (
+                            <a href={`tel:${contact.phone}`} className="flex items-center gap-1 text-primary-600 hover:underline dark:text-primary-400">
+                              <Phone className="h-3 w-3" /> {contact.phone}
+                            </a>
+                          )}
+                          {contact.email && (
+                            <a href={`mailto:${contact.email}`} className="flex min-w-0 items-center gap-1 text-primary-600 hover:underline dark:text-primary-400">
+                              <Mail className="h-3 w-3 shrink-0" /> <span className="truncate">{contact.email}</span>
+                            </a>
+                          )}
                         </div>
-                        <div className="flex flex-shrink-0 gap-2 self-end sm:self-start">
-                          <Button variant="ghost" size="sm" onClick={() => setSystemModal({ open: true, system })}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setDeleteConfirm({ type: 'system', id: system.id, name: system.name })}>
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                        </div>
-                      </div>
-                    </Card>
-                  )
-                })}
-              </div>
+                      )}
+                    </div>
+                    <RowActions>
+                      <IconButton title="Изменить" onClick={() => setContactModal({ open: true, contact })}>
+                        <Edit className="h-3.5 w-3.5" />
+                      </IconButton>
+                      <IconButton danger title="Удалить" onClick={() => setDeleteConfirm({ type: 'contact', id: contact.id, name: contact.name })}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </IconButton>
+                    </RowActions>
+                  </li>
+                ))}
+              </ul>
             )}
-          </div>
-        )}
+          </Card>
 
-        {/* Оборудование */}
-        {activeTab === 'equipment' && (
-          <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Список оборудования
-              </h3>
-              <Button onClick={() => setEquipmentModal({ open: true, equipment: null })}>
-                <Plus className="h-4 w-4 mr-2" />
-                Добавить оборудование
-              </Button>
-            </div>
-            
-            {equipment.length === 0 ? (
-              <Card className="p-8 text-center">
-                <Package className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-500 dark:text-gray-400">Оборудование не добавлено</p>
-              </Card>
-            ) : (
-              <div className="overflow-x-auto">
+          <AddressAssigneesSection addressId={addressId} />
+        </aside>
+
+        {/* Основное: техника объекта — компактными таблицами */}
+        <div className="min-w-0 space-y-3">
+          <nav role="tablist" className="flex gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_theme(colors.gray.200)] dark:shadow-[inset_0_-1px_0_theme(colors.gray.700)]">
+            {tabs.map(({ id, label, Icon }) => {
+              const count = tabCounts[id]
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === id}
+                  onClick={() => selectTab(id)}
+                  className={cn(
+                    'flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+                    activeTab === id
+                      ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300',
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                  {count > 0 && <span className="text-xs tabular-nums text-gray-400">{count}</span>}
+                  {id === 'equipment' && equipmentByStatus.faulty > 0 && (
+                    <Badge variant="danger" title={`Неисправно: ${equipmentByStatus.faulty}`}>
+                      {equipmentByStatus.faulty}<span className="hidden sm:inline">&nbsp;неиспр.</span>
+                    </Badge>
+                  )}
+                </button>
+              )
+            })}
+          </nav>
+
+          {/* Системы */}
+          {activeTab === 'systems' && (
+            <Card
+              flush
+              title="Системы на обслуживании"
+              action={
+                <Button size="sm" onClick={() => setSystemModal({ open: true, system: null })}>
+                  <Plus className="h-4 w-4 mr-1" /> Добавить
+                </Button>
+              }
+            >
+              {systems.length === 0 ? (
+                <EmptyRow Icon={Wrench} text="Системы не добавлены" />
+              ) : (
                 <table className="data-table min-w-full">
                   <thead>
                     <tr>
-                      <th>Тип</th>
-                      <th>Название</th>
-                      <th>Модель</th>
-                      <th className="text-center">Кол-во</th>
+                      <th>Система</th>
+                      <th className="text-right">₽/мес</th>
+                      <th>Договор до</th>
+                      <th>Статус</th>
+                      <th className="w-16" aria-label="Действия" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {systems.map((system) => {
+                      const SystemIcon = systemTypeIcons[system.system_type]
+                      const statusConfig = systemStatusConfig[system.status]
+                      return (
+                        <tr key={system.id} >
+                          <td className="w-full max-w-0">
+                            <div className="flex min-w-[10rem] items-center gap-2">
+                              <SystemIcon className="h-4 w-4 shrink-0 text-gray-400" />
+                              <div className="min-w-0">
+                                <p className="truncate font-medium text-gray-900 dark:text-white" title={system.name}>{system.name}</p>
+                                <p className="truncate text-xs text-gray-500 dark:text-gray-400" title={system.notes || undefined}>
+                                  {[systemTypeLabels[system.system_type], system.contract_number && `дог. ${system.contract_number}`, system.notes]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="whitespace-nowrap text-right tabular-nums">
+                            {system.monthly_cost ? system.monthly_cost.toLocaleString('ru-RU') : '—'}
+                          </td>
+                          <td className="whitespace-nowrap">
+                            {system.service_end_date ? formatDate(system.service_end_date) : '—'}
+                          </td>
+                          <td><StatusPill className={cn(statusConfig.bg, statusConfig.color)}>{statusConfig.label}</StatusPill></td>
+                          <td>
+                            <RowActions>
+                              <IconButton title="Изменить" onClick={() => setSystemModal({ open: true, system })}>
+                                <Edit className="h-3.5 w-3.5" />
+                              </IconButton>
+                              <IconButton danger title="Удалить" onClick={() => setDeleteConfirm({ type: 'system', id: system.id, name: system.name })}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </IconButton>
+                            </RowActions>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </Card>
+          )}
+
+          {/* Оборудование и сетевые панели — одна вкладка */}
+          {activeTab === 'equipment' && (
+            <div className="space-y-3">
+            <Card
+              flush
+              title="Оборудование"
+              action={
+                <Button size="sm" onClick={() => setEquipmentModal({ open: true, equipment: null })}>
+                  <Plus className="h-4 w-4 mr-1" /> Добавить
+                </Button>
+              }
+            >
+              {equipment.length === 0 ? (
+                <EmptyRow Icon={Package} text="Оборудование не добавлено" />
+              ) : (
+                <table className="data-table min-w-full">
+                  <thead>
+                    <tr>
+                      <th>Оборудование</th>
+                      <th className="text-right">Кол-во</th>
                       <th>Расположение</th>
                       <th>Статус</th>
-                      <th className="text-right">Действия</th>
+                      <th className="w-16" aria-label="Действия" />
                     </tr>
                   </thead>
                   <tbody>
@@ -682,308 +759,125 @@ export default function AddressDetailPage() {
                       const ItemIcon = equipmentTypeIcons[item.equipment_type]
                       const statusConfig = equipmentStatusConfig[item.status]
                       const StatusIcon = statusConfig.Icon
-                      
                       return (
-                        <tr key={item.id}>
-                          <td>
-                            <div className="flex items-center gap-2">
-                              <ItemIcon className="h-4 w-4 text-gray-400" />
-                              <span className="text-sm text-gray-600 dark:text-gray-300">
-                                {equipmentTypeLabels[item.equipment_type]}
-                              </span>
+                        <tr key={item.id} >
+                          <td className="w-full max-w-0">
+                            <div className="flex min-w-[10rem] items-center gap-2">
+                              <ItemIcon className="h-4 w-4 shrink-0 text-gray-400" />
+                              <div className="min-w-0">
+                                <Link
+                                  to={`/equipment/${item.id}`}
+                                  className="block truncate font-medium text-primary-600 hover:underline dark:text-primary-400"
+                                  title={item.name}
+                                >
+                                  {item.name}
+                                </Link>
+                                <p
+                                  className="truncate text-xs text-gray-500 dark:text-gray-400"
+                                  title={item.serial_number ? `S/N ${item.serial_number}` : undefined}
+                                >
+                                  {[equipmentTypeLabels[item.equipment_type], item.model, item.serial_number && `S/N ${item.serial_number}`]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                </p>
+                              </div>
                             </div>
                           </td>
+                          <td className="text-right tabular-nums">{item.quantity}</td>
+                          <td className="max-w-[10rem] truncate whitespace-nowrap" title={item.location || undefined}>{item.location || '—'}</td>
                           <td>
-                            <Link to={`/equipment/${item.id}`} className="font-medium text-primary-600 hover:underline">{item.name}</Link>
-                            {item.serial_number && (
-                              <p className="text-xs text-gray-400">S/N: {item.serial_number}</p>
-                            )}
-                          </td>
-                          <td>
-                            {item.model || '—'}
-                          </td>
-                          <td className="text-center">
-                            <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">
-                              {item.quantity}
-                            </span>
-                          </td>
-                          <td>
-                            {item.location || '—'}
-                          </td>
-                          <td>
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${statusConfig.bg} ${statusConfig.color}`}>
+                            <StatusPill className={cn(statusConfig.bg, statusConfig.color)}>
                               <StatusIcon className="h-3 w-3" />
                               {statusConfig.label}
-                            </span>
+                            </StatusPill>
                           </td>
-                          <td className="text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="sm">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => setEquipmentModal({ open: true, equipment: item })}>
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => setDeleteConfirm({ type: 'equipment', id: item.id, name: item.name })}>
-                                <Trash2 className="h-4 w-4 text-red-500" />
-                              </Button>
-                            </div>
+                          <td>
+                            <RowActions>
+                              <IconButton title="Изменить" onClick={() => setEquipmentModal({ open: true, equipment: item })}>
+                                <Edit className="h-3.5 w-3.5" />
+                              </IconButton>
+                              <IconButton danger title="Удалить" onClick={() => setDeleteConfirm({ type: 'equipment', id: item.id, name: item.name })}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </IconButton>
+                            </RowActions>
                           </td>
                         </tr>
                       )
                     })}
                   </tbody>
                 </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Сетевые панели */}
-        {activeTab === 'panels' && (
-          <IntercomPanelsSection addressId={addressId} panels={panels} />
-        )}
-
-        {/* Доступ / ответственные */}
-        {activeTab === 'access' && (
-          <AddressAssigneesSection addressId={addressId} />
-        )}
-
-        {/* Документы */}
-        {activeTab === 'documents' && (
-          <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Документы объекта
-              </h3>
-              <Button onClick={() => setDocumentModal(true)}>
-                <Upload className="h-4 w-4 mr-2" />
-                Загрузить документ
-              </Button>
+              )}
+            </Card>
+            <IntercomPanelsSection addressId={addressId} panels={panels} />
             </div>
-            
-            {documents.length === 0 ? (
-              <Card className="p-8 text-center">
-                <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-500 dark:text-gray-400">Документы не добавлены</p>
-              </Card>
-            ) : (
-              <div className="overflow-x-auto">
+          )}
+
+          {/* Документы */}
+          {activeTab === 'documents' && (
+            <Card
+              flush
+              title="Документы объекта"
+              action={
+                <Button size="sm" onClick={() => setDocumentModal(true)}>
+                  <Upload className="h-4 w-4 mr-1" /> Загрузить
+                </Button>
+              }
+            >
+              {documents.length === 0 ? (
+                <EmptyRow Icon={FileText} text="Документы не добавлены" />
+              ) : (
                 <table className="data-table min-w-full">
                   <thead>
                     <tr>
-                      <th>Название</th>
-                      <th>Тип</th>
+                      <th>Документ</th>
                       <th>Размер</th>
                       <th>Действует до</th>
                       <th>Добавлен</th>
-                      <th className="text-right">Действия</th>
+                      <th className="w-16" aria-label="Действия" />
                     </tr>
                   </thead>
                   <tbody>
                     {documents.map((doc) => (
-                      <tr key={doc.id}>
-                        <td>
-                          <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                            <span className="font-medium text-gray-900 dark:text-white" title={doc.name}>
-                              {doc.name}
-                            </span>
+                      <tr key={doc.id} >
+                        <td className="w-full max-w-0">
+                          <div className="flex min-w-[10rem] items-center gap-2">
+                            <FileText className="h-4 w-4 shrink-0 text-gray-400" />
+                            <div className="min-w-0">
+                              <p className="truncate font-medium text-gray-900 dark:text-white" title={doc.name}>{doc.name}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">{documentTypeLabels[doc.doc_type]}</p>
+                            </div>
                           </div>
                         </td>
-                        <td>
-                          {documentTypeLabels[doc.doc_type]}
-                        </td>
-                        <td>
-                          {formatFileSize(doc.file_size)}
-                        </td>
-                        <td>
+                        <td className="whitespace-nowrap tabular-nums">{formatFileSize(doc.file_size)}</td>
+                        <td className="whitespace-nowrap">
                           {doc.valid_until ? (
                             <span className={new Date(doc.valid_until) < new Date() ? 'text-red-500' : ''}>
                               {formatDate(doc.valid_until)}
                             </span>
                           ) : '—'}
                         </td>
+                        <td className="whitespace-nowrap">{formatDate(doc.created_at)}</td>
                         <td>
-                          {formatDate(doc.created_at)}
-                        </td>
-                        <td className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="sm" title="Открыть">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
+                          <RowActions>
+                            <IconButton
                               title="Скачать"
                               onClick={() => window.open(addressesApi.getDocumentDownloadUrl(addressId, doc.id), '_blank')}
                             >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" title="Удалить" onClick={() => setDeleteConfirm({ type: 'document', id: doc.id, name: doc.name })}>
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </div>
+                              <Download className="h-3.5 w-3.5" />
+                            </IconButton>
+                            <IconButton danger title="Удалить" onClick={() => setDeleteConfirm({ type: 'document', id: doc.id, name: doc.name })}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </IconButton>
+                          </RowActions>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Контакты */}
-        {activeTab === 'contacts' && (
-          <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Контакты
-              </h3>
-              <Button onClick={() => setContactModal({ open: true, contact: null })}>
-                <Plus className="h-4 w-4 mr-2" />
-                Добавить контакт
-              </Button>
-            </div>
-            
-            {contacts.length === 0 ? (
-              <Card className="p-8 text-center">
-                <Users className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-500 dark:text-gray-400">Контакты не добавлены</p>
-              </Card>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {contacts.map((contact) => (
-                  <Card key={contact.id} compact>
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="flex min-w-0 items-start gap-3">
-                        <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full">
-                          <Users className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="font-medium text-gray-900 dark:text-white">
-                              {contact.name}
-                            </h4>
-                            {contact.is_primary && (
-                              <span className="px-2 py-0.5 text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded">
-                                Основной
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {contactTypeLabels[contact.contact_type]}
-                          </p>
-                          <div className="mt-2 space-y-1">
-                            {contact.phone && (
-                              <a
-                                href={`tel:${contact.phone}`}
-                                className="flex items-center gap-2 text-sm text-primary-600 hover:underline dark:text-primary-400"
-                              >
-                                <Phone className="h-3 w-3" />
-                                {contact.phone}
-                              </a>
-                            )}
-                            {contact.email && (
-                              <a
-                                href={`mailto:${contact.email}`}
-                                className="flex items-center gap-2 text-sm text-primary-600 hover:underline dark:text-primary-400"
-                              >
-                                <Mail className="h-3 w-3" />
-                                {contact.email}
-                              </a>
-                            )}
-                          </div>
-                          {contact.notes && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                              {contact.notes}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-shrink-0 gap-1 self-end sm:self-start">
-                        <Button variant="ghost" size="sm" onClick={() => setContactModal({ open: true, contact })}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setDeleteConfirm({ type: 'contact', id: contact.id, name: contact.name })}>
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Заявки */}
-        {activeTab === 'tasks' && (
-          <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Заявки по объекту
-              </h3>
-              <Link to={`/tasks/new?address=${encodeURIComponent(address.address)}`}>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Создать заявку
-                </Button>
-              </Link>
-            </div>
-            
-            {/* Статистика заявок */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              {[
-                { value: taskStats.total, label: 'Всего', tone: 'text-gray-900 dark:text-white' },
-                { value: taskStats.new, label: 'Новых', tone: 'text-red-600 dark:text-red-400' },
-                { value: taskStats.in_progress, label: 'В работе', tone: 'text-orange-600 dark:text-orange-400' },
-                { value: taskStats.done, label: 'Выполнено', tone: 'text-green-600 dark:text-green-400' },
-                { value: taskStats.cancelled, label: 'Отменено', tone: 'text-gray-500 dark:text-gray-400' },
-              ].map((stat) => (
-                <div
-                  key={stat.label}
-                  className="rounded-xl border border-gray-200 bg-white p-3 text-center transition-colors dark:border-gray-700 dark:bg-gray-800"
-                >
-                  <p className={`text-2xl font-semibold ${stat.tone}`}>{stat.value}</p>
-                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{stat.label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Ссылка на все заявки */}
-            <Card compact>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-gray-600 dark:text-gray-300">
-                  Для просмотра всех заявок по этому адресу перейдите в раздел заявок с фильтром
-                </p>
-                <Link to={`/tasks?address_id=${address.id}&address_title=${encodeURIComponent(address.address || '')}`}>
-                  <Button variant="outline">
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Показать заявки
-                  </Button>
-                </Link>
-              </div>
+              )}
             </Card>
-          </div>
-        )}
-
-        {/* История */}
-        {activeTab === 'history' && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              История изменений
-            </h3>
-            
-            <Card className="p-8 text-center">
-              <History className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">
-                История изменений будет доступна после реализации бэкенда
-              </p>
-            </Card>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Модальные окна */}

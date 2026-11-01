@@ -6,6 +6,7 @@
  * Подключение к панели происходит только по нажатию — без фонового опроса.
  */
 import { useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import {
   Plus,
   Pencil,
@@ -20,6 +21,7 @@ import {
   X,
   AlertTriangle,
   Camera,
+  Server,
 } from 'lucide-react'
 import Button from '@/components/Button'
 import Card from '@/components/Card'
@@ -257,96 +259,60 @@ function PanelCard({
   })()
 
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-gray-900 dark:text-white">
-              {panel.label || panel.ip}
-            </span>
-            {panel.entrance && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                Подъезд {panel.entrance}
-              </span>
-            )}
-            {!panel.is_active && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500">
-                выключена
-              </span>
-            )}
-            {lockBadge && (
-              <span className={`text-xs px-2 py-0.5 rounded-full ${lockBadge.cls}`}>
-                {lockBadge.text}
-              </span>
-            )}
+    <li className="flex flex-col gap-1 px-4 py-1.5 text-sm sm:flex-row sm:items-center sm:gap-2">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <Server className="h-4 w-4 shrink-0 text-gray-400" />
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span className="font-medium text-gray-900 dark:text-white">{panel.label || panel.ip}</span>
+            {panel.entrance && !/подъезд/i.test(panel.label || '') && <Pill cls="bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">подъезд {panel.entrance}</Pill>}
+            {!panel.is_active && <Pill cls="bg-gray-100 text-gray-500 dark:bg-gray-700">выключена</Pill>}
+            {lockBadge && <Pill cls={lockBadge.cls}>{lockBadge.text}</Pill>}
           </div>
-          <div className="mt-1 text-sm text-gray-500 dark:text-gray-400 flex gap-3 flex-wrap">
-            <span>{panel.ip}{panel.port !== 80 ? `:${panel.port}` : ''}</span>
-            {panel.model && <span>{panel.model}</span>}
-          </div>
-        </div>
-        <div className="flex gap-1 shrink-0">
-          <Button variant="ghost" size="sm" onClick={onEdit} title="Редактировать">
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onDelete} title="Удалить">
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          <p className="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">
+            {panel.ip}{panel.port !== 80 ? `:${panel.port}` : ''}
+            {panel.model && ` · ${panel.model}`}
+            {scanQuery.data && (
+              <>
+                {' · код ключей '}
+                <span className="font-mono font-semibold text-gray-700 dark:text-gray-200">{scanQuery.data.code ?? '—'}</span>
+                {!scanQuery.data.active && ' (выкл.)'}
+              </>
+            )}
+          </p>
         </div>
       </div>
 
-      {/* Код записи ключей */}
-      {scanQuery.data && (
-        <div className="mt-2 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-300">
-          <KeyRound className="h-4 w-4 text-gray-400" />
-          Код записи ключей:{' '}
-          <span className="font-mono font-semibold">{scanQuery.data.code ?? '—'}</span>
-          <span className={`text-xs px-1.5 py-0.5 rounded ${scanQuery.data.active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700'}`}>
-            {scanQuery.data.active ? 'активен' : 'выключен'}
-          </span>
-        </div>
-      )}
-
-      {/* Действия */}
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="flex shrink-0 flex-wrap items-center gap-0.5">
         <Button
-          variant="primary"
           size="sm"
+          variant="outline"
+          className="mr-1 h-7 px-2.5 text-primary-700 dark:text-primary-400"
           onClick={() => setConfirmAction('open')}
           isLoading={openDoor.isPending}
           disabled={doorPending}
         >
           <DoorOpen className="h-4 w-4 mr-1" /> Открыть
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setConfirmAction('close')}
-          isLoading={closeDoor.isPending}
-          disabled={doorPending}
-        >
-          <DoorClosed className="h-4 w-4 mr-1" /> Закрыть
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => lockQuery.refetch()}
-          isLoading={lockQuery.isFetching}
-        >
-          {lockQuery.data?.is_open ? <Unlock className="h-4 w-4 mr-1" /> : <Lock className="h-4 w-4 mr-1" />}
-          Статус замка
-        </Button>
-        <Button variant="ghost" size="sm" onClick={onVideo}>
-          <Video className="h-4 w-4 mr-1" /> Видео
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => scanQuery.refetch()}
-          isLoading={scanQuery.isFetching}
-        >
-          <RefreshCw className="h-4 w-4 mr-1" /> Код ключей
-        </Button>
+        <PanelAction title="Закрыть дверь" onClick={() => setConfirmAction('close')} disabled={doorPending}>
+          <DoorClosed className="h-3.5 w-3.5" />
+        </PanelAction>
+        <PanelAction title="Проверить замок" onClick={() => lockQuery.refetch()} disabled={lockQuery.isFetching}>
+          {lockQuery.data?.is_open ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+        </PanelAction>
+        <PanelAction title="Видео" onClick={onVideo}>
+          <Video className="h-3.5 w-3.5" />
+        </PanelAction>
+        <PanelAction title="Код записи ключей" onClick={() => scanQuery.refetch()} disabled={scanQuery.isFetching}>
+          {scanQuery.isFetching ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+        </PanelAction>
+        <span className="mx-1 hidden h-4 w-px bg-gray-200 dark:bg-gray-700 sm:block" aria-hidden />
+        <PanelAction title="Редактировать" onClick={onEdit}>
+          <Pencil className="h-3.5 w-3.5" />
+        </PanelAction>
+        <PanelAction title="Удалить" danger onClick={onDelete}>
+          <Trash2 className="h-3.5 w-3.5" />
+        </PanelAction>
       </div>
 
       {confirmAction && (
@@ -375,7 +341,38 @@ function PanelCard({
           </div>
         </Modal>
       )}
-    </div>
+    </li>
+  )
+}
+
+function Pill({ cls, children }: { cls: string; children: ReactNode }) {
+  return <span className={`inline-flex h-5 items-center rounded-full px-2 text-xs ${cls}`}>{children}</span>
+}
+
+function PanelAction({
+  title,
+  onClick,
+  disabled,
+  danger = false,
+  children,
+}: {
+  title: string
+  onClick: () => void
+  disabled?: boolean
+  danger?: boolean
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-gray-700 ${danger ? 'hover:text-red-600 dark:hover:text-red-400' : 'hover:text-gray-700 dark:hover:text-gray-200'}`}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -438,19 +435,20 @@ export default function IntercomPanelsSection({
 
   return (
     <Card
+      flush
       title="Сетевые панели"
       action={
-        <Button size="sm" onClick={() => setFormModal({ open: true, panel: null })}>
+        <Button size="sm" variant="outline" onClick={() => setFormModal({ open: true, panel: null })}>
           <Plus className="h-4 w-4 mr-1" /> Добавить панель
         </Button>
       }
     >
       {panels.length === 0 ? (
-        <div className="text-sm text-gray-500 dark:text-gray-400 py-6 text-center">
+        <p className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
           На этом объекте пока нет сетевых панелей.
-        </div>
+        </p>
       ) : (
-        <div className="space-y-2">
+        <ul className="divide-y divide-gray-100 dark:divide-gray-700">
           {sortedPanels.map((panel) => (
             <PanelCard
               key={panel.id}
@@ -461,7 +459,7 @@ export default function IntercomPanelsSection({
               onVideo={() => setVideoPanel(panel)}
             />
           ))}
-        </div>
+        </ul>
       )}
 
       <Modal

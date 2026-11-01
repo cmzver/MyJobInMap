@@ -9,8 +9,7 @@ import { getMenuForRole, getMobileMenuForRole, type MenuSection, type MenuItem }
 import { getRoleLabel, normalizeRoleForAccess } from '@/types/user'
 import UserAvatar from '@/components/UserAvatar'
 import WorkerMobileNavigation from '@/components/navigation/WorkerMobileNavigation'
-import portalPackage from '../../package.json'
-import { 
+import {
   LayoutDashboard, 
   LogOut,
   Menu,
@@ -28,6 +27,14 @@ import {
 interface DashboardLayoutProps {
   children: ReactNode
 }
+
+/** Футер меню: когда и из какого коммита собран портал (в dev-сервере — «dev»). */
+const buildLabel = (() => {
+  if (typeof __BUILD_TIME__ === 'undefined') return 'Портал · dev'
+  const built = new Date(__BUILD_TIME__)
+  const stamp = built.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return `Сборка ${stamp}${__BUILD_SHA__ ? ` · ${__BUILD_SHA__}` : ''}`
+})()
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const location = useLocation()
@@ -172,7 +179,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }),
     [currentTime],
   )
-  const portalVersion = portalPackage.version
 
   const renderMenuItem = (item: MenuItem, closeSidebar?: () => void) => {
     const Icon = item.icon
@@ -441,7 +447,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Version info at bottom */}
           <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
             <p className="text-xs text-gray-400 dark:text-gray-500">
-              FieldWorker Portal v{portalVersion}
+              {buildLabel}
             </p>
           </div>
         </aside>

@@ -37,8 +37,8 @@ describe('portalRoutes', () => {
   it('keeps compatibility redirects explicit', () => {
     expect(portalRoutes.find(({ id }) => id === 'devices-legacy')?.redirectTo).toBe('/profile')
     expect(portalRoutes.find(({ id }) => id === 'settings-legacy')?.redirectTo).toBe('/profile')
-    expect(portalRoutes.find(({ id }) => id === 'reports-legacy')?.redirectTo).toBe('/analytics')
-    expect(portalRoutes.find(({ id }) => id === 'sla-legacy')?.redirectTo).toBe('/analytics')
+    expect(portalRoutes.find(({ id }) => id === 'reports-legacy')?.redirectTo).toBe('/dashboard')
+    expect(portalRoutes.find(({ id }) => id === 'sla-legacy')?.redirectTo).toBe('/dashboard')
   })
 
   it('marks superadmin-only areas in the same registry', () => {

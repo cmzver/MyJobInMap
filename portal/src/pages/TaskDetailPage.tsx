@@ -32,7 +32,7 @@ import {
 } from '@/hooks/useTasks'
 import RepeatMarkModal from '@/components/tasks/RepeatMarkModal'
 import TaskOperationsSection from '@/components/tasks/TaskOperationsSection'
-import TaskRemoteSection from '@/components/tasks/TaskRemoteSection'
+import TaskPanelsBadge from '@/components/tasks/TaskPanelsBadge'
 import TaskActsSection from '@/components/acts/TaskActsSection'
 import { useUsers } from '@/hooks/useUsers'
 import { useComments, useAddComment } from '@/hooks/useComments'
@@ -416,6 +416,7 @@ export default function TaskDetailPage() {
                 <StatusBadge status={task.status} />
                 <PriorityBadge priority={task.priority} />
                 <RepeatBadge repeat={task.repeat_of} />
+                <TaskPanelsBadge task={task} canResolve={canChangeStatus} />
               </div>
               <h1 className="text-xl font-semibold leading-snug text-gray-900 dark:text-white break-words">
                 {task.title}
@@ -635,8 +636,6 @@ export default function TaskDetailPage() {
               onClose={() => setShowRepeatModal(false)}
             />
           )}
-
-          <TaskRemoteSection task={task} canResolve={canChangeStatus} />
 
           <TaskOperationsSection task={task} />
 
