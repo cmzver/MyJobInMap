@@ -11,8 +11,10 @@ export const operationsApi = {
   plans: async () => (await apiClient.get<MaintenancePlan[]>('/maintenance-plans')).data,
   savePlan: async (data: Omit<MaintenancePlan, 'id' | 'next_date'>, id?: number) =>
     (await (id ? apiClient.put(`/maintenance-plans/${id}`, data) : apiClient.post('/maintenance-plans', data))).data,
-  myDay: async (day: string) => (await apiClient.get<components['schemas']['DayResponse']>('/my-day', { params: { day } })).data,
-  saveRoute: async (day: string, task_ids: number[]) => apiClient.put('/my-day', { task_ids }, { params: { day } }),
+  myDay: async (day: string, user_id?: number) =>
+    (await apiClient.get<components['schemas']['DayResponse']>('/my-day', { params: { day, user_id } })).data,
+  saveRoute: async (day: string, task_ids: number[], user_id?: number) =>
+    apiClient.put('/my-day', { task_ids }, { params: { day, user_id } }),
   materials: async () => (await apiClient.get<Material[]>('/materials')).data,
   stocks: async (user_id?: number) => (await apiClient.get<Stock[]>('/materials/stocks', { params: { user_id } })).data,
   createMaterial: async (data: { name: string; unit: string; unit_cost: string }) => apiClient.post('/materials', data),

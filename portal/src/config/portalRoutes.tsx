@@ -20,7 +20,6 @@ import {
 
 import type { AccessRole } from '@/types/user'
 
-const MyDayPage = lazy(() => import('@/pages/MyDayPage'))
 const MaintenancePage = lazy(() => import('@/pages/MaintenancePage'))
 const MaterialsPage = lazy(() => import('@/pages/MaterialsPage'))
 const EquipmentPassportPage = lazy(() => import('@/pages/EquipmentPassportPage'))
@@ -82,8 +81,6 @@ export const navigationSections: ReadonlyArray<{
 ]
 
 export const portalRoutes: PortalRouteDefinition[] = [
-  { id: 'my-day', path: 'my-day', element: <MyDayPage />, roles: ALL_ROLES,
-    navigation: { section: 'main', label: 'Мой день', icon: Calendar } },
   { id: 'maintenance', path: 'maintenance', element: <MaintenancePage />, roles: MANAGER_ROLES,
     navigation: { section: 'management', label: 'Плановое обслуживание', icon: Calendar } },
   { id: 'materials', path: 'materials', element: <MaterialsPage />, roles: ALL_ROLES,
@@ -97,7 +94,6 @@ export const portalRoutes: PortalRouteDefinition[] = [
     roles: MANAGER_ROLES,
     navigation: { section: 'main', label: 'Дашборд', icon: BarChart3 },
   },
-  { id: 'analytics-legacy', path: 'analytics', redirectTo: '/dashboard', roles: MANAGER_ROLES },
   {
     id: 'my-tasks',
     path: 'my-tasks',
