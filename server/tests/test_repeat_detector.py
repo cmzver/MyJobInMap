@@ -1,26 +1,22 @@
-"""Повторные заявки: дубль открытой заявки и возврат после недавнего закрытия."""
+"""Повторные заявки: место заявки, история адреса и ручные отметки повтора/дубля."""
 
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.models import (
-    AddressModel,
     CommentModel,
     OrganizationModel,
-    OrganizationSettingsModel,
     TaskModel,
     TaskStatus,
     UserModel,
     UserRole,
     init_default_settings,
 )
-from app.models.address import AddressSystemModel
 from app.schemas import TaskCreate, TaskUpdate
 from app.services.auth import get_password_hash
-from app.services.repeat_detector import DUPLICATE, RETURN, address_key, pick_repeat
+from app.services.repeat_detector import DUPLICATE, RETURN, address_key, mark_repeat
 from app.services.task_service import TaskService
 from app.utils import task_to_response
 from tests.test_multitenant_isolation_api import _create_org_user, _login_headers
@@ -49,49 +45,6 @@ class TestAddressKey:
 
     def test_unparsed_address_has_no_key(self):
         assert address_key("где-то во дворе") is None
-
-
-class TestPickRepeat:
-    """Чистый расчёт — им же размечается история в миграции."""
-
-    def _row(self, task_id, created_at, **fields):
-        values = {
-            "raw_address": PLACE,
-            "address_id": None,
-            "system_id": None,
-            "system_type": None,
-            "defect_type": None,
-            "status": TaskStatus.NEW.value,
-            "completed_at": None,
-            **fields,
-        }
-        row = SimpleNamespace(id=task_id, created_at=created_at, **values)
-        row.address_key = address_key(row.raw_address)
-        return row
-
-    def test_closed_within_window_is_return(self):
-        moment = _now()
-        original = self._row(
-            1,
-            moment - timedelta(days=3),
-            status=TaskStatus.DONE.value,
-            completed_at=moment - timedelta(days=2),
-        )
-
-        assert pick_repeat(self._row(2, moment), [original], 30) == (original, RETURN)
-
-    def test_open_or_later_closed_task_is_not_detected(self):
-        """Дубли автоматически не ищутся — их отмечает диспетчер."""
-        moment = _now()
-        open_task = self._row(1, moment - timedelta(days=2))
-        closed_later = self._row(
-            3,
-            moment - timedelta(days=2),
-            status=TaskStatus.DONE.value,
-            completed_at=moment + timedelta(days=1),
-        )
-
-        assert pick_repeat(self._row(2, moment), [open_task, closed_later], 30) is None
 
 
 @pytest.fixture
@@ -151,18 +104,38 @@ def _create(db_session, user, address=PLACE, **fields):
     return task
 
 
-class TestApplyRepeat:
-    def test_open_task_on_same_place_is_not_marked(self, db_session, dispatcher):
+class TestNoAutomaticMarks:
+    def test_new_task_on_busy_place_is_not_marked(self, db_session, dispatcher):
+        """В одном доме — разные квартиры и поломки: автоматика не размечает."""
         _existing(db_session, dispatcher.organization_id)
+        _closed(db_session, dispatcher.organization_id, defect_type="Брелок")
 
-        task = _create(db_session, dispatcher, address="Невская 9")
+        task = _create(
+            db_session, dispatcher, address="Невская 9", defect_type="Брелок"
+        )
 
         assert task.address_key == address_key(PLACE)
         assert task.repeat_kind is None
 
-    def test_recently_closed_is_return_with_completion_comment(
+    def test_address_change_updates_place_and_keeps_manual_mark(
         self, db_session, dispatcher
     ):
+        original = _closed(db_session, dispatcher.organization_id)
+        task = _create(db_session, dispatcher, address="ул. Садовая, д. 1")
+        mark_repeat(db_session, task, original, RETURN)
+        db_session.commit()
+
+        updated = TaskService(db_session).admin_update_task(
+            task.id, TaskUpdate(address=PLACE), dispatcher
+        )
+
+        assert updated.address_key == address_key(PLACE)
+        assert (updated.repeat_of_task_id, updated.repeat_kind) == (
+            original.id,
+            RETURN,
+        )
+
+    def test_repeat_ref_shows_who_closed_and_how(self, db_session, dispatcher):
         worker = _create_org_user(
             db_session,
             username="repeat_worker",
@@ -170,12 +143,9 @@ class TestApplyRepeat:
             role=UserRole.WORKER.value,
             organization_id=dispatcher.organization_id,
         )
-        original = _existing(
+        original = _closed(
             db_session,
             dispatcher.organization_id,
-            status=TaskStatus.DONE.value,
-            created_at=_now() - timedelta(days=12),
-            completed_at=_now() - timedelta(days=10),
             assigned_user_id=worker.id,
             defect_type="Не работает домофон",
         )
@@ -188,127 +158,15 @@ class TestApplyRepeat:
             )
         )
         db_session.commit()
-
         task = _create(db_session, dispatcher, defect_type="Не работает домофон")
+        mark_repeat(db_session, task, original, RETURN)
+        db_session.commit()
+
         ref = task_to_response(task).repeat_of
 
-        assert ref is not None
-        assert (ref.id, ref.kind) == (original.id, RETURN)
-        assert ref.same_defect is True
+        assert (ref.id, ref.kind, ref.same_defect) == (original.id, RETURN, True)
         assert ref.assigned_user_name == "repeat_worker"
         assert ref.completion_comment == "Заменил блок питания"
-
-    def test_closed_before_window_is_not_repeat(self, db_session, dispatcher):
-        _existing(
-            db_session,
-            dispatcher.organization_id,
-            status=TaskStatus.DONE.value,
-            created_at=_now() - timedelta(days=45),
-            completed_at=_now() - timedelta(days=40),
-        )
-
-        first = _create(db_session, dispatcher)
-        assert first.repeat_kind is None
-        first.status = "CANCELLED"
-
-        db_session.add(
-            OrganizationSettingsModel(
-                organization_id=dispatcher.organization_id, repeat_window_days=60
-            )
-        )
-        db_session.commit()
-
-        assert _create(db_session, dispatcher).repeat_kind == RETURN
-
-    def test_cancelled_and_other_org_are_ignored(self, db_session, dispatcher):
-        other_org = OrganizationModel(name="Other", slug="other", is_active=True)
-        db_session.add(other_org)
-        db_session.commit()
-        _existing(db_session, dispatcher.organization_id, status="CANCELLED")
-        _closed(db_session, other_org.id)
-
-        assert _create(db_session, dispatcher).repeat_kind is None
-
-    def test_other_city_is_other_place(self, db_session, dispatcher):
-        _closed(db_session, dispatcher.organization_id, "Кудрово, ул. Невская, д. 9")
-
-        task = _create(
-            db_session, dispatcher, address="гп. Новоселье, ул. Невская, д. 9"
-        )
-
-        assert task.repeat_kind is None
-
-    def test_system_must_match_unless_unknown(self, db_session, dispatcher):
-        book = AddressModel(
-            address="Другой дом",
-            organization_id=dispatcher.organization_id,
-        )
-        db_session.add(book)
-        db_session.commit()
-        intercom = AddressSystemModel(
-            address_id=book.id, system_type="intercom", name="Домофон"
-        )
-        cameras = AddressSystemModel(
-            address_id=book.id, system_type="video_surveillance", name="Камеры"
-        )
-        db_session.add_all([intercom, cameras])
-        db_session.commit()
-        original = _closed(
-            db_session, dispatcher.organization_id, system_id=intercom.id
-        )
-
-        assert _create(db_session, dispatcher, system_id=cameras.id).repeat_kind is None
-        assert _create(db_session, dispatcher).repeat_of_task_id == original.id
-
-    def test_address_book_link_matches_differently_written_address(
-        self, db_session, dispatcher
-    ):
-        book = AddressModel(
-            address="Невская ул., д. 9",
-            street="Невская ул.",
-            building="9",
-            lat=59.95,
-            lon=30.45,
-            organization_id=dispatcher.organization_id,
-            is_active=True,
-        )
-        db_session.add(book)
-        db_session.commit()
-        original = _closed(
-            db_session,
-            dispatcher.organization_id,
-            "ЖК «Невский», парадная 2",
-            address_id=book.id,
-        )
-
-        task = _create(db_session, dispatcher, address="Невская ул., д. 9")
-
-        assert task.address_id == book.id
-        assert task.repeat_of_task_id == original.id
-
-    def test_same_defect_return_first(self, db_session, dispatcher):
-        org_id = dispatcher.organization_id
-        same_defect = _closed(db_session, org_id, days=5, defect_type="Брелок")
-        _closed(db_session, org_id, days=1, defect_type="Камера")
-        _existing(db_session, org_id, defect_type="Брелок")
-
-        task = _create(db_session, dispatcher, defect_type="брелок")
-
-        assert (task.repeat_of_task_id, task.repeat_kind) == (same_defect.id, RETURN)
-
-    def test_address_change_recomputes_repeat(self, db_session, dispatcher):
-        original = _closed(db_session, dispatcher.organization_id)
-        task = _create(db_session, dispatcher, address="ул. Садовая, д. 1")
-        assert task.repeat_kind is None
-
-        updated = TaskService(db_session).admin_update_task(
-            task.id, TaskUpdate(address=PLACE), dispatcher
-        )
-
-        assert (updated.repeat_of_task_id, updated.repeat_kind) == (
-            original.id,
-            RETURN,
-        )
 
 
 def _org_client(client: TestClient, db_session, name: str):
@@ -336,6 +194,81 @@ def _org_client(client: TestClient, db_session, name: str):
         _login_headers(client, dispatcher.username, "pass123"),
         _login_headers(client, worker.username, "pass123"),
     )
+
+
+def _mark(client, headers, task_id, original_id, kind="duplicate"):
+    return client.put(
+        f"/api/tasks/{task_id}/repeat-of",
+        json={"original_task_id": original_id, "kind": kind},
+        headers=headers,
+    )
+
+
+class TestManualMarks:
+    def test_duplicate_mark_and_unmark_with_history(
+        self, client: TestClient, db_session
+    ):
+        org, _, headers, _ = _org_client(client, db_session, "DupOrg")
+        original = _existing(db_session, org.id, task_number="Z-00101")
+        task = _existing(db_session, org.id, created_at=_now())
+
+        marked = _mark(client, headers, task.id, original.id)
+
+        assert marked.status_code == 200
+        assert marked.json()["repeat_of"]["id"] == original.id
+        assert marked.json()["repeat_of"]["kind"] == DUPLICATE
+        assert marked.json()["comments"][-1]["text"] == (
+            "Отмечена как дубль заявки №Z-00101"
+        )
+
+        cleared = _mark(client, headers, task.id, None).json()
+
+        assert cleared["repeat_of"] is None
+        assert cleared["comments"][-1]["text"] == (
+            "Снята отметка «дубль заявки №Z-00101»"
+        )
+
+    def test_return_only_for_done_task(self, client: TestClient, db_session):
+        org, _, headers, _ = _org_client(client, db_session, "RetOrg")
+        still_open = _existing(db_session, org.id)
+        done = _closed(db_session, org.id, task_number="Z-00202")
+        task = _existing(db_session, org.id, created_at=_now())
+
+        rejected = _mark(client, headers, task.id, still_open.id, RETURN)
+        marked = _mark(client, headers, task.id, done.id, RETURN)
+
+        assert rejected.status_code == 400
+        assert marked.json()["repeat_of"]["kind"] == RETURN
+        assert marked.json()["comments"][-1]["text"] == (
+            "Отмечена как повтор заявки №Z-00202"
+        )
+
+    def test_no_duplicate_chains(self, client: TestClient, db_session):
+        org, _, headers, _ = _org_client(client, db_session, "ChainOrg")
+        root = _existing(db_session, org.id)
+        middle = _existing(db_session, org.id)
+        child = _existing(db_session, org.id)
+        _mark(client, headers, child.id, middle.id)
+
+        # Дубли заявки переезжают вместе с ней, дубль дубля — на исходную.
+        _mark(client, headers, middle.id, root.id)
+        db_session.expire_all()
+        assert db_session.get(TaskModel, child.id).repeat_of_task_id == root.id
+
+        other = _existing(db_session, org.id)
+        response = _mark(client, headers, other.id, middle.id)
+        assert response.json()["repeat_of"]["id"] == root.id
+
+    def test_rejects_self_other_org_and_workers(self, client: TestClient, db_session):
+        org, worker, headers, worker_headers = _org_client(client, db_session, "RejOrg")
+        other, *_ = _org_client(client, db_session, "RejOther")
+        task = _existing(db_session, org.id, assigned_user_id=worker.id)
+        foreign = _existing(db_session, other.id)
+        original = _existing(db_session, org.id)
+
+        assert _mark(client, headers, task.id, task.id).status_code == 400
+        assert _mark(client, headers, task.id, foreign.id).status_code == 404
+        assert _mark(client, worker_headers, task.id, original.id).status_code == 403
 
 
 class TestRepeatApi:
@@ -367,6 +300,18 @@ class TestRepeatApi:
         ).json()
         assert [t["id"] for t in by_task["history"]] == [closed.id]
 
+    def test_related_other_city_is_other_place(self, client: TestClient, db_session):
+        org, _, headers, _ = _org_client(client, db_session, "CityOrg")
+        _closed(db_session, org.id, "Кудрово, ул. Невская, д. 9")
+
+        data = client.get(
+            "/api/tasks/related",
+            params={"address": "гп. Новоселье, ул. Невская, д. 9"},
+            headers=headers,
+        ).json()
+
+        assert data["history"] == []
+
     def test_related_worker_sees_only_own_tasks(self, client: TestClient, db_session):
         org, worker, _, worker_headers = _org_client(client, db_session, "WrkOrg")
         own = _existing(db_session, org.id, assigned_user_id=worker.id)
@@ -383,27 +328,22 @@ class TestRepeatApi:
 
         assert client.get("/api/tasks/related", headers=headers).status_code == 400
 
-    def test_list_filter_and_repeat_ref(self, client: TestClient, db_session):
+    def test_list_filter_by_mark(self, client: TestClient, db_session):
         org, _, headers, _ = _org_client(client, db_session, "ListOrg")
         original = _closed(db_session, org.id)
-        created = client.post(
-            "/api/tasks",
-            json={"title": "Снова", "address": "Невская 9", "description": ""},
-            headers=headers,
-        ).json()
-        assert created["repeat_of"]["id"] == original.id
-        assert created["repeat_of"]["kind"] == RETURN
+        task = _existing(db_session, org.id, created_at=_now())
+        _mark(client, headers, task.id, original.id, RETURN)
 
         response = client.get(
             "/api/tasks", params={"repeat_kind": "return"}, headers=headers
         )
 
-        assert [t["id"] for t in response.json()["items"]] == [created["id"]]
+        assert [t["id"] for t in response.json()["items"]] == [task.id]
         assert response.json()["items"][0]["repeat_of"]["task_number"]
 
     def test_repeat_metrics(self, client: TestClient, db_session):
         org, worker, headers, _ = _org_client(client, db_session, "MetOrg")
-        _existing(
+        returned = _existing(
             db_session,
             org.id,
             status=TaskStatus.DONE.value,
@@ -420,11 +360,8 @@ class TestRepeatApi:
             completed_at=_now() - timedelta(hours=4),
             assigned_user_id=worker.id,
         )
-        client.post(
-            "/api/tasks",
-            json={"title": "Снова", "address": PLACE, "description": ""},
-            headers=headers,
-        )
+        again = _existing(db_session, org.id, created_at=_now())
+        _mark(client, headers, again.id, returned.id, RETURN)
 
         response = client.get(
             "/api/analytics/repeats", params={"period": "all"}, headers=headers
@@ -469,79 +406,3 @@ class TestRepeatApi:
         )
         saved = client.put(url, json={"repeat_window_days": 14}, headers=headers)
         assert saved.json()["repeat_window_days"] == 14
-
-
-class TestManualDuplicate:
-    def _mark(self, client, headers, task_id, original_id):
-        return client.put(
-            f"/api/tasks/{task_id}/duplicate-of",
-            json={"original_task_id": original_id},
-            headers=headers,
-        )
-
-    def test_mark_and_unmark_with_history(self, client: TestClient, db_session):
-        org, _, headers, _ = _org_client(client, db_session, "DupOrg")
-        original = _existing(db_session, org.id, task_number="Z-00101")
-        task = _existing(db_session, org.id, created_at=_now())
-
-        marked = self._mark(client, headers, task.id, original.id)
-
-        assert marked.status_code == 200
-        assert marked.json()["repeat_of"]["id"] == original.id
-        assert marked.json()["repeat_of"]["kind"] == DUPLICATE
-        assert marked.json()["comments"][-1]["text"] == (
-            "Отмечена как дубль заявки №Z-00101"
-        )
-
-        cleared = self._mark(client, headers, task.id, None).json()
-
-        assert cleared["repeat_of"] is None
-        assert cleared["comments"][-1]["text"] == (
-            "Снята отметка «дубль заявки №Z-00101»"
-        )
-
-    def test_no_chains(self, client: TestClient, db_session):
-        org, _, headers, _ = _org_client(client, db_session, "ChainOrg")
-        root = _existing(db_session, org.id)
-        middle = _existing(db_session, org.id)
-        child = _existing(db_session, org.id)
-        self._mark(client, headers, child.id, middle.id)
-
-        # Дубли заявки переезжают вместе с ней, дубль дубля — на исходную.
-        self._mark(client, headers, middle.id, root.id)
-        db_session.expire_all()
-        assert db_session.get(TaskModel, child.id).repeat_of_task_id == root.id
-
-        other = _existing(db_session, org.id)
-        response = self._mark(client, headers, other.id, middle.id)
-        assert response.json()["repeat_of"]["id"] == root.id
-
-    def test_rejects_self_other_org_and_workers(self, client: TestClient, db_session):
-        org, worker, headers, worker_headers = _org_client(client, db_session, "RejOrg")
-        other, *_ = _org_client(client, db_session, "RejOther")
-        task = _existing(db_session, org.id, assigned_user_id=worker.id)
-        foreign = _existing(db_session, other.id)
-        original = _existing(db_session, org.id)
-
-        assert self._mark(client, headers, task.id, task.id).status_code == 400
-        assert self._mark(client, headers, task.id, foreign.id).status_code == 404
-        assert (
-            self._mark(client, worker_headers, task.id, original.id).status_code == 403
-        )
-
-    def test_address_change_keeps_manual_duplicate(self, db_session, dispatcher):
-        from app.services.repeat_detector import mark_duplicate
-
-        original = _existing(db_session, dispatcher.organization_id)
-        task = _create(db_session, dispatcher, address="ул. Садовая, д. 1")
-        mark_duplicate(db_session, task, original)
-        db_session.commit()
-
-        updated = TaskService(db_session).admin_update_task(
-            task.id, TaskUpdate(address=PLACE), dispatcher
-        )
-
-        assert (updated.repeat_of_task_id, updated.repeat_kind) == (
-            original.id,
-            DUPLICATE,
-        )

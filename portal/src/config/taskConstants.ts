@@ -209,6 +209,6 @@ export const DUE_FILTER_OPTIONS = [
 /** Фильтр списка по повторам (repeat_kind). */
 export const REPEAT_FILTER_OPTIONS = [
   { value: '', label: 'Все заявки' },
-  { value: 'return', label: 'Возвраты' },
+  { value: 'return', label: 'Повторы' },
   { value: 'duplicate', label: 'Дубли' },
 ]

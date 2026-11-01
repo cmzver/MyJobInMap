@@ -69,7 +69,7 @@ function PlaceList({
                 <div className="shrink-0 text-right">
                   <span className="font-semibold text-gray-900 dark:text-white">{row.tasks}</span>
                   {row.returns > 0 && (
-                    <span className="ml-2 text-xs text-orange-600 dark:text-orange-400">возвр. {row.returns}</span>
+                    <span className="ml-2 text-xs text-orange-600 dark:text-orange-400">повт. {row.returns}</span>
                   )}
                 </div>
               </li>
@@ -85,7 +85,7 @@ export default function RepeatsSection({ period }: { period: ReportPeriod }) {
   const { data } = useRepeatMetrics(period)
   if (!data) return null
 
-  const { overview, by_worker, top_addresses, top_systems, window_days } = data
+  const { overview, by_worker, top_addresses, top_systems } = data
   const workers = by_worker.filter((worker) => worker.completed > 0)
 
   return (
@@ -94,26 +94,27 @@ export default function RepeatsSection({ period }: { period: ReportPeriod }) {
         <div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Повторные заявки</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Возврат — новая заявка на том же адресе и системе за {window_days} дн. после закрытия. По всем исполнителям.
+            Повторы и дубли отмечают диспетчеры в карточке заявки. Доля повторов — по исполнителю
+            выполненной заявки, по всем исполнителям.
           </p>
         </div>
         <Link
           to="/tasks?repeat=return"
           className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:underline dark:text-primary-400"
         >
-          Все возвраты
+          Все повторы
           <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-gray-200 bg-gray-200 dark:border-gray-700 dark:bg-gray-700 md:grid-cols-3">
         <Tile
-          title="Доля возвратов"
+          title="Доля повторов"
           value={`${overview.return_rate}%`}
           meta={`${overview.returned} из ${overview.completed} закрытых вернулись`}
           icon={RotateCcw}
         />
-        <Tile title="Возвратов" value={overview.returns} meta={`Из ${overview.created} новых заявок`} icon={History} />
+        <Tile title="Повторов" value={overview.returns} meta={`Из ${overview.created} новых заявок`} icon={History} />
         <Tile title="Дублей" value={overview.duplicates} meta="Отмечены вручную" icon={Copy} />
       </div>
 
@@ -122,7 +123,7 @@ export default function RepeatsSection({ period }: { period: ReportPeriod }) {
           <div className="p-5">
             <h3 className="mb-4 flex items-center gap-2 text-base font-semibold text-gray-900 dark:text-white">
               <Users className="h-4.5 w-4.5 text-gray-500 dark:text-gray-400" />
-              Возвраты по исполнителям
+              Повторы по исполнителям
             </h3>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
