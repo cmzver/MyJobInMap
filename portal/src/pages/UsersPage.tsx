@@ -30,6 +30,7 @@ import {
 import { mutationToast } from '@/utils/apiError'
 import { formatDateOnly as formatDate } from '@/utils/dateFormat'
 import Badge from '@/components/Badge'
+import UserAvatar from '@/components/UserAvatar'
 import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
@@ -428,71 +429,75 @@ export default function UsersPage() {
 
                 {!isCollapsed && (
                   <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                      <thead className="bg-gray-50 dark:bg-gray-900/50">
+                    <table className="data-table min-w-full">
+                      <thead>
                         <tr>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                          <th>
                             Пользователь
                           </th>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                          <th>
                             Роль
                           </th>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                          <th>
                             Контакты
                           </th>
-                          <th className="px-4 py-3 text-center text-sm font-medium text-gray-500 dark:text-gray-400">
+                          <th className="text-center">
                             Заявок
                           </th>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                          <th>
                             Статус
                           </th>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                          <th>
                             Последний вход
                           </th>
-                          <th className="px-4 py-3 text-right text-sm font-medium text-gray-500 dark:text-gray-400">
+                          <th className="text-right">
                             Действия
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
+                      <tbody>
                         {group.users.map((user) => {
                           const role = getRoleVisual(user.role, groups)
                           const RoleIcon = role.icon
 
                           return (
-                            <tr key={user.id} className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                              <td className="px-4 py-3">
-                                <div className="flex items-center gap-3">
-                                  <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-700">
-                                    <User className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-gray-900 dark:text-white">{user.username}</p>
+                            <tr key={user.id}>
+                              <td>
+                                <div className="flex min-w-0 items-center gap-2.5">
+                                  <UserAvatar
+                                    fullName={user.full_name || user.username}
+                                    sizeClassName="h-7 w-7 shrink-0"
+                                    textClassName="text-[11px]"
+                                  />
+                                  <span className="min-w-0 truncate">
+                                    <span className="font-medium text-gray-900 dark:text-white">
+                                      {user.full_name || user.username}
+                                    </span>
                                     {user.full_name && (
-                                      <p className="text-sm text-gray-500 dark:text-gray-400">{user.full_name}</p>
+                                      <span className="text-gray-500 dark:text-gray-400"> · {user.username}</span>
                                     )}
-                                  </div>
+                                  </span>
                                 </div>
                               </td>
-                              <td className="px-4 py-3">
+                              <td>
                                 <Badge variant={role.variant}>
                                   <RoleIcon className="mr-1 h-3 w-3" />
                                   {role.label}
                                 </Badge>
                               </td>
-                              <td className="px-4 py-3">
+                              <td>
                                 <div className="text-sm">
                                   {user.email && <p className="text-gray-600 dark:text-gray-300">{user.email}</p>}
                                   {user.phone && <p className="text-gray-500 dark:text-gray-400">{user.phone}</p>}
                                   {!user.email && !user.phone && <span className="text-gray-400 dark:text-gray-500">—</span>}
                                 </div>
                               </td>
-                              <td className="px-4 py-3 text-center">
+                              <td className="text-center">
                                 <span className="inline-flex min-w-[2rem] items-center justify-center rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-sm font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-300">
                                   {user.assigned_tasks_count}
                                 </span>
                               </td>
-                              <td className="px-4 py-3">
+                              <td>
                                 {user.is_active ? (
                                   <Badge variant="success">
                                     <Check className="mr-1 h-3 w-3" />
@@ -502,10 +507,10 @@ export default function UsersPage() {
                                   <Badge variant="gray">Неактивен</Badge>
                                 )}
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                              <td>
                                 {user.last_login ? formatDate(user.last_login) : <span className="text-gray-400 dark:text-gray-500">—</span>}
                               </td>
-                              <td className="px-4 py-3">
+                              <td>
                                 <div className="flex justify-end gap-1">
                                   <Button
                                     variant="ghost"

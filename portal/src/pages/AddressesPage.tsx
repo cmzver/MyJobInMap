@@ -28,6 +28,7 @@ import PageHeader from '@/components/PageHeader'
 import Input from '@/components/Input'
 import Textarea from '@/components/Textarea'
 import Card from '@/components/Card'
+import Modal from '@/components/Modal'
 import Spinner from '@/components/Spinner'
 import Pagination from '@/components/Pagination'
 import EmptyState from '@/components/EmptyState'
@@ -247,7 +248,7 @@ export default function AddressesPage() {
         title="База адресов"
         description="Управление адресами и информацией о зданиях"
         actions={
-          <Button onClick={handleOpenCreate}>
+          <Button size="sm" onClick={handleOpenCreate}>
             <Plus className="h-4 w-4 mr-2" />
             Добавить адрес
           </Button>
@@ -255,18 +256,18 @@ export default function AddressesPage() {
       />
 
       {/* Search */}
-      <Card className="mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+      <div className="mb-4">
+        <div className="relative w-full max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             placeholder="Поиск по адресу..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            className="field pl-9"
           />
         </div>
-      </Card>
+      </div>
 
       {/* Content */}
       {isLoading ? (
@@ -296,27 +297,26 @@ export default function AddressesPage() {
       ) : (
         <div className="space-y-4">
           {/* List (table) */}
-          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-900/50">
+          <div className="data-table-wrap">
+            <table className="data-table min-w-full">
+              <thead>
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Адрес</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Координаты</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Подъезды / Этажи</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Домофон</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">УК</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Действия</th>
+                  <th>Адрес</th>
+                  <th>Координаты</th>
+                  <th>Подъезды / Этажи</th>
+                  <th>Домофон</th>
+                  <th>УК</th>
+                  <th className="text-right">Действия</th>
                 </tr>
               </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              <tbody>
                 {data.items.map((address) => (
                   <tr 
-                    key={address.id} 
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+                    key={address.id} className="cursor-pointer"
                     onClick={() => navigate(`/addresses/${address.id}`)}
                   >
                     {/* Адрес */}
-                    <td className="px-4 py-3 align-top">
+                    <td>
                       <div className="flex items-start gap-2">
                         <MapPin className="h-4 w-4 text-primary-500 mt-0.5" />
                         <div className="min-w-0">
@@ -336,7 +336,7 @@ export default function AddressesPage() {
                     </td>
 
                     {/* Координаты */}
-                    <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-300">
+                    <td>
                       {address.lat && address.lon ? (
                         <span>{address.lat.toFixed(4)}, {address.lon.toFixed(4)}</span>
                       ) : (
@@ -345,7 +345,7 @@ export default function AddressesPage() {
                     </td>
 
                     {/* Подъезды / Этажи */}
-                    <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-300">
+                    <td>
                       <div className="flex items-center gap-4">
                         <span className="inline-flex items-center gap-1">
                           <DoorOpen className="h-4 w-4 text-gray-500" />
@@ -365,7 +365,7 @@ export default function AddressesPage() {
                     </td>
 
                     {/* Домофон */}
-                    <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-300">
+                    <td>
                       {address.has_intercom ? (
                         <span className="inline-flex items-center gap-1">
                           <KeyRound className="h-4 w-4 text-gray-500" />
@@ -377,7 +377,7 @@ export default function AddressesPage() {
                     </td>
 
                     {/* УК */}
-                    <td className="px-4 py-3 align-top text-sm text-gray-700 dark:text-gray-300">
+                    <td>
                       {address.management_company ? (
                         <span className="inline-flex items-center gap-1">
                           <Building2 className="h-4 w-4 text-gray-500" />
@@ -389,7 +389,7 @@ export default function AddressesPage() {
                     </td>
 
                     {/* Действия */}
-                    <td className="px-4 py-3 align-top">
+                    <td>
                       <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                         {deleteConfirm === address.id ? (
                           <>
@@ -451,23 +451,9 @@ export default function AddressesPage() {
       )}
 
       {/* Create/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Новый адрес
-              </h3>
-              <button
-                onClick={handleCloseModal}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
+      <Modal isOpen={showModal} onClose={handleCloseModal} title="Новый адрес" size="lg">
             <form onSubmit={handleSubmit}>
-              <div className="px-6 py-4 space-y-6">
+              <div className="space-y-6">
                 {/* Основная информация */}
                 <div>
                   <div className="flex items-center gap-2 mb-3">
@@ -643,7 +629,7 @@ export default function AddressesPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+              <div className="flex justify-end gap-2 pt-4">
                 <Button type="button" variant="secondary" onClick={handleCloseModal}>
                   Отмена
                 </Button>
@@ -652,9 +638,7 @@ export default function AddressesPage() {
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
     </div>
   )
 }

@@ -476,33 +476,33 @@ export default function OrganizationsPage() {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-900/50">
+            <table className="data-table min-w-full">
+              <thead>
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th>
                     Организация
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th>
                     Статус
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="text-center">
                     <Users className="w-4 h-4 inline" /> Польз.
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="text-center">
                     <ClipboardList className="w-4 h-4 inline" /> Заявки
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="text-center">
                     <MapPin className="w-4 h-4 inline" /> Адреса
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th>
                     Создана
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="text-right">
                     Действия
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              <tbody>
                 {organizations.map((org) => (
                   <tr
                     key={org.id}
@@ -510,7 +510,7 @@ export default function OrganizationsPage() {
                       !org.is_active ? 'opacity-50' : ''
                     }`}
                   >
-                    <td className="px-4 py-3">
+                    <td>
                       <div>
                         <button
                           onClick={() => navigate(`/admin/organizations/${org.id}`)}
@@ -524,30 +524,30 @@ export default function OrganizationsPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td>
                       <Badge variant={org.is_active ? 'success' : 'gray'}>
                         {org.is_active ? 'Активна' : 'Неактивна'}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="text-center">
                       <span className="text-sm text-gray-700 dark:text-gray-300">
                         {org.user_count}
                         <span className="text-gray-400"> / {org.max_users}</span>
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="text-center">
                       <span className="text-sm text-gray-700 dark:text-gray-300">
                         {org.task_count}
                         <span className="text-gray-400"> / {org.max_tasks}</span>
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center text-sm text-gray-700 dark:text-gray-300">
+                    <td className="text-center">
                       {org.address_count}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                    <td>
                       {org.created_at ? formatDateOnly(org.created_at) : '—'}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => handleOpenEdit(org)}

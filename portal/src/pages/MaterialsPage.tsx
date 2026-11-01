@@ -5,11 +5,10 @@ import { useUsers } from '@/hooks/useUsers'
 import { useAuthStore } from '@/store/authStore'
 import { showApiError } from '@/utils/apiError'
 import Button from '@/components/Button'
-import Input from '@/components/Input'
+import Card from '@/components/Card'
 import PageHeader from '@/components/PageHeader'
 import QueryStatePanel from '@/components/QueryStatePanel'
 
-const field = 'w-full rounded-md border border-gray-300 bg-transparent p-2 text-sm dark:border-gray-600'
 
 export default function MaterialsPage() {
   const user = useAuthStore((state) => state.user)
@@ -38,27 +37,111 @@ export default function MaterialsPage() {
   const submit = (e: FormEvent) => {
     e.preventDefault(); adjust.mutate({ material_id: Number(materialId), user_id: selectedUser, quantity, kind, reason, operation_id: operationId })
   }
-  return <div className="space-y-6">
-    <PageHeader title="Материалы" description="Остатки у исполнителей. Расход фиксируется в карточке заявки." />
-    {manager && <label className="block max-w-sm text-sm">Исполнитель<select value={selectedUser} className={field} onChange={(e) => { setSelectedUser(Number(e.target.value)); changed() }}>{users.data?.filter((u) => u.is_active).map((u) => <option key={u.id} value={u.id}>{u.full_name || u.username}</option>)}</select></label>}
-    {stocks.isPending ? <QueryStatePanel state="loading" /> : stocks.isError ? <QueryStatePanel state="error" onRetry={() => stocks.refetch()} /> : <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700"><table className="w-full text-left text-sm"><thead><tr><th className="p-3">Материал</th><th className="p-3">Остаток</th></tr></thead><tbody>{stocks.data.map((stock) => <tr key={stock.material_id} className="border-t border-gray-200 dark:border-gray-700"><td className="p-3">{stock.name}</td><td className="p-3">{Number(stock.quantity).toLocaleString('ru')} {stock.unit}</td></tr>)}</tbody></table>{stocks.data.length === 0 && <p className="p-4 text-sm text-gray-500">Материалы ещё не выданы.</p>}</div>}
-    {manager && <div className="grid gap-6 lg:grid-cols-2">
-      <form onSubmit={(e) => { e.preventDefault(); create.mutate({ name, unit, unit_cost: cost }) }} className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-        <h2 className="font-semibold">Добавить в справочник</h2>
-        <Input label="Название" required maxLength={200} value={name} onChange={(e) => setName(e.target.value)} />
-        <Input label="Единица измерения" required maxLength={20} value={unit} onChange={(e) => setUnit(e.target.value)} />
-        <Input label="Стоимость единицы, ₽" required type="number" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} />
-        <Button type="submit" isLoading={create.isPending}>Добавить материал</Button>
-      </form>
-      <form onSubmit={submit} className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-        <h2 className="font-semibold">Изменить остаток исполнителя</h2>
-        {catalog.isError && <p role="alert">Справочник недоступен. <button type="button" onClick={() => catalog.refetch()}>Повторить</button></p>}
-        <label className="block text-sm">Материал<select className={field} required value={materialId} onChange={(e) => { setMaterialId(e.target.value); changed() }}><option value="">Выберите материал</option>{catalog.data?.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>)}</select></label>
-        <label className="block text-sm">Операция<select className={field} value={kind} onChange={(e) => { setKind(e.target.value); changed() }}><option value="receipt">Выдать исполнителю</option><option value="write_off">Списать вне заявки</option></select></label>
-        <Input label="Количество" type="number" min="0.001" step="0.001" required value={quantity} onChange={(e) => { setQuantity(e.target.value); changed() }} />
-        <Input label="Основание" maxLength={500} value={reason} onChange={(e) => { setReason(e.target.value); changed() }} />
-        <Button type="submit" isLoading={adjust.isPending} disabled={!materialId || !selectedUser}>Сохранить</Button>
-      </form>
-    </div>}
-  </div>
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Материалы" description="Остатки у исполнителей. Расход фиксируется в карточке заявки." />
+
+      <Card
+        flush
+        title="Остатки"
+        action={
+          manager && (
+            <select
+              aria-label="Исполнитель"
+              value={selectedUser}
+              className="field h-8 w-60"
+              onChange={(e) => { setSelectedUser(Number(e.target.value)); changed() }}
+            >
+              {users.data?.filter((u) => u.is_active).map((u) => <option key={u.id} value={u.id}>{u.full_name || u.username}</option>)}
+            </select>
+          )
+        }
+      >
+        {stocks.isPending ? (
+          <QueryStatePanel state="loading" />
+        ) : stocks.isError ? (
+          <QueryStatePanel state="error" onRetry={() => stocks.refetch()} />
+        ) : stocks.data.length === 0 ? (
+          <p className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">Материалы ещё не выданы.</p>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Материал</th>
+                <th className="w-40 text-right">Остаток</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stocks.data.map((stock) => (
+                <tr key={stock.material_id}>
+                  <td>{stock.name}</td>
+                  <td className="whitespace-nowrap text-right tabular-nums">
+                    {Number(stock.quantity).toLocaleString('ru')} {stock.unit}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      {manager && (
+        <div className="grid gap-6 xl:grid-cols-2">
+          <Card title="Добавить в справочник">
+            <form
+              onSubmit={(e) => { e.preventDefault(); create.mutate({ name, unit, unit_cost: cost }) }}
+              className="flex flex-wrap items-end gap-3"
+            >
+              <label className="min-w-[12rem] flex-1">
+                <span className="field-label">Название</span>
+                <input className="field" required maxLength={200} value={name} onChange={(e) => setName(e.target.value)} />
+              </label>
+              <label className="w-24">
+                <span className="field-label">Единица</span>
+                <input className="field" required maxLength={20} value={unit} onChange={(e) => setUnit(e.target.value)} />
+              </label>
+              <label className="w-32">
+                <span className="field-label">Цена, ₽</span>
+                <input className="field" required type="number" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} />
+              </label>
+              <Button type="submit" isLoading={create.isPending}>Добавить</Button>
+            </form>
+          </Card>
+
+          <Card title="Изменить остаток исполнителя">
+            {catalog.isError && (
+              <p role="alert" className="mb-3 text-sm text-red-600 dark:text-red-400">
+                Справочник недоступен. <button type="button" className="underline" onClick={() => catalog.refetch()}>Повторить</button>
+              </p>
+            )}
+            <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
+              <label className="min-w-[12rem] flex-1">
+                <span className="field-label">Материал</span>
+                <select className="field" required value={materialId} onChange={(e) => { setMaterialId(e.target.value); changed() }}>
+                  <option value="">Выберите материал</option>
+                  {catalog.data?.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>)}
+                </select>
+              </label>
+              <label className="w-48">
+                <span className="field-label">Операция</span>
+                <select className="field" value={kind} onChange={(e) => { setKind(e.target.value); changed() }}>
+                  <option value="receipt">Выдать исполнителю</option>
+                  <option value="write_off">Списать вне заявки</option>
+                </select>
+              </label>
+              <label className="w-28">
+                <span className="field-label">Количество</span>
+                <input className="field" type="number" min="0.001" step="0.001" required value={quantity} onChange={(e) => { setQuantity(e.target.value); changed() }} />
+              </label>
+              <label className="min-w-[12rem] flex-1">
+                <span className="field-label">Основание</span>
+                <input className="field" maxLength={500} value={reason} onChange={(e) => { setReason(e.target.value); changed() }} />
+              </label>
+              <Button type="submit" isLoading={adjust.isPending} disabled={!materialId || !selectedUser}>Сохранить</Button>
+            </form>
+          </Card>
+        </div>
+      )}
+    </div>
+  )
 }

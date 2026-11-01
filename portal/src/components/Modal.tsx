@@ -133,10 +133,10 @@ export default function Modal({
         `}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-5 py-3 dark:border-gray-700">
           <h2
             id={titleId}
-            className="text-lg font-semibold text-gray-900 dark:text-white"
+            className="text-base font-semibold text-gray-900 dark:text-white"
           >
             {title}
           </h2>
@@ -152,7 +152,7 @@ export default function Modal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="flex-1 overflow-y-auto px-5 py-4">
           {children}
         </div>
       </div>

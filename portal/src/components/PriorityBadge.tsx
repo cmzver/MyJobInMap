@@ -2,7 +2,6 @@ import { memo } from 'react'
 import Badge from './Badge'
 import { PRIORITY_LABELS, PRIORITY_COLORS, normalizePriority } from '@/config/taskConstants'
 import type { TaskPriority } from '@/types/task'
-import { cn } from '@/utils/cn'
 
 interface PriorityBadgeProps {
   priority: TaskPriority | number
@@ -15,7 +14,7 @@ function PriorityBadge({ priority, className }: PriorityBadgeProps) {
   const variant = PRIORITY_COLORS[normalized] || 'gray'
 
   return (
-    <Badge variant={variant} className={cn('rounded-md', className)} title={label}>
+    <Badge variant={variant} className={className} title={label}>
       {label}
     </Badge>
   )

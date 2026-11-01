@@ -14,7 +14,7 @@ import {
   type ToggleableTaskTableColumnKey,
 } from '@/components/tasks/taskTableConfig'
 import type { Task } from '@/types/task'
-import { formatDateTime, getSla } from '@/utils/dateFormat'
+import { formatDateOnly, formatDateTime, getSla } from '@/utils/dateFormat'
 
 interface TaskListTableProps {
   groups: TaskListGroup[]
@@ -64,31 +64,28 @@ function renderTaskCell(task: Task, key: ToggleableTaskTableColumnKey, unreadCou
     case 'number':
       return (
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate font-mono text-sm text-gray-900 dark:text-gray-100">
+          <span className="truncate font-mono text-xs text-gray-900 dark:text-gray-100">
             {task.task_number || `#${task.id}`}
           </span>
           {hasUnread && <TaskNotificationBubble count={unreadCount} />}
         </div>
       )
-    case 'title':
+    case 'title': {
+      const headline = task.defect_type || task.title || 'Без описания'
+      const detail = task.defect_type ? task.title : task.description
       return (
-        <>
-          <div className="flex min-w-0 items-center gap-2">
-            <RepeatBadge repeat={task.repeat_of} className="shrink-0" />
-            <div className="min-w-0 truncate text-sm font-medium text-gray-900 dark:text-white">
-              {task.defect_type || task.title || 'Без описания'}
-            </div>
-          </div>
-          {(task.defect_type ? task.title : task.description) && (
-            <div className="mt-0.5 min-w-0 line-clamp-1 text-xs text-gray-500 dark:text-gray-400">
-              {task.defect_type ? task.title : task.description}
-            </div>
-          )}
-        </>
+        <div className="flex min-w-0 items-center gap-2" title={detail ? `${headline} — ${detail}` : headline}>
+          <RepeatBadge repeat={task.repeat_of} className="shrink-0" />
+          <span className="min-w-0 truncate">
+            <span className="font-medium text-gray-900 dark:text-white">{headline}</span>
+            {detail && <span className="text-gray-500 dark:text-gray-400"> · {detail}</span>}
+          </span>
+        </div>
       )
+    }
     case 'address':
       return (
-        <span className="min-w-0 line-clamp-2 text-sm text-gray-600 dark:text-gray-300">
+        <span className="block min-w-0 truncate text-gray-600 dark:text-gray-300" title={task.raw_address || undefined}>
           {task.raw_address || '-'}
         </span>
       )
@@ -106,25 +103,25 @@ function renderTaskCell(task: Task, key: ToggleableTaskTableColumnKey, unreadCou
       )
     case 'assignee':
       return (
-        <span className="block min-w-0 truncate text-sm text-gray-600 dark:text-gray-300">
+        <span className="block min-w-0 truncate text-gray-600 dark:text-gray-300">
           {task.assigned_user_name || '-'}
         </span>
       )
     case 'creator':
       return (
-        <span className="block min-w-0 truncate text-sm text-gray-600 dark:text-gray-300">
+        <span className="block min-w-0 truncate text-gray-600 dark:text-gray-300">
           {task.created_by_name || '-'}
         </span>
       )
     case 'date':
       return (
-        <span className="block min-w-0 truncate text-sm text-gray-500 dark:text-gray-400">
-          {formatDateTime(task.created_at)}
+        <span className="block min-w-0 truncate whitespace-nowrap text-gray-500 dark:text-gray-400" title={formatDateTime(task.created_at)}>
+          {formatDateOnly(task.created_at)}
         </span>
       )
     case 'sla':
       return (
-        <span className={`block min-w-0 truncate text-sm ${sla.tone}`}>{sla.label}</span>
+        <span className={`block min-w-0 truncate ${sla.tone}`}>{sla.label}</span>
       )
     default:
       return null
@@ -158,7 +155,7 @@ export default function TaskListTable({
   onToggleGroup,
   onOpenTask,
 }: TaskListTableProps) {
-  const cellPadding = isCompactView ? 'px-4 py-2' : 'px-4 py-3'
+  const cellPadding = isCompactView ? 'py-1.5' : ''
   const visibleDataColumns = toggleableTaskTableColumns.filter(({ key }) => visibleColumns[key])
   const visibleColumnOrder: TaskTableColumnKey[] = [
     'select',
@@ -182,10 +179,10 @@ export default function TaskListTable({
   }
 
   return (
-    <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-colors dark:border-gray-700 dark:bg-gray-800 lg:block">
-      <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-2.5 dark:border-gray-700">
-        <div className="text-sm text-gray-500 dark:text-gray-400">
-          Колонки: {visibleDataColumnCount}/{toggleableTaskTableColumns.length}
+    <div className="hidden overflow-hidden rounded-xl border border-gray-200 bg-white transition-colors dark:border-gray-700 dark:bg-gray-800 lg:block">
+      <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-3 py-1 dark:border-gray-700">
+        <div className="eyebrow">
+          Колонки {visibleDataColumnCount}/{toggleableTaskTableColumns.length}
         </div>
         <div ref={columnMenuRef} className="relative">
           <Button
@@ -193,7 +190,7 @@ export default function TaskListTable({
             variant="ghost"
             size="sm"
             onClick={onColumnMenuToggle}
-            className="h-8 px-2.5"
+            className="h-7 px-2"
             aria-expanded={isColumnMenuOpen}
           >
             <SlidersHorizontal className="mr-2 h-4 w-4" />
@@ -245,7 +242,7 @@ export default function TaskListTable({
       <div ref={onMeasureContainer} className="tasks-table-scroll overflow-x-auto">
         <table
           ref={tableRef}
-          className={`divide-y divide-gray-200 dark:divide-gray-700 ${isResizableEnabled ? 'table-fixed' : 'min-w-full'}`}
+          className={`data-table ${isResizableEnabled ? 'table-fixed' : 'min-w-full'}`}
           style={isResizableEnabled ? { width: `${tableWidth}px` } : undefined}
         >
           {isResizableEnabled && (
@@ -260,11 +257,9 @@ export default function TaskListTable({
               ))}
             </colgroup>
           )}
-          <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900/50">
+          <thead className="sticky top-0 z-10">
             <tr>
-              <th
-                className={`relative overflow-hidden ${cellPadding} text-left text-sm font-medium text-gray-500 dark:text-gray-400`}
-              >
+              <th className="relative w-10 overflow-hidden">
                 <input
                   type="checkbox"
                   checked={allSelectedOnPage}
@@ -275,10 +270,7 @@ export default function TaskListTable({
                 {renderResizeHandle('select')}
               </th>
               {visibleDataColumns.map(({ key }) => (
-                <th
-                  key={key}
-                  className={`relative overflow-hidden whitespace-nowrap ${cellPadding} text-left text-sm font-medium text-gray-500 dark:text-gray-400`}
-                >
+                <th key={key} className="relative overflow-hidden">
                   <span className="block truncate pr-2" title={columnLabels[key]}>
                     {columnLabels[key]}
                   </span>
@@ -287,7 +279,7 @@ export default function TaskListTable({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
+          <tbody>
             {groups.map((group) => {
               const isCollapsed = Boolean(groupBy) && collapsedGroups.has(group.key)
               return (
@@ -320,10 +312,10 @@ export default function TaskListTable({
                         <tr
                           key={task.id}
                           onClick={() => onOpenTask(task.id)}
-                          className={`cursor-pointer transition-colors ${
+                          className={`cursor-pointer ${
                             hasUnread
                               ? 'bg-primary-50/40 hover:bg-primary-50/70 dark:bg-primary-900/10 dark:hover:bg-primary-900/20'
-                              : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                              : ''
                           }`}
                         >
                           <td

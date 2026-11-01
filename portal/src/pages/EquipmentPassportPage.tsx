@@ -25,9 +25,9 @@ export default function EquipmentPassportPage() {
   if (query.isError) return <QueryStatePanel state="error" onRetry={() => query.refetch()} />
   const { equipment, address, address_id, tasks } = query.data
   return <div className="space-y-5">
-    <PageHeader title={equipment.name} description={address} actions={<Button variant="outline" onClick={() => window.print()}>Печать паспорта</Button>} />
-    <div className="flex flex-wrap gap-6 rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
-      <dl className="grid flex-1 grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-sm">
+    <PageHeader title={equipment.name} description={address} actions={<Button size="sm" variant="outline" onClick={() => window.print()}>Печать паспорта</Button>} />
+    <div className="flex flex-wrap gap-6 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+      <dl className="grid flex-1 grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm [&>dt]:text-gray-500 [&>dt]:dark:text-gray-400 [&>dd]:text-gray-900 [&>dd]:dark:text-white">
         <dt>Модель</dt><dd>{equipment.model || '—'}</dd><dt>Серийный номер</dt><dd>{equipment.serial_number || '—'}</dd>
         <dt>Дата установки</dt><dd>{equipment.install_date?.slice(0, 10) || '—'}</dd><dt>Гарантия до</dt><dd>{equipment.warranty_until?.slice(0, 10) || '—'}</dd>
         <dt>Расположение</dt><dd>{equipment.location || '—'}</dd><dt>Примечания</dt><dd className="whitespace-pre-wrap">{equipment.notes || '—'}</dd>
@@ -35,6 +35,6 @@ export default function EquipmentPassportPage() {
       <div className="text-center">{qr && <><img src={qr} width={180} height={180} alt="QR-код паспорта оборудования" /><a href={qr} download={`equipment-${id}.svg`} className="text-sm text-primary-600 hover:underline">Скачать QR-код</a></>}{qrError && <p role="alert" className="text-sm">QR-код недоступен</p>}</div>
     </div>
     <Link to={`/addresses/${address_id}`} className="inline-block text-sm text-primary-600 hover:underline">Карточка адреса и документы</Link>
-    <section><h2 className="mb-3 font-semibold">История обслуживания</h2><ul className="divide-y divide-gray-200 dark:divide-gray-700">{tasks.map((task) => <li key={task.id} className="flex items-center justify-between gap-3 py-3"><Link className="text-primary-600 hover:underline" to={`/tasks/${task.id}`}>{task.task_number} · {task.title}</Link><StatusBadge status={task.status} /></li>)}</ul>{tasks.length === 0 && <p className="text-sm text-gray-500">Связанных работ пока нет. Оборудование можно привязать в карточке заявки или расписании обслуживания.</p>}</section>
+    <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"><h2 className="eyebrow mb-2">История обслуживания</h2><ul className="divide-y divide-gray-100 dark:divide-gray-700">{tasks.map((task) => <li key={task.id} className="flex items-center justify-between gap-3 py-2 text-sm"><Link className="text-primary-600 hover:underline" to={`/tasks/${task.id}`}>{task.task_number} · {task.title}</Link><StatusBadge status={task.status} /></li>)}</ul>{tasks.length === 0 && <p className="text-sm text-gray-500">Связанных работ пока нет. Оборудование можно привязать в карточке заявки или расписании обслуживания.</p>}</section>
   </div>
 }

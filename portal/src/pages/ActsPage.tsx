@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { FileText } from 'lucide-react'
 import Badge from '@/components/Badge'
 import Button from '@/components/Button'
-import Card from '@/components/Card'
 import EmptyState from '@/components/EmptyState'
 import Input from '@/components/Input'
 import PageHeader from '@/components/PageHeader'
@@ -50,19 +49,25 @@ export default function ActsPage() {
         description="Акты выполненных работ: оформленные, подписанные и аннулированные."
       />
 
-      <Card compact>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-44">
           <Select label="Статус" options={STATUS_OPTIONS} value={status} onChange={resetPage(setStatus)} />
+        </div>
+        <div className="w-72">
           <Input
             label="Поиск"
             placeholder="Номер акта или заказчик"
             value={search}
             onChange={(event) => resetPage(setSearch)(event.target.value)}
           />
+        </div>
+        <div className="w-40">
           <Input label="С" type="date" value={dateFrom} onChange={(event) => resetPage(setDateFrom)(event.target.value)} />
+        </div>
+        <div className="w-40">
           <Input label="По" type="date" value={dateTo} onChange={(event) => resetPage(setDateTo)(event.target.value)} />
         </div>
-      </Card>
+      </div>
 
       {!query.data ? (
         <QueryStatePanel
@@ -77,28 +82,28 @@ export default function ActsPage() {
           description="Акты оформляются в карточке заявки — блок «Акты»."
         />
       ) : (
-        <Card compact className="overflow-hidden">
+        <div className="data-table-wrap">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+            <table className="data-table min-w-full">
               <thead>
-                <tr className="text-left text-gray-600 dark:text-gray-300">
-                  <th className="px-3 py-2 font-medium">Номер</th>
-                  <th className="px-3 py-2 font-medium">Дата</th>
-                  <th className="px-3 py-2 font-medium">Заявка</th>
-                  <th className="px-3 py-2 font-medium">Заказчик</th>
-                  <th className="px-3 py-2 text-right font-medium">Сумма</th>
-                  <th className="px-3 py-2 font-medium">Статус</th>
-                  <th className="px-3 py-2" />
+                <tr>
+                  <th>Номер</th>
+                  <th>Дата</th>
+                  <th>Заявка</th>
+                  <th>Заказчик</th>
+                  <th className="text-right">Сумма</th>
+                  <th>Статус</th>
+                  <th />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              <tbody>
                 {query.data.items.map((act) => {
                   const actStatus = ACT_STATUS[act.status]
                   return (
-                    <tr key={act.id} className="align-top">
-                      <td className="whitespace-nowrap px-3 py-2 font-mono text-gray-900 dark:text-white">{act.number}</td>
-                      <td className="whitespace-nowrap px-3 py-2">{formatDateOnly(act.created_at)}</td>
-                      <td className="min-w-[14rem] px-3 py-2">
+                    <tr key={act.id}>
+                      <td className="whitespace-nowrap font-mono text-xs">{act.number}</td>
+                      <td className="whitespace-nowrap">{formatDateOnly(act.created_at)}</td>
+                      <td className="max-w-[22rem] truncate" title={act.address ?? undefined}>
                         {act.task_id ? (
                           <Link to={`/tasks/${act.task_id}`} className="text-primary-600 hover:underline dark:text-primary-400">
                             {act.task_number}
@@ -106,14 +111,14 @@ export default function ActsPage() {
                         ) : (
                           act.task_number
                         )}
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{act.address}</p>
+                        {act.address && <span className="text-gray-500 dark:text-gray-400"> · {act.address}</span>}
                       </td>
-                      <td className="px-3 py-2">{act.customer_name || '—'}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right">{formatRub(act.total_amount)}</td>
-                      <td className="px-3 py-2">
+                      <td>{act.customer_name || '—'}</td>
+                      <td className="whitespace-nowrap text-right">{formatRub(act.total_amount)}</td>
+                      <td>
                         <Badge variant={actStatus.variant}>{actStatus.label}</Badge>
                       </td>
-                      <td className="px-3 py-2 text-right">
+                      <td className="text-right">
                         <Button
                           size="sm"
                           variant="ghost"
@@ -143,7 +148,7 @@ export default function ActsPage() {
               </Button>
             </div>
           )}
-        </Card>
+        </div>
       )}
     </div>
   )

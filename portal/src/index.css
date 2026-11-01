@@ -87,6 +87,46 @@ code {
   .eyebrow {
     @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400;
   }
+
+  /* Поле ввода: одна высота (36px) и шрифт везде. 16px на телефоне —
+     иначе iOS увеличивает страницу при фокусе. Ширину задаёт раскладка. */
+  .field {
+    @apply block h-9 w-full rounded-lg border border-gray-300 bg-white px-3 text-base text-gray-900
+      placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500
+      disabled:cursor-not-allowed disabled:bg-gray-100 sm:text-sm
+      dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-500 dark:disabled:bg-gray-800;
+  }
+  textarea.field {
+    @apply h-auto min-h-[76px] resize-y py-2;
+  }
+  .field-label {
+    @apply mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300;
+  }
+
+  /* Таблица данных: строка ~40px, шапка — надзаголовок, разделители только
+     между строками. Правила внутри :where() — без веса, так что утилиты на
+     ячейке (выравнивание, ширина) по-прежнему работают. */
+  .data-table-wrap {
+    @apply overflow-x-auto rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800;
+  }
+  .data-table {
+    @apply w-full text-sm;
+  }
+  .data-table :where(thead) {
+    @apply bg-gray-50 dark:bg-gray-900/40;
+  }
+  .data-table :where(th) {
+    @apply whitespace-nowrap px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-500 dark:text-gray-400;
+  }
+  .data-table :where(td) {
+    @apply px-3 py-2 align-middle text-gray-700 dark:text-gray-200;
+  }
+  .data-table :where(tbody tr) {
+    @apply border-t border-gray-100 dark:border-gray-700/60;
+  }
+  .data-table :where(tbody tr:hover) {
+    @apply bg-gray-50/70 dark:bg-gray-700/30;
+  }
 }
 
 /* Custom utilities */

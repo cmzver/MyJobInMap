@@ -17,7 +17,7 @@ function StatusBadge({ status, className }: StatusBadgeProps) {
       aria-label={label}
       title={label}
       className={cn(
-        'inline-flex h-6 max-w-full items-center rounded-md border border-l-2 px-2 text-xs font-medium leading-none',
+        'inline-flex h-5 max-w-full items-center rounded-full px-2 text-xs font-medium leading-none',
         STATUS_BADGE_CLASSES[status],
         className
       )}

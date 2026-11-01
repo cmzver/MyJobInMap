@@ -405,44 +405,44 @@ export default function OrganizationDetailPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-900/50">
+              <table className="data-table min-w-full">
+                <thead>
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">ID</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Пользователь</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Роль</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Заявки</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Статус</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Действия</th>
+                    <th>ID</th>
+                    <th>Пользователь</th>
+                    <th>Роль</th>
+                    <th className="text-center">Заявки</th>
+                    <th>Статус</th>
+                    <th className="text-right">Действия</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody>
                   {users.map((u: OrgUser) => (
-                    <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                    <tr key={u.id}>
+                      <td>
                         {u.id}
                       </td>
-                      <td className="px-4 py-3">
+                      <td>
                         <div className="font-medium text-gray-900 dark:text-white">{u.full_name}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">
                           {u.username}
                           {u.email && ` · ${u.email}`}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td>
                         <Badge variant={u.role === 'manager' || u.role === 'dispatcher' ? 'warning' : u.role === 'worker' ? 'gray' : 'info'}>
                           {u.role_label || getRoleLabel(u.role)}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-center text-sm text-gray-700 dark:text-gray-300">
+                      <td className="text-center">
                         {u.assigned_tasks_count}
                       </td>
-                      <td className="px-4 py-3">
+                      <td>
                         <Badge variant={u.is_active ? 'success' : 'gray'}>
                           {u.is_active ? 'Активен' : 'Неактивен'}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="text-right">
                         {unassignConfirm === u.id ? (
                           <div className="flex items-center justify-end gap-1">
                             <Button

@@ -92,7 +92,7 @@ export default function NotificationsPage() {
         description={unreadCount > 0 ? `${unreadCount} непрочитанных` : 'Все прочитано'}
         actions={
           unreadCount > 0 && (
-            <Button
+            <Button size="sm"
               variant="secondary"
               onClick={() => markAllAsReadMutation.mutate()}
               isLoading={markAllAsReadMutation.isPending}

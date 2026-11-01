@@ -350,7 +350,7 @@ export default function OrganizationSettingsPage() {
   const [selectedOrgId, setSelectedOrgId] = useState<number | undefined>(undefined)
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-4xl space-y-6">
       <PageHeader
         title="Организация"
         description="Реквизиты для документов, нумерация актов, сроки и повторы заявок."
@@ -364,7 +364,7 @@ export default function OrganizationSettingsPage() {
           <select
             value={selectedOrgId ?? ''}
             onChange={(e) => setSelectedOrgId(e.target.value ? Number(e.target.value) : undefined)}
-            className="w-full max-w-sm rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            className="field max-w-sm"
           >
             <option value="">Выберите организацию</option>
             {organizations.map((org) => (

@@ -80,14 +80,14 @@ function ContainerRow({ c, onShowLogs }: { c: ContainerInfo; onShowLogs: (name: 
       <Badge variant="warning">starting</Badge>
     ) : null
   return (
-    <tr className="border-b border-gray-100 last:border-0 dark:border-gray-800">
-      <td className="px-3 py-1.5 font-medium text-gray-800 dark:text-gray-200">{c.name}</td>
-      <td className="px-3 py-1.5">
+    <tr className="last:border-0">
+      <td className="text-gray-800">{c.name}</td>
+      <td>
         <Badge variant={STATE_VARIANT[c.state] ?? 'gray'}>{c.state || '—'}</Badge>
       </td>
-      <td className="px-3 py-1.5">{healthBadge ?? <span className="text-gray-400">—</span>}</td>
-      <td className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">{c.status}</td>
-      <td className="px-3 py-1.5 text-right">
+      <td>{healthBadge ?? <span className="text-gray-400">—</span>}</td>
+      <td>{c.status}</td>
+      <td className="text-right">
         <button
           type="button"
           onClick={() => onShowLogs(c.name)}
@@ -108,7 +108,7 @@ function LogsModal({ name, onClose }: { name: string; onClose: () => void }) {
   const { data, isLoading, isFetching, refetch } = useContainerLogs(name, tail)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex h-[80vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-xl dark:bg-gray-800">
+      <div className="flex h-[80vh] w-full max-w-4xl flex-col rounded-xl bg-white shadow-2xl dark:bg-gray-800">
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
             <ScrollText className="h-4 w-4" />
@@ -241,15 +241,15 @@ function HealthBody({
             запущенный docker-socket-proxy (DOCKER_PROXY_URL).
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50/80 dark:bg-gray-800/60">
-                <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                  <th className="px-3 py-2 font-medium">Контейнер</th>
-                  <th className="px-3 py-2 font-medium">Состояние</th>
-                  <th className="px-3 py-2 font-medium">Health</th>
-                  <th className="px-3 py-2 font-medium">Статус</th>
-                  <th className="px-3 py-2" />
+          <div className="data-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr className="text-xs uppercase tracking-wide">
+                  <th>Контейнер</th>
+                  <th>Состояние</th>
+                  <th>Health</th>
+                  <th>Статус</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>

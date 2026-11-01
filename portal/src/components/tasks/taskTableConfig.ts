@@ -34,7 +34,8 @@ export const defaultVisibleTaskTableColumns: Record<ToggleableTaskTableColumnKey
   status: true,
   priority: true,
   assignee: true,
-  creator: true,
+  // Нужна редко, а места на экране 1440 на десять колонок не хватает — включается в «Колонках»
+  creator: false,
   date: true,
   sla: true,
 }

@@ -21,7 +21,6 @@ import {
   ChevronRight,
   GripVertical,
   Edit2,
-  X,
   Smartphone,
   Send,
   User,
@@ -31,6 +30,7 @@ import {
   Power,
 } from 'lucide-react'
 import Button from '@/components/Button'
+import Modal from '@/components/Modal'
 import Input from '@/components/Input'
 import Textarea from '@/components/Textarea'
 import Spinner from '@/components/Spinner'
@@ -461,20 +461,13 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
       </div>
 
       {/* Cleanup Confirmation Modal */}
-      {showCleanupConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Очистка старых заявок
-            </h3>
+      <Modal isOpen={showCleanupConfirm} onClose={() => setShowCleanupConfirm(false)} title="Очистка старых заявок" size="sm">
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               Будут удалены выполненные и отменённые заявки старше указанного периода, включая их комментарии и фото.
             </p>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Удалить заявки старше (дней)
-              </label>
+            <div className="mb-4 w-40">
               <Input
+                label="Старше, дней"
                 type="number"
                 value={cleanupDays}
                 onChange={(e) => setCleanupDays(parseInt(e.target.value) || 90)}
@@ -482,26 +475,19 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
                 max={365}
               />
             </div>
-            <div className="flex gap-3">
-              <Button
-                variant="secondary"
-                className="flex-1"
-                onClick={() => setShowCleanupConfirm(false)}
-              >
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setShowCleanupConfirm(false)}>
                 Отмена
               </Button>
               <Button
                 variant="danger"
-                className="flex-1"
                 onClick={() => cleanupMutation.mutate(cleanupDays)}
                 disabled={cleanupMutation.isPending}
               >
                 {cleanupMutation.isPending ? 'Удаление...' : 'Удалить'}
               </Button>
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Clear Database Confirmation Modal */}
       {showClearConfirm && <ClearDatabaseModal setShowClearConfirm={setShowClearConfirm} />}
@@ -1471,18 +1457,8 @@ function CustomFieldModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-md mx-4">
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {field ? 'Редактировать поле' : 'Добавить поле'}
-          </h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="p-4 space-y-4">
+    <Modal isOpen onClose={onClose} title={field ? 'Редактировать поле' : 'Добавить поле'} size="sm">
+        <div className="space-y-4">
           <Input
             label="Системное имя"
             value={formData.name}
@@ -1566,14 +1542,13 @@ function CustomFieldModal({
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex justify-end gap-2 pt-4">
           <Button variant="secondary" onClick={onClose} disabled={isSaving}>Отмена</Button>
           <Button onClick={handleSave} disabled={isSaving}>
             {isSaving ? 'Сохранение...' : 'Сохранить'}
           </Button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -1641,30 +1616,30 @@ function DevicesTab() {
       }
     >
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-800/50">
+          <table className="data-table">
+            <thead>
               <tr>
-                <th className="px-4 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th>
                   ID
                 </th>
-                <th className="px-4 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th>
                   Пользователь
                 </th>
-                <th className="px-4 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th>
                   Устройство
                 </th>
-                <th className="px-4 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th>
                   FCM токен
                 </th>
-                <th className="px-4 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th>
                   Последняя активность
                 </th>
-                <th className="px-4 py-1.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="text-right">
                   Действия
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody>
               {isLoading ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center">
@@ -1685,14 +1660,13 @@ function DevicesTab() {
                 devices.map((device) => (
                   <tr
                     key={device.id}
-                    className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
                   >
-                    <td className="px-4 py-1.5 whitespace-nowrap">
+                    <td className="whitespace-nowrap">
                       <span className="rounded bg-gray-100 px-2 py-1 text-sm font-mono dark:bg-gray-700">
                         {device.id}
                       </span>
                     </td>
-                    <td className="px-4 py-1.5 whitespace-nowrap">
+                    <td className="whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-gray-400" />
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -1700,12 +1674,12 @@ function DevicesTab() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-1.5 whitespace-nowrap">
+                    <td className="whitespace-nowrap">
                       <span className="text-sm text-gray-600 dark:text-gray-400">
                         {device.device_name || 'Unknown Device'}
                       </span>
                     </td>
-                    <td className="px-4 py-1.5 whitespace-nowrap">
+                    <td className="whitespace-nowrap">
                       <span
                         className="cursor-help text-xs font-mono text-gray-500 dark:text-gray-400"
                         title={device.fcm_token}
@@ -1713,13 +1687,13 @@ function DevicesTab() {
                         {truncateToken(device.fcm_token, 30)}
                       </span>
                     </td>
-                    <td className="px-4 py-1.5 whitespace-nowrap">
+                    <td className="whitespace-nowrap">
                       <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <Clock className="w-4 h-4" />
                         {formatDate(device.last_active)}
                       </div>
                     </td>
-                    <td className="px-4 py-1.5 whitespace-nowrap text-right">
+                    <td className="whitespace-nowrap text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Button
                           variant="ghost"
