@@ -165,6 +165,15 @@ class Settings(BaseSettings):
         description="URL брокера Redis для очереди задач ARQ",
     )
 
+    # === Периодические задания (напоминания о сроках, дайджест) ===
+    PERIODIC_JOBS_ENABLED: bool = Field(
+        default=True,
+        description="Запускать периодические задания в процессе API",
+    )
+    PERIODIC_JOBS_INTERVAL_SECONDS: int = Field(
+        default=300, ge=30, description="Период проверки сроков заявок, секунды"
+    )
+
     # === Сервер ===
     HOST: str = Field(default="0.0.0.0", description="Хост для запуска сервера")
     PORT: int = Field(

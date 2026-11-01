@@ -121,9 +121,7 @@ class TaskModel(Base):
     # закрыта (return). Определяется при создании и смене адреса/системы.
     repeat_of_task_id: Mapped[Optional[int]] = mapped_column(
         Integer,
-        ForeignKey(
-            "tasks.id", ondelete="SET NULL", name="fk_tasks_repeat_of_task_id"
-        ),
+        ForeignKey("tasks.id", ondelete="SET NULL", name="fk_tasks_repeat_of_task_id"),
         nullable=True,
     )
     repeat_kind: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)

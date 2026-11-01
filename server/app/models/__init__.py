@@ -44,6 +44,7 @@ from app.models.chat import (
     MessageType,
 )
 from app.models.enums import TaskPriority, TaskStatus, UserRole
+from app.models.escalation import JobRunModel, TaskEscalationModel
 from app.models.idempotency import IdempotencyKeyModel
 from app.models.notification import NotificationModel, NotificationType
 from app.models.organization import OrganizationModel, OrganizationSettingsModel
@@ -107,6 +108,8 @@ __all__ = [
     # Organization
     "OrganizationModel",
     "OrganizationSettingsModel",
+    "TaskEscalationModel",
+    "JobRunModel",
     # Task Models
     "TaskModel",
     "CommentModel",

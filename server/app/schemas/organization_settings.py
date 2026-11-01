@@ -29,6 +29,7 @@ class OrganizationSettingsBase(BaseModel):
     act_number_prefix: str = Field("А", min_length=1, max_length=10)
     act_footer_text: Optional[str] = Field(None, max_length=2000)
     repeat_window_days: int = Field(30, ge=1, le=365)
+    sla_escalations_enabled: bool = True
 
 
 class OrganizationSettingsUpdate(OrganizationSettingsBase):
