@@ -1,5 +1,6 @@
 """Схемы актов выполненных работ и прайс-листа."""
 
+from datetime import datetime
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
@@ -92,6 +93,19 @@ class ActCreate(BaseModel):
         return self
 
 
+class ActMobileCreate(ActCreate):
+    """Акт с телефона мастера: может прийти уже подписанным или с отказом.
+
+    Подписи — PNG-частями того же запроса; signed_at — время подписи на
+    телефоне (акт мог уйти из очереди позже, когда появилась сеть)."""
+
+    signed_at: Optional[datetime] = None
+    sign_lat: Optional[float] = Field(None, ge=-90, le=90)
+    sign_lon: Optional[float] = Field(None, ge=-180, le=180)
+    sign_device: Optional[str] = Field(None, max_length=100)
+    refusal_reason: Optional[str] = Field(None, max_length=500)
+
+
 class ActLineResponse(BaseModel):
     id: int
     position: int
@@ -130,6 +144,8 @@ class ActResponse(BaseModel):
     created_by_name: Optional[str] = None
     cancelled_at: Optional[UtcDateTime] = None
     cancel_reason: Optional[str] = None
+    refusal_reason: Optional[str] = None
+    has_customer_signature: bool = False
     lines: List[ActLineResponse] = Field(default_factory=list)
 
 

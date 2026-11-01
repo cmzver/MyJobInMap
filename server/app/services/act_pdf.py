@@ -38,6 +38,7 @@ from reportlab.platypus import (
 
 from app.models import ActModel
 from app.schemas.organization_settings import ActTemplate
+from app.services.act_service import stored_file
 from app.services.business_time import business_tz
 from app.services.organization_settings_service import logo_path
 
@@ -66,6 +67,8 @@ PAYMENT_METHODS = {
 
 # Ширина текста: поля 16 мм и внутренний отступ рамки ReportLab по 6 pt.
 PAGE_WIDTH = A4[0] - 32 * mm - 12
+# Подпись с экрана вписываем в эту рамку над линией.
+SIGNATURE_BOX = (60 * mm, 18 * mm)
 
 
 @lru_cache(maxsize=None)
@@ -316,26 +319,53 @@ def _totals(content: dict, template: ActTemplate) -> List:
     ]
 
 
-def _signatures(content: dict, template: ActTemplate) -> Table:
+def _signature_image(path: Optional[Path]) -> Optional[Image]:
+    if path is None:
+        return None
+    width, height = ImageReader(str(path)).getSize()
+    scale = min(SIGNATURE_BOX[0] / width, SIGNATURE_BOX[1] / height)
+    return Image(str(path), width=width * scale, height=height * scale, hAlign="LEFT")
+
+
+def _signatures(
+    content: dict, template: ActTemplate, signature_files: Optional[dict] = None
+) -> Table:
     customer = (content.get("customer") or {}).get("name") or ""
     worker = content.get("worker") or content.get("issued_by") or ""
+    files = signature_files or {}
 
-    def column(label: str, name: str, stamp: bool) -> List:
+    def column(label: str, name: str, image: Optional[Image], notes: List[str]) -> List:
         flow = [
             _p(label.upper(), LABEL),
-            Spacer(1, 12 * mm),
+            image if image is not None else Spacer(1, 12 * mm),
             HRFlowable(width="90%", thickness=0.6, color=colors.black, hAlign="LEFT"),
             _p(name or " ", SMALL),
         ]
-        if stamp:
-            flow.append(_p("М.П.", SMALL))
-        return flow
+        return flow + [_p(note, SMALL) for note in notes]
+
+    customer_notes = []
+    if content.get("signature"):
+        customer_notes.append(
+            f"Подписано на экране {content['signature'].get('signed_local', '')}"
+        )
+    if content.get("refusal_reason"):
+        customer_notes.append(f"От подписи отказался: {content['refusal_reason']}")
 
     table = Table(
         [
             [
-                column(template.executor_label, worker, template.show_stamp_place),
-                column(template.customer_label, customer, False),
+                column(
+                    template.executor_label,
+                    worker,
+                    _signature_image(files.get("executor")),
+                    ["М.П."] if template.show_stamp_place else [],
+                ),
+                column(
+                    template.customer_label,
+                    customer,
+                    _signature_image(files.get("customer")),
+                    customer_notes,
+                ),
             ]
         ],
         colWidths=[PAGE_WIDTH / 2, PAGE_WIDTH / 2],
@@ -352,7 +382,11 @@ def _signatures(content: dict, template: ActTemplate) -> Table:
 
 
 def render_act_document(
-    number: str, content: dict, requisites: dict, document_hash: str
+    number: str,
+    content: dict,
+    requisites: dict,
+    document_hash: str,
+    signature_files: Optional[dict] = None,
 ) -> bytes:
     _register_fonts()
     template = ActTemplate(**(requisites.get("template") or {}))
@@ -403,7 +437,10 @@ def render_act_document(
             _section("Замечания заказчика"),
             _p(content["customer_remarks"]),
         ]
-    flow += [Spacer(1, 8 * mm), KeepTogether([_signatures(content, template)])]
+    flow += [
+        Spacer(1, 8 * mm),
+        KeepTogether([_signatures(content, template, signature_files)]),
+    ]
     if requisites.get("act_footer_text"):
         flow += [Spacer(1, 8 * mm), _p(requisites["act_footer_text"], SMALL)]
 
@@ -417,6 +454,10 @@ def render_act_pdf(act: ActModel) -> bytes:
         act.content_snapshot or {},
         act.requisites_snapshot or {},
         act.document_hash,
+        {
+            "executor": stored_file(act.worker_signature_file),
+            "customer": stored_file(act.customer_signature_file),
+        },
     )
 
 

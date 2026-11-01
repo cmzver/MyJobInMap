@@ -63,6 +63,11 @@ sealed class Screen(
     /** Полноэкранная карточка объекта */
     data object ObjectCard : Screen(route = "object_card")
 
+    /** Оформление акта по заявке (полноэкранный, из карточки заявки) */
+    data object ActEditor : Screen(route = "act_editor/{taskId}") {
+        fun route(taskId: Long) = "act_editor/$taskId"
+    }
+
     /** Раздел «Мои адреса» (открывается из «Ещё») */
     data object MyAddresses : Screen(
         route = "my_addresses",

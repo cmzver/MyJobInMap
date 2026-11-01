@@ -27,7 +27,7 @@ import com.fieldworker.data.local.entity.TaskEntity
         ConversationEntity::class,
         MessageEntity::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
 abstract class FieldWorkerDatabase : RoomDatabase() {
@@ -199,6 +199,13 @@ abstract class FieldWorkerDatabase : RoomDatabase() {
         val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE tasks ADD COLUMN dueAt TEXT DEFAULT NULL")
+            }
+        }
+
+        /** Migration 11 -> 12: тело запроса в очереди — для актов (SUBMIT_ACT). */
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE pending_actions ADD COLUMN payloadJson TEXT DEFAULT NULL")
             }
         }
     }

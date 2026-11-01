@@ -53,6 +53,7 @@ object DatabaseModule {
                 FieldWorkerDatabase.MIGRATION_8_9,
                 FieldWorkerDatabase.MIGRATION_9_10,
                 FieldWorkerDatabase.MIGRATION_10_11,
+                FieldWorkerDatabase.MIGRATION_11_12,
             )
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {

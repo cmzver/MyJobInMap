@@ -8,7 +8,9 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
+import com.fieldworker.data.api.ActsApi
 import com.fieldworker.data.api.TasksApi
+import com.fieldworker.data.image.PendingActStore
 import com.fieldworker.data.image.PendingPhotoStore
 import com.fieldworker.data.local.LocalTransactionRunner
 import com.fieldworker.data.remote.generated.CommentCreate
@@ -48,9 +50,11 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import retrofit2.Response
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.IOException
 import java.util.UUID
@@ -73,7 +77,9 @@ class OfflineFirstTasksRepository @Inject constructor(
     private val transactionRunner: LocalTransactionRunner,
     private val networkMonitor: NetworkMonitor,
     private val serverHealthCheck: ServerHealthCheck,
-    private val pendingPhotoStore: PendingPhotoStore
+    private val pendingPhotoStore: PendingPhotoStore,
+    private val actsApi: ActsApi,
+    private val pendingActStore: PendingActStore
 ) {
     companion object {
         private const val TAG = "OfflineTasksRepo"
@@ -85,7 +91,10 @@ class OfflineFirstTasksRepository @Inject constructor(
         /** Лимит параметров SQLite — 999 до API 30. */
         private const val DELETE_CHUNK_SIZE = 500
         private const val PAGING_PAGE_SIZE = 30
-        private const val MAX_PENDING_RETRIES = 5
+        /** После стольких сбоев действие ждёт решения пользователя (повторить/отменить). */
+        internal const val MAX_PENDING_RETRIES = 5
+        private val TEXT_PLAIN = "text/plain; charset=utf-8".toMediaType()
+        private val IMAGE_PNG = "image/png".toMediaType()
         private const val DEFAULT_PHOTO_TYPE = "completion"
     }
 
@@ -768,6 +777,29 @@ class OfflineFirstTasksRepository @Inject constructor(
             }
         }
 
+        ActionType.SUBMIT_ACT -> {
+            val payload = action.payloadJson
+            val dir = action.filePath?.let(::File)
+            if (payload == null) {
+                markPayloadMissing(action, "act")
+            } else {
+                val response = actsApi.createMobileAct(
+                    taskId = action.taskId,
+                    payload = payload.toRequestBody(TEXT_PLAIN),
+                    customerSignature = dir?.let(pendingActStore::customerSignature)
+                        ?.let { pngPart("customer_signature", it) },
+                    workerSignature = dir?.let(pendingActStore::workerSignature)
+                        ?.let { pngPart("worker_signature", it) },
+                    strokes = dir?.let(pendingActStore::strokes)?.toRequestBody(TEXT_PLAIN),
+                    idempotencyKey = action.operationId.ifBlank { null }
+                )
+                handleResponse(action, response) {
+                    pendingActionDao.deletePendingActionById(action.id)
+                    pendingActStore.delete(action.filePath)
+                }
+            }
+        }
+
         ActionType.UPLOAD_PHOTO -> {
             val file = action.filePath?.let(::File)?.takeIf { it.exists() }
             if (file == null) {
@@ -896,6 +928,7 @@ class OfflineFirstTasksRepository @Inject constructor(
             action.tempId?.let { commentDao.deleteByTempId(it) }
             restoreTask = action.actionType.mutatesTask && !hasUnsentTaskChanges(action.taskId)
         }
+        if (action.actionType == ActionType.SUBMIT_ACT) pendingActStore.delete(action.filePath)
         if (restoreTask) restoreTaskFromServer(action.taskId)
     }
 
@@ -942,6 +975,7 @@ class OfflineFirstTasksRepository @Inject constructor(
             ActionType.UPDATE_PLANNED_DATE ->
                 "Плановая дата → ${plannedDate?.substringBefore('T') ?: "снять"}"
             ActionType.UPLOAD_PHOTO -> "Фото «${photoTypeDisplayName(photoType)}»"
+            ActionType.SUBMIT_ACT -> "Акт выполненных работ"
         }
         return FailedAction(
             id = id,
@@ -1067,6 +1101,9 @@ class OfflineFirstTasksRepository @Inject constructor(
                 }
             }
             .flowOn(Dispatchers.IO)
+
+    private fun pngPart(name: String, file: File): MultipartBody.Part =
+        MultipartBody.Part.createFormData(name, file.name, file.asRequestBody(IMAGE_PNG))
 
     private fun photoPart(file: File): MultipartBody.Part {
         val mimeType = if (file.extension.equals("jpg", ignoreCase = true)) {

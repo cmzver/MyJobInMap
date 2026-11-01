@@ -72,6 +72,7 @@ import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import com.fieldworker.R
 import com.fieldworker.domain.model.AddressDetails
+import com.fieldworker.ui.act.LocalTaskActsSection
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
@@ -894,6 +895,8 @@ fun TaskDetailContent(
 ) {
     var commentText by remember { mutableStateOf("") }
     val context = LocalContext.current
+    // Блок «Акты» даёт экран с навигацией; в превью его нет
+    val actsSection = LocalTaskActsSection.current
     
     // Состояния для спойлеров
     var isPhotosExpanded by remember { mutableStateOf(false) }
@@ -1041,6 +1044,10 @@ fun TaskDetailContent(
                 item { TaskRepeatSection(repeat) }
             }
 
+            actsSection?.let { section ->
+                item { section(task) }
+            }
+
             if (isLoadingAddress || addressDetails != null || hasAttemptedAddressLookup) {
                 item {
                     TaskObjectPreviewSection(
@@ -1113,7 +1120,7 @@ fun TaskDetailContent(
 
 /** Индикатор загрузки раздела карточки — один размер на все разделы. */
 @Composable
-private fun SectionSpinner() {
+internal fun SectionSpinner() {
     CircularProgressIndicator(
         modifier = Modifier.size(18.dp),
         strokeWidth = 2.dp,
@@ -1123,7 +1130,7 @@ private fun SectionSpinner() {
 
 /** «Нет связи» вместо пустого состояния: данных нет не потому, что их нет. */
 @Composable
-private fun OfflineSectionNote(text: String) {
+internal fun OfflineSectionNote(text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
             imageVector = Icons.Default.Info,
@@ -1312,7 +1319,7 @@ private fun StatusPill(status: TaskStatus, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TaskSectionCard(
+internal fun TaskSectionCard(
     title: String,
     modifier: Modifier = Modifier,
     action: (@Composable () -> Unit)? = null,

@@ -45,6 +45,14 @@ interface PendingActionDao {
     """)
     fun getPendingPhotosFlow(taskId: Long): Flow<List<PendingAction>>
 
+    /** Акты заявки, ещё не дошедшие до сервера. */
+    @Query("""
+        SELECT * FROM pending_actions
+        WHERE taskId = :taskId AND actionType = 'SUBMIT_ACT'
+        ORDER BY createdAt ASC, id ASC
+    """)
+    fun getPendingActsFlow(taskId: Long): Flow<List<PendingAction>>
+
     /**
      * Вставить отложенное действие
      */

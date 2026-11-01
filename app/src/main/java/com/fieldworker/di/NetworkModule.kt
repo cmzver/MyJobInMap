@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.fieldworker.BuildConfig
 import com.fieldworker.data.api.AddressesApi
+import com.fieldworker.data.api.ActsApi
 import com.fieldworker.data.api.AuthApi
 import com.fieldworker.data.api.ChatApi
 import com.fieldworker.data.api.TasksApi
@@ -246,6 +247,12 @@ object NetworkModule {
     @Singleton
     fun provideTasksApi(retrofit: Retrofit): TasksApi {
         return retrofit.create(TasksApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideActsApi(retrofit: Retrofit): ActsApi {
+        return retrofit.create(ActsApi::class.java)
     }
 
     @Provides

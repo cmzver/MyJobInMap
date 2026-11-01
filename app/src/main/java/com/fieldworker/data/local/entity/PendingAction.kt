@@ -22,6 +22,11 @@ data class PendingAction(
     /** Снимок в личных файлах приложения — для [ActionType.UPLOAD_PHOTO]. */
     val filePath: String? = null,
     val photoType: String? = null,
+    /**
+     * Тело запроса в JSON — для [ActionType.SUBMIT_ACT] (ActMobileCreate);
+     * файлы подписей при этом лежат в папке [filePath].
+     */
+    val payloadJson: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val retryCount: Int = 0,
     val lastError: String? = null,
@@ -45,5 +50,7 @@ enum class ActionType(val mutatesTask: Boolean, val keepsTaskOrder: Boolean) {
     UPDATE_STATUS(mutatesTask = true, keepsTaskOrder = true),
     ADD_COMMENT(mutatesTask = false, keepsTaskOrder = true),
     UPDATE_PLANNED_DATE(mutatesTask = true, keepsTaskOrder = true),
-    UPLOAD_PHOTO(mutatesTask = false, keepsTaskOrder = false)
+    UPLOAD_PHOTO(mutatesTask = false, keepsTaskOrder = false),
+    /** Акт с подписью клиента: уходит до смены статуса той же заявки. */
+    SUBMIT_ACT(mutatesTask = false, keepsTaskOrder = true)
 }

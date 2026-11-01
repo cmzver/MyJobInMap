@@ -37,6 +37,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import com.fieldworker.ui.act.ActEditorScreen
+import com.fieldworker.ui.act.ActEditorViewModel
+import com.fieldworker.ui.act.LocalTaskActsSection
+import com.fieldworker.ui.act.TaskActsSection
+import com.fieldworker.domain.model.Task
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.fieldworker.ui.addresses.MyAddressesScreen
 import com.fieldworker.ui.chat.ChatScreen
@@ -116,6 +123,7 @@ fun MainScreen(
         Screen.Settings.route -> Screen.Settings
         Screen.Developer.route -> Screen.Developer
         Screen.ObjectCard.route -> Screen.ObjectCard
+        Screen.ActEditor.route -> Screen.ActEditor
         Screen.MyAddresses.route -> Screen.MyAddresses
         // Без этой ветки профиль считался «Картой»: над ним рисовались шапка
         // «Карта выездов» и нижняя панель
@@ -284,6 +292,15 @@ fun MainScreen(
             }
 
             Box(modifier = Modifier.weight(1f)) {
+            val actsSection: @Composable (Task) -> Unit = remember(navController) {
+                { task ->
+                    TaskActsSection(
+                        task = task,
+                        onCreateAct = { navController.navigate(Screen.ActEditor.route(task.id)) },
+                    )
+                }
+            }
+            CompositionLocalProvider(LocalTaskActsSection provides actsSection) {
             NavHost(
                 navController = navController,
                 startDestination = Screen.Map.route
@@ -548,7 +565,26 @@ fun MainScreen(
                 composable(Screen.MyAddresses.route) {
                     MyAddressesScreen(onBack = { navController.popBackStack() })
                 }
+
+                composable(
+                    route = Screen.ActEditor.route,
+                    arguments = listOf(
+                        navArgument(ActEditorViewModel.TASK_ID_ARG) { type = NavType.LongType }
+                    ),
+                ) {
+                    val scope = rememberCoroutineScope()
+                    ActEditorScreen(
+                        onDone = {
+                            navController.popBackStack()
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Акт сохранён — отправится при связи")
+                            }
+                        },
+                        onBack = { navController.popBackStack() },
+                    )
+                }
             }
+            } // CompositionLocalProvider(LocalTaskActsSection)
             } // Box(weight)
             // Баннер офлайна/неотправленного — всегда над нижней панелью: у экранов
             // со своей шапкой (чаты, «Ещё») он раньше оказывался над заголовком.
@@ -649,6 +685,7 @@ private fun mainTitleFor(screen: Screen, canManageTasks: Boolean): String {
         Screen.Settings -> "Настройки и профиль"
         Screen.Developer -> "Режим разработчика"
         Screen.ObjectCard -> "Карточка объекта"
+        Screen.ActEditor -> "Акт выполненных работ"
         Screen.UserSettings -> "Профиль пользователя"
         Screen.MyAddresses -> "Мои адреса"
     }

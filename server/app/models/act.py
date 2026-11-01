@@ -16,6 +16,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -86,6 +87,19 @@ class ActModel(Base):
     signed_via: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
     signed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     scan_file: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # Подписи на экране телефона мастера (PNG в uploads/acts, имя — хеш) и
+    # траектория росчерка клиента с отметками времени — доказательство подписи.
+    customer_signature_file: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
+    worker_signature_file: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
+    signature_strokes: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    sign_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    sign_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    sign_device: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    refusal_reason: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     customer_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     # resident | chairman | uk_rep | other
