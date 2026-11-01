@@ -1,19 +1,29 @@
 import { Link } from 'react-router-dom'
 import { History } from 'lucide-react'
+import Button from '@/components/Button'
 import StatusBadge from '@/components/StatusBadge'
 import type { RelatedTask } from '@/api/tasks'
 import type { TaskRepeatRef, TaskStatus } from '@/types/task'
 import { formatDateOnly } from '@/utils/dateFormat'
 
 /** Чем эта заявка повторяет прошлую: кто, когда и с каким комментарием закрывал. */
-export function RepeatNotice({ repeat }: { repeat: TaskRepeatRef }) {
+export function RepeatNotice({
+  repeat,
+  onClear,
+  isClearing = false,
+}: {
+  repeat: TaskRepeatRef
+  /** Снять отметку дубля (только для дублей и тех, кто правит заявки). */
+  onClear?: () => void
+  isClearing?: boolean
+}) {
   const isReturn = repeat.kind === 'return'
   return (
     <div className="flex gap-3 rounded-xl border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-800">
       <History className={`mt-0.5 h-4 w-4 shrink-0 ${isReturn ? 'text-orange-500' : 'text-gray-400'}`} />
       <div className="min-w-0 space-y-1">
         <p className="font-medium text-gray-900 dark:text-white">
-          {isReturn ? 'Повтор заявки ' : 'Дубль: на этом месте открыта заявка '}
+          {isReturn ? 'Повтор заявки ' : 'Дубль заявки '}
           <Link to={`/tasks/${repeat.id}`} className="text-primary-600 hover:underline dark:text-primary-400">
             {repeat.task_number}
           </Link>
@@ -30,6 +40,11 @@ export function RepeatNotice({ repeat }: { repeat: TaskRepeatRef }) {
           </p>
         )}
       </div>
+      {onClear && (
+        <Button size="sm" variant="ghost" className="ml-auto shrink-0" isLoading={isClearing} onClick={onClear}>
+          Снять отметку
+        </Button>
+      )}
     </div>
   )
 }

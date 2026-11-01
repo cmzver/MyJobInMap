@@ -3,11 +3,14 @@ Repeat Detector
 ===============
 Повторные заявки на одном месте (адрес + система):
 
-- дубль (duplicate) — в момент создания на этом месте была открыта заявка;
 - возврат (return) — заявку на этом месте закрыли не раньше чем за
-  repeat_window_days до создания. Возвраты — метрика качества ремонта.
+  repeat_window_days до создания; определяется автоматически. Возвраты —
+  метрика качества ремонта;
+- дубль (duplicate) — отмечает диспетчер (mark_duplicate), выбирая исходную
+  заявку. Автоматически дубли не ищутся: открытая заявка в том же доме часто
+  про другую квартиру или другую поломку.
 
-Повтор считается относительно момента создания заявки, поэтому тот же
+Возврат считается относительно момента создания заявки, поэтому тот же
 расчёт годится и для новой заявки, и для правки адреса, и для бэкфилла
 истории в миграции. Функции разбора работают с любыми объектами с полями
 заявки — моделью или строкой выборки.
@@ -122,45 +125,26 @@ def _repeat_kind(task: Any, other: Any, window: timedelta) -> Optional[str]:
 def pick_repeat(
     task: Any, candidates: Iterable[Any], window_days: int
 ) -> Optional[Tuple[Any, str]]:
-    """Самая подходящая более ранняя заявка на том же месте и вид повтора.
-
-    Дубль важнее возврата. Среди дублей — исходная (самая ранняя) открытая,
-    среди возвратов — закрытая последней; заявки с той же неисправностью
-    всегда впереди.
-    """
+    """Возврат: более ранняя заявка на том же месте, закрытая за окно до
+    создания этой. Сначала — с той же неисправностью, затем закрытая последней."""
     if task.created_at is None:
         return None
     window = timedelta(days=window_days)
-    duplicates: List[Any] = []
-    returns: List[Any] = []
-    for other in candidates:
-        if other.id == task.id or not _same_place(task, other):
-            continue
-        if not _systems_compatible(task, other):
-            continue
-        kind = _repeat_kind(task, other, window)
-        if kind == DUPLICATE:
-            duplicates.append(other)
-        elif kind == RETURN:
-            returns.append(other)
-
-    if duplicates:
-        best = min(
-            duplicates,
-            key=lambda o: (
-                not same_defect(task, o),
-                to_naive_utc(o.created_at),
-                o.id or 0,
-            ),
-        )
-        return best, DUPLICATE
-    if returns:
-        best = max(
-            returns,
-            key=lambda o: (same_defect(task, o), to_naive_utc(o.completed_at)),
-        )
-        return best, RETURN
-    return None
+    returns = [
+        other
+        for other in candidates
+        if other.id != task.id
+        and _same_place(task, other)
+        and _systems_compatible(task, other)
+        and _repeat_kind(task, other, window) == RETURN
+    ]
+    if not returns:
+        return None
+    best = max(
+        returns,
+        key=lambda o: (same_defect(task, o), to_naive_utc(o.completed_at)),
+    )
+    return best, RETURN
 
 
 def get_repeat_window_days(db: Session, organization_id: Optional[int]) -> int:
@@ -203,12 +187,10 @@ def find_repeat(
         return None
     at = to_naive_utc(task.created_at)
     query = query.filter(
-        TaskModel.status != _CANCELLED,
+        TaskModel.status == _DONE,
         TaskModel.created_at <= at,
-        or_(
-            TaskModel.status.in_(_OPEN_STATUSES),
-            TaskModel.completed_at >= at - timedelta(days=window_days),
-        ),
+        TaskModel.completed_at >= at - timedelta(days=window_days),
+        TaskModel.completed_at <= at,
     )
     if task.id is not None:
         query = query.filter(TaskModel.id != task.id)
@@ -216,18 +198,52 @@ def find_repeat(
 
 
 def apply_repeat(db: Session, task: TaskModel) -> None:
-    """Проставить место заявки и повтор. Вызывать после того, как заполнены
+    """Проставить место заявки и возврат. Вызывать после того, как заполнены
     адрес, address_id, система и организация, до добавления новой заявки
-    в сессию (иначе автосброс сессии зацепит её саму)."""
+    в сессию (иначе автосброс сессии зацепит её саму). Отметку дубля,
+    поставленную вручную, не трогает."""
     if task.created_at is None:
         task.created_at = to_naive_utc(utcnow())
     task.address_key = address_key(task.raw_address)
+    if task.repeat_kind == DUPLICATE:
+        return
     match = find_repeat(db, task)
     if match is None:
         task.repeat_of = None
         task.repeat_kind = None
     else:
         task.repeat_of, task.repeat_kind = match
+
+
+class RepeatMarkError(Exception):
+    def __init__(self, message: str, status_code: int = 400):
+        self.message = message
+        self.status_code = status_code
+        super().__init__(message)
+
+
+def mark_duplicate(db: Session, task: TaskModel, original: Optional[TaskModel]) -> None:
+    """Отметить заявку дублем original (той же организации) или снять отметку
+    (original=None) — тогда заявка снова может оказаться возвратом.
+
+    Цепочек не бывает: дубль дубля указывает на исходную, а дубли самой
+    заявки переезжают на её исходную."""
+    if original is None:
+        if task.repeat_kind == DUPLICATE:
+            task.repeat_of = None
+            task.repeat_kind = None
+            apply_repeat(db, task)
+        return
+    if original.repeat_kind == DUPLICATE and original.repeat_of is not None:
+        original = original.repeat_of
+    if original.id == task.id:
+        raise RepeatMarkError("Заявка не может быть дублем самой себя")
+    task.repeat_of = original
+    task.repeat_kind = DUPLICATE
+    db.query(TaskModel).filter(
+        TaskModel.repeat_of_task_id == task.id,
+        TaskModel.repeat_kind == DUPLICATE,
+    ).update({TaskModel.repeat_of_task_id: original.id}, synchronize_session=False)
 
 
 def find_related(

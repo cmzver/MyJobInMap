@@ -313,6 +313,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tasks/{task_id}/duplicate-of": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Mark Task Duplicate
+         * @description Отметить заявку дублем другой (той же организации) или снять отметку.
+         *
+         *     Дубли автоматически не определяются — их отмечает диспетчер. Отметка и её
+         *     снятие пишутся в историю заявки.
+         */
+        put: operations["mark_task_duplicate_api_tasks__task_id__duplicate_of_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tasks/{task_id}/status": {
         parameters: {
             query?: never;
@@ -5009,6 +5032,17 @@ export interface components {
          */
         DocumentType: "contract" | "estimate" | "act" | "scheme" | "passport" | "other";
         /**
+         * DuplicateMarkRequest
+         * @description Отметка дубля вручную: исходная заявка или null — снять отметку.
+         */
+        DuplicateMarkRequest: {
+            /**
+             * Original Task Id
+             * @description Заявка, дублем которой является эта; null — не дубль
+             */
+            original_task_id?: number | null;
+        };
+        /**
          * EquipmentStatus
          * @description ������� ������������
          * @enum {string}
@@ -8015,6 +8049,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_task_duplicate_api_tasks__task_id__duplicate_of_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DuplicateMarkRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskResponse"];
                 };
             };
             /** @description Validation Error */

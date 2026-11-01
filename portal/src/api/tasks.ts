@@ -73,6 +73,14 @@ export const tasksApi = {
     return data
   },
 
+  /** Отметить заявку дублем другой; null — снять отметку. */
+  async markDuplicate(id: number, originalTaskId: number | null): Promise<TaskDetail> {
+    const { data } = await apiClient.put<TaskDetail>(`/tasks/${id}/duplicate-of`, {
+      original_task_id: originalTaskId,
+    })
+    return data
+  },
+
   // Get single task by ID (detail endpoint returns the richer TaskResponse)
   async getTask(id: number): Promise<TaskDetail> {
     const { data } = await apiClient.get<TaskDetail>(`/tasks/${id}`)

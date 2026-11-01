@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload, subqueryload
 from app.api.addresses import build_task_filters_for_address
 from app.api.deps import TaskAccess, require_task_access
 from app.models import (
+    CommentModel,
     NotificationModel,
     TaskModel,
     TaskStatus,
@@ -26,6 +27,7 @@ from app.models import (
 )
 from app.models.address import AddressModel
 from app.schemas import (
+    DuplicateMarkRequest,
     PaginatedResponse,
     PlannedDateUpdate,
     RelatedTasksResponse,
@@ -57,7 +59,13 @@ from app.services.notification_service import (
     notification_broadcast_payload,
     send_task_assignment_push,
 )
-from app.services.repeat_detector import address_key, find_related
+from app.services.repeat_detector import (
+    DUPLICATE,
+    RepeatMarkError,
+    address_key,
+    find_related,
+    mark_duplicate,
+)
 from app.services.role_utils import is_dispatcher_or_admin_user, is_worker_user
 from app.services.tenant_filter import TenantFilter
 from app.services.websocket_manager import (
@@ -483,6 +491,60 @@ def get_task(
     """Получить заявку по ID"""
 
     return task_to_response(access.task)
+
+
+@router.put("/{task_id}/duplicate-of", response_model=TaskResponse)
+def mark_task_duplicate(
+    payload: DuplicateMarkRequest,
+    access: TaskAccess = Depends(
+        require_task_access("edit_tasks", worker_detail="Нет доступа к этой заявке")
+    ),
+    db: Session = Depends(get_db),
+):
+    """Отметить заявку дублем другой (той же организации) или снять отметку.
+
+    Дубли автоматически не определяются — их отмечает диспетчер. Отметка и её
+    снятие пишутся в историю заявки."""
+    task, user = access.task, access.user
+    original = None
+    if payload.original_task_id is not None:
+        original = (
+            TenantFilter(user)
+            .apply(db.query(TaskModel), TaskModel)
+            .filter(
+                TaskModel.id == payload.original_task_id,
+                TaskModel.organization_id == task.organization_id,
+            )
+            .first()
+        )
+        if original is None:
+            raise HTTPException(status_code=404, detail="Исходная заявка не найдена")
+
+    before = task.repeat_of if task.repeat_kind == DUPLICATE else None
+    try:
+        mark_duplicate(db, task, original)
+    except RepeatMarkError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
+    after = task.repeat_of if task.repeat_kind == DUPLICATE else None
+
+    if (before and before.id) != (after and after.id):
+        text = (
+            f"Отмечена как дубль заявки №{after.task_number or after.id}"
+            if after is not None
+            else f"Снята отметка «дубль заявки №{before.task_number or before.id}»"
+        )
+        db.add(
+            CommentModel(
+                task_id=task.id,
+                text=text,
+                author=user.full_name or user.username,
+                author_id=user.id,
+            )
+        )
+        task.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(task)
+    return task_to_response(task)
 
 
 @router.patch("/{task_id}/status", response_model=TaskResponse)

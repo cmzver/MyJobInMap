@@ -275,6 +275,14 @@ class TaskRepeatRef(BaseModel):
     )
 
 
+class DuplicateMarkRequest(BaseModel):
+    """Отметка дубля вручную: исходная заявка или null — снять отметку."""
+
+    original_task_id: Optional[int] = Field(
+        None, description="Заявка, дублем которой является эта; null — не дубль"
+    )
+
+
 class RelatedTask(BaseModel):
     """Заявка на том же месте — для подсказки в форме и истории адреса."""
 

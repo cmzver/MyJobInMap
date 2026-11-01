@@ -117,8 +117,8 @@ class TaskModel(Base):
     # и у адресов, которых нет в адресной книге. NULL — адрес не разобрался.
     address_key: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
 
-    # Повтор: на том же месте была открыта заявка (duplicate) или недавно
-    # закрыта (return). Определяется при создании и смене адреса/системы.
+    # Повтор: на том же месте недавно закрыли заявку (return — определяется при
+    # создании и смене адреса/системы) или диспетчер отметил дубль (duplicate).
     repeat_of_task_id: Mapped[Optional[int]] = mapped_column(
         Integer,
         ForeignKey("tasks.id", ondelete="SET NULL", name="fk_tasks_repeat_of_task_id"),
