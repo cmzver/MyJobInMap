@@ -1,4 +1,4 @@
-import type { TaskPriority, TaskSort, TaskStatus } from '@/types/task'
+import type { DueFilter, TaskPriority, TaskSort, TaskStatus } from '@/types/task'
 
 export interface TaskListUrlFilters {
   search?: string
@@ -7,6 +7,7 @@ export interface TaskListUrlFilters {
   assigneeIds?: readonly number[]
   addressId?: number
   addressTitle?: string
+  due?: DueFilter
   sort?: TaskSort
   groupBy?: 'status' | 'assignee' | 'priority' | ''
 }
@@ -42,6 +43,7 @@ export function buildTaskListUrl(
       params.set('address_title', filters.addressTitle.trim())
     }
   }
+  if (filters.due) params.set('due', filters.due)
   if (filters.sort && filters.sort !== 'created_at_desc') params.set('sort', filters.sort)
   if (filters.groupBy) params.set('group', filters.groupBy)
 

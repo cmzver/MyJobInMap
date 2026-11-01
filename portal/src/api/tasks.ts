@@ -54,6 +54,7 @@ export const tasksApi = {
     assigneeIds.forEach((assigneeId) => params.append('assignee_id', String(assigneeId)))
     if (filters?.address_id) params.append('address_id', String(filters.address_id))
     filters?.repeat_kinds?.forEach((kind) => params.append('repeat_kind', kind))
+    if (filters?.due) params.append('due', filters.due)
     if (filters?.search) params.append('search', filters.search)
     if (filters?.sort) params.append('sort', filters.sort)
     if (filters?.page) params.append('page', String(filters.page))

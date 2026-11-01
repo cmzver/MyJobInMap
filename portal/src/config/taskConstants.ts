@@ -199,6 +199,13 @@ export function getStatusCommentCopy(status: TaskStatus | null, options?: { plur
   }
 }
 
+/** Фильтр списка по сроку (due). */
+export const DUE_FILTER_OPTIONS = [
+  { value: '', label: 'Любой срок' },
+  { value: 'overdue', label: 'Просрочены' },
+  { value: 'soon', label: 'Истекает за 24 ч' },
+]
+
 /** Фильтр списка по повторам (repeat_kind). */
 export const REPEAT_FILTER_OPTIONS = [
   { value: '', label: 'Все заявки' },

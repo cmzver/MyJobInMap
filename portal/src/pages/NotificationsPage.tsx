@@ -69,6 +69,10 @@ export default function NotificationsPage() {
         return <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
           <Bell className="w-5 h-5 text-red-600 dark:text-red-400" />
         </div>
+      case 'sla':
+        return <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+          <Clock className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+        </div>
       case 'support':
         return <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
           <Bell className="w-5 h-5 text-amber-600 dark:text-amber-400" />

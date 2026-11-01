@@ -9,7 +9,15 @@ import { useTasks } from '@/hooks/useTasks'
 import { usePortalInterfaceSettings } from '@/hooks/useSettings'
 import { useUsers } from '@/hooks/useUsers'
 import { MAX_TASKS_PAGE_SIZE, tasksApi } from '@/api/tasks'
-import type { TaskStatus, TaskPriority, TaskFilters, Task, TaskSort, RepeatKind } from '@/types/task'
+import type {
+  TaskStatus,
+  TaskPriority,
+  TaskFilters,
+  Task,
+  TaskSort,
+  RepeatKind,
+  DueFilter,
+} from '@/types/task'
 import {
   normalizePriority,
   getPriorityLabel as getPriorityLabelFn,
@@ -17,6 +25,7 @@ import {
   getStatusCommentCopy,
   isStatusTransitionAllowed,
   REPEAT_FILTER_OPTIONS,
+  DUE_FILTER_OPTIONS,
 } from '@/config/taskConstants'
 import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
@@ -280,6 +289,12 @@ const sanitizeTaskPriorities = (values: string[]): TaskPriority[] =>
     )
   )
 
+const sanitizeSort = (value: string | null): TaskSort =>
+  value === 'created_at_asc' || value === 'due_at_asc' ? value : 'created_at_desc'
+
+const sanitizeDueFilter = (value: string | null): DueFilter | '' =>
+  value === 'overdue' || value === 'soon' ? value : ''
+
 const sanitizeRepeatFilter = (value: string | null): RepeatKind | '' =>
   value === 'duplicate' || value === 'return' ? value : ''
 
@@ -347,9 +362,12 @@ export default function TasksPage() {
   const [repeatFilter, setRepeatFilter] = useState<RepeatKind | ''>(() =>
     sanitizeRepeatFilter(searchParams.get('repeat'))
   )
+  const [dueFilter, setDueFilter] = useState<DueFilter | ''>(() =>
+    sanitizeDueFilter(searchParams.get('due'))
+  )
   const [sortBy, setSortBy] = useState<TaskSort>(() => {
     const value = searchParams.get('sort')
-    return value === 'created_at_asc' ? 'created_at_asc' : 'created_at_desc'
+    return sanitizeSort(value)
   })
   const [groupBy, setGroupBy] = useState(() => {
     const value = searchParams.get('group') || ''
@@ -357,7 +375,9 @@ export default function TasksPage() {
   })
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(() =>
-    ['status', 'priority', 'assignee', 'address_id', 'repeat'].some((key) => searchParams.has(key))
+    ['status', 'priority', 'assignee', 'address_id', 'repeat', 'due'].some((key) =>
+      searchParams.has(key)
+    )
   )
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkStatus, setBulkStatus] = useState('')
@@ -410,6 +430,7 @@ export default function TasksPage() {
       sort: sortBy,
       ...(addressIdFilter ? { address_id: Number(addressIdFilter) || undefined } : {}),
       ...(repeatFilter && { repeat_kinds: [repeatFilter] }),
+      ...(dueFilter && { due: dueFilter }),
       ...(search && { search }),
       ...(statusFilter.length > 0 && { statuses: statusFilter }),
       ...(priorityFilter.length > 0 && { priorities: priorityFilter }),
@@ -427,6 +448,7 @@ export default function TasksPage() {
       assigneeFilter,
       addressIdFilter,
       repeatFilter,
+      dueFilter,
     ]
   )
 
@@ -521,7 +543,7 @@ export default function TasksPage() {
   }
 
   const handleSortChange = (value: string) => {
-    setSortBy(value === 'created_at_asc' ? 'created_at_asc' : 'created_at_desc')
+    setSortBy(sanitizeSort(value))
     setPage(1)
   }
 
@@ -548,6 +570,7 @@ export default function TasksPage() {
     setAddressIdFilter(view.settings.addressId)
     setAddressTitleFilter(view.settings.addressTitle)
     setRepeatFilter('')
+    setDueFilter('')
     setSortBy(view.settings.sort)
     setGroupBy(view.settings.groupBy)
     setDisplayMode(view.settings.displayMode)
@@ -821,8 +844,9 @@ export default function TasksPage() {
         if (!isClosed && (priorityKey === 'EMERGENCY' || priorityKey === 'URGENT')) {
           acc.urgent += 1
         }
-        if (task.planned_date && !isClosed) {
-          const deadline = new Date(task.planned_date).getTime()
+        const dueAt = task.due_at ?? task.planned_date
+        if (dueAt && !isClosed) {
+          const deadline = new Date(dueAt).getTime()
           const diffMs = deadline - now
           if (diffMs < 0) {
             acc.overdue += 1
@@ -928,6 +952,16 @@ export default function TasksPage() {
             },
           ]
         : []),
+      ...(dueFilter
+        ? [
+            {
+              id: 'due',
+              type: 'due' as const,
+              label: 'Срок',
+              value: DUE_FILTER_OPTIONS.find((option) => option.value === dueFilter)?.label ?? dueFilter,
+            },
+          ]
+        : []),
       ...(repeatFilter
         ? [
             {
@@ -966,6 +1000,7 @@ export default function TasksPage() {
     addressIdFilter,
     addressTitleFilter,
     repeatFilter,
+    dueFilter,
     assignableUsers,
     getPriorityLabel,
     getStatusLabel,
@@ -977,7 +1012,8 @@ export default function TasksPage() {
     priorityFilter.length +
     assigneeFilter.length +
     (addressIdFilter ? 1 : 0) +
-    (repeatFilter ? 1 : 0)
+    (repeatFilter ? 1 : 0) +
+    (dueFilter ? 1 : 0)
   const isNewQuickView = statusFilter.length === 1 && statusFilter[0] === 'NEW'
   const isInProgressQuickView = statusFilter.length === 1 && statusFilter[0] === 'IN_PROGRESS'
   const isUrgentQuickView =
@@ -994,6 +1030,7 @@ export default function TasksPage() {
     setAddressIdFilter('')
     setAddressTitleFilter('')
     setRepeatFilter('')
+    setDueFilter('')
     setPage(1)
   }
 
@@ -1024,6 +1061,9 @@ export default function TasksPage() {
         break
       case 'repeat':
         setRepeatFilter('')
+        break
+      case 'due':
+        setDueFilter('')
         break
     }
     setPage(1)
@@ -1300,6 +1340,7 @@ export default function TasksPage() {
     if (addressIdFilter) nextParams.set('address_id', addressIdFilter)
     if (addressTitleFilter) nextParams.set('address_title', addressTitleFilter)
     if (repeatFilter) nextParams.set('repeat', repeatFilter)
+    if (dueFilter) nextParams.set('due', dueFilter)
     if (sortBy !== 'created_at_desc') nextParams.set('sort', sortBy)
     if (groupBy) nextParams.set('group', groupBy)
     if (displayMode === 'dispatch') nextParams.set('view', 'dispatch')
@@ -1320,6 +1361,7 @@ export default function TasksPage() {
     addressIdFilter,
     addressTitleFilter,
     repeatFilter,
+    dueFilter,
     sortBy,
     groupBy,
     displayMode,
@@ -1343,8 +1385,9 @@ export default function TasksPage() {
     const urlAddressId = searchParams.get('address_id') || ''
     const urlAddressTitle = searchParams.get('address_title') || ''
     const urlRepeat = sanitizeRepeatFilter(searchParams.get('repeat'))
+    const urlDue = sanitizeDueFilter(searchParams.get('due'))
     const urlSort =
-      searchParams.get('sort') === 'created_at_asc' ? 'created_at_asc' : 'created_at_desc'
+      sanitizeSort(searchParams.get('sort'))
     const rawGroup = searchParams.get('group') || ''
     const urlGroup = ['status', 'assignee', 'priority'].includes(rawGroup) ? rawGroup : ''
     const urlDisplayMode: TaskDisplayMode =
@@ -1362,6 +1405,7 @@ export default function TasksPage() {
     setAddressIdFilter((prev) => (prev === urlAddressId ? prev : urlAddressId))
     setAddressTitleFilter((prev) => (prev === urlAddressTitle ? prev : urlAddressTitle))
     setRepeatFilter((prev) => (prev === urlRepeat ? prev : urlRepeat))
+    setDueFilter((prev) => (prev === urlDue ? prev : urlDue))
     setSortBy((prev) => (prev === urlSort ? prev : urlSort))
     setGroupBy((prev) => (prev === urlGroup ? prev : urlGroup))
     setDisplayMode((prev) => (prev === urlDisplayMode ? prev : urlDisplayMode))
@@ -1433,6 +1477,11 @@ export default function TasksPage() {
         repeatFilter={repeatFilter}
         onRepeatChange={(value) => {
           setRepeatFilter(sanitizeRepeatFilter(value))
+          setPage(1)
+        }}
+        dueFilter={dueFilter}
+        onDueChange={(value) => {
+          setDueFilter(sanitizeDueFilter(value))
           setPage(1)
         }}
         hasActiveFilters={hasActiveFilters}

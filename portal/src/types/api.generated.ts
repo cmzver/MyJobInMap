@@ -4964,6 +4964,16 @@ export interface components {
             totalWorkers: number;
             /** Activeworkers */
             activeWorkers: number;
+            /**
+             * Overduetasks
+             * @default 0
+             */
+            overdueTasks: number;
+            /**
+             * Duesoontasks
+             * @default 0
+             */
+            dueSoonTasks: number;
         };
         /**
          * DayActivity
@@ -5567,6 +5577,11 @@ export interface components {
              * @default 30
              */
             repeat_window_days: number;
+            /**
+             * Sla Escalations Enabled
+             * @default true
+             */
+            sla_escalations_enabled: boolean;
             /** Organization Id */
             organization_id: number;
             sla_hours: components["schemas"]["SlaHours"];
@@ -5609,6 +5624,11 @@ export interface components {
              * @default 30
              */
             repeat_window_days: number;
+            /**
+             * Sla Escalations Enabled
+             * @default true
+             */
+            sla_escalations_enabled: boolean;
             sla_hours?: components["schemas"]["SlaHours"] | null;
         };
         /** OrganizationUpdate */
@@ -7852,6 +7872,8 @@ export interface operations {
                 planned_date_to?: string | null;
                 /** @description Только повторы этого вида (дубли, возвраты). */
                 repeat_kind?: ("duplicate" | "return")[];
+                /** @description Открытые заявки со сроком: overdue — истёк, soon — истекает в ближайшие 24 часа. */
+                due?: ("overdue" | "soon") | null;
             };
             header?: never;
             path?: never;

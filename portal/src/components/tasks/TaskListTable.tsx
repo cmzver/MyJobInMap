@@ -57,7 +57,7 @@ const columnLabels: Record<ToggleableTaskTableColumnKey, string> = {
 }
 
 function renderTaskCell(task: Task, key: ToggleableTaskTableColumnKey, unreadCount: number) {
-  const sla = getSla(task.planned_date, task.status)
+  const sla = getSla(task.due_at ?? task.planned_date, task.status)
   const hasUnread = unreadCount > 0
 
   switch (key) {

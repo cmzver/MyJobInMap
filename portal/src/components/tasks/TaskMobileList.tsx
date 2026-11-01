@@ -53,7 +53,7 @@ export default function TaskMobileList({
             )}
             {!isCollapsed &&
               group.items.map((task) => {
-                const sla = getSla(task.planned_date, task.status)
+                const sla = getSla(task.due_at ?? task.planned_date, task.status)
                 const unreadCount = unreadByTaskId[task.id] ?? 0
                 const hasUnread = unreadCount > 0
                 return (

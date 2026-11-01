@@ -309,3 +309,6 @@ class TestDueFilter:
         assert ids(due="overdue") == [overdue.id]
         assert ids(due="soon") == [soon.id]
         assert ids(sort="due_at_asc") == [overdue.id, soon.id, later.id]
+
+        stats = client.get("/api/dashboard/stats", headers=headers).json()
+        assert (stats["overdueTasks"], stats["dueSoonTasks"]) == (1, 1)

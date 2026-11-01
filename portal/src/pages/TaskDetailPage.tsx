@@ -344,7 +344,7 @@ export default function TaskDetailPage() {
   }
 
   const availableTransitions = getAvailableStatusTransitions(task.status)
-  const sla = getSla(task.planned_date, task.status)
+  const sla = getSla(task.due_at ?? task.planned_date, task.status)
   const canEdit = permissions?.permissions?.edit_tasks ?? normalizeRoleForAccess(user?.role, user?.baseAccess) === 'admin'
   const canDelete = permissions?.permissions?.delete_tasks ?? normalizeRoleForAccess(user?.role, user?.baseAccess) === 'admin'
   const historyEvents = [
