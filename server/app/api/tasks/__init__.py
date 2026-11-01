@@ -12,6 +12,7 @@ from app.api.sla_calendar import router as calendar_router
 from app.api.task_views import router as views_router
 from app.api.tasks.comments import router as comments_router
 from app.api.tasks.core import router as core_router
+from app.api.tasks.remote import router as remote_router
 from app.api.tasks.text_import import router as text_import_router
 
 router = APIRouter()
@@ -21,6 +22,7 @@ from app.api.operations import router as operations_router
 
 router.include_router(operations_router)
 router.include_router(core_router)
+router.include_router(remote_router)
 router.include_router(comments_router)
 router.include_router(text_import_router)
 

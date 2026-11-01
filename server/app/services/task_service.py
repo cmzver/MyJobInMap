@@ -548,6 +548,31 @@ class TaskService:
         """
         task = self.get_by_id(task_id)
         old_status = task.status
+        status_notifications = self._apply_status(task, new_status, comment_text, user)
+        self.db.flush()
+        if before_commit:
+            before_commit(task)
+        self.db.commit()
+        self.db.refresh(task)
+        metrics.record_status_transition(old_status, new_status)
+
+        for notification in status_notifications:
+            broadcast_created_notification(notification)
+
+        return task
+
+    def _apply_status(
+        self,
+        task: TaskModel,
+        new_status: str,
+        comment_text: str,
+        user: Optional[UserModel],
+        notify: bool = True,
+    ) -> list:
+        """Сменить статус без коммита: проверка перехода, история, уведомления,
+        событие outbox. Возвращает уведомления — их рассылают после коммита."""
+        task_id = task.id
+        old_status = task.status
         normalized_comment = comment_text.strip()
 
         # Валидация перехода
@@ -589,7 +614,7 @@ class TaskService:
         )
         self.db.add(comment)
         status_notifications = []
-        if user:
+        if user and notify:
             status_notifications = create_task_status_notification(
                 db=self.db,
                 task=task,
@@ -606,18 +631,65 @@ class TaskService:
             old_status=old_status,
             new_status=new_status,
         )
+        return status_notifications
+
+    def resolve_remotely(
+        self,
+        task_id: int,
+        comment_text: str,
+        user: UserModel,
+        before_commit: Optional[Callable[[TaskModel], None]] = None,
+    ) -> TaskModel:
+        """Решено удалённо — открыли дверь, выдали код ключей, без выезда.
+
+        Одна транзакция: назначить на себя, если никто не назначен, провести
+        NEW → IN_PROGRESS → DONE по обычной таблице переходов (каждый шаг — в
+        истории) и отметить is_remote. Уведомление — только о закрытии."""
+        task = self.get_by_id(task_id)
+        if task.status not in (TaskStatus.NEW.value, TaskStatus.IN_PROGRESS.value):
+            raise TaskServiceError("Заявка уже закрыта", 409)
+        comment = comment_text.strip()
+        if not comment:
+            raise CommentRequiredError(TaskStatus.DONE.value)
+
+        if task.assigned_user_id is None:
+            name = user.full_name or user.username
+            task.assigned_user_id = user.id
+            self.db.add(
+                CommentModel(
+                    task_id=task.id,
+                    text=f"Назначение изменено: Не назначен → {name}",
+                    author=name,
+                    author_id=user.id,
+                    old_assignee="Не назначен",
+                    new_assignee=name,
+                )
+            )
+            stage_task_event(
+                self.db, task, "task_assigned", user, assigned_user_id=user.id
+            )
+
+        transitions = []
+        if task.status == TaskStatus.NEW.value:
+            self._apply_status(
+                task, TaskStatus.IN_PROGRESS.value, "", user, notify=False
+            )
+            transitions.append((TaskStatus.NEW.value, TaskStatus.IN_PROGRESS.value))
+        notifications = self._apply_status(
+            task, TaskStatus.DONE.value, f"Решено удалённо: {comment}", user
+        )
+        transitions.append((TaskStatus.IN_PROGRESS.value, TaskStatus.DONE.value))
+        task.is_remote = True
+
         self.db.flush()
         if before_commit:
             before_commit(task)
         self.db.commit()
         self.db.refresh(task)
-        metrics.record_status_transition(old_status, new_status)
-
-        for notification in status_notifications:
+        for old_status, new_status in transitions:
+            metrics.record_status_transition(old_status, new_status)
+        for notification in notifications:
             broadcast_created_notification(notification)
-
-        # Push уведомление исполнителю
-
         return task
 
     def assign(

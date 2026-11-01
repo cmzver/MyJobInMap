@@ -581,6 +581,7 @@ class IntercomActionModel(Base):
     __table_args__ = (
         Index("ix_intercom_actions_panel_id", "panel_id"),
         Index("ix_intercom_actions_created_at", "created_at"),
+        Index("ix_intercom_actions_task_id", "task_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -592,6 +593,12 @@ class IntercomActionModel(Base):
     )
     user_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    # Действие из карточки заявки (удалённое решение) — в её истории
+    task_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("tasks.id", ondelete="SET NULL", name="fk_intercom_actions_task_id"),
+        nullable=True,
     )
 
     # open | close | lock_status | scan_code
