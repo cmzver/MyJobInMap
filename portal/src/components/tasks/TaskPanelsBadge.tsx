@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { Camera, CheckCircle2, DoorOpen, KeyRound, Lock, Unlock } from 'lucide-react'
+import { Camera, CheckCircle2, DoorOpen, KeyRound, Lock, Server, Unlock } from 'lucide-react'
 import Button from '@/components/Button'
-import Card from '@/components/Card'
 import Modal from '@/components/Modal'
 import Textarea from '@/components/Textarea'
 import { useLockStatus } from '@/hooks/useIntercom'
@@ -151,34 +150,57 @@ function ResolveModal({ taskId, onClose }: { taskId: number; onClose: () => void
   )
 }
 
-/** Домофон на адресе заявки: открыть дверь, код ключей, кадр — и закрыть без выезда. */
-export default function TaskRemoteSection({ task, canResolve }: { task: TaskDetail; canResolve: boolean }) {
+/**
+ * Пометка в шапке заявки: на адресе есть сетевые панели. Клик открывает окно
+ * с действиями (дверь, код ключей, кадр) и «Решено удалённо» — отдельный блок
+ * в карточке не занимает места.
+ */
+export default function TaskPanelsBadge({ task, canResolve }: { task: TaskDetail; canResolve: boolean }) {
   const { data: panels = [] } = useTaskPanels(task.id, task.address_id != null)
+  const [panelsOpen, setPanelsOpen] = useState(false)
   const [resolveOpen, setResolveOpen] = useState(false)
   const isOpen = task.status === 'NEW' || task.status === 'IN_PROGRESS'
 
   if (panels.length === 0) return null
 
   return (
-    <Card
-      compact
-      title="Удалённо"
-      action={
-        canResolve &&
-        isOpen && (
-          <Button size="sm" variant="outline" onClick={() => setResolveOpen(true)}>
-            <CheckCircle2 className="mr-1.5 h-4 w-4" />
-            Решено удалённо
-          </Button>
-        )
-      }
-    >
-      <ul className="divide-y divide-gray-100 dark:divide-gray-700">
-        {panels.map((panel) => (
-          <PanelRow key={panel.id} panel={panel} taskId={task.id} />
-        ))}
-      </ul>
+    <>
+      <button
+        type="button"
+        title="На адресе есть сетевые панели домофона — открыть дверь или решить заявку удалённо"
+        onClick={() => setPanelsOpen(true)}
+        className="inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-full border border-sky-200 bg-sky-50 px-2 text-xs font-medium text-sky-700 transition-colors hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50"
+      >
+        <Server className="h-3 w-3" />
+        Сетевые панели · {panels.length}
+      </button>
+
+      {panelsOpen && (
+        <Modal isOpen onClose={() => setPanelsOpen(false)} title="Сетевые панели" size="lg">
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+            {panels.map((panel) => (
+              <PanelRow key={panel.id} panel={panel} taskId={task.id} />
+            ))}
+          </ul>
+          {canResolve && isOpen && (
+            <div className="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-3 dark:border-gray-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Помогли без выезда — закройте заявку.</p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setPanelsOpen(false)
+                  setResolveOpen(true)
+                }}
+              >
+                <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                Решено удалённо
+              </Button>
+            </div>
+          )}
+        </Modal>
+      )}
       {resolveOpen && <ResolveModal taskId={task.id} onClose={() => setResolveOpen(false)} />}
-    </Card>
+    </>
   )
 }

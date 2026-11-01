@@ -23,13 +23,13 @@ function Card({ children, className, title, action, flush = false }: CardProps) 
       )}
     >
       {(title || action) && (
-        <div className="flex flex-col gap-2 border-b border-gray-200 px-4 py-2.5 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-gray-200 px-4 py-2.5 dark:border-gray-700">
           {title && (
             <h3 className="min-w-0 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
               {title}
             </h3>
           )}
-          {action && <div className="w-full sm:w-auto sm:shrink-0">{action}</div>}
+          {action && <div className="max-w-full shrink-0">{action}</div>}
         </div>
       )}
       <div className={cn(!flush && 'p-4', flush && 'overflow-x-auto')}>{children}</div>
