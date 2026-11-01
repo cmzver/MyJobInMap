@@ -485,6 +485,155 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/service-catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Catalog */
+        get: operations["list_catalog_api_service_catalog_get"];
+        put?: never;
+        /** Create Catalog Item */
+        post: operations["create_catalog_item_api_service_catalog_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/service-catalog/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Catalog Item
+         * @description Удалить позицию. В выпущенных актах она остаётся — там снимок строки.
+         */
+        delete: operations["delete_catalog_item_api_service_catalog__item_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Catalog Item */
+        patch: operations["update_catalog_item_api_service_catalog__item_id__patch"];
+        trace?: never;
+    };
+    "/api/tasks/{task_id}/acts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Task Acts */
+        get: operations["list_task_acts_api_tasks__task_id__acts_get"];
+        put?: never;
+        /** Create Task Act */
+        post: operations["create_task_act_api_tasks__task_id__acts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/acts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Acts
+         * @description Реестр актов организации.
+         */
+        get: operations["list_acts_api_acts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/acts/{act_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Act */
+        get: operations["get_act_api_acts__act_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/acts/{act_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Act Pdf */
+        get: operations["get_act_pdf_api_acts__act_id__pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/acts/{act_id}/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Act Scan */
+        get: operations["get_act_scan_api_acts__act_id__scan_get"];
+        put?: never;
+        /**
+         * Upload Act Scan
+         * @description Скан акта, подписанного на бумаге: акт становится подписанным.
+         */
+        post: operations["upload_act_scan_api_acts__act_id__scan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/acts/{act_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Act Endpoint */
+        post: operations["cancel_act_endpoint_api_acts__act_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tasks/{task_id}/photos": {
         parameters: {
             query?: never;
@@ -3575,6 +3724,172 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActCancelRequest */
+        ActCancelRequest: {
+            /** Reason */
+            reason: string;
+        };
+        /** ActCreate */
+        ActCreate: {
+            /** Lines */
+            lines?: components["schemas"]["ActLineInput"][];
+            /** Customer Name */
+            customer_name?: string | null;
+            /**
+             * Customer Role
+             * @default resident
+             * @enum {string}
+             */
+            customer_role: "resident" | "chairman" | "uk_rep" | "other";
+            /** Customer Phone */
+            customer_phone?: string | null;
+            /** Apartment */
+            apartment?: string | null;
+            /** Work Summary */
+            work_summary?: string | null;
+            /** Customer Remarks */
+            customer_remarks?: string | null;
+            /**
+             * No Claims
+             * @default true
+             */
+            no_claims: boolean;
+            /**
+             * Payment Method
+             * @default none
+             * @enum {string}
+             */
+            payment_method: "cash" | "card" | "transfer" | "contract" | "none";
+            /** Supersedes Act Id */
+            supersedes_act_id?: number | null;
+        };
+        /**
+         * ActLineInput
+         * @description Строка акта: из прайса (catalog_item_id) или свободная (name обязателен).
+         *
+         *     Цену можно не передавать — возьмётся из прайса; сумму считает сервер.
+         */
+        ActLineInput: {
+            /** Catalog Item Id */
+            catalog_item_id?: number | null;
+            /** Line Type */
+            line_type?: ("work" | "material") | null;
+            /** Name */
+            name?: string | null;
+            /** Unit */
+            unit?: string | null;
+            /**
+             * Qty
+             * @default 1
+             */
+            qty: number;
+            /** Price */
+            price?: number | null;
+            /** Serial Number */
+            serial_number?: string | null;
+        };
+        /** ActLineResponse */
+        ActLineResponse: {
+            /** Id */
+            id: number;
+            /** Position */
+            position: number;
+            /**
+             * Line Type
+             * @enum {string}
+             */
+            line_type: "work" | "material";
+            /** Catalog Item Id */
+            catalog_item_id?: number | null;
+            /** Name */
+            name: string;
+            /** Unit */
+            unit: string;
+            /** Qty */
+            qty: number;
+            /** Price */
+            price: number;
+            /** Amount */
+            amount: number;
+            /** Serial Number */
+            serial_number?: string | null;
+        };
+        /** ActListResponse */
+        ActListResponse: {
+            /** Items */
+            items: components["schemas"]["ActResponse"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
+        };
+        /** ActResponse */
+        ActResponse: {
+            /** Id */
+            id: number;
+            /** Number */
+            number: string;
+            /** Task Id */
+            task_id?: number | null;
+            /** Task Number */
+            task_number?: string | null;
+            /** Address */
+            address?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending_signature" | "signed" | "refused" | "cancelled";
+            /** Signed Via */
+            signed_via?: string | null;
+            /** Signed At */
+            signed_at?: string | null;
+            /**
+             * Has Scan
+             * @default false
+             */
+            has_scan: boolean;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Customer Role */
+            customer_role?: ("resident" | "chairman" | "uk_rep" | "other") | null;
+            /** Customer Phone */
+            customer_phone?: string | null;
+            /** Apartment */
+            apartment?: string | null;
+            /** Work Summary */
+            work_summary?: string | null;
+            /** Customer Remarks */
+            customer_remarks?: string | null;
+            /**
+             * No Claims
+             * @default true
+             */
+            no_claims: boolean;
+            /**
+             * Payment Method
+             * @enum {string}
+             */
+            payment_method: "cash" | "card" | "transfer" | "contract" | "none";
+            /** Total Amount */
+            total_amount: number;
+            /** Document Hash */
+            document_hash: string;
+            /** Supersedes Act Id */
+            supersedes_act_id?: number | null;
+            /** Created At */
+            created_at: string;
+            /** Created By Name */
+            created_by_name?: string | null;
+            /** Cancelled At */
+            cancelled_at?: string | null;
+            /** Cancel Reason */
+            cancel_reason?: string | null;
+            /** Lines */
+            lines?: components["schemas"]["ActLineResponse"][];
+        };
         /**
          * AddressAssigneeCreate
          * @description Назначить пользователя ответственным за адрес.
@@ -4522,6 +4837,14 @@ export interface components {
             /** Reply To Id */
             reply_to_id?: number | null;
         };
+        /** Body_upload_act_scan_api_acts__act_id__scan_post */
+        Body_upload_act_scan_api_acts__act_id__scan_post: {
+            /**
+             * File
+             * Format: binary
+             */
+            file: string;
+        };
         /** Body_upload_address_document_api_addresses__address_id__documents_post */
         Body_upload_address_document_api_addresses__address_id__documents_post: {
             /**
@@ -4605,6 +4928,91 @@ export interface components {
              * Format: binary
              */
             file: string;
+        };
+        /** CatalogItemCreate */
+        CatalogItemCreate: {
+            /** Name */
+            name: string;
+            /**
+             * Line Type
+             * @default work
+             * @enum {string}
+             */
+            line_type: "work" | "material";
+            /**
+             * Unit
+             * @default усл
+             */
+            unit: string;
+            /**
+             * Price
+             * @default 0
+             */
+            price: number;
+            /** System Type */
+            system_type?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /** CatalogItemResponse */
+        CatalogItemResponse: {
+            /** Name */
+            name: string;
+            /**
+             * Line Type
+             * @default work
+             * @enum {string}
+             */
+            line_type: "work" | "material";
+            /**
+             * Unit
+             * @default усл
+             */
+            unit: string;
+            /**
+             * Price
+             * @default 0
+             */
+            price: number;
+            /** System Type */
+            system_type?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+            /** Id */
+            id: number;
+        };
+        /** CatalogItemUpdate */
+        CatalogItemUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Line Type */
+            line_type?: ("work" | "material") | null;
+            /** Unit */
+            unit?: string | null;
+            /** Price */
+            price?: number | null;
+            /** System Type */
+            system_type?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Sort Order */
+            sort_order?: number | null;
         };
         /**
          * CommentCreate
@@ -8360,6 +8768,401 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreateTaskFromTextResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_catalog_api_service_catalog_get: {
+        parameters: {
+            query?: {
+                include_inactive?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItemResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_catalog_item_api_service_catalog_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogItemCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItemResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_catalog_item_api_service_catalog__item_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_catalog_item_api_service_catalog__item_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogItemUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItemResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_task_acts_api_tasks__task_id__acts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_task_act_api_tasks__task_id__acts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_acts_api_acts_get: {
+        parameters: {
+            query?: {
+                status?: ("pending_signature" | "signed" | "refused" | "cancelled")[];
+                /** @description Выпущен не раньше (день) */
+                date_from?: string | null;
+                /** @description Выпущен не позже (день) */
+                date_to?: string | null;
+                search?: string | null;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_act_api_acts__act_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                act_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_act_pdf_api_acts__act_id__pdf_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                act_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_act_scan_api_acts__act_id__scan_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                act_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_act_scan_api_acts__act_id__scan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                act_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_act_scan_api_acts__act_id__scan_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_act_endpoint_api_acts__act_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                act_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActCancelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActResponse"];
                 };
             };
             /** @description Validation Error */

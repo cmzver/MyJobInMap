@@ -7,6 +7,7 @@ import PageHeader from '@/components/PageHeader'
 import QueryStatePanel from '@/components/QueryStatePanel'
 import Textarea from '@/components/Textarea'
 import { SettingsCard, SettingsToggle } from '@/components/settings/SettingsSection'
+import ServiceCatalogCard from '@/components/acts/ServiceCatalogCard'
 import { PRIORITY_LABELS } from '@/config/taskConstants'
 import { useOrganizations } from '@/hooks/useOrganizations'
 import {
@@ -277,6 +278,9 @@ export default function OrganizationSettingsPage() {
           organizationId={isSuperadmin ? selectedOrgId : undefined}
         />
       )}
+
+      {/* Прайс ведётся пользователями организации (API берёт организацию из входа) */}
+      {!isSuperadmin && <ServiceCatalogCard />}
     </div>
   )
 }
