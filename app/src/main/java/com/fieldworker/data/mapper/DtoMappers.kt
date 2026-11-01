@@ -3,6 +3,7 @@ package com.fieldworker.data.mapper
 import com.fieldworker.data.remote.generated.CommentResponse
 import com.fieldworker.data.remote.generated.PhotoResponse
 import com.fieldworker.data.remote.generated.TaskListResponse
+import com.fieldworker.data.remote.generated.TaskRepeatRef
 import com.fieldworker.data.remote.generated.TaskResponse
 import com.fieldworker.data.remote.generated.Token
 import com.fieldworker.data.remote.generated.UserResponse
@@ -10,6 +11,7 @@ import com.fieldworker.domain.model.AccessLevel
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
+import com.fieldworker.domain.model.TaskRepeat
 import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.domain.model.User
@@ -48,7 +50,8 @@ fun TaskListResponse.toDomain(): Task = Task(
     paymentAmount = paymentAmount?.toDouble() ?: 0.0,
     systemType = systemType,
     defectType = defectType,
-    commentsCount = commentsCount?.toInt() ?: 0
+    commentsCount = commentsCount?.toInt() ?: 0,
+    repeatOf = repeatOf?.toDomain()
 )
 
 /**
@@ -81,8 +84,25 @@ fun TaskResponse.toDomain(): Task = Task(
     paymentAmount = paymentAmount?.toDouble() ?: 0.0,
     systemType = systemType,
     defectType = defectType,
-    commentsCount = comments?.size ?: 0
+    commentsCount = comments?.size ?: 0,
+    repeatOf = repeatOf?.toDomain()
 )
+
+/**
+ * Повтор: возврат — дата закрытия прошлой заявки, дубль — дата её создания
+ */
+fun TaskRepeatRef.toDomain(): TaskRepeat {
+    val isReturn = kind == TaskRepeatRef.Kind.RETURN
+    return TaskRepeat(
+        taskId = id,
+        taskNumber = taskNumber,
+        isReturn = isReturn,
+        sameDefect = sameDefect == true,
+        date = if (isReturn) completedAt else createdAt,
+        assigneeName = assignedUserName,
+        completionComment = completionComment
+    )
+}
 
 /**
  * Извлечение комментариев из TaskResponse

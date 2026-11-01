@@ -17,6 +17,7 @@ import AddressForm from '@/components/AddressForm'
 import type { AddressSystem } from '@/types/address'
 import SystemSelector from '@/components/SystemSelector'
 import DefectTypeSelector from '@/components/DefectTypeSelector'
+import RelatedTasksHint from '@/components/tasks/RelatedTasksHint'
 import type { TaskPriority } from '@/types/task'
 import { isAssignableRole } from '@/types/user'
 import { PRIORITY_OPTIONS_FOR_FORM, normalizePriority } from '@/config/taskConstants'
@@ -684,6 +685,19 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
           </div>
         )}
         
+        {/* Уже открытые и недавно закрытые заявки на этом адресе */}
+        {mode === 'create' && (
+          <RelatedTasksHint
+            address={
+              formData.address.city.trim() && formData.address.street.trim() && formData.address.building.trim()
+                ? fullAddress
+                : ''
+            }
+            systemId={formData.system_id ? Number(formData.system_id) : null}
+            systemType={formData.system_type || null}
+          />
+        )}
+
         {/* Подсказка для старых заявок без системы */}
         {mode === 'edit' && formData.addressId && !formData.system_type && (
           <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">

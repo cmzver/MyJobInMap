@@ -9,13 +9,14 @@ import { useTasks } from '@/hooks/useTasks'
 import { usePortalInterfaceSettings } from '@/hooks/useSettings'
 import { useUsers } from '@/hooks/useUsers'
 import { MAX_TASKS_PAGE_SIZE, tasksApi } from '@/api/tasks'
-import type { TaskStatus, TaskPriority, TaskFilters, Task, TaskSort } from '@/types/task'
+import type { TaskStatus, TaskPriority, TaskFilters, Task, TaskSort, RepeatKind } from '@/types/task'
 import {
   normalizePriority,
   getPriorityLabel as getPriorityLabelFn,
   getStatusLabel as getStatusLabelFn,
   getStatusCommentCopy,
   isStatusTransitionAllowed,
+  REPEAT_FILTER_OPTIONS,
 } from '@/config/taskConstants'
 import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
@@ -275,6 +276,9 @@ const sanitizeTaskPriorities = (values: string[]): TaskPriority[] =>
     )
   )
 
+const sanitizeRepeatFilter = (value: string | null): RepeatKind | '' =>
+  value === 'duplicate' || value === 'return' ? value : ''
+
 const sanitizeAssigneeFilters = (values: string[]): string[] =>
   Array.from(new Set(values.filter((value) => /^\d+$/.test(value))))
 
@@ -336,6 +340,9 @@ export default function TasksPage() {
   const [addressTitleFilter, setAddressTitleFilter] = useState<string>(
     () => searchParams.get('address_title') || ''
   )
+  const [repeatFilter, setRepeatFilter] = useState<RepeatKind | ''>(() =>
+    sanitizeRepeatFilter(searchParams.get('repeat'))
+  )
   const [sortBy, setSortBy] = useState<TaskSort>(() => {
     const value = searchParams.get('sort')
     return value === 'created_at_asc' ? 'created_at_asc' : 'created_at_desc'
@@ -346,7 +353,7 @@ export default function TasksPage() {
   })
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(() =>
-    ['status', 'priority', 'assignee', 'address_id'].some((key) => searchParams.has(key))
+    ['status', 'priority', 'assignee', 'address_id', 'repeat'].some((key) => searchParams.has(key))
   )
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkStatus, setBulkStatus] = useState('')
@@ -398,6 +405,7 @@ export default function TasksPage() {
       size: pageSize,
       sort: sortBy,
       ...(addressIdFilter ? { address_id: Number(addressIdFilter) || undefined } : {}),
+      ...(repeatFilter && { repeat_kinds: [repeatFilter] }),
       ...(search && { search }),
       ...(statusFilter.length > 0 && { statuses: statusFilter }),
       ...(priorityFilter.length > 0 && { priorities: priorityFilter }),
@@ -405,7 +413,17 @@ export default function TasksPage() {
         assignee_ids: assigneeFilter.map(Number).filter((value) => Number.isFinite(value)),
       }),
     }),
-    [page, pageSize, sortBy, search, statusFilter, priorityFilter, assigneeFilter, addressIdFilter]
+    [
+      page,
+      pageSize,
+      sortBy,
+      search,
+      statusFilter,
+      priorityFilter,
+      assigneeFilter,
+      addressIdFilter,
+      repeatFilter,
+    ]
   )
 
   const { data: interfaceSettings } = usePortalInterfaceSettings()
@@ -525,6 +543,7 @@ export default function TasksPage() {
     setAssigneeFilter(view.settings.assignees)
     setAddressIdFilter(view.settings.addressId)
     setAddressTitleFilter(view.settings.addressTitle)
+    setRepeatFilter('')
     setSortBy(view.settings.sort)
     setGroupBy(view.settings.groupBy)
     setDisplayMode(view.settings.displayMode)
@@ -905,6 +924,16 @@ export default function TasksPage() {
             },
           ]
         : []),
+      ...(repeatFilter
+        ? [
+            {
+              id: 'repeat',
+              type: 'repeat' as const,
+              label: 'Повторы',
+              value: REPEAT_FILTER_OPTIONS.find((option) => option.value === repeatFilter)?.label ?? repeatFilter,
+            },
+          ]
+        : []),
     ]
 
     const items: Array<{ [key: string]: unknown }> = []
@@ -932,6 +961,7 @@ export default function TasksPage() {
     assigneeFilter,
     addressIdFilter,
     addressTitleFilter,
+    repeatFilter,
     assignableUsers,
     getPriorityLabel,
     getStatusLabel,
@@ -939,7 +969,11 @@ export default function TasksPage() {
 
   const hasActiveFilters = activeFilters.length > 0
   const advancedFilterCount =
-    statusFilter.length + priorityFilter.length + assigneeFilter.length + (addressIdFilter ? 1 : 0)
+    statusFilter.length +
+    priorityFilter.length +
+    assigneeFilter.length +
+    (addressIdFilter ? 1 : 0) +
+    (repeatFilter ? 1 : 0)
   const isNewQuickView = statusFilter.length === 1 && statusFilter[0] === 'NEW'
   const isInProgressQuickView = statusFilter.length === 1 && statusFilter[0] === 'IN_PROGRESS'
   const isUrgentQuickView =
@@ -955,6 +989,7 @@ export default function TasksPage() {
     setAssigneeFilter([])
     setAddressIdFilter('')
     setAddressTitleFilter('')
+    setRepeatFilter('')
     setPage(1)
   }
 
@@ -982,6 +1017,9 @@ export default function TasksPage() {
       case 'address':
         setAddressIdFilter('')
         setAddressTitleFilter('')
+        break
+      case 'repeat':
+        setRepeatFilter('')
         break
     }
     setPage(1)
@@ -1257,6 +1295,7 @@ export default function TasksPage() {
     assigneeFilter.forEach((value) => nextParams.append('assignee', value))
     if (addressIdFilter) nextParams.set('address_id', addressIdFilter)
     if (addressTitleFilter) nextParams.set('address_title', addressTitleFilter)
+    if (repeatFilter) nextParams.set('repeat', repeatFilter)
     if (sortBy !== 'created_at_desc') nextParams.set('sort', sortBy)
     if (groupBy) nextParams.set('group', groupBy)
     if (displayMode === 'dispatch') nextParams.set('view', 'dispatch')
@@ -1276,6 +1315,7 @@ export default function TasksPage() {
     assigneeFilter,
     addressIdFilter,
     addressTitleFilter,
+    repeatFilter,
     sortBy,
     groupBy,
     displayMode,
@@ -1298,6 +1338,7 @@ export default function TasksPage() {
     const urlAssignees = sanitizeAssigneeFilters(searchParams.getAll('assignee'))
     const urlAddressId = searchParams.get('address_id') || ''
     const urlAddressTitle = searchParams.get('address_title') || ''
+    const urlRepeat = sanitizeRepeatFilter(searchParams.get('repeat'))
     const urlSort =
       searchParams.get('sort') === 'created_at_asc' ? 'created_at_asc' : 'created_at_desc'
     const rawGroup = searchParams.get('group') || ''
@@ -1316,6 +1357,7 @@ export default function TasksPage() {
     setAssigneeFilter((prev) => (areStringArraysEqual(prev, urlAssignees) ? prev : urlAssignees))
     setAddressIdFilter((prev) => (prev === urlAddressId ? prev : urlAddressId))
     setAddressTitleFilter((prev) => (prev === urlAddressTitle ? prev : urlAddressTitle))
+    setRepeatFilter((prev) => (prev === urlRepeat ? prev : urlRepeat))
     setSortBy((prev) => (prev === urlSort ? prev : urlSort))
     setGroupBy((prev) => (prev === urlGroup ? prev : urlGroup))
     setDisplayMode((prev) => (prev === urlDisplayMode ? prev : urlDisplayMode))
@@ -1384,6 +1426,11 @@ export default function TasksPage() {
         onStatusChange={handleStatusFilterChange}
         onPriorityChange={handlePriorityFilterChange}
         onAssigneeChange={handleAssigneeFilterChange}
+        repeatFilter={repeatFilter}
+        onRepeatChange={(value) => {
+          setRepeatFilter(sanitizeRepeatFilter(value))
+          setPage(1)
+        }}
         hasActiveFilters={hasActiveFilters}
         activeFilters={activeFilters}
         onClearFilters={clearFilters}

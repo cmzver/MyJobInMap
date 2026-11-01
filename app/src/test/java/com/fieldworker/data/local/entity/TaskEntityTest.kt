@@ -2,6 +2,7 @@ package com.fieldworker.data.local.entity
 
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
+import com.fieldworker.domain.model.TaskRepeat
 import com.fieldworker.domain.model.TaskStatus
 import org.junit.Assert.*
 import org.junit.Test
@@ -213,4 +214,34 @@ class TaskEntityTest {
         updatedAt = "",
         commentsCount = 0
     )
+
+    @Test
+    fun `repeat survives cache round trip`() {
+        val repeat = TaskRepeat(
+            taskId = 7L,
+            taskNumber = "Z-00007",
+            isReturn = true,
+            sameDefect = true,
+            date = "2026-10-20T12:00:00Z",
+            assigneeName = "Иванов И.",
+            completionComment = "Заменил блок питания"
+        )
+        val task = Task(
+            id = 8L,
+            taskNumber = "Z-00008",
+            title = "Повтор",
+            address = "ул. Невская, д. 9",
+            description = "",
+            lat = null,
+            lon = null,
+            status = TaskStatus.NEW,
+            priority = Priority.CURRENT,
+            createdAt = "2026-11-01T10:00:00Z",
+            updatedAt = "2026-11-01T10:00:00Z",
+            repeatOf = repeat
+        )
+
+        assertEquals(repeat, TaskEntity.fromDomain(task).toDomain().repeatOf)
+        assertNull(TaskEntity.fromDomain(task.copy(repeatOf = null)).toDomain().repeatOf)
+    }
 }

@@ -25,6 +25,7 @@ package com.fieldworker.data.remote.generated
 
 import com.fieldworker.data.remote.generated.CommentResponse
 import com.fieldworker.data.remote.generated.TaskPriority
+import com.fieldworker.data.remote.generated.TaskRepeatRef
 import com.fieldworker.data.remote.generated.TaskStatus
 
 import kotlinx.serialization.Serializable
@@ -49,6 +50,7 @@ import kotlinx.serialization.Contextual
  * @param customerPhone Телефон клиента
  * @param plannedDate Плановая дата выполнения
  * @param completedAt Дата завершения (если статус=DONE)
+ * @param dueAt Срок выполнения: конец плановой даты или создание + норматив приоритета
  * @param assignedUserId ID назначенного исполнителя
  * @param assignedUserName Имя исполнителя
  * @param createdById ID пользователя, который завел заявку
@@ -60,6 +62,7 @@ import kotlinx.serialization.Contextual
  * @param systemType Тип системы (video_surveillance, intercom, etc.)
  * @param defectType Тип неисправности
  * @param organizationId ID организации
+ * @param repeatOf Повтор более ранней заявки на том же месте
  * @param comments История комментариев и изменений
  */
 @Serializable
@@ -122,6 +125,10 @@ data class TaskResponse (
     @SerialName(value = "completed_at")
     val completedAt: kotlin.String? = null,
 
+    /* Срок выполнения: конец плановой даты или создание + норматив приоритета */
+    @SerialName(value = "due_at")
+    val dueAt: kotlin.String? = null,
+
     /* ID назначенного исполнителя */
     @SerialName(value = "assigned_user_id")
     val assignedUserId: kotlin.Long? = null,
@@ -165,6 +172,10 @@ data class TaskResponse (
     /* ID организации */
     @SerialName(value = "organization_id")
     val organizationId: kotlin.Long? = null,
+
+    /* Повтор более ранней заявки на том же месте */
+    @SerialName(value = "repeat_of")
+    val repeatOf: TaskRepeatRef? = null,
 
     /* История комментариев и изменений */
     @SerialName(value = "comments")

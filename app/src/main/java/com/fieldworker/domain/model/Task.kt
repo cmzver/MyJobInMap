@@ -26,7 +26,8 @@ data class Task(
     val paymentAmount: Double = 0.0,
     val systemType: String? = null,
     val defectType: String? = null,
-    val commentsCount: Int = 0
+    val commentsCount: Int = 0,
+    val repeatOf: TaskRepeat? = null
 ) {
     /**
      * Проверяет, есть ли у задачи валидные координаты для отображения на карте

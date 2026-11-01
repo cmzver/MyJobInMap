@@ -12,6 +12,8 @@ export type Task = components['schemas']['TaskListResponse']
 export type TaskDetail = components['schemas']['TaskResponse']
 
 export type Comment = components['schemas']['CommentResponse']
+export type TaskRepeatRef = components['schemas']['TaskRepeatRef']
+export type RepeatKind = TaskRepeatRef['kind']
 
 export interface TaskPhoto {
   id: number
@@ -40,6 +42,7 @@ export interface TaskFilters {
   assignee_ids?: number[]
   search?: string
   address_id?: number
+  repeat_kinds?: RepeatKind[]
   sort?: TaskSort
   date_from?: string
   date_to?: string

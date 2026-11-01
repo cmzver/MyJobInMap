@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
+import com.fieldworker.domain.model.TaskRepeat
 import com.fieldworker.domain.model.TaskStatus
 
 /**
@@ -35,6 +36,14 @@ data class TaskEntity(
     val systemType: String? = null,
     val defectType: String? = null,
     val commentsCount: Int,
+    // Повтор более ранней заявки на том же месте (TaskRepeat); repeatOfId == null — не повтор
+    val repeatOfId: Long? = null,
+    val repeatTaskNumber: String? = null,
+    val repeatIsReturn: Boolean = false,
+    val repeatSameDefect: Boolean = false,
+    val repeatDate: String? = null,
+    val repeatAssigneeName: String? = null,
+    val repeatComment: String? = null,
     // Метаданные для синхронизации
     val lastSyncedAt: Long = System.currentTimeMillis(),
     val isLocallyModified: Boolean = false,
@@ -66,7 +75,18 @@ data class TaskEntity(
         paymentAmount = paymentAmount,
         systemType = systemType,
         defectType = defectType,
-        commentsCount = commentsCount
+        commentsCount = commentsCount,
+        repeatOf = repeatOfId?.let { repeatId ->
+            TaskRepeat(
+                taskId = repeatId,
+                taskNumber = repeatTaskNumber ?: "Z-${repeatId.toString().padStart(5, '0')}",
+                isReturn = repeatIsReturn,
+                sameDefect = repeatSameDefect,
+                date = repeatDate,
+                assigneeName = repeatAssigneeName,
+                completionComment = repeatComment
+            )
+        }
     )
     
     companion object {
@@ -95,7 +115,14 @@ data class TaskEntity(
             paymentAmount = task.paymentAmount,
             systemType = task.systemType,
             defectType = task.defectType,
-            commentsCount = task.commentsCount
+            commentsCount = task.commentsCount,
+            repeatOfId = task.repeatOf?.taskId,
+            repeatTaskNumber = task.repeatOf?.taskNumber,
+            repeatIsReturn = task.repeatOf?.isReturn ?: false,
+            repeatSameDefect = task.repeatOf?.sameDefect ?: false,
+            repeatDate = task.repeatOf?.date,
+            repeatAssigneeName = task.repeatOf?.assigneeName,
+            repeatComment = task.repeatOf?.completionComment
         )
     }
 }

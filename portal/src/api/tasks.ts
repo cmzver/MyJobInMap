@@ -6,6 +6,13 @@ import type { components } from '@/types/api.generated'
 // of truth) — regenerate with `npm run gen:api` after changing server schemas.
 export type CreateTaskData = components['schemas']['TaskCreate']
 export type UpdateTaskData = components['schemas']['TaskUpdate']
+export type RelatedTasks = components['schemas']['RelatedTasksResponse']
+export type RelatedTask = components['schemas']['RelatedTask']
+
+/** История места заявки (task_id) либо подсказка для ещё не созданной (address). */
+export type RelatedTasksQuery =
+  | { task_id: number }
+  | { address: string; system_id?: number | null; system_type?: string | null }
 
 /** Больше заявок за запрос сервер не отдаёт (`size` ≤ 100) — больший размер даёт 422. */
 export const MAX_TASKS_PAGE_SIZE = 100
@@ -46,6 +53,7 @@ export const tasksApi = {
     priorities.forEach((priority) => params.append('priority', priority))
     assigneeIds.forEach((assigneeId) => params.append('assignee_id', String(assigneeId)))
     if (filters?.address_id) params.append('address_id', String(filters.address_id))
+    filters?.repeat_kinds?.forEach((kind) => params.append('repeat_kind', kind))
     if (filters?.search) params.append('search', filters.search)
     if (filters?.sort) params.append('sort', filters.sort)
     if (filters?.page) params.append('page', String(filters.page))
@@ -54,6 +62,14 @@ export const tasksApi = {
     const { data } = await apiClient.get<PaginatedResponse<Task>>(
       `/tasks?${params.toString()}`
     )
+    return data
+  },
+
+  async getRelated(query: RelatedTasksQuery): Promise<RelatedTasks> {
+    const params = Object.fromEntries(
+      Object.entries(query).filter(([, value]) => value !== null && value !== undefined && value !== ''),
+    )
+    const { data } = await apiClient.get<RelatedTasks>('/tasks/related', { params })
     return data
   },
 

@@ -374,6 +374,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 f"⚠️ Координаты не определены"
             )
         
+        # Повтор: на этом адресе уже есть открытая или недавно закрытая заявка
+        repeat = task.get("repeat_of")
+        if repeat and not result.get("updated_existing"):
+            if repeat.get("kind") == "duplicate":
+                reply += f"\n⚠️ Похоже на дубль: открыта заявка {repeat.get('task_number')}"
+            else:
+                reply += f"\n🔁 Повтор: недавно закрыта заявка {repeat.get('task_number')}"
+
         # Добавляем информацию о назначении
         if assigned_name:
             reply += f"\n👷 Назначена: {assigned_name}"

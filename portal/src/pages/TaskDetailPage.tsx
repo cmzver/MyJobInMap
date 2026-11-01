@@ -21,7 +21,7 @@ import {
   Phone,
   ChevronDown
 } from 'lucide-react'
-import { useTask, useUpdateTaskStatus, useDeleteTask, useAssignTask } from '@/hooks/useTasks'
+import { useTask, useUpdateTaskStatus, useDeleteTask, useAssignTask, useRelatedTasks } from '@/hooks/useTasks'
 import { useUsers } from '@/hooks/useUsers'
 import { useComments, useAddComment } from '@/hooks/useComments'
 import { useMarkTaskNotificationsRead, useUnreadTaskNotifications } from '@/hooks/useNotifications'
@@ -34,6 +34,8 @@ import Button from '@/components/Button'
 import Spinner from '@/components/Spinner'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
+import RepeatBadge from '@/components/tasks/RepeatBadge'
+import { AddressHistoryList, RepeatNotice } from '@/components/tasks/AddressHistory'
 import Card from '@/components/Card'
 import Modal from '@/components/Modal'
 import Textarea from '@/components/Textarea'
@@ -112,6 +114,7 @@ export default function TaskDetailPage() {
   // Data fetching
   const { data: task, isLoading, isError, error } = useTask(taskId)
   const { data: comments = [], isLoading: commentsLoading } = useComments(taskId)
+  const { data: addressHistory } = useRelatedTasks(taskId ? { task_id: taskId } : null)
   const { data: photos = [], isLoading: photosLoading } = usePhotos(taskId)
   const { data: users = [] } = useUsers()
   const { user } = useAuthStore()
@@ -393,6 +396,7 @@ export default function TaskDetailPage() {
                 </span>
                 <StatusBadge status={task.status} />
                 <PriorityBadge priority={task.priority} />
+                <RepeatBadge repeat={task.repeat_of} />
               </div>
               <h1 className="text-xl font-semibold leading-snug text-gray-900 dark:text-white break-words">
                 {task.title}
@@ -579,6 +583,19 @@ export default function TaskDetailPage() {
               {task.description || 'Описание не указано'}
             </p>
           </Card>
+
+          {task.repeat_of && <RepeatNotice repeat={task.repeat_of} />}
+
+          <CollapsibleCard
+            title="История адреса"
+            meta={addressHistory ? addressHistory.history.length : '...'}
+          >
+            {addressHistory ? (
+              <AddressHistoryList tasks={addressHistory.history} />
+            ) : (
+              <Spinner size="sm" />
+            )}
+          </CollapsibleCard>
 
           <CollapsibleCard
             title="Фотографии"

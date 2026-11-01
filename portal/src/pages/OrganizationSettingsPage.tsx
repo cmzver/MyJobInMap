@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Clock, FileText, Landmark, RotateCcw, Save } from 'lucide-react'
+import { Clock, FileText, History, Landmark, RotateCcw, Save } from 'lucide-react'
 import Button from '@/components/Button'
 import EmptyState from '@/components/EmptyState'
 import Input from '@/components/Input'
@@ -45,6 +45,7 @@ type FormState = {
   actFooterText: string
   hours: Record<keyof SlaHours, string>
   defaultHours: boolean
+  repeatWindowDays: string
 }
 
 function toForm(settings: OrganizationSettings): FormState {
@@ -59,6 +60,7 @@ function toForm(settings: OrganizationSettings): FormState {
       PRIORITIES.map((p) => [p, String(settings.sla_hours[p])])
     ) as Record<keyof SlaHours, string>,
     defaultHours: !settings.sla_hours_customized,
+    repeatWindowDays: String(settings.repeat_window_days),
   }
 }
 
@@ -108,6 +110,7 @@ function OrganizationSettingsForm({ organizationId }: { organizationId?: number 
         act_number_prefix: form.actNumberPrefix.trim() || 'А',
         act_footer_text: form.actFooterText.trim() || null,
         sla_hours,
+        repeat_window_days: Number(form.repeatWindowDays),
       },
       {
         onSuccess: () => showApiSuccess('Настройки организации сохранены'),
@@ -191,6 +194,23 @@ function OrganizationSettingsForm({ organizationId }: { organizationId?: number 
         </div>
       </SettingsCard>
 
+      <SettingsCard
+        title="Повторные заявки"
+        icon={History}
+        description="Заявку на том же адресе и системе, где прошлую закрыли не раньше этого срока, отмечаем как возврат. Открытая заявка на том же месте — дубль."
+      >
+        <div className="max-w-[12rem]">
+          <Input
+            type="number"
+            min={1}
+            max={365}
+            label="Окно возврата, дней"
+            value={form.repeatWindowDays}
+            onChange={(event) => setForm({ ...form, repeatWindowDays: event.target.value })}
+          />
+        </div>
+      </SettingsCard>
+
       <div className="flex justify-end">
         <Button onClick={handleSave} isLoading={save.isPending}>
           <Save className="mr-1.5 h-4 w-4" />
@@ -211,7 +231,7 @@ export default function OrganizationSettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Организация"
-        description="Реквизиты для документов, нумерация актов и сроки заявок."
+        description="Реквизиты для документов, нумерация актов, сроки и повторы заявок."
       />
 
       {isSuperadmin && (

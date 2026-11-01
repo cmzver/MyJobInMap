@@ -3,13 +3,13 @@ import Button from '@/components/Button'
 import MultiSelectFilter from '@/components/MultiSelectFilter'
 import Select from '@/components/Select'
 import TaskSavedViews from '@/components/tasks/TaskSavedViews'
-import { PRIORITY_OPTIONS, STATUS_OPTIONS } from '@/config/taskConstants'
+import { PRIORITY_OPTIONS, REPEAT_FILTER_OPTIONS, STATUS_OPTIONS } from '@/config/taskConstants'
 import type { TaskPriority, TaskSort, TaskStatus } from '@/types/task'
 import type { TaskSavedView, TaskSavedViewSettings } from '@/hooks/useTaskSavedViews'
 
 export interface ActiveTaskFilter {
   id: string
-  type: 'search' | 'status' | 'priority' | 'assignee' | 'address'
+  type: 'search' | 'status' | 'priority' | 'assignee' | 'address' | 'repeat'
   label: string
   value: string
   rawValue?: string
@@ -58,6 +58,8 @@ interface TaskFiltersPanelProps {
   onStatusChange: (values: string[]) => void
   onPriorityChange: (values: string[]) => void
   onAssigneeChange: (values: string[]) => void
+  repeatFilter: string
+  onRepeatChange: (value: string) => void
   hasActiveFilters: boolean
   activeFilters: ActiveTaskFilter[]
   onClearFilters: () => void
@@ -115,6 +117,8 @@ export default function TaskFiltersPanel({
   onStatusChange,
   onPriorityChange,
   onAssigneeChange,
+  repeatFilter,
+  onRepeatChange,
   hasActiveFilters,
   activeFilters,
   onClearFilters,
@@ -198,7 +202,7 @@ export default function TaskFiltersPanel({
 
         <div
           id="task-advanced-filters"
-          className={`gap-3 border-t border-gray-100 pt-3 sm:grid-cols-2 xl:grid-cols-5 dark:border-gray-700 ${showAdvancedFilters ? 'grid' : 'hidden'}`}
+          className={`gap-3 border-t border-gray-100 pt-3 sm:grid-cols-2 xl:grid-cols-6 dark:border-gray-700 ${showAdvancedFilters ? 'grid' : 'hidden'}`}
         >
           <Select label="Сортировка" options={sortOptions} value={sortBy} onChange={onSortChange} placeholder="Сортировка" className="h-9 text-sm" />
           <Select label="Группировка" options={groupOptions} value={groupBy} onChange={onGroupChange} placeholder="Без группировки" className="h-9 text-sm" />
@@ -211,7 +215,8 @@ export default function TaskFiltersPanel({
             onChange={onAssigneeChange}
             placeholder="Все исполнители"
           />
-          <div className="flex items-end sm:col-span-2 xl:col-span-5 xl:justify-end">
+          <Select label="Повторы" options={REPEAT_FILTER_OPTIONS} value={repeatFilter} onChange={onRepeatChange} placeholder="Все заявки" className="h-9 text-sm" />
+          <div className="flex items-end sm:col-span-2 xl:col-span-6 xl:justify-end">
             <Button variant="ghost" size="sm" onClick={onClearFilters} disabled={!hasActiveFilters} className="h-9 px-3">
               Сбросить фильтры
             </Button>

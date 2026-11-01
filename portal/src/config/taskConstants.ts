@@ -198,3 +198,10 @@ export function getStatusCommentCopy(status: TaskStatus | null, options?: { plur
     error: 'Комментарий обязателен',
   }
 }
+
+/** Фильтр списка по повторам (repeat_kind). */
+export const REPEAT_FILTER_OPTIONS = [
+  { value: '', label: 'Все заявки' },
+  { value: 'return', label: 'Возвраты' },
+  { value: 'duplicate', label: 'Дубли' },
+]

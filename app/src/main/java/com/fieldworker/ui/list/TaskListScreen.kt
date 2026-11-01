@@ -77,6 +77,7 @@ import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.PendingPhoto
 import com.fieldworker.domain.model.TaskPhoto
+import com.fieldworker.domain.model.TaskRepeat
 import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.components.AppSearchField
 import com.fieldworker.ui.components.PhotoGallery
@@ -1036,6 +1037,10 @@ fun TaskDetailContent(
                 }
             }
 
+            task.repeatOf?.let { repeat ->
+                item { TaskRepeatSection(repeat) }
+            }
+
             if (isLoadingAddress || addressDetails != null || hasAttemptedAddressLookup) {
                 item {
                     TaskObjectPreviewSection(
@@ -1252,6 +1257,14 @@ private fun TaskDetailHeader(
                         color = color
                     )
                 }
+            }
+            task.repeatOf?.let { repeat ->
+                Text(
+                    text = if (repeat.isReturn) "Повтор" else "Дубль",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             Spacer(modifier = Modifier.weight(1f))
             Text(
@@ -1528,6 +1541,41 @@ private fun TaskActionBar(
                 label = "next-action"
             ) { label ->
                 Text(label, style = MaterialTheme.typography.titleSmall)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskRepeatSection(repeat: TaskRepeat) {
+    val date = remember(repeat.date) {
+        repeat.date?.let { com.fieldworker.ui.utils.TaskUtils.formatShortDate(it) }
+    }
+    TaskSectionCard(title = if (repeat.isReturn) "Повтор заявки" else "Дубль заявки") {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = "#${repeat.taskNumber}" + if (repeat.sameDefect) " · та же неисправность" else "",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            val facts = listOfNotNull(
+                date?.let { if (repeat.isReturn) "закрыта $it" else "открыта с $it" },
+                repeat.assigneeName?.takeIf { it.isNotBlank() }
+            ).joinToString(" · ")
+            if (facts.isNotEmpty()) {
+                Text(
+                    text = facts.replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            repeat.completionComment?.takeIf { repeat.isReturn && it.isNotBlank() }?.let { comment ->
+                Text(
+                    text = "«$comment»",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
