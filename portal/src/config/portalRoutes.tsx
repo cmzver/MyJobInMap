@@ -8,7 +8,6 @@ import {
   DollarSign,
   FileText,
   Landmark,
-  LayoutDashboard,
   LifeBuoy,
   Map,
   MapPin,
@@ -25,7 +24,6 @@ const MyDayPage = lazy(() => import('@/pages/MyDayPage'))
 const MaintenancePage = lazy(() => import('@/pages/MaintenancePage'))
 const MaterialsPage = lazy(() => import('@/pages/MaterialsPage'))
 const EquipmentPassportPage = lazy(() => import('@/pages/EquipmentPassportPage'))
-const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
 const TasksPage = lazy(() => import('@/pages/TasksPage'))
 const MyTasksPage = lazy(() => import('@/pages/MyTasksPage'))
 const TaskDetailPage = lazy(() => import('@/pages/TaskDetailPage'))
@@ -36,7 +34,7 @@ const AddressesPage = lazy(() => import('@/pages/AddressesPage'))
 const AddressDetailPage = lazy(() => import('@/pages/AddressDetailPage'))
 const UsersPage = lazy(() => import('@/pages/UsersPage'))
 const FinancePage = lazy(() => import('@/pages/FinancePage'))
-const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'))
+const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
 const ProfilePage = lazy(() => import('@/pages/ProfilePage'))
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'))
 const SupportPage = lazy(() => import('@/pages/SupportPage'))
@@ -92,12 +90,14 @@ export const portalRoutes: PortalRouteDefinition[] = [
     navigation: { section: 'management', label: 'Материалы', icon: ClipboardList } },
   { id: 'equipment-passport', path: 'equipment/:id', element: <EquipmentPassportPage />, roles: ALL_ROLES },
   {
+    // Дашборд и аналитика — одна страница по адресу /dashboard.
     id: 'dashboard',
     path: 'dashboard',
     element: <DashboardPage />,
     roles: MANAGER_ROLES,
-    navigation: { section: 'main', label: 'Дашборд', icon: LayoutDashboard },
+    navigation: { section: 'main', label: 'Дашборд', icon: BarChart3 },
   },
+  { id: 'analytics-legacy', path: 'analytics', redirectTo: '/dashboard', roles: MANAGER_ROLES },
   {
     id: 'my-tasks',
     path: 'my-tasks',
@@ -187,15 +187,8 @@ export const portalRoutes: PortalRouteDefinition[] = [
     navigation: { section: 'management', label: 'Финансы', icon: DollarSign },
   },
   { id: 'devices-legacy', path: 'devices', redirectTo: '/profile' },
-  {
-    id: 'analytics',
-    path: 'analytics',
-    element: <AnalyticsPage />,
-    roles: MANAGER_ROLES,
-    navigation: { section: 'management', label: 'Аналитика', icon: BarChart3 },
-  },
-  { id: 'reports-legacy', path: 'reports', redirectTo: '/analytics', roles: MANAGER_ROLES },
-  { id: 'sla-legacy', path: 'sla', redirectTo: '/analytics', roles: MANAGER_ROLES },
+  { id: 'reports-legacy', path: 'reports', redirectTo: '/dashboard', roles: MANAGER_ROLES },
+  { id: 'sla-legacy', path: 'sla', redirectTo: '/dashboard', roles: MANAGER_ROLES },
   {
     id: 'chat',
     path: 'chat',
