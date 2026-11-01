@@ -6,7 +6,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { intercomApi } from '@/api/intercom'
 import { tasksApi } from '@/api/tasks'
 import { commentKeys } from '@/hooks/useComments'
-import { photoKeys } from '@/hooks/usePhotos'
 import { myTaskKeys, syncTaskInPaginatedLists, taskKeys } from '@/hooks/useTasks'
 import type { Task } from '@/types/task'
 
@@ -42,14 +41,6 @@ export function useTaskScanCode(addressId: number, taskId: number) {
   return useMutation({
     mutationFn: (panelId: number) => intercomApi.getMifareScanCode(addressId, panelId, taskId),
     onSuccess: refreshHistory,
-  })
-}
-
-export function useSnapshotPhoto(taskId: number) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (panelId: number) => intercomApi.saveSnapshotPhoto(taskId, panelId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: photoKeys.list(taskId) }),
   })
 }
 

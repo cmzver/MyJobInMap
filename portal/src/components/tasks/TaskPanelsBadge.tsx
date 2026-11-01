@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Camera, CheckCircle2, DoorOpen, KeyRound, Lock, Server, Unlock } from 'lucide-react'
+import { CheckCircle2, DoorOpen, KeyRound, Lock, Server, Unlock, Video } from 'lucide-react'
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
+import PanelVideoModal from '@/components/PanelVideoModal'
 import Textarea from '@/components/Textarea'
 import { useLockStatus } from '@/hooks/useIntercom'
 import {
   useResolveRemotely,
-  useSnapshotPhoto,
   useTaskDoor,
   useTaskPanels,
   useTaskScanCode,
@@ -56,7 +56,7 @@ function PanelRow({ panel, taskId }: { panel: TaskPanel; taskId: number }) {
   const lock = useLockStatus(panel.address_id, panel.id)
   const door = useTaskDoor(panel.address_id, taskId)
   const scanCode = useTaskScanCode(panel.address_id, taskId)
-  const snapshot = useSnapshotPhoto(taskId)
+  const [videoOpen, setVideoOpen] = useState(false)
 
   const openDoor = () => {
     setConfirmOpen(false)
@@ -112,18 +112,17 @@ function PanelRow({ panel, taskId }: { panel: TaskPanel; taskId: number }) {
       >
         <KeyRound className="h-3.5 w-3.5" />
       </RowIcon>
-      <RowIcon
-        title="Кадр с панели — в фото заявки"
-        busy={snapshot.isPending}
-        onClick={() =>
-          snapshot.mutate(panel.id, {
-            onSuccess: () => showApiSuccess('Кадр с панели добавлен в фото'),
-            onError: (error) => showApiError(error, 'Не удалось получить кадр'),
-          })
-        }
-      >
-        <Camera className="h-3.5 w-3.5" />
+      <RowIcon title="Видео с панели" busy={false} onClick={() => setVideoOpen(true)}>
+        <Video className="h-3.5 w-3.5" />
       </RowIcon>
+      {videoOpen && (
+        <PanelVideoModal
+          addressId={panel.address_id}
+          panelId={panel.id}
+          title={panelTitle(panel)}
+          onClose={() => setVideoOpen(false)}
+        />
+      )}
 
       {confirmOpen && (
         <Modal isOpen onClose={() => setConfirmOpen(false)} title="Открыть дверь?" size="sm">
@@ -183,7 +182,7 @@ function ResolveModal({ taskId, onClose }: { taskId: number; onClose: () => void
 
 /**
  * Пометка в шапке заявки: на адресе есть сетевые панели. Клик открывает окно
- * с действиями (дверь, код ключей, кадр) и «Решено удалённо» — отдельный блок
+ * с действиями (дверь, замок, код ключей, видео) и «Решено удалённо» — отдельный блок
  * в карточке не занимает места.
  */
 export default function TaskPanelsBadge({ task, canResolve }: { task: TaskDetail; canResolve: boolean }) {

@@ -103,11 +103,6 @@ export const intercomApi = {
     return data
   },
 
-  /** Кадр с панели — в фото заявки («после»). */
-  async saveSnapshotPhoto(taskId: number, panelId: number): Promise<void> {
-    await apiClient.post(`/tasks/${taskId}/panels/${panelId}/snapshot-photo`)
-  },
-
   // JPEG-кадр как Blob (Bearer-токен не пройдёт через <img src>, тянем через axios).
   async getSnapshot(addressId: number, panelId: number): Promise<Blob> {
     const { data } = await apiClient.get<Blob>(
