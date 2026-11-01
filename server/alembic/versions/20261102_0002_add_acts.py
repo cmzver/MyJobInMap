@@ -1,4 +1,5 @@
-"""Add acts: service catalog, acts, act lines, act counters; act permissions.
+"""Add acts: service catalog, acts, act lines, act counters; act permissions;
+act template and logo in organization settings.
 
 Акты выполненных работ (фаза 4a). Права view_acts/create_acts/manage_acts
 встроенным ролям заводятся здесь: засев прав в коде срабатывает только на
@@ -33,6 +34,12 @@ _PERMISSIONS = [
 
 
 def upgrade():
+    with op.batch_alter_table("organization_settings") as batch_op:
+        batch_op.add_column(sa.Column("act_template", sa.JSON(), nullable=True))
+        batch_op.add_column(
+            sa.Column("act_logo_file", sa.String(length=255), nullable=True)
+        )
+
     op.create_table(
         "service_catalog_items",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -175,3 +182,6 @@ def downgrade():
     op.drop_table("acts")
     op.drop_index("ix_service_catalog_org_active", table_name="service_catalog_items")
     op.drop_table("service_catalog_items")
+    with op.batch_alter_table("organization_settings") as batch_op:
+        batch_op.drop_column("act_logo_file")
+        batch_op.drop_column("act_template")

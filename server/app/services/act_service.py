@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -35,7 +35,10 @@ from app.models import (
 )
 from app.schemas.act import ActCreate
 from app.services.business_time import business_tz, to_naive_utc
-from app.services.organization_settings_service import DEFAULT_ACT_NUMBER_PREFIX
+from app.services.organization_settings_service import (
+    DEFAULT_ACT_NUMBER_PREFIX,
+    act_template_of,
+)
 
 PENDING = "pending_signature"
 SIGNED = "signed"
@@ -118,12 +121,23 @@ def next_act_number(db: Session, organization_id: int, year: int, prefix: str) -
     return f"{prefix}-{year}-{counter.value:06d}"
 
 
-def _requisites(db: Session, organization_id: int) -> Dict[str, Optional[str]]:
-    row = db.get(OrganizationSettingsModel, organization_id)
-    organization = db.get(OrganizationModel, organization_id)
+def requisites_snapshot(
+    row: Optional[OrganizationSettingsModel], organization_name: Optional[str]
+) -> dict:
+    """Реквизиты и бланк акта на момент выпуска — из них рисуется PDF."""
     values = {name: getattr(row, name) if row else None for name in _REQUISITE_FIELDS}
-    values["organization_name"] = organization.name if organization else None
+    values["organization_name"] = organization_name
+    values["template"] = act_template_of(row).model_dump()
+    values["logo_file"] = row.act_logo_file if row else None
     return values
+
+
+def _requisites(db: Session, organization_id: int) -> dict:
+    organization = db.get(OrganizationModel, organization_id)
+    return requisites_snapshot(
+        db.get(OrganizationSettingsModel, organization_id),
+        organization.name if organization else None,
+    )
 
 
 def _build_lines(db: Session, organization_id: int, data: ActCreate) -> List[dict]:

@@ -110,6 +110,11 @@ class OrganizationSettingsModel(Base):
         String(10), default="А", nullable=False
     )
     act_footer_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Бланк акта (schemas.ActTemplate); NULL — бланк по умолчанию.
+    act_template: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # Логотип для шапки акта: путь в uploads/org-logos, имя — хеш содержимого,
+    # поэтому выпущенные акты продолжают видеть свой логотип после замены.
+    act_logo_file: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Нормативы срока по приоритету, часы: {"EMERGENCY": 4, ...}.
     # NULL — нормативы по умолчанию (sla_service.DEFAULT_SLA_HOURS).

@@ -1931,6 +1931,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/organization-settings/act-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Act
+         * @description Образец акта по введённым (ещё не сохранённым) реквизитам и бланку.
+         */
+        post: operations["preview_act_api_admin_organization_settings_act_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/organization-settings/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Logo */
+        get: operations["read_logo_api_admin_organization_settings_logo_get"];
+        /**
+         * Upload Logo
+         * @description Логотип для шапки акта: PNG или JPG до 2 МБ.
+         */
+        put: operations["upload_logo_api_admin_organization_settings_logo_put"];
+        post?: never;
+        /** Delete Logo */
+        delete: operations["delete_logo_api_admin_organization_settings_logo_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/system/health": {
         parameters: {
             query?: never;
@@ -3891,6 +3933,61 @@ export interface components {
             lines?: components["schemas"]["ActLineResponse"][];
         };
         /**
+         * ActTemplate
+         * @description Бланк акта организации: что и как печатать.
+         *
+         *     Копируется в снимок акта при выпуске — правка бланка не меняет уже
+         *     выпущенные акты.
+         */
+        ActTemplate: {
+            /**
+             * Title
+             * @default Акт выполненных работ
+             */
+            title: string;
+            /**
+             * Accent Color
+             * @default #E65100
+             */
+            accent_color: string;
+            /**
+             * Contacts
+             * @description Строка под реквизитами: телефон, сайт
+             */
+            contacts?: string | null;
+            /**
+             * Executor Label
+             * @default Исполнитель
+             */
+            executor_label: string;
+            /**
+             * Customer Label
+             * @default Заказчик
+             */
+            customer_label: string;
+            /**
+             * Acceptance Text
+             * @description Печатается, если у заказчика нет претензий
+             * @default Работы выполнены в полном объёме. Заказчик претензий по объёму, качеству и срокам выполнения работ не имеет.
+             */
+            acceptance_text: string;
+            /**
+             * Show Bank Details
+             * @default true
+             */
+            show_bank_details: boolean;
+            /**
+             * Show Prices
+             * @default true
+             */
+            show_prices: boolean;
+            /**
+             * Show Stamp Place
+             * @default true
+             */
+            show_stamp_place: boolean;
+        };
+        /**
          * AddressAssigneeCreate
          * @description Назначить пользователя ответственным за адрес.
          */
@@ -4920,6 +5017,14 @@ export interface components {
              * Format: binary
              */
             avatar: string;
+        };
+        /** Body_upload_logo_api_admin_organization_settings_logo_put */
+        Body_upload_logo_api_admin_organization_settings_logo_put: {
+            /**
+             * File
+             * Format: binary
+             */
+            file: string;
         };
         /** Body_upload_task_photo_api_tasks__task_id__photos_post */
         Body_upload_task_photo_api_tasks__task_id__photos_post: {
@@ -5970,6 +6075,7 @@ export interface components {
             act_number_prefix: string;
             /** Act Footer Text */
             act_footer_text?: string | null;
+            act_template?: components["schemas"]["ActTemplate"];
             /**
              * Repeat Window Days
              * @default 30
@@ -5985,6 +6091,11 @@ export interface components {
             sla_hours: components["schemas"]["SlaHours"];
             /** Sla Hours Customized */
             sla_hours_customized: boolean;
+            /**
+             * Has Act Logo
+             * @default false
+             */
+            has_act_logo: boolean;
         };
         /** OrganizationSettingsUpdate */
         OrganizationSettingsUpdate: {
@@ -6017,6 +6128,7 @@ export interface components {
             act_number_prefix: string;
             /** Act Footer Text */
             act_footer_text?: string | null;
+            act_template?: components["schemas"]["ActTemplate"];
             /**
              * Repeat Window Days
              * @default 30
@@ -11533,6 +11645,138 @@ export interface operations {
                 "application/json": components["schemas"]["OrganizationSettingsUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationSettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_act_api_admin_organization_settings_act_preview_post: {
+        parameters: {
+            query?: {
+                organization_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganizationSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_logo_api_admin_organization_settings_logo_get: {
+        parameters: {
+            query?: {
+                organization_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_logo_api_admin_organization_settings_logo_put: {
+        parameters: {
+            query?: {
+                organization_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_logo_api_admin_organization_settings_logo_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationSettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_logo_api_admin_organization_settings_logo_delete: {
+        parameters: {
+            query?: {
+                organization_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
