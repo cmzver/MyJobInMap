@@ -13,6 +13,12 @@ Models Package
 - settings.py: SystemSettingModel, CustomFieldModel, RolePermissionModel + helper functions
 """
 
+from app.models.act import (
+    ActCounterModel,
+    ActLineModel,
+    ActModel,
+    ServiceCatalogItemModel,
+)
 from app.models.address import AddressContactModel  # Enums; Models
 from app.models.address import (
     AddressAssigneeModel,
@@ -110,6 +116,10 @@ __all__ = [
     "OrganizationSettingsModel",
     "TaskEscalationModel",
     "JobRunModel",
+    "ActModel",
+    "ActLineModel",
+    "ActCounterModel",
+    "ServiceCatalogItemModel",
     # Task Models
     "TaskModel",
     "CommentModel",

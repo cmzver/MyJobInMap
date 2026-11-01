@@ -70,6 +70,9 @@ PERMISSION_CODES = [
     "edit_settings",
     "view_addresses",
     "edit_addresses",
+    "view_acts",
+    "create_acts",
+    "manage_acts",
 ]
 
 
