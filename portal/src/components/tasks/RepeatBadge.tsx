@@ -5,7 +5,7 @@ import { formatDateOnly } from '@/utils/dateFormat'
 
 function repeatTitle(repeat: TaskRepeatRef): string {
   if (repeat.kind === 'duplicate') {
-    return `Дубль: на этом месте открыта заявка ${repeat.task_number}`
+    return `Дубль заявки ${repeat.task_number}`
   }
   return `Повтор: на этом месте ${formatDateOnly(repeat.completed_at)} закрыта заявка ${repeat.task_number}`
 }

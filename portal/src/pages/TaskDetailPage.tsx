@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { mutationToast } from '@/utils/apiError'
+import { mutationToast, showApiError, showApiSuccess } from '@/utils/apiError'
 import { logError } from '@/utils/logger'
 import { formatDateTime, getSla } from '@/utils/dateFormat'
 import { 
@@ -19,9 +19,18 @@ import {
   X,
   ExternalLink,
   Phone,
-  ChevronDown
+  ChevronDown,
+  Copy
 } from 'lucide-react'
-import { useTask, useUpdateTaskStatus, useDeleteTask, useAssignTask, useRelatedTasks } from '@/hooks/useTasks'
+import {
+  useTask,
+  useUpdateTaskStatus,
+  useDeleteTask,
+  useAssignTask,
+  useRelatedTasks,
+  useMarkDuplicate,
+} from '@/hooks/useTasks'
+import DuplicateMarkModal from '@/components/tasks/DuplicateMarkModal'
 import { useUsers } from '@/hooks/useUsers'
 import { useComments, useAddComment } from '@/hooks/useComments'
 import { useMarkTaskNotificationsRead, useUnreadTaskNotifications } from '@/hooks/useNotifications'
@@ -102,6 +111,8 @@ export default function TaskDetailPage() {
   const [comment, setComment] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showSendToChat, setShowSendToChat] = useState(false)
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false)
+  const markDuplicate = useMarkDuplicate()
   const [pendingStatus, setPendingStatus] = useState<TaskStatus | null>(null)
   const [statusComment, setStatusComment] = useState('')
   const [statusCommentError, setStatusCommentError] = useState('')
@@ -448,6 +459,12 @@ export default function TaskDetailPage() {
                   Редактировать
                 </Button>
               )}
+              {canEdit && task.repeat_of?.kind !== 'duplicate' && (
+                <Button variant="outline" size="sm" onClick={() => setShowDuplicateModal(true)}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Дубль
+                </Button>
+              )}
               {canDelete && (
                 <Button variant="danger" size="sm" onClick={() => setShowDeleteConfirm(true)}>
                   <Trash2 className="h-4 w-4 mr-2" />
@@ -584,7 +601,32 @@ export default function TaskDetailPage() {
             </p>
           </Card>
 
-          {task.repeat_of && <RepeatNotice repeat={task.repeat_of} />}
+          {task.repeat_of && (
+            <RepeatNotice
+              repeat={task.repeat_of}
+              isClearing={markDuplicate.isPending}
+              onClear={
+                canEdit && task.repeat_of.kind === 'duplicate'
+                  ? () =>
+                      markDuplicate.mutate(
+                        { id: task.id, originalTaskId: null },
+                        {
+                          onSuccess: () => showApiSuccess('Отметка дубля снята'),
+                          onError: (err) => showApiError(err, 'Не удалось снять отметку'),
+                        },
+                      )
+                  : undefined
+              }
+            />
+          )}
+          {showDuplicateModal && (
+            <DuplicateMarkModal
+              taskId={task.id}
+              related={addressHistory}
+              isOpen={showDuplicateModal}
+              onClose={() => setShowDuplicateModal(false)}
+            />
+          )}
 
           <CollapsibleCard
             title="История адреса"

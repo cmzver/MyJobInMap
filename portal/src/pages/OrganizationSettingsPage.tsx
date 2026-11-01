@@ -197,7 +197,7 @@ function OrganizationSettingsForm({ organizationId }: { organizationId?: number 
       <SettingsCard
         title="Повторные заявки"
         icon={History}
-        description="Заявку на том же адресе и системе, где прошлую закрыли не раньше этого срока, отмечаем как возврат. Открытая заявка на том же месте — дубль."
+        description="Заявку на том же адресе и системе, где прошлую закрыли не раньше этого срока, отмечаем как возврат. Дубли отмечают вручную в карточке заявки."
       >
         <div className="max-w-[12rem]">
           <Input

@@ -78,6 +78,7 @@ from app.schemas.support import (
 from app.schemas.task import (
     CreateTaskFromTextRequest,
     CreateTaskFromTextResponse,
+    DuplicateMarkRequest,
     PaginatedResponse,
     ParsedTaskResponse,
     ParseTaskRequest,
@@ -117,6 +118,7 @@ __all__ = [
     "TaskRepeatRef",
     "RelatedTask",
     "RelatedTasksResponse",
+    "DuplicateMarkRequest",
     "TaskListResponse",
     "TaskIdsResponse",
     "TaskSummaryResponse",
