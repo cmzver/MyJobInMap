@@ -10,7 +10,7 @@ Task Service
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 from fastapi import Depends
 from sqlalchemy import func, or_
@@ -34,8 +34,8 @@ from app.services.notification_service import (
     broadcast_created_notification,
     create_task_assignment_notification,
     create_task_status_notification,
-    send_task_assignment_push,
 )
+from app.services.outbox_service import stage_task_event
 from app.services.push import send_push_notification
 from app.services.repeat_detector import apply_address_key
 from app.services.role_utils import is_worker_user
@@ -400,6 +400,7 @@ class TaskService:
 
         # Генерация номера
         task.task_number = task_number if task_number else f"Z-{task.id:05d}"
+        stage_task_event(self.db, task, "task_created", user, title=task.title)
 
         return task
 
@@ -515,15 +516,14 @@ class TaskService:
                     assigned_to=assigned_to,
                     assigned_by=admin,
                     commit=False,
-                    send_push=False,
+                    send_push=True,
                 )
 
+        stage_task_event(self.db, task, user=admin)
         self.db.commit()
         self.db.refresh(task)
         for notification in assignment_notifications:
             broadcast_created_notification(notification)
-        if assigned_to and assignment_notifications:
-            send_task_assignment_push(task, assigned_to)
 
         return task
 
@@ -533,6 +533,7 @@ class TaskService:
         new_status: str,
         comment_text: str = "",
         user: Optional[UserModel] = None,
+        before_commit: Optional[Callable[[TaskModel], None]] = None,
     ) -> TaskModel:
         """
         Обновить статус заявки.
@@ -597,6 +598,17 @@ class TaskService:
                 changed_by=user,
                 commit=False,
             )
+        stage_task_event(
+            self.db,
+            task,
+            "task_status_changed",
+            user,
+            old_status=old_status,
+            new_status=new_status,
+        )
+        self.db.flush()
+        if before_commit:
+            before_commit(task)
         self.db.commit()
         self.db.refresh(task)
         metrics.record_status_transition(old_status, new_status)
@@ -605,7 +617,6 @@ class TaskService:
             broadcast_created_notification(notification)
 
         # Push уведомление исполнителю
-        self._notify_status_change(task, new_status, user)
 
         return task
 
@@ -684,15 +695,16 @@ class TaskService:
                     assigned_to=assigned_to,
                     assigned_by=user,
                     commit=False,
-                    send_push=False,
+                    send_push=True,
                 )
 
+        stage_task_event(
+            self.db, task, "task_assigned", user, assigned_user_id=assignee_id
+        )
         self.db.commit()
         self.db.refresh(task)
         for notification in assignment_notifications:
             broadcast_created_notification(notification)
-        if assigned_to and assignment_notifications:
-            send_task_assignment_push(task, assigned_to)
 
         return task
 
@@ -701,6 +713,7 @@ class TaskService:
         task_id: int,
         planned_date: Optional[datetime],
         user: Optional[UserModel] = None,
+        before_commit: Optional[Callable[[TaskModel], None]] = None,
     ) -> TaskModel:
         """
         Обновить плановую дату выполнения.
@@ -725,6 +738,10 @@ class TaskService:
             author_id=user.id if user else None,
         )
         self.db.add(comment)
+        stage_task_event(self.db, task, user=user)
+        self.db.flush()
+        if before_commit:
+            before_commit(task)
         self.db.commit()
         self.db.refresh(task)
 
@@ -740,6 +757,7 @@ class TaskService:
         ORM) обрабатываются автоматически.
         """
         task = self.get_by_id(task_id)
+        stage_task_event(self.db, task, "task_deleted")
         self.db.delete(task)
         self.db.commit()
 

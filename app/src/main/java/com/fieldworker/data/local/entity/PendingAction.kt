@@ -28,6 +28,8 @@ data class PendingAction(
      */
     val payloadJson: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
+    val expectedVersion: Long? = null,
+    val serverConflict: String? = null,
     val retryCount: Int = 0,
     val lastError: String? = null,
     /**

@@ -24,6 +24,7 @@ export interface AuthUser {
 
 interface LoginResponse {
   access_token: string
+  refresh_token: string
   user_id: number
   username: string
   full_name?: string | null
@@ -51,6 +52,7 @@ interface MeResponse {
 interface AuthState {
   user: AuthUser | null
   token: string | null
+  refreshToken: string | null
   isAuthenticated: boolean
   login: (username: string, password: string) => Promise<void>
   logout: () => void
@@ -63,6 +65,7 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       token: null,
+      refreshToken: null,
       isAuthenticated: false,
 
       login: async (username: string, password: string) => {
@@ -72,7 +75,7 @@ export const useAuthStore = create<AuthState>()(
             '/auth/login',
             new URLSearchParams({
               username: username.trim(),
-              password: password.trim(),
+              password,
             }),
             {
               headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -99,6 +102,7 @@ export const useAuthStore = create<AuthState>()(
               organizationName: data.organization_name ?? null,
             },
             token: data.access_token,
+            refreshToken: data.refresh_token,
             isAuthenticated: true,
           })
         } catch (error) {
@@ -110,11 +114,11 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
-        set({ user: null, token: null, isAuthenticated: false })
+        set({ user: null, token: null, refreshToken: null, isAuthenticated: false })
       },
 
       setUser: (user: AuthUser, token: string) => {
-        set({ user, token, isAuthenticated: true })
+        set((state) => ({ user, token, refreshToken: state.user?.id === user.id ? state.refreshToken : null, isAuthenticated: true }))
       },
 
       // Подтянуть актуальные роль/права/навигацию (например, после смены группы
@@ -149,6 +153,7 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         token: state.token,
+        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
     }

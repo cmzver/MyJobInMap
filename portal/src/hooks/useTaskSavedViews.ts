@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import apiClient from '@/api/client'
+import { useAuthStore } from '@/store/authStore'
 import type { TaskPriority, TaskSort, TaskStatus } from '@/types/task'
 
 const STORAGE_KEY = 'tasks-saved-views-v1'
@@ -20,12 +23,16 @@ export interface TaskSavedViewSettings {
   sort: TaskSort
   groupBy: string
   displayMode: TaskDisplayMode
+  repeat?: '' | 'duplicate' | 'return'
+  due?: '' | 'overdue' | 'soon'
 }
 
 export interface TaskSavedView {
   id: string
   name: string
   settings: TaskSavedViewSettings
+  shared?: boolean
+  can_edit?: boolean
 }
 
 const normalizeSettings = (value: unknown): TaskSavedViewSettings | null => {
@@ -44,7 +51,7 @@ const normalizeSettings = (value: unknown): TaskSavedViewSettings | null => {
     : []
   const assignees = Array.isArray(candidate.assignees)
     ? candidate.assignees.filter(
-        (item): item is string => typeof item === 'string' && /^\d+$/.test(item)
+        (item): item is string => typeof item === 'string' && (item === 'unassigned' || /^\d+$/.test(item))
       )
     : []
   const addressId =
@@ -71,6 +78,8 @@ const normalizeSettings = (value: unknown): TaskSavedViewSettings | null => {
     sort,
     groupBy,
     displayMode,
+    ...(candidate.repeat !== undefined && { repeat: ['duplicate', 'return'].includes(candidate.repeat) ? candidate.repeat : '' }),
+    ...(candidate.due !== undefined && { due: ['overdue', 'soon'].includes(candidate.due) ? candidate.due : '' }),
   }
 }
 
@@ -108,55 +117,51 @@ export const areTaskViewSettingsEqual = (
   left.addressTitle === right.addressTitle &&
   left.sort === right.sort &&
   left.groupBy === right.groupBy &&
-  left.displayMode === right.displayMode
+  left.displayMode === right.displayMode &&
+  (left.repeat ?? '') === (right.repeat ?? '') &&
+  (left.due ?? '') === (right.due ?? '')
 
 const loadViews = (storageKey: string) => {
   if (typeof window === 'undefined') return []
   return parseTaskSavedViews(window.localStorage.getItem(storageKey))
 }
 
-const createViewId = () => {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID()
-  }
-  return `view-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-}
-
 export function useTaskSavedViews(scope = 'default') {
-  const storageKey = useMemo(() => `${STORAGE_KEY}:${scope}`, [scope])
-  const [views, setViews] = useState<TaskSavedView[]>(() => loadViews(storageKey))
-
-  useEffect(() => {
-    setViews(loadViews(storageKey))
-  }, [storageKey])
-
-  const persist = useCallback(
-    (nextViews: TaskSavedView[]) => {
-      window.localStorage.setItem(storageKey, JSON.stringify(nextViews))
-      setViews(nextViews)
-    },
-    [storageKey]
-  )
-
-  const saveView = useCallback(
-    (name: string, settings: TaskSavedViewSettings) => {
-      const nextView: TaskSavedView = {
-        id: createViewId(),
-        name: name.trim().slice(0, 40),
-        settings,
+  const storageKey = `${STORAGE_KEY}:${scope}`
+  const user = useAuthStore((state) => state.user)
+  const queryClient = useQueryClient()
+  const key = ['task-views', scope]
+  const query = useQuery({
+    queryKey: key,
+    enabled: Boolean(user),
+    queryFn: async () => {
+      const importedKey = `${storageKey}:imported`
+      if (!window.localStorage.getItem(importedKey)) {
+        for (const view of loadViews(storageKey)) {
+          await apiClient.post('/task-views', {
+            name: view.name, settings: view.settings, source_id: view.id,
+          })
+        }
+        window.localStorage.setItem(importedKey, 'true')
       }
-      persist([...views, nextView])
-      return nextView
+      const { data } = await apiClient.get<TaskSavedView[]>('/task-views')
+      return data
     },
-    [persist, views]
-  )
-
-  const deleteView = useCallback(
-    (id: string) => {
-      persist(views.filter((view) => view.id !== id))
-    },
-    [persist, views]
-  )
-
-  return { views, saveView, deleteView }
+  })
+  const refresh = () => queryClient.invalidateQueries({ queryKey: key })
+  const saveView = useCallback(async (name: string, settings: TaskSavedViewSettings, shared = false) => {
+    const { data } = await apiClient.post<TaskSavedView>('/task-views', { name, settings, shared })
+    await queryClient.invalidateQueries({ queryKey: ['task-views', scope] })
+    return data
+  }, [queryClient, scope])
+  const deleteView = async (id: string) => {
+    await apiClient.delete(`/task-views/${id}`)
+    await refresh()
+  }
+  const shareView = async (view: TaskSavedView) => {
+    await apiClient.put(`/task-views/${view.id}`, { ...view, shared: !view.shared })
+    await refresh()
+  }
+  return { views: query.data ?? loadViews(storageKey), saveView, deleteView, shareView,
+    isLoading: query.isPending, error: query.error }
 }

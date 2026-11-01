@@ -44,6 +44,9 @@ import kotlinx.serialization.Contextual
  * @param priority PLANNED, CURRENT, URGENT, EMERGENCY
  * @param createdAt Дата создания (UTC)
  * @param updatedAt Дата последнего обновления (UTC)
+ * @param version 
+ * @param equipmentId 
+ * @param addressId 
  * @param taskNumber Номер заявки (автогенерируется)
  * @param customerName Имя клиента
  * @param customerPhone Телефон клиента
@@ -103,6 +106,15 @@ data class TaskListResponse (
     /* Дата последнего обновления (UTC) */
     @SerialName(value = "updated_at")
     val updatedAt: kotlin.String,
+
+    @SerialName(value = "version")
+    val version: kotlin.Long? = 1,
+
+    @SerialName(value = "equipment_id")
+    val equipmentId: kotlin.Long? = null,
+
+    @SerialName(value = "address_id")
+    val addressId: kotlin.Long? = null,
 
     /* Номер заявки (автогенерируется) */
     @SerialName(value = "task_number")

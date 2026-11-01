@@ -1,5 +1,7 @@
 # FieldWorker API Server
-FROM python:3.11-slim
+# Bookworm ships PostgreSQL 15 client tools, matching the production DB image.
+# Newer pg_restore versions can emit SET statements unsupported by PostgreSQL 15.
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
@@ -9,7 +11,7 @@ WORKDIR /app
 # панелям (используется только при BEWARD_WG_ENABLED=true; см.
 # deploy/wireguard/README.md). Сами пакеты безвредны, если фича выключена.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        curl postgresql-client wireguard-tools iproute2 iptables \
+        curl postgresql-client-15 wireguard-tools iproute2 iptables \
     && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies

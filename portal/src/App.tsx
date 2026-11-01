@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { Suspense, lazy, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -37,9 +38,10 @@ function ProtectedRoute({
   excludeOrgAdmin?: boolean
 }) {
   const { isAuthenticated, user } = useAuthStore()
+  const location = useLocation()
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />
   }
 
   if (

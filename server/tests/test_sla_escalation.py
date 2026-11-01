@@ -97,18 +97,26 @@ class TestFiringRules:
 
 @pytest.fixture
 def pushes(monkeypatch):
-    sent = []
-    monkeypatch.setattr(
-        sla_escalation,
-        "send_push_notification",
-        lambda **kwargs: sent.append(("fcm", kwargs)),
-    )
-    monkeypatch.setattr(
-        sla_escalation,
-        "send_web_push",
-        lambda **kwargs: sent.append(("web", kwargs)),
-    )
-    return sent
+    from app.services import outbox_service
+
+    original = outbox_service.stage_push
+    staged = []
+
+    def capture(db, **kwargs):
+        original(db, **kwargs)
+        staged.append(("fcm", kwargs))
+        staged.append(
+            (
+                "web",
+                {
+                    **kwargs,
+                    "url": kwargs.get("url") or f"/tasks/{kwargs.get('task_id')}",
+                },
+            )
+        )
+
+    monkeypatch.setattr(outbox_service, "stage_push", capture)
+    return staged
 
 
 @pytest.fixture
@@ -312,3 +320,22 @@ class TestDueFilter:
 
         stats = client.get("/api/dashboard/stats", headers=headers).json()
         assert (stats["overdueTasks"], stats["dueSoonTasks"]) == (1, 1)
+
+
+def test_claim_rolls_back_if_notification_cannot_be_saved(db_session, org, monkeypatch):
+    from app.models import TaskEscalationModel
+
+    _add_task(
+        db_session, org.id, priority="URGENT", created_at=NOW - timedelta(minutes=40)
+    )
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("notification transaction failed")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(sla_escalation, "create_notification", fail)
+        with pytest.raises(RuntimeError):
+            run_sla_tick(db_session, NOW)
+    db_session.rollback()
+    assert db_session.query(TaskEscalationModel).count() == 0
+    assert run_sla_tick(db_session, NOW)

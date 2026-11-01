@@ -79,6 +79,7 @@ from app.models.support import (
     SupportTicketStatus,
 )
 from app.models.task import CommentModel, TaskModel, TaskPhotoModel
+from app.models.task_view import TaskViewModel
 from app.models.user import DeviceModel, PushSubscriptionModel, UserModel
 
 __all__ = [
@@ -163,3 +164,14 @@ __all__ = [
     "get_all_settings",
     "init_default_settings",
 ]
+
+from app.models.operations import (
+    DayRouteModel,
+    MaintenanceOccurrenceModel,
+    MaintenancePlanModel,
+    MaterialModel,
+    MaterialMovementModel,
+    MaterialStockModel,
+)
+from app.models.outbox import OutboxEventModel
+from app.models.sla_calendar import SlaCalendarModel

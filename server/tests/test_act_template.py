@@ -103,6 +103,37 @@ def test_logo_upload_read_and_remove(client: TestClient, db_session):
     assert client.get(f"{URL}/logo", headers=headers).status_code == 404
 
 
+def _encoded(fmt: str, mode: str = "RGB") -> bytes:
+    buffer = BytesIO()
+    Image.new(mode, (400, 120), "#E65100").save(buffer, format=fmt)
+    return buffer.getvalue()
+
+
+def test_logo_format_is_read_from_content(client: TestClient, db_session):
+    """«logo.png» с сайта бывает WebP: берём любую обычную картинку, храним PNG."""
+    ctx = _org(client, db_session, "LogoFormats")
+    headers = _admin_headers(client, db_session, ctx)
+
+    def upload(content: bytes, name: str = "logo.png"):
+        return client.put(
+            f"{URL}/logo", files={"file": (name, content, "image/png")}, headers=headers
+        )
+
+    for fmt in ("WEBP", "JPEG", "GIF", "BMP"):
+        response = upload(_encoded(fmt))
+        assert response.status_code == 200, (fmt, response.text)
+        stored = Image.open(BytesIO(client.get(f"{URL}/logo", headers=headers).content))
+        assert stored.format == "PNG"
+
+    svg = upload(b'<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"/>')
+    assert svg.status_code == 415 and "SVG" in svg.json()["detail"]
+    ico = upload(_encoded("ICO", "RGBA"))
+    assert ico.status_code == 415 and "ICO" in ico.json()["detail"]
+    broken = bytearray(_png())
+    broken[-20] ^= 0xFF  # контрольная сумма PNG не сойдётся
+    assert upload(bytes(broken)).status_code == 415
+
+
 def test_preview_uses_unsaved_template(client: TestClient, db_session):
     ctx = _org(client, db_session, "PrevOrg")
     headers = _admin_headers(client, db_session, ctx)

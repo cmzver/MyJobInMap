@@ -297,12 +297,12 @@ class TestFromTextNotifications:
             or "заявка" in notification.title.lower()
         )
 
-        # FCM push should be called
-        mock_push.assert_called_once()
-        call_kwargs = mock_push.call_args
-        assert worker_user.id in (
-            call_kwargs.kwargs.get("user_ids") or call_kwargs[1].get("user_ids", [])
-        )
+        # Внешняя доставка записана в той же транзакции и выполнится worker-ом.
+        from app.models.outbox import OutboxEventModel
+
+        mock_push.assert_not_called()
+        event = db_session.query(OutboxEventModel).filter_by(kind="push_send").one()
+        assert worker_user.id in event.payload["user_ids"]
 
     def test_unassigned_task_no_notification(self, client, auth_headers, db_session):
         """New task without assignment should NOT create assignment notification."""
@@ -376,8 +376,12 @@ class TestFromTextNotifications:
         )
         assert notification is not None
 
-        # FCM push should be called
-        mock_push.assert_called_once()
+        from app.models.outbox import OutboxEventModel
+
+        mock_push.assert_not_called()
+        assert (
+            db_session.query(OutboxEventModel).filter_by(kind="push_send").count() == 1
+        )
 
     def test_dedup_already_assigned_no_extra_notification(
         self, client, auth_headers, worker_user, db_session

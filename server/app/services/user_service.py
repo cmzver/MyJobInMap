@@ -294,6 +294,19 @@ class UserService:
         if not tenant.is_superadmin:
             tenant.enforce_access(user)
 
+        from app.models.operations import MaterialStockModel
+
+        if (
+            self.db.query(MaterialStockModel.id)
+            .filter(
+                MaterialStockModel.user_id == user_id, MaterialStockModel.quantity > 0
+            )
+            .first()
+        ):
+            raise UserServiceError(
+                "Сначала спишите остатки материалов пользователя или деактивируйте его",
+                409,
+            )
         self.db.delete(user)
         self.db.commit()
         audit_user_deleted(actor.id, actor.username, user_id, user.username)

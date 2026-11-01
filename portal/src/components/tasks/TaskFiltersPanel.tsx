@@ -50,7 +50,7 @@ interface TaskFiltersPanelProps {
   activeSavedViewId: string
   currentSavedViewSettings: TaskSavedViewSettings
   onApplySavedView: (view: TaskSavedView) => void
-  onSaveCurrentView: (name: string, settings: TaskSavedViewSettings) => void
+  onSaveCurrentView: (name: string, settings: TaskSavedViewSettings, shared?: boolean) => void | Promise<void>
   onDeleteSavedView: (view: TaskSavedView) => void
   sortBy: TaskSort
   groupBy: string
@@ -220,7 +220,7 @@ export default function TaskFiltersPanel({
           <MultiSelectFilter label="Приоритеты" options={[...PRIORITY_OPTIONS]} selectedValues={priorityFilter} onChange={onPriorityChange} placeholder="Все приоритеты" />
           <MultiSelectFilter
             label="Исполнители"
-            options={assignableUsers.map((user) => ({ value: String(user.id), label: user.full_name || user.username }))}
+            options={[{ value: 'unassigned', label: 'Без исполнителя' }, ...assignableUsers.map((user) => ({ value: String(user.id), label: user.full_name || user.username }))]}
             selectedValues={assigneeFilter}
             onChange={onAssigneeChange}
             placeholder="Все исполнители"

@@ -117,7 +117,7 @@ async def upload_logo(
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("edit_settings")),
 ):
-    """Логотип для шапки акта: PNG или JPG до 2 МБ."""
+    """Логотип для шапки акта: картинка до 10 МБ (PNG, JPG, WebP…), хранится PNG."""
     content = await file.read(LOGO_MAX_BYTES + 1)
     try:
         return save_act_logo(

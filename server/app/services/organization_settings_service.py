@@ -12,7 +12,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -26,8 +26,12 @@ from app.schemas.organization_settings import (
 from app.services.sla_service import get_sla_hours_map
 
 DEFAULT_ACT_NUMBER_PREFIX = "А"
-LOGO_MAX_BYTES = 2 * 1024 * 1024
+LOGO_MAX_BYTES = 10 * 1024 * 1024
 LOGO_MAX_SIZE = (800, 400)
+# Что бы ни пришло, в бланк ложится наш PNG. Формат определяется по содержимому,
+# не по имени файла: «logo.png» с сайта нередко оказывается WebP. EPS и PDF не
+# берём — Pillow отдаёт их внешнему Ghostscript.
+LOGO_FORMATS = frozenset({"PNG", "JPEG", "MPO", "WEBP", "GIF", "BMP", "TIFF", "AVIF"})
 
 # Поля реквизитов и документов — всё, кроме нормативов и бланка.
 _PLAIN_FIELDS = tuple(
@@ -124,23 +128,39 @@ def save_act_logo(
     content: bytes,
     user: Optional[UserModel] = None,
 ) -> OrganizationSettingsResponse:
-    """Логотип для шапки акта: PNG/JPEG до 2 МБ, хранится уменьшенным PNG."""
+    """Логотип для шапки акта: картинка до 10 МБ (PNG, JPG, WebP и другие
+    растровые), хранится уменьшенным PNG."""
     if not content:
         raise OrganizationSettingsError("Файл пустой", 400)
     if len(content) > LOGO_MAX_BYTES:
-        raise OrganizationSettingsError("Логотип больше 2 МБ", 413)
+        raise OrganizationSettingsError("Логотип больше 10 МБ", 413)
+    if b"<svg" in content[:1024]:
+        raise OrganizationSettingsError(
+            "SVG не подходит — сохраните логотип как PNG или JPG", 415
+        )
     try:
         with Image.open(BytesIO(content)) as probe:
+            # Формат — до любой обработки: неподходящий файл не декодируем
+            if probe.format not in LOGO_FORMATS:
+                raise OrganizationSettingsError(
+                    f"Формат {probe.format} не подходит — сохраните логотип "
+                    "как PNG или JPG",
+                    415,
+                )
             probe.verify()
         with Image.open(BytesIO(content)) as image:
-            if image.format not in ("PNG", "JPEG"):
-                raise OrganizationSettingsError("Логотип — PNG или JPG", 415)
-            image = image.convert("RGBA")
-            image.thumbnail(LOGO_MAX_SIZE)
+            # Фото логотипа с телефона — с поворотом из EXIF
+            logo = ImageOps.exif_transpose(image).convert("RGBA")
+            logo.thumbnail(LOGO_MAX_SIZE)
             buffer = BytesIO()
-            image.save(buffer, format="PNG", optimize=True)
-    except (UnidentifiedImageError, OSError):
-        raise OrganizationSettingsError("Не удалось прочитать картинку", 415)
+            logo.save(buffer, format="PNG", optimize=True)
+    except Image.DecompressionBombError:
+        raise OrganizationSettingsError("Картинка слишком большая — уменьшите её", 413)
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
+        # Битый PNG Pillow отвергает SyntaxError
+        raise OrganizationSettingsError(
+            "Не удалось прочитать картинку — подойдут PNG, JPG или WebP", 415
+        )
 
     png = buffer.getvalue()
     relative = f"{organization_id}/{hashlib.sha256(png).hexdigest()[:16]}.png"

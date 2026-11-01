@@ -694,7 +694,7 @@ export default function AddressDetailPage() {
                             </div>
                           </td>
                           <td className="py-3 px-4">
-                            <span className="font-medium text-gray-900 dark:text-white">{item.name}</span>
+                            <Link to={`/equipment/${item.id}`} className="font-medium text-primary-600 hover:underline">{item.name}</Link>
                             {item.serial_number && (
                               <p className="text-xs text-gray-400">S/N: {item.serial_number}</p>
                             )}

@@ -48,6 +48,10 @@ class Settings(BaseSettings):
         default=30, description="Время жизни refresh токена в днях (30д)"
     )
 
+    OUTBOX_ENABLED: bool = Field(
+        default=True, description="Доставка сохранённых событий после коммита"
+    )
+
     # === Firebase ===
     FIREBASE_CREDENTIALS: str = Field(
         default="firebase-service-account.json",

@@ -30,9 +30,10 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Contextual
 
 /**
- * Обновление статуса
+ * 
  *
  * @param status 
+ * @param expectedVersion 
  * @param comment Комментарий к смене статуса. Обязателен для DONE и CANCELLED
  */
 @Serializable
@@ -41,6 +42,9 @@ data class TaskStatusUpdate (
 
     @Contextual @SerialName(value = "status")
     val status: TaskStatus,
+
+    @SerialName(value = "expected_version")
+    val expectedVersion: kotlin.Long? = null,
 
     /* Комментарий к смене статуса. Обязателен для DONE и CANCELLED */
     @SerialName(value = "comment")

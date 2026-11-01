@@ -117,7 +117,10 @@ lint/tmp/
 chat_results.txt
 .vscode/
 .idea/
-.github/
+.github/*
+!.github/workflows/
+.github/workflows/*
+!.github/workflows/ci-android.yml
 .obsidian/
 **/.obsidian/
 

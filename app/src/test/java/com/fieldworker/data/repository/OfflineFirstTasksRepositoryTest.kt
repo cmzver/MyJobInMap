@@ -132,6 +132,8 @@ class OfflineFirstTasksRepositoryTest {
         every { taskDao.getAllTasksFlow() } returns flowOf(listOf(testTaskEntity))
         every { pendingActionDao.getPendingActionsCountFlow() } returns flowOf(0)
         every { pendingActionDao.getFailedActionsFlow(any()) } returns flowOf(emptyList())
+        every { pendingActionDao.getAllActionsFlow() } returns flowOf(emptyList())
+        coEvery { taskDao.getTaskById(any()) } returns testTaskEntity
         coEvery { taskDao.getLocallyModifiedTasks() } returns emptyList()
         every { serverHealthCheck.lastKnownReachable } returns null
         coEvery { pendingActionDao.getAllPendingActions() } returns emptyList()
@@ -955,5 +957,52 @@ class OfflineFirstTasksRepositoryTest {
         coVerify(exactly = 0) { pendingActionDao.deleteAllPendingActions() }
         verify(exactly = 0) { pendingPhotoStore.clear() }
         verify { pendingPhotoStore.clearCameraShots() }
+    }
+
+    @Test
+    fun `queued status sends its base version and advances remaining edits`() = runTest {
+        val action = PendingAction(id = 101L, taskId = 1L, actionType = ActionType.UPDATE_STATUS,
+            newStatus = "IN_PROGRESS", expectedVersion = 7L)
+        givenQueue(action)
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } returns
+            Response.success(serverTaskResponse.copy(version = 8L))
+        val result = repository.syncPendingActions()
+        assertEquals(1, result.synced)
+        coVerify { tasksApi.updateTaskStatus(1L, match { it.expectedVersion == 7L }, any()) }
+        coVerify { pendingActionDao.advanceVersion(1L, 8L) }
+    }
+
+    @Test
+    fun `server conflict is retained for explicit resolution`() = runTest {
+        val action = PendingAction(id = 102L, taskId = 1L, actionType = ActionType.UPDATE_STATUS,
+            newStatus = "IN_PROGRESS", expectedVersion = 3L)
+        val snapshot = """{"detail":{"code":"task_conflict","current_version":7,"current_status":"NEW"}}"""
+        givenQueue(action)
+        every { networkMonitor.isCurrentlyOnline() } returns true
+        coEvery { tasksApi.updateTaskStatus(any(), any(), any()) } returns
+            Response.error(409, snapshot.toResponseBody())
+        val result = repository.syncPendingActions()
+        assertEquals(1, result.permanentFailures)
+        coVerify { pendingActionDao.saveConflict(102L, snapshot) }
+        coVerify(exactly = 0) { pendingActionDao.deletePendingActionById(any()) }
+    }
+
+    @Test
+    fun `editing rejected action retains it with a new key and reviewed version`() = runTest {
+        every { networkMonitor.isCurrentlyOnline() } returns false
+        val action = PendingAction(id = 103L, taskId = 1L, actionType = ActionType.UPDATE_STATUS,
+            newStatus = "DONE", expectedVersion = 3L, retryCount = 5,
+            lastError = "Server error: 409", serverConflict = """{"detail":{"current_version":7}}""")
+        val edited = slot<PendingAction>()
+        coEvery { pendingActionDao.getPendingActionById(103L) } returns action
+        coEvery { pendingActionDao.updatePendingAction(capture(edited)) } just Runs
+        coEvery { pendingActionDao.getPendingActionsForTask(1L) } coAnswers { listOf(edited.captured) }
+        repository.editFailedAction(103L, "IN_PROGRESS", "Уточнено")
+        assertEquals("IN_PROGRESS", edited.captured.newStatus)
+        assertEquals(7L, edited.captured.expectedVersion)
+        assertEquals(0, edited.captured.retryCount)
+        assertNotEquals(action.operationId, edited.captured.operationId)
+        coVerify { taskDao.upsertTask(match { it.status == "IN_PROGRESS" && it.isLocallyModified }) }
     }
 }

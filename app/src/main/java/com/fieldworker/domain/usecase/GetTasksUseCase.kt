@@ -35,8 +35,11 @@ class GetTasksUseCase @Inject constructor(
 
     /** Офлайн-действия, которые не удалось отправить (dead-letter). */
     val failedActions = repository.failedActions
+    val syncActions = repository.syncActions
 
     suspend fun retryFailedAction(actionId: Long) = repository.retryFailedAction(actionId)
+
+    suspend fun editFailedAction(actionId: Long, value: String, comment: String) = repository.editFailedAction(actionId, value, comment)
 
     suspend fun discardFailedAction(actionId: Long) = repository.discardFailedAction(actionId)
     

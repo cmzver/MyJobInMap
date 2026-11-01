@@ -216,6 +216,9 @@ def _base_task_dict(task: TaskModel) -> Dict[str, Any]:
 
     return {
         "id": task.id,
+        "version": task.version,
+        "equipment_id": task.equipment_id,
+        "address_id": task.address_id,
         "task_number": task.task_number or f"Z-{task.id:05d}",
         "title": task.title,
         "raw_address": task.raw_address,

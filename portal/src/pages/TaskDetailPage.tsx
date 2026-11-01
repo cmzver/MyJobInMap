@@ -31,6 +31,7 @@ import {
   useMarkRepeat,
 } from '@/hooks/useTasks'
 import RepeatMarkModal from '@/components/tasks/RepeatMarkModal'
+import TaskOperationsSection from '@/components/tasks/TaskOperationsSection'
 import TaskActsSection from '@/components/acts/TaskActsSection'
 import { useUsers } from '@/hooks/useUsers'
 import { useComments, useAddComment } from '@/hooks/useComments'
@@ -632,6 +633,8 @@ export default function TaskDetailPage() {
               onClose={() => setShowRepeatModal(false)}
             />
           )}
+
+          <TaskOperationsSection task={task} />
 
           {canViewActs && (
             <TaskActsSection task={task} canCreate={canCreateActs} canManage={canManageActs} />

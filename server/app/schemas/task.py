@@ -217,6 +217,8 @@ class TaskUpdate(_TaskWritableBase):
 
 
 class TaskStatusUpdate(BaseModel):
+    expected_version: Optional[int] = Field(None, ge=1)
+
     """Обновление статуса"""
 
     status: TaskStatus
@@ -235,6 +237,8 @@ class TaskAssignRequest(BaseModel):
 
 
 class PlannedDateUpdate(BaseModel):
+    expected_version: Optional[int] = Field(None, ge=1)
+
     """Planned date update payload."""
 
     planned_date: Optional[datetime] = Field(
@@ -322,6 +326,9 @@ class _TaskReadBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    version: int = 1
+    equipment_id: Optional[int] = None
+    address_id: Optional[int] = None
 
     task_number: Optional[str] = Field(
         None,

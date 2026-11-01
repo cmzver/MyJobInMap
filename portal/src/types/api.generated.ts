@@ -195,6 +195,268 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sla-calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Calendar */
+        get: operations["get_calendar_api_sla_calendar_get"];
+        /** Save Calendar */
+        put: operations["save_calendar_api_sla_calendar_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/task-views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Views */
+        get: operations["list_views_api_task_views_get"];
+        put?: never;
+        /** Create View */
+        post: operations["create_view_api_task_views_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/task-views/{view_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update View */
+        put: operations["update_view_api_task_views__view_id__put"];
+        post?: never;
+        /** Delete View */
+        delete: operations["delete_view_api_task_views__view_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/maintenance-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Maintenance Plans */
+        get: operations["maintenance_plans_api_maintenance_plans_get"];
+        put?: never;
+        /** Create Maintenance */
+        post: operations["create_maintenance_api_maintenance_plans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/maintenance-plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Maintenance */
+        put: operations["update_maintenance_api_maintenance_plans__plan_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/my-day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get My Day */
+        get: operations["get_my_day_api_my_day_get"];
+        /** Save My Day */
+        put: operations["save_my_day_api_my_day_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/equipment/{equipment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Equipment Passport */
+        get: operations["equipment_passport_api_equipment__equipment_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tasks/{task_id}/equipment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Link Equipment */
+        put: operations["link_equipment_api_tasks__task_id__equipment_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Materials */
+        get: operations["materials_api_materials_get"];
+        put?: never;
+        /** Create Material */
+        post: operations["create_material_api_materials_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/materials/stocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Material Stocks */
+        get: operations["material_stocks_api_materials_stocks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/materials/adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adjust Material */
+        post: operations["adjust_material_api_materials_adjust_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tasks/{task_id}/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Task Materials */
+        get: operations["task_materials_api_tasks__task_id__materials_get"];
+        put?: never;
+        /** Use Material */
+        post: operations["use_material_api_tasks__task_id__materials_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/equipment/{equipment_id}/qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Equipment Qr */
+        get: operations["equipment_qr_api_equipment__equipment_id__qr_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/outbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Outbox Status */
+        get: operations["outbox_status_api_outbox_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/outbox/{event_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry Outbox */
+        post: operations["retry_outbox_api_outbox__event_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tasks": {
         parameters: {
             query?: never;
@@ -204,12 +466,7 @@ export interface paths {
         };
         /**
          * Get Tasks
-         * @description Получить список заявок с пагинацией
-         *
-         *     Требует авторизации. Возвращает 401 если пользователь не авторизован или удалён.
-         *
-         *     - Workers: видят только свои заявки
-         *     - Dispatchers/Admins: видят все заявки (можно фильтровать по assignee_id)
+         * @description Список заявок с теми же фильтрами и правами, что у сводки.
          */
         get: operations["get_tasks_api_tasks_get"];
         put?: never;
@@ -218,6 +475,26 @@ export interface paths {
          * @description Создать новую заявку
          */
         post: operations["create_task_api_tasks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tasks/dispatch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dispatch Overview
+         * @description Нагрузка по всему отфильтрованному результату, без пагинации.
+         */
+        get: operations["get_dispatch_overview_api_tasks_dispatch_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2079,7 +2356,7 @@ export interface paths {
         get: operations["read_logo_api_admin_organization_settings_logo_get"];
         /**
          * Upload Logo
-         * @description Логотип для шапки акта: PNG или JPG до 2 МБ.
+         * @description Логотип для шапки акта: картинка до 10 МБ (PNG, JPG, WebP…), хранится PNG.
          */
         put: operations["upload_logo_api_admin_organization_settings_logo_put"];
         post?: never;
@@ -5704,6 +5981,18 @@ export interface components {
             /** Completed */
             completed: number;
         };
+        /** DayResponse */
+        DayResponse: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** User Id */
+            user_id: number;
+            /** Tasks */
+            tasks: components["schemas"]["TaskListResponse"][];
+        };
         /**
          * DefectTypeCreate
          * @description Создание типа неисправности
@@ -5752,12 +6041,53 @@ export interface components {
             /** Device Name */
             device_name?: string | null;
         };
+        /** DispatchOverview */
+        DispatchOverview: {
+            /** Rows */
+            rows: components["schemas"]["DispatchRow"][];
+            /** Total */
+            total: number;
+        };
+        /** DispatchRow */
+        DispatchRow: {
+            /** Key */
+            key: string;
+            /** Assigneeid */
+            assigneeId: number | null;
+            /** Assigneename */
+            assigneeName: string;
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Active */
+            active: number;
+            /** Urgent */
+            urgent: number;
+            /** Total */
+            total: number;
+        };
         /**
          * DocumentType
          * @description ���� ����������
          * @enum {string}
          */
         DocumentType: "contract" | "estimate" | "act" | "scheme" | "passport" | "other";
+        /** EquipmentLink */
+        EquipmentLink: {
+            /** Equipment Id */
+            equipment_id: number | null;
+        };
+        /** EquipmentPassportResponse */
+        EquipmentPassportResponse: {
+            equipment: components["schemas"]["AddressEquipmentResponse"];
+            /** Address */
+            address: string;
+            /** Address Id */
+            address_id: number;
+            /** Tasks */
+            tasks: components["schemas"]["TaskListResponse"][];
+        };
         /**
          * EquipmentStatus
          * @description ������� ������������
@@ -5972,6 +6302,204 @@ export interface components {
             supportPhone?: string | null;
             /** Supporthours */
             supportHours: string;
+        };
+        /** MaintenanceCreate */
+        MaintenanceCreate: {
+            /** Title */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Address Id */
+            address_id: number;
+            /** Equipment Id */
+            equipment_id?: number | null;
+            /** Assigned User Id */
+            assigned_user_id?: number | null;
+            /**
+             * Priority
+             * @default PLANNED
+             * @enum {string}
+             */
+            priority: "PLANNED" | "CURRENT" | "URGENT" | "EMERGENCY";
+            /**
+             * Frequency
+             * @default monthly
+             * @enum {string}
+             */
+            frequency: "daily" | "weekly" | "monthly";
+            /**
+             * Interval
+             * @default 1
+             */
+            interval: number;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /** End Date */
+            end_date?: string | null;
+            /** Excluded Dates */
+            excluded_dates?: string[];
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+        };
+        /** MaintenanceResponse */
+        MaintenanceResponse: {
+            /** Title */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Address Id */
+            address_id: number;
+            /** Equipment Id */
+            equipment_id?: number | null;
+            /** Assigned User Id */
+            assigned_user_id?: number | null;
+            /**
+             * Priority
+             * @default PLANNED
+             * @enum {string}
+             */
+            priority: "PLANNED" | "CURRENT" | "URGENT" | "EMERGENCY";
+            /**
+             * Frequency
+             * @default monthly
+             * @enum {string}
+             */
+            frequency: "daily" | "weekly" | "monthly";
+            /**
+             * Interval
+             * @default 1
+             */
+            interval: number;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /** End Date */
+            end_date?: string | null;
+            /** Excluded Dates */
+            excluded_dates?: string[];
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Id */
+            id: number;
+            /**
+             * Next Date
+             * Format: date
+             */
+            next_date: string;
+        };
+        /** MaterialAdjustment */
+        MaterialAdjustment: {
+            /** Material Id */
+            material_id: number;
+            /** User Id */
+            user_id?: number | null;
+            /** Quantity */
+            quantity: number | string;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Operation Id */
+            operation_id: string;
+            /**
+             * Kind
+             * @default receipt
+             * @enum {string}
+             */
+            kind: "receipt" | "write_off";
+        };
+        /** MaterialCreate */
+        MaterialCreate: {
+            /** Name */
+            name: string;
+            /**
+             * Unit
+             * @default шт.
+             */
+            unit: string;
+            /**
+             * Unit Cost
+             * @default 0
+             */
+            unit_cost: number | string;
+        };
+        /** MaterialMovementCreate */
+        MaterialMovementCreate: {
+            /** Material Id */
+            material_id: number;
+            /** User Id */
+            user_id?: number | null;
+            /** Quantity */
+            quantity: number | string;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Operation Id */
+            operation_id: string;
+        };
+        /** MaterialMovementResponse */
+        MaterialMovementResponse: {
+            /** Id */
+            id: number;
+            /** Material Id */
+            material_id: number;
+            /** Material Name */
+            material_name: string;
+            /** User Id */
+            user_id: number | null;
+            /** Task Id */
+            task_id: number | null;
+            /** Quantity */
+            quantity: string;
+            /** Unit */
+            unit: string;
+            /** Unit Cost */
+            unit_cost: string;
+            /** Total Cost */
+            total_cost: string;
+            /** Reason */
+            reason: string;
+            /** Created At */
+            created_at: string;
+        };
+        /** MaterialResponse */
+        MaterialResponse: {
+            /** Name */
+            name: string;
+            /**
+             * Unit
+             * @default шт.
+             */
+            unit: string;
+            /**
+             * Unit Cost
+             * @default 0
+             */
+            unit_cost: string;
+            /** Id */
+            id: number;
+            /** Active */
+            active: boolean;
         };
         /**
          * MemberAddRequest
@@ -6506,11 +7034,10 @@ export interface components {
             /** Uploaded By */
             uploaded_by?: string | null;
         };
-        /**
-         * PlannedDateUpdate
-         * @description Planned date update payload.
-         */
+        /** PlannedDateUpdate */
         PlannedDateUpdate: {
+            /** Expected Version */
+            expected_version?: number | null;
             /**
              * Planned Date
              * @example 2025-12-31
@@ -6897,6 +7424,16 @@ export interface components {
                 [key: string]: boolean;
             };
         };
+        /** RouteResponse */
+        RouteResponse: {
+            /** Task Ids */
+            task_ids: number[];
+        };
+        /** RouteUpdate */
+        RouteUpdate: {
+            /** Task Ids */
+            task_ids: number[];
+        };
         /**
          * SettingResponse
          * @description Ответ с настройкой
@@ -6936,6 +7473,28 @@ export interface components {
             icon: string;
             /** Settings */
             settings: components["schemas"]["SettingResponse"][];
+        };
+        /** SlaCalendar */
+        SlaCalendar: {
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /** Weekdays */
+            weekdays?: number[];
+            /**
+             * Start Time
+             * @default 09:00
+             */
+            start_time: string;
+            /**
+             * End Time
+             * @default 18:00
+             */
+            end_time: string;
+            /** Excluded Dates */
+            excluded_dates?: string[];
         };
         /**
          * SlaHours
@@ -7067,6 +7626,19 @@ export interface components {
             sla_compliance_rate: number;
             /** Avg Completion Hours */
             avg_completion_hours: number;
+        };
+        /** StockResponse */
+        StockResponse: {
+            /** Material Id */
+            material_id: number;
+            /** Name */
+            name: string;
+            /** Unit */
+            unit: string;
+            /** Quantity */
+            quantity: string;
+            /** User Id */
+            user_id: number;
         };
         /**
          * SupportTicketCategory
@@ -7308,6 +7880,15 @@ export interface components {
         TaskListResponse: {
             /** Id */
             id: number;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+            /** Equipment Id */
+            equipment_id?: number | null;
+            /** Address Id */
+            address_id?: number | null;
             /**
              * Task Number
              * @description Номер заявки (автогенерируется)
@@ -7576,6 +8157,15 @@ export interface components {
             /** Id */
             id: number;
             /**
+             * Version
+             * @default 1
+             */
+            version: number;
+            /** Equipment Id */
+            equipment_id?: number | null;
+            /** Address Id */
+            address_id?: number | null;
+            /**
              * Task Number
              * @description Номер заявки (автогенерируется)
              * @example FW-0001
@@ -7800,11 +8390,10 @@ export interface components {
              */
             CANCELLED: number;
         };
-        /**
-         * TaskStatusUpdate
-         * @description Обновление статуса
-         */
+        /** TaskStatusUpdate */
         TaskStatusUpdate: {
+            /** Expected Version */
+            expected_version?: number | null;
             status: components["schemas"]["TaskStatus"];
             /**
              * Comment
@@ -8234,6 +8823,91 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** ViewCreate */
+        ViewCreate: {
+            /** Name */
+            name: string;
+            settings: components["schemas"]["ViewSettings"];
+            /**
+             * Shared
+             * @default false
+             */
+            shared: boolean;
+            /** Source Id */
+            source_id?: string | null;
+        };
+        /** ViewResponse */
+        ViewResponse: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            settings: components["schemas"]["ViewSettings"];
+            /** Shared */
+            shared: boolean;
+            /** Can Edit */
+            can_edit: boolean;
+        };
+        /** ViewSettings */
+        ViewSettings: {
+            /**
+             * Search
+             * @default
+             */
+            search: string;
+            /**
+             * Statuses
+             * @default []
+             */
+            statuses: ("NEW" | "IN_PROGRESS" | "DONE" | "CANCELLED")[];
+            /**
+             * Priorities
+             * @default []
+             */
+            priorities: ("EMERGENCY" | "URGENT" | "CURRENT" | "PLANNED")[];
+            /** Assignees */
+            assignees?: string[];
+            /**
+             * Addressid
+             * @default
+             */
+            addressId: string;
+            /**
+             * Addresstitle
+             * @default
+             */
+            addressTitle: string;
+            /**
+             * Sort
+             * @default created_at_desc
+             * @enum {string}
+             */
+            sort: "created_at_desc" | "created_at_asc" | "due_at_asc";
+            /**
+             * Groupby
+             * @default
+             * @enum {string}
+             */
+            groupBy: "" | "status" | "assignee" | "priority";
+            /**
+             * Displaymode
+             * @default list
+             * @enum {string}
+             */
+            displayMode: "list" | "dispatch";
+            /**
+             * Repeat
+             * @default
+             * @enum {string}
+             */
+            repeat: "" | "duplicate" | "return";
+            /**
+             * Due
+             * @default
+             * @enum {string}
+             */
+            due: "" | "overdue" | "soon";
+        };
         /**
          * WorkerStatsResponse
          * @description Статистика по работнику
@@ -8657,19 +9331,690 @@ export interface operations {
             };
         };
     };
+    get_calendar_api_sla_calendar_get: {
+        parameters: {
+            query?: {
+                organization_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlaCalendar"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_calendar_api_sla_calendar_put: {
+        parameters: {
+            query?: {
+                organization_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SlaCalendar"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlaCalendar"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_views_api_task_views_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViewResponse"][];
+                };
+            };
+        };
+    };
+    create_view_api_task_views_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ViewCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_view_api_task_views__view_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                view_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ViewCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_view_api_task_views__view_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                view_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    maintenance_plans_api_maintenance_plans_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenanceResponse"][];
+                };
+            };
+        };
+    };
+    create_maintenance_api_maintenance_plans_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaintenanceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenanceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_maintenance_api_maintenance_plans__plan_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaintenanceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenanceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_my_day_api_my_day_get: {
+        parameters: {
+            query?: {
+                day?: string | null;
+                user_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DayResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_my_day_api_my_day_put: {
+        parameters: {
+            query?: {
+                day?: string | null;
+                user_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RouteUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RouteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    equipment_passport_api_equipment__equipment_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                equipment_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EquipmentPassportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    link_equipment_api_tasks__task_id__equipment_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EquipmentLink"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    materials_api_materials_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialResponse"][];
+                };
+            };
+        };
+    };
+    create_material_api_materials_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaterialCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    material_stocks_api_materials_stocks_get: {
+        parameters: {
+            query?: {
+                user_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    adjust_material_api_materials_adjust_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaterialAdjustment"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialMovementResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    task_materials_api_tasks__task_id__materials_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialMovementResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    use_material_api_tasks__task_id__materials_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaterialMovementCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialMovementResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    equipment_qr_api_equipment__equipment_id__qr_get: {
+        parameters: {
+            query?: {
+                origin?: string | null;
+            };
+            header?: never;
+            path: {
+                equipment_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    outbox_status_api_outbox_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    retry_outbox_api_outbox__event_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_tasks_api_tasks_get: {
         parameters: {
             query?: {
                 page?: number;
                 size?: number;
-                status?: components["schemas"]["TaskStatus"][];
-                priority?: string[];
-                assignee_id?: number[];
-                search?: string | null;
-                address_id?: number | null;
                 sort?: string | null;
                 /** @description Только заявки, изменённые не раньше этого момента (UTC) — для инкрементальной синхронизации. Порядок: updated_at, id по возрастанию. */
                 updated_since?: string | null;
+                status?: components["schemas"]["TaskStatus"][];
+                priority?: string[];
+                assignee_id?: number[];
+                unassigned?: boolean;
+                search?: string | null;
+                address_id?: number | null;
                 /** @description Плановая дата не раньше этого дня (локальная дата). */
                 planned_date_from?: string | null;
                 /** @description Плановая дата не позже этого дня, включительно. */
@@ -8725,6 +10070,52 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaskResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dispatch_overview_api_tasks_dispatch_get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["TaskStatus"][];
+                priority?: string[];
+                assignee_id?: number[];
+                unassigned?: boolean;
+                search?: string | null;
+                address_id?: number | null;
+                /** @description Только заявки, изменённые не раньше этого момента (UTC) — для инкрементальной синхронизации. Порядок: updated_at, id по возрастанию. */
+                updated_since?: string | null;
+                /** @description Плановая дата не раньше этого дня (локальная дата). */
+                planned_date_from?: string | null;
+                /** @description Плановая дата не позже этого дня, включительно. */
+                planned_date_to?: string | null;
+                /** @description Только повторы этого вида (дубли, возвраты). */
+                repeat_kind?: ("duplicate" | "return")[];
+                /** @description Открытые заявки со сроком: overdue — истёк, soon — истекает в ближайшие 24 часа. */
+                due?: ("overdue" | "soon") | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DispatchOverview"];
                 };
             };
             /** @description Validation Error */

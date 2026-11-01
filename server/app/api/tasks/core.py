@@ -39,6 +39,7 @@ from app.schemas import (
     TaskStatusUpdate,
     TaskSummaryResponse,
 )
+from app.schemas.dispatch import DispatchOverview, DispatchRow
 from app.services import (
     TaskService,
     TaskServiceError,
@@ -51,13 +52,12 @@ from app.services import (
 from app.services.idempotency import (
     IdempotencyKey,
     cached_response,
-    remember_response,
+    stage_response,
 )
 from app.services.notification_service import (
     broadcast_created_notification_async,
     create_task_assignment_notification,
     notification_broadcast_payload,
-    send_task_assignment_push,
 )
 from app.services.repeat_detector import (
     DUPLICATE,
@@ -129,7 +129,7 @@ def create_task(
                     assigned_to=assigned_to,
                     assigned_by=user,
                     commit=False,
-                    send_push=False,
+                    send_push=True,
                 )
         db.commit()
         db.refresh(db_task)
@@ -151,8 +151,6 @@ def create_task(
             notification_user_id,
             notification_event,
         )
-    if assigned_to and assignment_notifications:
-        send_task_assignment_push(db_task, assigned_to)
 
     # WebSocket broadcast
     background_tasks.add_task(
@@ -167,16 +165,13 @@ def create_task(
     return task_to_response(db_task)
 
 
-@router.get("", response_model=PaginatedResponse[TaskListResponse])
-def get_tasks(
-    page: int = Query(1, ge=1),
-    size: int = Query(20, ge=1, le=100),
+def filtered_tasks(
     status: List[TaskStatus] = Query(default=[]),
     priority: List[str] = Query(default=[]),
     assignee_id: List[int] = Query(default=[]),
+    unassigned: bool = False,
     search: Optional[str] = None,
     address_id: Optional[int] = None,
-    sort: Optional[str] = None,
     updated_since: Optional[datetime] = Query(
         None,
         description=(
@@ -263,13 +258,20 @@ def get_tasks(
             filters = build_task_filters_for_address(address)
             if filters:
                 query = query.filter(or_(*filters))
+        else:
+            query = query.filter(TaskModel.id == -1)
 
     # Workers see only their tasks
     # Dispatchers and Admins can see all (optionally filter by assignee_id)
     if is_worker_user(user):
         query = query.filter(TaskModel.assigned_user_id == user.id)
-    elif assignee_id:
-        query = query.filter(TaskModel.assigned_user_id.in_(assignee_id))
+    elif unassigned or assignee_id:
+        conditions = (
+            [TaskModel.assigned_user_id.in_(assignee_id)] if assignee_id else []
+        )
+        if unassigned:
+            conditions.append(TaskModel.assigned_user_id.is_(None))
+        query = query.filter(or_(*conditions))
     # else: admin/dispatcher without filter - show all
 
     if updated_since is not None:
@@ -301,6 +303,20 @@ def get_tasks(
                 TaskModel.due_at >= now, TaskModel.due_at < now + timedelta(hours=24)
             )
 
+    return query
+
+
+@router.get("", response_model=PaginatedResponse[TaskListResponse])
+def get_tasks(
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    sort: Optional[str] = None,
+    updated_since: Optional[datetime] = None,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(require_permission("view_tasks")),
+    query=Depends(filtered_tasks),
+):
+    """Список заявок с теми же фильтрами и правами, что у сводки."""
     # Считаем общее количество
     total = query.count()
 
@@ -370,6 +386,58 @@ def get_tasks(
         size=size,
         pages=(total + size - 1) // size,
     )
+
+
+@router.get("/dispatch", response_model=DispatchOverview)
+def get_dispatch_overview(query=Depends(filtered_tasks)):
+    """Нагрузка по всему отфильтрованному результату, без пагинации."""
+    active = TaskModel.status.in_(["NEW", "IN_PROGRESS"])
+    urgent = TaskModel.priority.in_(["URGENT", "EMERGENCY", "3", "4"])
+    aggregates = (
+        query.with_entities(
+            TaskModel.assigned_user_id,
+            func.count(TaskModel.id).label("total"),
+            *[
+                func.sum(case((TaskModel.status == status.value, 1), else_=0)).label(
+                    status.value
+                )
+                for status in TaskStatus
+            ],
+            func.sum(case((active, 1), else_=0)).label("active"),
+            func.sum(case((active & urgent, 1), else_=0)).label("urgent"),
+        )
+        .group_by(TaskModel.assigned_user_id)
+        .all()
+    )
+    ids = [
+        row.assigned_user_id for row in aggregates if row.assigned_user_id is not None
+    ]
+    users = {
+        u.id: (u.full_name or u.username)
+        for u in query.session.query(UserModel).filter(UserModel.id.in_(ids)).all()
+    }
+    rows = [
+        DispatchRow(
+            key=(
+                str(row.assigned_user_id)
+                if row.assigned_user_id is not None
+                else "unassigned"
+            ),
+            assigneeId=row.assigned_user_id,
+            assigneeName=users.get(row.assigned_user_id, "Не назначен"),
+            counts={
+                status.value: getattr(row, status.value) or 0 for status in TaskStatus
+            },
+            active=row.active or 0,
+            urgent=row.urgent or 0,
+            total=row.total,
+        )
+        for row in aggregates
+    ]
+    rows.sort(
+        key=lambda row: (row.assigneeId is not None, -row.active, row.assigneeName)
+    )
+    return DispatchOverview(rows=rows, total=sum(row.total for row in rows))
 
 
 def _to_naive_utc(value: datetime) -> datetime:
@@ -553,8 +621,9 @@ def mark_task_repeat(
 
 
 @router.patch("/{task_id}/status", response_model=TaskResponse)
-async def update_task_status(
+def update_task_status(
     task_id: int,
+    background_tasks: BackgroundTasks,
     status_update: TaskStatusUpdate,
     access: TaskAccess = Depends(
         require_task_access(
@@ -566,11 +635,13 @@ async def update_task_status(
 ):
     """Изменить статус заявки."""
 
+    task_service.db.refresh(access.task, with_for_update={"of": TaskModel})
     scope = f"status:{task_id}"
     cached = cached_response(task_service.db, access.user.id, idempotency_key, scope)
     if cached is not None:
         return cached
 
+    enforce_version(access.task, status_update.expected_version)
     old_status = access.task.status
     try:
         updated_task = task_service.update_status(
@@ -578,20 +649,26 @@ async def update_task_status(
             new_status=status_update.status.value,
             comment_text=status_update.comment,
             user=access.user,
+            before_commit=lambda task: stage_response(
+                task_service.db,
+                access.user.id,
+                idempotency_key,
+                scope,
+                task_to_response(task),
+            ),
         )
     except TaskServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
     # WebSocket broadcast
-    asyncio.ensure_future(
-        broadcast_task_status_changed(
-            task_id=task_id,
-            task_number=updated_task.task_number or "",
-            old_status=old_status,
-            new_status=status_update.status.value,
-            user_id=access.user.id,
-            organization_id=updated_task.organization_id,
-        )
+    background_tasks.add_task(
+        broadcast_task_status_changed,
+        task_id=task_id,
+        task_number=updated_task.task_number or "",
+        old_status=old_status,
+        new_status=status_update.status.value,
+        user_id=access.user.id,
+        organization_id=updated_task.organization_id,
     )
 
     # Системное сообщение в чат заявки (если он существует) + realtime-доставка.
@@ -605,16 +682,14 @@ async def update_task_status(
         )
         if posted is not None:
             conv, message_response, member_ids = posted
-            asyncio.ensure_future(
-                broadcast_chat_message(
-                    member_user_ids=member_ids,
-                    conversation_id=conv.id,
-                    message_data=message_response.model_dump(mode="json"),
-                )
+            background_tasks.add_task(
+                broadcast_chat_message,
+                member_user_ids=member_ids,
+                conversation_id=conv.id,
+                message_data=message_response.model_dump(mode="json"),
             )
 
     response = task_to_response(updated_task)
-    remember_response(task_service.db, access.user.id, idempotency_key, scope, response)
     return response
 
 
@@ -663,22 +738,30 @@ def update_planned_date(
 ):
     """Изменить плановую дату заявки."""
 
+    task_service.db.refresh(access.task, with_for_update={"of": TaskModel})
     scope = f"planned_date:{task_id}"
     cached = cached_response(task_service.db, access.user.id, idempotency_key, scope)
     if cached is not None:
         return cached
 
+    enforce_version(access.task, planned_date_update.expected_version)
     try:
         updated_task = task_service.update_planned_date(
             task_id=task_id,
             planned_date=planned_date_update.planned_date,
             user=access.user,
+            before_commit=lambda task: stage_response(
+                task_service.db,
+                access.user.id,
+                idempotency_key,
+                scope,
+                task_to_list_response(task),
+            ),
         )
     except TaskServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
     response = task_to_list_response(updated_task)
-    remember_response(task_service.db, access.user.id, idempotency_key, scope, response)
     return response
 
 
@@ -734,3 +817,20 @@ async def assign_task(
         )
 
     return task_to_response(task)
+
+
+def enforce_version(task: TaskModel, expected: Optional[int]) -> None:
+    if expected is not None and task.version != expected:
+        raise HTTPException(
+            409,
+            detail={
+                "code": "task_conflict",
+                "message": "Заявка изменена на сервере. Сравните изменения перед повторной отправкой.",
+                "current_version": task.version,
+                "current_status": task.status,
+                "current_planned_date": (
+                    task.planned_date.isoformat() if task.planned_date else None
+                ),
+                "current_assigned_user_id": task.assigned_user_id,
+            },
+        )
