@@ -4,8 +4,8 @@
 IP подписавшего по ссылке; индекс номера акта — для страницы проверки
 подлинности, где номер ищут без организации.
 
-Revision ID: 20261102_0004
-Revises: 20261102_0003
+Revision ID: 20261102_0006
+Revises: 20261102_0005
 Create Date: 2026-11-02
 """
 
@@ -13,8 +13,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "20261102_0004"
-down_revision = "20261102_0003"
+revision = "20261102_0006"
+down_revision = "20261102_0005"
 branch_labels = None
 depends_on = None
 
