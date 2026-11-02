@@ -41,6 +41,8 @@ import kotlinx.serialization.Contextual
  * @param amount 
  * @param catalogItemId 
  * @param serialNumber 
+ * @param installToObject 
+ * @param equipmentId 
  */
 @Serializable
 
@@ -74,7 +76,13 @@ data class ActLineResponse (
     val catalogItemId: kotlin.Long? = null,
 
     @SerialName(value = "serial_number")
-    val serialNumber: kotlin.String? = null
+    val serialNumber: kotlin.String? = null,
+
+    @SerialName(value = "install_to_object")
+    val installToObject: kotlin.Boolean? = false,
+
+    @SerialName(value = "equipment_id")
+    val equipmentId: kotlin.Long? = null
 
 ) {
 

@@ -51,6 +51,9 @@ import {
 } from '@/hooks/useAddressCard'
 import { useUpdateAddress } from '@/hooks/useAddresses'
 import { addressesApi } from '@/api/addresses'
+import { actsApi } from '@/api/acts'
+import { useActs } from '@/hooks/useActs'
+import { ACT_STATUS, formatRub } from '@/components/acts/actLabels'
 import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
 import Card from '@/components/Card'
@@ -251,6 +254,72 @@ function EmptyRow({ Icon, text }: { Icon: typeof Wrench; text: string }) {
     <p className="flex items-center justify-center gap-2 px-4 py-8 text-sm text-gray-500 dark:text-gray-400">
       <Icon className="h-4 w-4 text-gray-400" /> {text}
     </p>
+  )
+}
+
+/** Акты по заявкам объекта — рядом с документами объекта. */
+function AddressActsCard({ addressId }: { addressId: number }) {
+  const acts = useActs({ address_id: addressId, size: 50 })
+  const items = acts.data?.items ?? []
+  return (
+    <Card flush title={`Акты${acts.data ? ` · ${acts.data.total}` : ''}`}>
+      {acts.isLoading ? (
+        <div className="flex justify-center py-6"><Spinner /></div>
+      ) : items.length === 0 ? (
+        <p className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+          По заявкам этого объекта актов нет
+        </p>
+      ) : (
+        <table className="data-table min-w-full">
+          <thead>
+            <tr>
+              <th>Акт</th>
+              <th>Заявка</th>
+              <th className="text-right">Сумма</th>
+              <th>Статус</th>
+              <th className="w-12" aria-label="PDF" />
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((act) => {
+              const status = ACT_STATUS[act.status]
+              return (
+                <tr key={act.id}>
+                  <td className="whitespace-nowrap">
+                    <span className="font-mono text-xs">{act.number}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400"> · {formatDate(act.created_at)}</span>
+                  </td>
+                  <td className="w-full max-w-0">
+                    <p className="truncate">
+                      {act.task_id ? (
+                        <Link to={`/tasks/${act.task_id}`} className="text-primary-600 hover:underline dark:text-primary-400">
+                          {act.task_number}
+                        </Link>
+                      ) : (
+                        act.task_number
+                      )}
+                      {act.customer_name && <span className="text-gray-500 dark:text-gray-400"> · {act.customer_name}</span>}
+                    </p>
+                  </td>
+                  <td className="whitespace-nowrap text-right tabular-nums">{formatRub(act.total_amount)}</td>
+                  <td><Badge variant={status.variant}>{status.label}</Badge></td>
+                  <td>
+                    <RowActions>
+                      <IconButton
+                        title="Открыть PDF"
+                        onClick={() => actsApi.openPdf(act.id).catch((error) => showApiError(error, 'Не удалось открыть PDF'))}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                      </IconButton>
+                    </RowActions>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+    </Card>
   )
 }
 
@@ -814,6 +883,8 @@ export default function AddressDetailPage() {
 
           {/* Документы */}
           {activeTab === 'documents' && (
+            <div className="space-y-3">
+            <AddressActsCard addressId={addressId} />
             <Card
               flush
               title="Документы объекта"
@@ -876,6 +947,7 @@ export default function AddressDetailPage() {
                 </table>
               )}
             </Card>
+            </div>
           )}
         </div>
       </div>

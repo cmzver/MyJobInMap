@@ -44,13 +44,23 @@ from app.schemas.act import (
     ActMobileCreate,
     ActPublicLink,
     ActResponse,
+    ActsMoneyByMethod,
+    ActsSummaryResponse,
     ActStatus,
+    ActsWorkerMoney,
     CatalogItemCreate,
     CatalogItemResponse,
     CatalogItemUpdate,
 )
 from app.services import require_permission
 from app.services.act_pdf import render_act_pdf
+from app.services.act_reports import (
+    MAX_ARCHIVE_ACTS,
+    PAYMENT_ORDER,
+    acts_archive,
+    acts_workbook,
+    summarize,
+)
 from app.services.act_service import (
     MAX_SCAN_BYTES,
     MAX_SIGNATURE_BYTES,
@@ -68,6 +78,8 @@ from app.services.role_utils import is_worker_user
 from app.services.tenant_filter import TenantFilter
 
 router = APIRouter(tags=["Acts"])
+
+XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 def _error(exc: ActServiceError) -> HTTPException:
@@ -115,6 +127,8 @@ def act_to_response(act: ActModel) -> ActResponse:
                 "qty": float(line.qty),
                 "price": float(line.price),
                 "amount": float(line.amount),
+                "install_to_object": line.install_to_object,
+                "equipment_id": line.equipment_id,
                 "serial_number": line.serial_number,
             }
             for line in act.lines
@@ -355,18 +369,15 @@ def list_task_acts(
     return [act_to_response(act) for act in acts]
 
 
-@router.get("/api/acts", response_model=ActListResponse)
-def list_acts(
-    status: List[ActStatus] = Query(default=[]),
-    date_from: Optional[date] = Query(None, description="Выпущен не раньше (день)"),
-    date_to: Optional[date] = Query(None, description="Выпущен не позже (день)"),
-    search: Optional[str] = Query(None, max_length=100),
-    page: int = Query(1, ge=1),
-    size: int = Query(50, ge=1, le=200),
-    db: Session = Depends(get_db),
-    user: UserModel = Depends(require_permission("view_acts")),
+def _filtered_acts(
+    db: Session,
+    user: UserModel,
+    status: List[ActStatus],
+    date_from: Optional[date],
+    date_to: Optional[date],
+    search: Optional[str],
+    address_id: Optional[int],
 ):
-    """Реестр актов организации."""
     query = _visible_acts(db, user)
     if status:
         query = query.filter(ActModel.status.in_(status))
@@ -384,16 +395,138 @@ def list_acts(
         query = query.filter(
             ActModel.number.ilike(pattern) | ActModel.customer_name.ilike(pattern)
         )
-    total = query.count()
-    acts = (
-        query.options(selectinload(ActModel.lines))
-        .order_by(ActModel.created_at.desc(), ActModel.id.desc())
-        .offset((page - 1) * size)
-        .limit(size)
-        .all()
+    if address_id is not None:
+        query = query.filter(
+            ActModel.task_id.in_(
+                db.query(TaskModel.id).filter(TaskModel.address_id == address_id)
+            )
+        )
+    return query
+
+
+def _ordered(query):
+    return query.options(selectinload(ActModel.lines)).order_by(
+        ActModel.created_at.desc(), ActModel.id.desc()
     )
+
+
+@router.get("/api/acts", response_model=ActListResponse)
+def list_acts(
+    status: List[ActStatus] = Query(default=[]),
+    date_from: Optional[date] = Query(None, description="Выпущен не раньше (день)"),
+    date_to: Optional[date] = Query(None, description="Выпущен не позже (день)"),
+    search: Optional[str] = Query(None, max_length=100),
+    address_id: Optional[int] = Query(None, description="Акты заявок по объекту"),
+    page: int = Query(1, ge=1),
+    size: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(require_permission("view_acts")),
+):
+    """Реестр актов организации."""
+    query = _filtered_acts(db, user, status, date_from, date_to, search, address_id)
+    total = query.count()
+    acts = _ordered(query).offset((page - 1) * size).limit(size).all()
     return ActListResponse(
         items=[act_to_response(act) for act in acts], total=total, page=page, size=size
+    )
+
+
+@router.get("/api/acts/summary", response_model=ActsSummaryResponse)
+def acts_summary(
+    status: List[ActStatus] = Query(default=[]),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    search: Optional[str] = Query(None, max_length=100),
+    address_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(require_permission("view_acts")),
+):
+    """Деньги по актам за период: итог, по способам оплаты и по исполнителям —
+    в т.ч. сколько наличных собрал каждый (основа для подотчёта)."""
+    acts = _filtered_acts(
+        db, user, status, date_from, date_to, search, address_id
+    ).all()
+    summary = summarize(acts)
+    return ActsSummaryResponse(
+        issued=summary.issued,
+        signed=summary.signed,
+        pending=summary.pending,
+        refused=summary.refused,
+        total=float(summary.total),
+        by_method=[
+            ActsMoneyByMethod(
+                method=method,
+                count=summary.count_by_method[method],
+                amount=float(summary.by_method[method]),
+            )
+            for method in PAYMENT_ORDER
+            if summary.count_by_method.get(method)
+        ],
+        workers=[
+            ActsWorkerMoney(
+                name=worker.name,
+                acts=worker.acts,
+                total=float(worker.total),
+                cash=float(worker.by_method.get("cash", 0)),
+                card=float(worker.by_method.get("card", 0)),
+                transfer=float(worker.by_method.get("transfer", 0)),
+                contract=float(worker.by_method.get("contract", 0)),
+            )
+            for worker in sorted(
+                summary.workers.values(), key=lambda w: (-w.total, w.name)
+            )
+        ],
+    )
+
+
+@router.get("/api/acts/export.xlsx")
+def export_acts(
+    status: List[ActStatus] = Query(default=[]),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    search: Optional[str] = Query(None, max_length=100),
+    address_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(require_permission("view_acts")),
+):
+    """Реестр актов по тем же фильтрам, что и список, — Excel."""
+    acts = _ordered(
+        _filtered_acts(db, user, status, date_from, date_to, search, address_id)
+    ).all()
+    return Response(
+        content=acts_workbook(acts),
+        media_type=XLSX_MEDIA_TYPE,
+        headers={"Content-Disposition": _download("Реестр актов.xlsx")},
+    )
+
+
+@router.get("/api/acts/archive.zip")
+def acts_month_archive(
+    request: Request,
+    month: str = Query(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$", description="ГГГГ-ММ"),
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(require_permission("view_acts")),
+):
+    """Акты за месяц одним архивом: PDF, сканы бумажных и реестр Excel.
+
+    Аннулированные не входят — их заменили новые версии."""
+    first = date.fromisoformat(f"{month}-01")
+    last = (first.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(
+        days=1
+    )
+    query = _filtered_acts(
+        db, user, ["pending_signature", "signed", "refused"], first, last, None, None
+    )
+    if query.count() > MAX_ARCHIVE_ACTS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"За месяц больше {MAX_ARCHIVE_ACTS} актов — выгрузите реестр Excel",
+        )
+    acts = _ordered(query).all()
+    return Response(
+        content=acts_archive(acts, public_base_url(request)),
+        media_type="application/zip",
+        headers={"Content-Disposition": _download(f"Акты {month}.zip")},
     )
 
 
@@ -408,6 +541,10 @@ def get_act(
 
 def _attachment(filename: str) -> str:
     return f"inline; filename*=UTF-8''{quote(filename)}"
+
+
+def _download(filename: str) -> str:
+    return f"attachment; filename*=UTF-8''{quote(filename)}"
 
 
 @router.get("/api/acts/{act_id}/pdf")

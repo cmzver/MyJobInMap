@@ -58,4 +58,20 @@ class ActMappersTest {
         assertEquals("2026-11-01T11:05:00Z", payload.getValue("signed_at").jsonPrimitive.content)
         assertFalse(payload.containsKey("refusal_reason"))
     }
+
+    @Test
+    fun `serial and install flag go only with material lines`() {
+        val payload = ActDraft(
+            lines = listOf(
+                ActLineDraft(key = 1, name = "Трубка", isMaterial = true, price = "1290", serialNumber = " SN-1 ", installToObject = true),
+                ActLineDraft(key = 2, name = "Работа", price = "500", serialNumber = "X", installToObject = true),
+            ),
+        ).toActCreate()
+
+        val (material, work) = payload.lines!!
+        assertEquals("SN-1", material.serialNumber)
+        assertEquals(true, material.installToObject)
+        assertNull(work.serialNumber)
+        assertEquals(false, work.installToObject)
+    }
 }
