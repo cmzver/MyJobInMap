@@ -260,6 +260,124 @@ def _info(content: dict) -> Table:
     return table
 
 
+def _counterparty_lines(counterparty: dict) -> List[str]:
+    ids = " · ".join(
+        f"{label} {counterparty[key]}"
+        for key, label in (("inn", "ИНН"), ("kpp", "КПП"), ("ogrn", "ОГРН"))
+        if counterparty.get(key)
+    )
+    return [line for line in (ids, counterparty.get("legal_address")) if line]
+
+
+def _summary_info(content: dict) -> Table:
+    """Сводный акт: заказчик (УК) с реквизитами, период и договор."""
+    counterparty = content.get("counterparty") or {}
+    contract = counterparty.get("contract_number")
+    if contract and counterparty.get("contract_date"):
+        contract += f" от {counterparty['contract_date']}"
+    left = [
+        _p("Заказчик", LABEL),
+        _p(counterparty.get("legal_name") or counterparty.get("name") or "—"),
+    ]
+    left += [_p(line, SMALL) for line in _counterparty_lines(counterparty)]
+    right = [
+        _p("Период", LABEL),
+        _p(content.get("period_label") or ""),
+        Spacer(1, 1.5 * mm),
+    ]
+    if contract:
+        right += [_p("Договор", LABEL), _p(f"№ {contract}")]
+    table = Table([[left, right]], colWidths=[PAGE_WIDTH * 0.62, PAGE_WIDTH * 0.38])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), PANEL),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4 * mm),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4 * mm),
+                ("TOPPADDING", (0, 0), (-1, -1), 3 * mm),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3 * mm),
+            ]
+        )
+    )
+    return table
+
+
+def _grid(rows: List[list], widths: List[float], accent) -> Table:
+    table = Table(rows, colWidths=widths, repeatRows=1)
+    style = [
+        ("BACKGROUND", (0, 0), (-1, 0), accent),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LINEBELOW", (0, 1), (-1, -1), 0.4, RULE),
+        ("TOPPADDING", (0, 0), (-1, -1), 2 * mm),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2 * mm),
+    ]
+    style += [
+        ("BACKGROUND", (0, row), (-1, row), ZEBRA) for row in range(2, len(rows), 2)
+    ]
+    table.setStyle(TableStyle(style))
+    return table
+
+
+def _summary_body(content: dict, template: ActTemplate) -> List:
+    """Начисления (абонплата и работы по договору) и справочно — выезды."""
+    accent = colors.HexColor(template.accent_color)
+    head = _style("head", 8, bold=True, textColor=colors.white)
+    head_right = _style(
+        "head_right", 8, bold=True, textColor=colors.white, alignment=TA_RIGHT
+    )
+    flow: List = []
+    lines = content.get("lines") or []
+    if lines:
+        rows = [[_p("№", head), _p("Наименование", head), _p("Сумма, ₽", head_right)]]
+        for line in lines:
+            name = [_p(line["name"])]
+            if line.get("details"):
+                name.append(_p(line["details"], SMALL))
+            rows.append(
+                [_p(str(line["position"])), name, _p(money(line["amount"]), RIGHT)]
+            )
+        flow.append(_grid(rows, [9 * mm, PAGE_WIDTH - 39 * mm, 30 * mm], accent))
+        for label, key in (
+            ("Абонентское обслуживание", "subscription_total"),
+            ("Работы по актам", "acts_total"),
+        ):
+            if Decimal(str(content.get(key) or 0)) > 0:
+                flow.append(_p(f"{label}: {money(content[key])} ₽", RIGHT_SMALL))
+        flow += [
+            Spacer(1, 2 * mm),
+            _p(f"Итого: {money(content.get('total') or 0)} ₽", TOTAL),
+        ]
+    visits = content.get("visits") or []
+    if visits:
+        rows = [
+            [
+                _p("Дата", head),
+                _p("Заявка", head),
+                _p("Адрес и неисправность", head),
+                _p("Исполнитель", head),
+            ]
+        ]
+        for visit in visits:
+            title = visit.get("title") or ""
+            if visit.get("remote"):
+                title += " (удалённо)"
+            rows.append(
+                [
+                    _p(visit.get("date") or ""),
+                    _p(visit.get("task_number") or ""),
+                    [_p(visit.get("address") or ""), _p(title, SMALL)],
+                    _p(visit.get("worker") or "—", SMALL),
+                ]
+            )
+        flow += [
+            Spacer(1, 6 * mm),
+            _section(f"Выполненные заявки за период — {len(visits)}"),
+            _grid(rows, [20 * mm, 20 * mm, PAGE_WIDTH - 80 * mm, 40 * mm], accent),
+        ]
+    return flow
+
+
 def _lines(content: dict, template: ActTemplate) -> List:
     lines = content.get("lines") or []
     if not lines:
@@ -339,6 +457,11 @@ def _signatures(
 ) -> Table:
     customer = (content.get("customer") or {}).get("name") or ""
     worker = content.get("worker") or content.get("issued_by") or ""
+    counterparty = content.get("counterparty") or {}
+    if content.get("kind") == "summary":
+        customer = ", ".join(
+            part for part in (counterparty.get("signer_position"), customer) if part
+        )
     files = signature_files or {}
 
     def column(label: str, name: str, image: Optional[Image], notes: List[str]) -> List:
@@ -454,15 +577,19 @@ def render_act_document(
         or "",
     )
 
+    summary = content.get("kind") == "summary"
     flow = _header(requisites, template)
     flow += [
         _title(number, content, template),
         Spacer(1, 5 * mm),
-        _info(content),
+        _summary_info(content) if summary else _info(content),
         Spacer(1, 5 * mm),
     ]
-    flow += _lines(content, template)
-    flow += _totals(content, template)
+    if summary:
+        flow += _summary_body(content, template)
+    else:
+        flow += _lines(content, template)
+        flow += _totals(content, template)
     if content.get("work_summary"):
         flow += [
             Spacer(1, 5 * mm),

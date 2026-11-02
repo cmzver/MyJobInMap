@@ -116,6 +116,12 @@ def act_to_response(act: ActModel) -> ActResponse:
         refusal_reason=act.refusal_reason,
         has_customer_signature=bool(act.customer_signature_file),
         public_link_expires_at=act.public_link_expires_at,
+        kind=act.kind or "task",
+        counterparty_id=act.counterparty_id,
+        counterparty_name=((act.content_snapshot or {}).get("counterparty") or {}).get(
+            "name"
+        ),
+        period=act.period_start.strftime("%Y-%m") if act.period_start else None,
         lines=[
             {
                 "id": line.id,

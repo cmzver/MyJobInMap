@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import distinct, func, or_
 from sqlalchemy.orm import Session
 
-from app.models import AddressAssigneeModel, AddressModel, get_db
+from app.models import AddressAssigneeModel, AddressModel, CounterpartyModel, get_db
 from app.models.task import TaskModel
 from app.models.user import UserModel
 from app.schemas.address import (
@@ -332,6 +332,20 @@ def update_address(
         lat, lon = geocoding_service.geocode(update_data["address"])
         update_data["lat"] = lat
         update_data["lon"] = lon
+
+    if update_data.get("counterparty_id") is not None:
+        counterparty = (
+            db.query(CounterpartyModel)
+            .filter(
+                CounterpartyModel.id == update_data["counterparty_id"],
+                CounterpartyModel.organization_id == address.organization_id,
+            )
+            .first()
+        )
+        if counterparty is None:
+            raise HTTPException(status_code=400, detail="Контрагент не найден")
+        # Строка «УК» в карточке — по контрагенту
+        update_data.setdefault("management_company", counterparty.name)
 
     old_lat, old_lon = address.lat, address.lon
 

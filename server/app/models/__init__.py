@@ -49,6 +49,7 @@ from app.models.chat import (
     MessageReactionModel,
     MessageType,
 )
+from app.models.counterparty import CounterpartyModel
 from app.models.enums import TaskPriority, TaskStatus, UserRole
 from app.models.escalation import JobRunModel, TaskEscalationModel
 from app.models.idempotency import IdempotencyKeyModel
@@ -118,6 +119,7 @@ __all__ = [
     "TaskEscalationModel",
     "JobRunModel",
     "ActModel",
+    "CounterpartyModel",
     "ActLineModel",
     "ActCounterModel",
     "ServiceCatalogItemModel",

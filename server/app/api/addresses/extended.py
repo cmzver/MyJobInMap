@@ -221,6 +221,7 @@ def get_address_full(
         intercom_code=address.intercom_code,
         management_company=address.management_company,
         management_phone=address.management_phone,
+        counterparty_id=address.counterparty_id,
         notes=address.notes,
         extra_info=address.extra_info,
         is_active=address.is_active,

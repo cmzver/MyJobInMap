@@ -8,6 +8,7 @@ import Button from '@/components/Button'
 import Input from '@/components/Input'
 import Select from '@/components/Select'
 import Textarea from '@/components/Textarea'
+import { useCounterparties } from '@/hooks/useCounterparties'
 import type { AddressSystem, AddressEquipment, AddressContact } from '@/types/address'
 import type { Address } from '@/types/address'
 
@@ -658,6 +659,8 @@ export interface AddressFormData {
   intercom_code: string
   management_company: string
   management_phone: string
+  /** '' — без контрагента */
+  counterparty_id: string
   notes: string
 }
 
@@ -684,6 +687,7 @@ export function AddressForm({ address, onSubmit, onCancel, isLoading }: AddressF
     intercom_code: address.intercom_code || '',
     management_company: address.management_company || '',
     management_phone: address.management_phone || '',
+    counterparty_id: address.counterparty_id ? String(address.counterparty_id) : '',
     notes: address.notes || '',
   })
 
@@ -703,12 +707,24 @@ export function AddressForm({ address, onSubmit, onCancel, isLoading }: AddressF
       intercom_code: address.intercom_code || '',
       management_company: address.management_company || '',
       management_phone: address.management_phone || '',
+      counterparty_id: address.counterparty_id ? String(address.counterparty_id) : '',
       notes: address.notes || '',
     })
   }, [address])
 
   const handleChange = (field: keyof AddressFormData, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+  }
+  const { data: counterparties = [] } = useCounterparties()
+  const selectCounterparty = (value: string) => {
+    const chosen = counterparties.find((item) => String(item.id) === value)
+    setFormData((prev) => ({
+      ...prev,
+      counterparty_id: value,
+      // Название УК в карточке — по контрагенту
+      management_company: chosen ? chosen.name : prev.management_company,
+      management_phone: chosen?.phone && !prev.management_phone ? chosen.phone : prev.management_phone,
+    }))
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -800,12 +816,24 @@ export function AddressForm({ address, onSubmit, onCancel, isLoading }: AddressF
       <div className="space-y-4">
         <h4 className="font-medium text-gray-900 dark:text-white border-b pb-2">Управляющая компания</h4>
         
+        {counterparties.length > 0 && (
+          <Select
+            label="Контрагент (для сводного акта)"
+            options={[
+              { value: '', label: 'Не выбран' },
+              ...counterparties.map((item) => ({ value: String(item.id), label: item.name })),
+            ]}
+            value={formData.counterparty_id}
+            onChange={selectCounterparty}
+          />
+        )}
         <div className="grid grid-cols-2 gap-4">
           <Input
             label="Название УК"
             value={formData.management_company}
             onChange={(e) => handleChange('management_company', e.target.value)}
             placeholder="ООО «УК Пример»"
+            disabled={!!formData.counterparty_id}
           />
           <Input
             label="Телефон УК"

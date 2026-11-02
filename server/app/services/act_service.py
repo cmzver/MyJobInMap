@@ -574,6 +574,9 @@ def issue_public_link(db: Session, act: ActModel) -> Tuple[str, datetime]:
         raise ActServiceError(
             "Ссылку дают на акт, который ждёт подписи или уже подписан", 400
         )
+    if act.kind == "summary":
+        # Сводный подписывает представитель УК — печать или скан, не ссылка
+        raise ActServiceError("Для сводного акта ссылка клиенту не выдаётся", 400)
     token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + PUBLIC_LINK_TTL
     act.public_token_hash = _token_hash(token)

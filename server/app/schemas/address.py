@@ -149,6 +149,8 @@ class AddressUpdate(BaseModel):
 
     management_company: Optional[str] = Field(None, max_length=200)
     management_phone: Optional[str] = Field(None, max_length=50)
+    # Контрагент (УК/ТСЖ); null — отвязать
+    counterparty_id: Optional[int] = None
 
     notes: Optional[str] = Field(None, max_length=2000)
     extra_info: Optional[str] = Field(None, max_length=5000)
@@ -180,6 +182,7 @@ class AddressResponse(BaseModel):
 
     management_company: Optional[str] = None
     management_phone: Optional[str] = None
+    counterparty_id: Optional[int] = None
 
     notes: Optional[str] = None
     extra_info: Optional[str] = None
@@ -590,6 +593,7 @@ class AddressFullResponse(BaseModel):
     intercom_code: Optional[str] = None
     management_company: Optional[str] = None
     management_phone: Optional[str] = None
+    counterparty_id: Optional[int] = None
     notes: Optional[str] = None
     extra_info: Optional[str] = None
     is_active: bool = True
