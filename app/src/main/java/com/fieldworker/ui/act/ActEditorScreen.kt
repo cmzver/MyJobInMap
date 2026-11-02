@@ -435,12 +435,29 @@ private fun LineEditor(
                     modifier = Modifier.weight(1.2f),
                 )
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            if (line.isMaterial) {
+                OutlinedTextField(
+                    value = line.serialNumber,
+                    onValueChange = { value -> onChange { it.copy(serialNumber = value) } },
+                    label = { Text("S/N (необязательно)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
                     selected = line.isMaterial,
                     onClick = { onChange { it.copy(isMaterial = !it.isMaterial) } },
                     label = { Text("Материал") },
                 )
+                if (line.isMaterial) {
+                    // Установленное на объекте заведётся в оборудование адреса заявки
+                    FilterChip(
+                        selected = line.installToObject,
+                        onClick = { onChange { it.copy(installToObject = !it.installToObject) } },
+                        label = { Text("На объект") },
+                    )
+                }
                 Spacer(Modifier.weight(1f))
                 Text(
                     text = formatRub(line.amount),

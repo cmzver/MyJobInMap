@@ -12,14 +12,40 @@ export type CatalogItem = components['schemas']['CatalogItemResponse']
 export type CatalogItemCreate = components['schemas']['CatalogItemCreate']
 export type CatalogItemUpdate = components['schemas']['CatalogItemUpdate']
 export type ActPublicLink = components['schemas']['ActPublicLink']
+export type ActsSummary = components['schemas']['ActsSummaryResponse']
 
 export interface ActListParams {
   status?: ActStatus[]
   search?: string
   date_from?: string
   date_to?: string
+  address_id?: number
   page?: number
   size?: number
+}
+
+/** Фильтры реестра в query-строку — общие для списка, сводки и Excel. */
+function filterQuery(params: ActListParams): URLSearchParams {
+  const query = new URLSearchParams()
+  params.status?.forEach((status) => query.append('status', status))
+  if (params.search) query.set('search', params.search)
+  if (params.date_from) query.set('date_from', params.date_from)
+  if (params.date_to) query.set('date_to', params.date_to)
+  if (params.address_id) query.set('address_id', String(params.address_id))
+  return query
+}
+
+/** Скачать файл с авторизацией под именем filename. */
+async function downloadBlob(path: string, filename: string): Promise<void> {
+  const { data } = await apiClient.get<Blob>(path, { responseType: 'blob' })
+  const url = URL.createObjectURL(data)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
 }
 
 /** Открыть файл с авторизацией в новой вкладке (Bearer не пройдёт через обычную ссылку). */
@@ -71,11 +97,7 @@ export const actsApi = {
   },
 
   async listActs(params: ActListParams): Promise<ActList> {
-    const query = new URLSearchParams()
-    params.status?.forEach((status) => query.append('status', status))
-    if (params.search) query.set('search', params.search)
-    if (params.date_from) query.set('date_from', params.date_from)
-    if (params.date_to) query.set('date_to', params.date_to)
+    const query = filterQuery(params)
     query.set('page', String(params.page ?? 1))
     query.set('size', String(params.size ?? 50))
     const { data } = await apiClient.get<ActList>(`/acts?${query}`)
@@ -101,6 +123,17 @@ export const actsApi = {
     const { data } = await apiClient.post<ActPublicLink>(`/acts/${id}/public-link`)
     return data
   },
+
+  /** Деньги по актам за период: итог, способы оплаты, наличные у исполнителей. */
+  async summary(params: ActListParams): Promise<ActsSummary> {
+    const { data } = await apiClient.get<ActsSummary>(`/acts/summary?${filterQuery(params)}`)
+    return data
+  },
+
+  downloadExcel: (params: ActListParams) =>
+    downloadBlob(`/acts/export.xlsx?${filterQuery(params)}`, 'Реестр актов.xlsx'),
+  /** month — «ГГГГ-ММ»: PDF актов, сканы и реестр одним архивом. */
+  downloadArchive: (month: string) => downloadBlob(`/acts/archive.zip?month=${month}`, `Акты ${month}.zip`),
 
   openPdf: (id: number) => openBlob(`/acts/${id}/pdf`),
   openScan: (id: number) => openBlob(`/acts/${id}/scan`),

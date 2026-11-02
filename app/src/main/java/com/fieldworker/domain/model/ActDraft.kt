@@ -37,6 +37,9 @@ data class ActLineDraft(
     val unit: String = "усл",
     val qty: String = "1",
     val price: String = "0",
+    /** Материал: серийный номер и «установлено на объект» — заведётся в оборудование адреса. */
+    val serialNumber: String = "",
+    val installToObject: Boolean = false,
 ) {
     val qtyValue: BigDecimal
         get() = parseAmount(qty)

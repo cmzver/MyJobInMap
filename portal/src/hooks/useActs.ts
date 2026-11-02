@@ -13,6 +13,7 @@ export const actKeys = {
   all: ['acts'] as const,
   task: (taskId: number) => [...actKeys.all, 'task', taskId] as const,
   list: (params: ActListParams) => [...actKeys.all, 'list', params] as const,
+  summary: (params: ActListParams) => [...actKeys.all, 'summary', params] as const,
   catalog: (includeInactive: boolean) => ['service-catalog', includeInactive] as const,
 }
 
@@ -57,6 +58,14 @@ export function useActs(params: ActListParams) {
   return useQuery({
     queryKey: actKeys.list(params),
     queryFn: () => actsApi.listActs(params),
+  })
+}
+
+export function useActsSummary(params: ActListParams, enabled = true) {
+  return useQuery({
+    queryKey: actKeys.summary(params),
+    queryFn: () => actsApi.summary(params),
+    enabled,
   })
 }
 

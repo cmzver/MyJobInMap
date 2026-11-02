@@ -24,6 +24,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -185,6 +186,20 @@ class ActLineModel(Base):
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     serial_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    # Материал, установленный на объект: при выпуске акта заводится в
+    # оборудование адреса заявки, equipment_id — созданная запись.
+    install_to_object: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    equipment_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey(
+            "address_equipment.id",
+            ondelete="SET NULL",
+            name="fk_act_lines_equipment_id",
+        ),
+        nullable=True,
+    )
 
     act: Mapped["ActModel"] = relationship("ActModel", back_populates="lines")
 

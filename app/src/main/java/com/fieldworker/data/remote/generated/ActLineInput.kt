@@ -38,6 +38,7 @@ import kotlinx.serialization.Contextual
  * @param qty 
  * @param price 
  * @param serialNumber 
+ * @param installToObject 
  */
 @Serializable
 
@@ -62,7 +63,10 @@ data class ActLineInput (
     val price: java.math.BigDecimal? = null,
 
     @SerialName(value = "serial_number")
-    val serialNumber: kotlin.String? = null
+    val serialNumber: kotlin.String? = null,
+
+    @SerialName(value = "install_to_object")
+    val installToObject: kotlin.Boolean? = false
 
 ) {
 

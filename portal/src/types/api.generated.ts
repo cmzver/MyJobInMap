@@ -924,6 +924,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/acts/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Acts Summary
+         * @description Деньги по актам за период: итог, по способам оплаты и по исполнителям —
+         *     в т.ч. сколько наличных собрал каждый (основа для подотчёта).
+         */
+        get: operations["acts_summary_api_acts_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/acts/export.xlsx": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Acts
+         * @description Реестр актов по тем же фильтрам, что и список, — Excel.
+         */
+        get: operations["export_acts_api_acts_export_xlsx_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/acts/archive.zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Acts Month Archive
+         * @description Акты за месяц одним архивом: PDF, сканы бумажных и реестр Excel.
+         *
+         *     Аннулированные не входят — их заменили новые версии.
+         */
+        get: operations["acts_month_archive_api_acts_archive_zip_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/acts/{act_id}": {
         parameters: {
             query?: never;
@@ -4287,6 +4350,11 @@ export interface components {
             price?: number | null;
             /** Serial Number */
             serial_number?: string | null;
+            /**
+             * Install To Object
+             * @default false
+             */
+            install_to_object: boolean;
         };
         /** ActLineResponse */
         ActLineResponse: {
@@ -4313,6 +4381,13 @@ export interface components {
             amount: number;
             /** Serial Number */
             serial_number?: string | null;
+            /**
+             * Install To Object
+             * @default false
+             */
+            install_to_object: boolean;
+            /** Equipment Id */
+            equipment_id?: number | null;
         };
         /** ActListResponse */
         ActListResponse: {
@@ -4492,6 +4567,58 @@ export interface components {
             document_hash: string;
             /** Replaced By */
             replaced_by?: string | null;
+        };
+        /** ActsMoneyByMethod */
+        ActsMoneyByMethod: {
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "cash" | "card" | "transfer" | "contract" | "none";
+            /** Count */
+            count: number;
+            /** Amount */
+            amount: number;
+        };
+        /**
+         * ActsSummaryResponse
+         * @description Деньги по актам за период (аннулированные не считаются).
+         */
+        ActsSummaryResponse: {
+            /** Issued */
+            issued: number;
+            /** Signed */
+            signed: number;
+            /** Pending */
+            pending: number;
+            /** Refused */
+            refused: number;
+            /** Total */
+            total: number;
+            /** By Method */
+            by_method: components["schemas"]["ActsMoneyByMethod"][];
+            /** Workers */
+            workers: components["schemas"]["ActsWorkerMoney"][];
+        };
+        /**
+         * ActsWorkerMoney
+         * @description Сколько выпустил исполнитель за период; cash — наличные у него на руках.
+         */
+        ActsWorkerMoney: {
+            /** Name */
+            name: string;
+            /** Acts */
+            acts: number;
+            /** Total */
+            total: number;
+            /** Cash */
+            cash: number;
+            /** Card */
+            card: number;
+            /** Transfer */
+            transfer: number;
+            /** Contract */
+            contract: number;
         };
         /**
          * AddressAssigneeCreate
@@ -10992,6 +11119,8 @@ export interface operations {
                 /** @description Выпущен не позже (день) */
                 date_to?: string | null;
                 search?: string | null;
+                /** @description Акты заявок по объекту */
+                address_id?: number | null;
                 page?: number;
                 size?: number;
             };
@@ -11008,6 +11137,108 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    acts_summary_api_acts_summary_get: {
+        parameters: {
+            query?: {
+                status?: ("pending_signature" | "signed" | "refused" | "cancelled")[];
+                date_from?: string | null;
+                date_to?: string | null;
+                search?: string | null;
+                address_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActsSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_acts_api_acts_export_xlsx_get: {
+        parameters: {
+            query?: {
+                status?: ("pending_signature" | "signed" | "refused" | "cancelled")[];
+                date_from?: string | null;
+                date_to?: string | null;
+                search?: string | null;
+                address_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    acts_month_archive_api_acts_archive_zip_get: {
+        parameters: {
+            query: {
+                /** @description ГГГГ-ММ */
+                month: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

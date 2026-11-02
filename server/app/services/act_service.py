@@ -39,7 +39,11 @@ from app.models import (
     ActCounterModel,
     ActLineModel,
     ActModel,
+    AddressEquipmentModel,
+    AddressHistoryEventType,
+    AddressHistoryModel,
     CommentModel,
+    EquipmentStatus,
     OrganizationModel,
     OrganizationSettingsModel,
     ServiceCatalogItemModel,
@@ -226,20 +230,62 @@ def _build_lines(db: Session, organization_id: int, data: ActCreate) -> List[dic
             line.price if line.price is not None else (item.price if item else 0)
         )
         qty = Decimal(str(line.qty)).quantize(_QTY, rounding=ROUND_HALF_UP)
-        lines.append(
-            {
-                "position": position,
-                "line_type": line.line_type or (item.line_type if item else "work"),
-                "catalog_item_id": item.id if item else None,
-                "name": name,
-                "unit": (line.unit or "").strip() or (item.unit if item else "усл"),
-                "qty": qty,
-                "price": price,
-                "amount": _money(qty * price),
-                "serial_number": (line.serial_number or "").strip() or None,
-            }
-        )
+        line_type = line.line_type or (item.line_type if item else "work")
+        built = {
+            "position": position,
+            "line_type": line_type,
+            "catalog_item_id": item.id if item else None,
+            "name": name,
+            "unit": (line.unit or "").strip() or (item.unit if item else "усл"),
+            "qty": qty,
+            "price": price,
+            "amount": _money(qty * price),
+            "serial_number": (line.serial_number or "").strip() or None,
+        }
+        # Ключ только у установленных материалов: снимок прежних актов не меняется
+        if line.install_to_object and line_type == "material":
+            built["install_to_object"] = True
+        lines.append(built)
     return lines
+
+
+def _install_materials(
+    db: Session, task: TaskModel, act: ActModel, user: UserModel
+) -> List[str]:
+    """Материалы «установлено на объект» — в оборудование адреса заявки.
+
+    Без объекта у заявки отметка ничего не заводит (акт из офлайн-очереди
+    не должен падать из-за этого). Аннулирование акта оборудование не
+    убирает: его снимают с объекта руками, как и заводят."""
+    if task.address_id is None:
+        return []
+    installed = []
+    for line in act.lines:
+        if not line.install_to_object:
+            continue
+        equipment = AddressEquipmentModel(
+            address_id=task.address_id,
+            equipment_type="other",
+            name=line.name,
+            serial_number=line.serial_number,
+            quantity=max(1, int(line.qty)),
+            install_date=act.created_at,
+            status=EquipmentStatus.WORKING.value,
+            notes=f"Установлено по акту №{act.number}",
+        )
+        db.add(equipment)
+        db.flush()
+        line.equipment_id = equipment.id
+        db.add(
+            AddressHistoryModel(
+                address_id=task.address_id,
+                event_type=AddressHistoryEventType.EQUIPMENT_ADDED.value,
+                description=f"Установлено по акту №{act.number}: {line.name}",
+                user_id=user.id,
+            )
+        )
+        installed.append(line.name)
+    return installed
 
 
 def _comment(db: Session, task_id: Optional[int], text: str, user: UserModel) -> None:
@@ -421,11 +467,14 @@ def create_act(
     db.add(act)
     if superseded is not None:
         _cancel(superseded, f"Заменён актом №{number}", user)
+    installed = _install_materials(db, task, act, user)
     text = f"Оформлен акт №{number} на сумму {total} ₽"
     if status == SIGNED:
         text += ", подписан клиентом на экране"
     elif status == REFUSED:
         text += f". Клиент отказался подписать: {content['refusal_reason']}"
+    if installed:
+        text += ". На объект установлено: " + ", ".join(installed)
     _comment(db, task.id, text, user)
     db.flush()
     if stage is not None:

@@ -24,6 +24,8 @@ type LineDraft = {
   unit: string
   qty: string
   price: string
+  serial_number: string
+  install_to_object: boolean
 }
 
 let lineKey = 0
@@ -35,6 +37,8 @@ const newLine = (fields: Partial<LineDraft> = {}): LineDraft => ({
   unit: 'усл',
   qty: '1',
   price: '0',
+  serial_number: '',
+  install_to_object: false,
   ...fields,
 })
 
@@ -68,6 +72,9 @@ export default function ActFormModal({
             unit: line.unit,
             qty: String(line.qty),
             price: String(line.price),
+            serial_number: line.serial_number ?? '',
+            // Исправленная версия не заводит оборудование второй раз
+            install_to_object: false,
           }),
         )
       : [],
@@ -115,6 +122,8 @@ export default function ActFormModal({
           unit: line.unit.trim() || null,
           qty: toNumber(line.qty),
           price: toNumber(line.price),
+          serial_number: line.line_type === 'material' ? line.serial_number.trim() || null : null,
+          install_to_object: line.line_type === 'material' && line.install_to_object,
         })),
       customer_name: customerName.trim() || null,
       customer_role: customerRole as ActCreate['customer_role'],
@@ -159,8 +168,9 @@ export default function ActFormModal({
           {lines.map((line) => (
             <div
               key={line.key}
-              className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-2 dark:border-gray-700 md:grid-cols-[minmax(0,1fr)_8.5rem_5rem_4rem_7rem_6rem_auto] md:items-end md:border-0 md:p-0"
+              className="space-y-2 rounded-lg border border-gray-200 p-2 dark:border-gray-700 md:border-0 md:p-0"
             >
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-[minmax(0,1fr)_8.5rem_5rem_4rem_7rem_6rem_auto] md:items-end">
               <div className="col-span-2 md:col-span-1">
                 <Input
                   label="Наименование"
@@ -204,6 +214,30 @@ export default function ActFormModal({
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
+            </div>
+            {line.line_type === 'material' && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <input
+                  aria-label="Серийный номер"
+                  placeholder="S/N (необязательно)"
+                  value={line.serial_number}
+                  onChange={(event) => updateLine(line.key, { serial_number: event.target.value })}
+                  className="field h-8 w-56"
+                />
+                <label
+                  className={`flex items-center gap-2 text-sm ${task.address_id ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400'}`}
+                  title={task.address_id ? undefined : 'У заявки нет объекта — оборудование некуда завести'}
+                >
+                  <input
+                    type="checkbox"
+                    checked={line.install_to_object}
+                    disabled={!task.address_id}
+                    onChange={(event) => updateLine(line.key, { install_to_object: event.target.checked })}
+                  />
+                  Установлено на объект — завести в оборудование адреса
+                </label>
+              </div>
+            )}
             </div>
           ))}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">

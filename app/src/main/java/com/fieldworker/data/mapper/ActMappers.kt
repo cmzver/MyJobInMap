@@ -29,6 +29,8 @@ fun ActDraft.toActCreate(): ActCreate = ActCreate(
             unit = line.unit.trim().ifEmpty { null },
             qty = line.qtyValue,
             price = line.priceValue,
+            serialNumber = line.serialNumber.trim().ifEmpty { null }.takeIf { line.isMaterial },
+            installToObject = line.isMaterial && line.installToObject,
         )
     },
     customerName = customerName.trim().ifEmpty { null },

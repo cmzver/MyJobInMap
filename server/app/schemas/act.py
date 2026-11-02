@@ -61,6 +61,8 @@ class ActLineInput(BaseModel):
     qty: float = Field(1, gt=0, le=100_000)
     price: Optional[float] = Field(None, ge=0, le=MAX_PRICE)
     serial_number: Optional[str] = Field(None, max_length=100)
+    # Материал установлен на объект — завести в оборудование адреса заявки.
+    install_to_object: bool = False
 
     @model_validator(mode="after")
     def _catalog_or_name(self):
@@ -117,6 +119,8 @@ class ActLineResponse(BaseModel):
     price: float
     amount: float
     serial_number: Optional[str] = None
+    install_to_object: bool = False
+    equipment_id: Optional[int] = None
 
 
 class ActResponse(BaseModel):
@@ -157,6 +161,36 @@ class ActListResponse(BaseModel):
     total: int
     page: int
     size: int
+
+
+class ActsMoneyByMethod(BaseModel):
+    method: PaymentMethod
+    count: int
+    amount: float
+
+
+class ActsWorkerMoney(BaseModel):
+    """Сколько выпустил исполнитель за период; cash — наличные у него на руках."""
+
+    name: str
+    acts: int
+    total: float
+    cash: float
+    card: float
+    transfer: float
+    contract: float
+
+
+class ActsSummaryResponse(BaseModel):
+    """Деньги по актам за период (аннулированные не считаются)."""
+
+    issued: int
+    signed: int
+    pending: int
+    refused: int
+    total: float
+    by_method: List[ActsMoneyByMethod]
+    workers: List[ActsWorkerMoney]
 
 
 class ActCancelRequest(BaseModel):
