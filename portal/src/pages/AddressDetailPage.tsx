@@ -389,6 +389,7 @@ export default function AddressDetailPage() {
         entrance_count: data.entrance_count ? parseInt(data.entrance_count) : undefined,
         floor_count: data.floor_count ? parseInt(data.floor_count) : undefined,
         apartment_count: data.apartment_count ? parseInt(data.apartment_count) : undefined,
+        counterparty_id: data.counterparty_id ? Number(data.counterparty_id) : null,
       }
       
       await updateAddress.mutateAsync({ id: addressId, data: payload })
@@ -593,7 +594,14 @@ export default function AddressDetailPage() {
               <Stat label="Квартир" value={address.apartment_count} />
             </dl>
             <dl className="space-y-2 px-4 py-3 text-sm">
-              <Fact label="УК" value={address.management_company} />
+              <Fact
+                label="УК"
+                value={address.counterparty_id ? (
+                  <Link to={`/counterparties/${address.counterparty_id}`} className="text-primary-600 hover:underline dark:text-primary-400">
+                    {address.management_company || 'контрагент'}
+                  </Link>
+                ) : address.management_company}
+              />
               <Fact
                 label="Телефон УК"
                 value={address.management_phone ? (

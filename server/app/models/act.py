@@ -8,13 +8,14 @@ PDF рисуется из снимков content_snapshot/requisites_snapshot, �
 заявки, прайса или реквизитов не меняет уже выпущенный документ.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import (
     JSON,
     Boolean,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -140,6 +141,16 @@ class ActModel(Base):
     supersedes_act_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("acts.id", ondelete="SET NULL"), nullable=True
     )
+    # Сводный акт (kind="summary"): контрагент и месяц (первое число)
+    counterparty_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey(
+            "counterparties.id", ondelete="SET NULL", name="fk_acts_counterparty_id"
+        ),
+        nullable=True,
+        index=True,
+    )
+    period_start: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     created_by_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

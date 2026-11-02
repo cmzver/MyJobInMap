@@ -59,6 +59,10 @@ import kotlinx.serialization.Contextual
  * @param refusalReason 
  * @param hasCustomerSignature 
  * @param publicLinkExpiresAt 
+ * @param kind 
+ * @param counterpartyId 
+ * @param counterpartyName 
+ * @param period 
  * @param lines 
  */
 @Serializable
@@ -145,6 +149,18 @@ data class ActResponse (
 
     @SerialName(value = "public_link_expires_at")
     val publicLinkExpiresAt: kotlin.String? = null,
+
+    @SerialName(value = "kind")
+    val kind: kotlin.String? = "task",
+
+    @SerialName(value = "counterparty_id")
+    val counterpartyId: kotlin.Long? = null,
+
+    @SerialName(value = "counterparty_name")
+    val counterpartyName: kotlin.String? = null,
+
+    @SerialName(value = "period")
+    val period: kotlin.String? = null,
 
     @SerialName(value = "lines")
     val lines: kotlin.collections.List<ActLineResponse>? = null

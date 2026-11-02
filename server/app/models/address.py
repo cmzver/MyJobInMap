@@ -175,6 +175,17 @@ class AddressModel(Base):
     management_phone: Mapped[str] = mapped_column(
         String(50), nullable=True, default=""
     )  # ������� ��
+    # Контрагент (УК/ТСЖ): по нему выпускается сводный акт за месяц
+    counterparty_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey(
+            "counterparties.id",
+            ondelete="SET NULL",
+            name="fk_addresses_counterparty_id",
+        ),
+        nullable=True,
+        index=True,
+    )
 
     # �������������
     notes: Mapped[str] = mapped_column(Text, nullable=True, default="")  # �������

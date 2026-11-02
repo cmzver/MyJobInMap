@@ -50,6 +50,7 @@ import kotlinx.serialization.Contextual
  * @param intercomCode 
  * @param managementCompany 
  * @param managementPhone 
+ * @param counterpartyId 
  * @param notes 
  * @param extraInfo 
  * @param isActive 
@@ -114,6 +115,9 @@ data class AddressResponse (
 
     @SerialName(value = "management_phone")
     val managementPhone: kotlin.String? = null,
+
+    @SerialName(value = "counterparty_id")
+    val counterpartyId: kotlin.Long? = null,
 
     @SerialName(value = "notes")
     val notes: kotlin.String? = null,

@@ -153,6 +153,11 @@ class ActResponse(BaseModel):
     # Ссылка для клиента выдана и действует до этого времени (сама ссылка
     # показывается один раз — при выдаче)
     public_link_expires_at: Optional[UtcDateTime] = None
+    # task — акт по заявке; summary — сводный за месяц по контрагенту
+    kind: str = "task"
+    counterparty_id: Optional[int] = None
+    counterparty_name: Optional[str] = None
+    period: Optional[str] = None  # ГГГГ-ММ у сводного
     lines: List[ActLineResponse] = Field(default_factory=list)
 
 

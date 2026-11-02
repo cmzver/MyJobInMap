@@ -1080,6 +1080,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/counterparties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Counterparties */
+        get: operations["list_counterparties_api_counterparties_get"];
+        put?: never;
+        /** Create Counterparty */
+        post: operations["create_counterparty_api_counterparties_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/counterparties/{counterparty_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Counterparty */
+        get: operations["get_counterparty_api_counterparties__counterparty_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Counterparty
+         * @description Удалить можно только без выпущенных сводных актов — иначе в архив.
+         */
+        delete: operations["delete_counterparty_api_counterparties__counterparty_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Counterparty */
+        patch: operations["update_counterparty_api_counterparties__counterparty_id__patch"];
+        trace?: never;
+    };
+    "/api/counterparties/{counterparty_id}/addresses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Counterparty Addresses */
+        get: operations["counterparty_addresses_api_counterparties__counterparty_id__addresses_get"];
+        /**
+         * Set Counterparty Addresses
+         * @description Полный список объектов контрагента. Объект может принадлежать одному
+         *     контрагенту: привязка к этому снимает его с прежнего.
+         */
+        put: operations["set_counterparty_addresses_api_counterparties__counterparty_id__addresses_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/counterparties/{counterparty_id}/summary-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Summary Preview
+         * @description Что попадёт в сводный акт за месяц — до выпуска.
+         */
+        get: operations["summary_preview_api_counterparties__counterparty_id__summary_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/counterparties/{counterparty_id}/summary-acts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Summary Acts */
+        get: operations["list_summary_acts_api_counterparties__counterparty_id__summary_acts_get"];
+        put?: never;
+        /** Create Summary Act */
+        post: operations["create_summary_act_api_counterparties__counterparty_id__summary_acts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/public/acts/verify": {
         parameters: {
             query?: never;
@@ -4481,6 +4581,17 @@ export interface components {
             has_customer_signature: boolean;
             /** Public Link Expires At */
             public_link_expires_at?: string | null;
+            /**
+             * Kind
+             * @default task
+             */
+            kind: string;
+            /** Counterparty Id */
+            counterparty_id?: number | null;
+            /** Counterparty Name */
+            counterparty_name?: string | null;
+            /** Period */
+            period?: string | null;
             /** Lines */
             lines?: components["schemas"]["ActLineResponse"][];
         };
@@ -5044,6 +5155,8 @@ export interface components {
             management_company?: string | null;
             /** Management Phone */
             management_phone?: string | null;
+            /** Counterparty Id */
+            counterparty_id?: number | null;
             /** Notes */
             notes?: string | null;
             /** Extra Info */
@@ -5197,6 +5310,8 @@ export interface components {
             management_company?: string | null;
             /** Management Phone */
             management_phone?: string | null;
+            /** Counterparty Id */
+            counterparty_id?: number | null;
             /** Notes */
             notes?: string | null;
             /** Extra Info */
@@ -5348,6 +5463,8 @@ export interface components {
             management_company?: string | null;
             /** Management Phone */
             management_phone?: string | null;
+            /** Counterparty Id */
+            counterparty_id?: number | null;
             /** Notes */
             notes?: string | null;
             /** Extra Info */
@@ -5982,6 +6099,155 @@ export interface components {
             name?: string | null;
             /** Avatar Url */
             avatar_url?: string | null;
+        };
+        /** CounterpartyAddress */
+        CounterpartyAddress: {
+            /** Id */
+            id: number;
+            /** Address */
+            address: string;
+            /**
+             * Monthly Cost
+             * @default 0
+             */
+            monthly_cost: number;
+        };
+        /**
+         * CounterpartyAddressesUpdate
+         * @description Полный список объектов контрагента: отсутствующие отвязываются.
+         */
+        CounterpartyAddressesUpdate: {
+            /** Address Ids */
+            address_ids?: number[];
+        };
+        /** CounterpartyCreate */
+        CounterpartyCreate: {
+            /** Legal Name */
+            legal_name?: string | null;
+            /** Inn */
+            inn?: string | null;
+            /** Kpp */
+            kpp?: string | null;
+            /** Ogrn */
+            ogrn?: string | null;
+            /** Legal Address */
+            legal_address?: string | null;
+            /** Bank Name */
+            bank_name?: string | null;
+            /** Bik */
+            bik?: string | null;
+            /** Account */
+            account?: string | null;
+            /** Corr Account */
+            corr_account?: string | null;
+            /** Contract Number */
+            contract_number?: string | null;
+            /** Contract Date */
+            contract_date?: string | null;
+            /** Signer Name */
+            signer_name?: string | null;
+            /** Signer Position */
+            signer_position?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Name */
+            name: string;
+        };
+        /** CounterpartyResponse */
+        CounterpartyResponse: {
+            /** Legal Name */
+            legal_name?: string | null;
+            /** Inn */
+            inn?: string | null;
+            /** Kpp */
+            kpp?: string | null;
+            /** Ogrn */
+            ogrn?: string | null;
+            /** Legal Address */
+            legal_address?: string | null;
+            /** Bank Name */
+            bank_name?: string | null;
+            /** Bik */
+            bik?: string | null;
+            /** Account */
+            account?: string | null;
+            /** Corr Account */
+            corr_account?: string | null;
+            /** Contract Number */
+            contract_number?: string | null;
+            /** Contract Date */
+            contract_date?: string | null;
+            /** Signer Name */
+            signer_name?: string | null;
+            /** Signer Position */
+            signer_position?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Address Count
+             * @default 0
+             */
+            address_count: number;
+            /**
+             * Monthly Total
+             * @default 0
+             */
+            monthly_total: number;
+            /** Created At */
+            created_at: string;
+        };
+        /** CounterpartyUpdate */
+        CounterpartyUpdate: {
+            /** Legal Name */
+            legal_name?: string | null;
+            /** Inn */
+            inn?: string | null;
+            /** Kpp */
+            kpp?: string | null;
+            /** Ogrn */
+            ogrn?: string | null;
+            /** Legal Address */
+            legal_address?: string | null;
+            /** Bank Name */
+            bank_name?: string | null;
+            /** Bik */
+            bik?: string | null;
+            /** Account */
+            account?: string | null;
+            /** Corr Account */
+            corr_account?: string | null;
+            /** Contract Number */
+            contract_number?: string | null;
+            /** Contract Date */
+            contract_date?: string | null;
+            /** Signer Name */
+            signer_name?: string | null;
+            /** Signer Position */
+            signer_position?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
         };
         /**
          * CreateTaskFromTextRequest
@@ -7840,6 +8106,70 @@ export interface components {
             quantity: string;
             /** User Id */
             user_id: number;
+        };
+        /** SummaryActCreate */
+        SummaryActCreate: {
+            /** Month */
+            month: string;
+            /** Supersedes Act Id */
+            supersedes_act_id?: number | null;
+        };
+        /** SummaryLine */
+        SummaryLine: {
+            /** Position */
+            position: number;
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+            /** Details */
+            details?: string | null;
+            /** Amount */
+            amount: number;
+        };
+        /**
+         * SummaryPreview
+         * @description Сводный акт до выпуска: что попадёт в документ за месяц.
+         */
+        SummaryPreview: {
+            /** Month */
+            month: string;
+            /** Period Label */
+            period_label: string;
+            /** Lines */
+            lines: components["schemas"]["SummaryLine"][];
+            /** Visits */
+            visits: components["schemas"]["SummaryVisit"][];
+            /** Subscription Total */
+            subscription_total: number;
+            /** Acts Total */
+            acts_total: number;
+            /** Total */
+            total: number;
+            /** Existing Act Id */
+            existing_act_id?: number | null;
+            /** Existing Act Number */
+            existing_act_number?: string | null;
+        };
+        /** SummaryVisit */
+        SummaryVisit: {
+            /** Date */
+            date: string;
+            /** Task Id */
+            task_id: number;
+            /** Task Number */
+            task_number: string;
+            /** Address */
+            address: string;
+            /** Title */
+            title: string;
+            /** Worker */
+            worker?: string | null;
+            /**
+             * Remote
+             * @default false
+             */
+            remote: boolean;
         };
         /**
          * SupportTicketCategory
@@ -11428,6 +11758,330 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_counterparties_api_counterparties_get: {
+        parameters: {
+            query?: {
+                include_inactive?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CounterpartyResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_counterparty_api_counterparties_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CounterpartyCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CounterpartyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_counterparty_api_counterparties__counterparty_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                counterparty_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CounterpartyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_counterparty_api_counterparties__counterparty_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                counterparty_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_counterparty_api_counterparties__counterparty_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                counterparty_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CounterpartyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CounterpartyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    counterparty_addresses_api_counterparties__counterparty_id__addresses_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                counterparty_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CounterpartyAddress"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_counterparty_addresses_api_counterparties__counterparty_id__addresses_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                counterparty_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CounterpartyAddressesUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CounterpartyAddress"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    summary_preview_api_counterparties__counterparty_id__summary_preview_get: {
+        parameters: {
+            query: {
+                month: string;
+            };
+            header?: never;
+            path: {
+                counterparty_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SummaryPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_summary_acts_api_counterparties__counterparty_id__summary_acts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                counterparty_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_summary_act_api_counterparties__counterparty_id__summary_acts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                counterparty_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SummaryActCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -74,7 +74,8 @@ def worker_name(act: ActModel) -> str:
 def summarize(acts: Iterable[ActModel]) -> ActsSummary:
     summary = ActsSummary()
     for act in acts:
-        if act.status == "cancelled":
+        # Сводный акт УК повторяет акты «по договору» — деньги считаем по выездам
+        if act.status == "cancelled" or act.kind == "summary":
             continue
         amount = Decimal(act.total_amount or 0)
         method = act.payment_method or "none"
@@ -135,7 +136,14 @@ def acts_workbook(acts: List[ActModel]) -> bytes:
     ws.append([title for title, _ in headers])
     _style_header(ws, [width for _, width in headers])
     for act in acts:
-        task = (act.content_snapshot or {}).get("task") or {}
+        content = act.content_snapshot or {}
+        task = content.get("task") or {}
+        if act.kind == "summary":
+            # У сводного нет заявки: в «Адрес» — контрагент и период
+            task = {
+                "address": f"Сводный: {(content.get('counterparty') or {}).get('name', '')}"
+                f" · {content.get('period_label', '')}"
+            }
         signed = ""
         if act.status == "signed":
             signed = f"{_local(act.signed_at)} {SIGNED_VIA_LABELS.get(act.signed_via or '', '')}".strip()

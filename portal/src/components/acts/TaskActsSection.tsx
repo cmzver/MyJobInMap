@@ -14,7 +14,7 @@ import type { TaskDetail } from '@/types/task'
 import { formatDateOnly } from '@/utils/dateFormat'
 import { showApiError, showApiSuccess } from '@/utils/apiError'
 
-function CancelActModal({ act, onClose }: { act: Act; onClose: () => void }) {
+export function CancelActModal({ act, onClose }: { act: Act; onClose: () => void }) {
   const [reason, setReason] = useState('')
   const cancelAct = useCancelAct()
   const submit = () =>

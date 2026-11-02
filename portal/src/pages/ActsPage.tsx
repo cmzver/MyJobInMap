@@ -157,7 +157,14 @@ export default function ActsPage() {
                     <td className="whitespace-nowrap font-mono text-xs">{act.number}</td>
                     <td className="whitespace-nowrap">{formatDateOnly(act.created_at)}</td>
                     <td className="max-w-[22rem] truncate" title={act.address ?? undefined}>
-                      {act.task_id ? (
+                      {act.kind === 'summary' ? (
+                        <Link
+                          to={`/counterparties/${act.counterparty_id}`}
+                          className="text-primary-600 hover:underline dark:text-primary-400"
+                        >
+                          Сводный · {act.counterparty_name} · {act.period}
+                        </Link>
+                      ) : act.task_id ? (
                         <Link to={`/tasks/${act.task_id}`} className="text-primary-600 hover:underline dark:text-primary-400">
                           {act.task_number}
                         </Link>
