@@ -25,8 +25,8 @@ android {
         applicationId = "com.fieldworker"
         minSdk = 24
         targetSdk = 34
-        versionCode = 24300
-        versionName = "2.43.0"
+        versionCode = 24400
+        versionName = "2.44.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

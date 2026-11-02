@@ -1011,7 +1011,12 @@ fun TaskDetailContent(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                TaskDetailHeader(task = task, onStatusChange = onStatusChange)
+                TaskDetailHeader(
+                    task = task,
+                    onStatusChange = onStatusChange,
+                    // Пометка «Панели · N» — рядом со статусом, а не отдельным блоком
+                    badge = remoteSection?.let { section -> { section(task) } },
+                )
             }
 
             item {
@@ -1044,10 +1049,6 @@ fun TaskDetailContent(
 
             task.repeatOf?.let { repeat ->
                 item { TaskRepeatSection(repeat) }
-            }
-
-            remoteSection?.let { section ->
-                item { section(task) }
             }
 
             actsSection?.let { section ->
@@ -1233,7 +1234,8 @@ private fun TaskObjectPreviewSection(
 @Composable
 private fun TaskDetailHeader(
     task: Task,
-    onStatusChange: () -> Unit
+    onStatusChange: () -> Unit,
+    badge: (@Composable () -> Unit)? = null,
 ) {
     val displayNumber = remember(task) { task.getDisplayNumber() }
     // Тот же заголовок, что в ленте, — иначе одна заявка выглядит как две разные
@@ -1279,6 +1281,7 @@ private fun TaskDetailHeader(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            badge?.invoke()
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = "#$displayNumber",

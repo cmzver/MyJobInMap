@@ -1,17 +1,32 @@
 package com.fieldworker.ui.remote
 
+import android.graphics.BitmapFactory
 import android.widget.Toast
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -20,16 +35,24 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -42,19 +65,25 @@ import com.fieldworker.data.repository.RemoteResolutionRepository
 import com.fieldworker.data.repository.ScanCode
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskStatus
-import com.fieldworker.ui.list.TaskSectionCard
+import com.fieldworker.ui.utils.accentTextColor
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 import javax.inject.Inject
 
 /**
- * Блок «Удалённо» в карточке заявки — подставляется через CompositionLocal,
- * как блок актов: экран с навигацией даёт его, превью и скриншоты — нет.
+ * Пометка «Панели · N» в шапке карточки заявки — подставляется через
+ * CompositionLocal, как блок актов: экран с навигацией даёт её, превью и
+ * скриншоты — нет. По нажатию — шторка с панелями и «Решено удалённо».
  */
 val LocalTaskRemoteSection: ProvidableCompositionLocal<(@Composable (Task) -> Unit)?> =
     staticCompositionLocalOf { null }
@@ -96,7 +125,9 @@ class TaskRemoteViewModel @Inject constructor(
         if (task.addressId == null || !networkMonitor.isCurrentlyOnline()) return
         viewModelScope.launch {
             repository.panels(task.id).onSuccess { panels ->
-                if (taskId == task.id) _state.update { it.copy(panels = panels.map(::PanelState)) }
+                if (taskId == task.id) {
+                    _state.update { it.copy(panels = panels.sortedWith(panelOrder).map(::PanelState)) }
+                }
             }
         }
     }
@@ -119,9 +150,11 @@ class TaskRemoteViewModel @Inject constructor(
         }
     }
 
-    fun snapshotToPhotos(panelId: Long, onTaskChanged: () -> Unit) = panelAction(panelId, onTaskChanged) { panel, task ->
-        repository.snapshotToPhotos(panel, task).map {
-            { state: PanelState -> state } to "Кадр с панели добавлен в фото"
+    /** Кадры с камеры панели раз в секунду — пока поток собирают (открыто окно видео). */
+    fun videoFrames(panel: TaskPanelResponse): Flow<Result<ByteArray>> = flow {
+        while (true) {
+            emit(repository.snapshot(panel))
+            delay(VIDEO_FRAME_INTERVAL_MS)
         }
     }
 
@@ -158,7 +191,7 @@ class TaskRemoteViewModel @Inject constructor(
                 .onSuccess { (change, message) ->
                     updatePanel(panelId) { change(it).copy(isBusy = false) }
                     if (message != null) _state.update { it.copy(message = message) }
-                    // В истории заявки новая запись (или фото) — перечитываем карточку
+                    // В истории заявки новая запись — перечитываем карточку
                     onTaskChanged?.invoke()
                 }
                 .onFailure { error ->
@@ -172,8 +205,19 @@ class TaskRemoteViewModel @Inject constructor(
     private fun updatePanel(panelId: Long, change: (PanelState) -> PanelState) = _state.update { state ->
         state.copy(panels = state.panels.map { if (it.panel.id == panelId) change(it) else it })
     }
+
+    private companion object {
+        const val VIDEO_FRAME_INTERVAL_MS = 1_000L
+
+        /** По номеру подъезда: 1, 2, …, 10 — а не 1, 10, 2. */
+        val panelOrder = compareBy<TaskPanelResponse>(
+            { (it.entrance ?: it.label)?.let { text -> Regex("\\d+").find(text)?.value?.toIntOrNull() } ?: Int.MAX_VALUE },
+            { it.id },
+        )
+    }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TaskRemoteSection(
     task: Task,
@@ -182,7 +226,9 @@ fun TaskRemoteSection(
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var confirmDoor by rememberSaveable { mutableStateOf<Long?>(null) }
+    var videoPanel by rememberSaveable { mutableStateOf<Long?>(null) }
     var resolveOpen by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(task.id) { viewModel.load(task) }
@@ -194,15 +240,24 @@ fun TaskRemoteSection(
     }
     if (state.panels.isEmpty()) return
 
-    TaskRemoteContent(
-        panels = state.panels,
-        canResolve = task.status == TaskStatus.NEW || task.status == TaskStatus.IN_PROGRESS,
-        onOpenDoor = { confirmDoor = it },
-        onCheckLock = viewModel::checkLock,
-        onScanCode = { viewModel.requestScanCode(it, onTaskChanged) },
-        onSnapshot = { viewModel.snapshotToPhotos(it, onTaskChanged) },
-        onResolve = { resolveOpen = true },
-    )
+    TaskPanelsBadge(count = state.panels.size, onClick = { sheetOpen = true })
+
+    if (sheetOpen) {
+        ModalBottomSheet(onDismissRequest = { sheetOpen = false }) {
+            TaskRemoteContent(
+                panels = state.panels,
+                canResolve = task.status == TaskStatus.NEW || task.status == TaskStatus.IN_PROGRESS,
+                onOpenDoor = { confirmDoor = it },
+                onCheckLock = viewModel::checkLock,
+                onScanCode = { viewModel.requestScanCode(it, onTaskChanged) },
+                onVideo = { videoPanel = it },
+                onResolve = {
+                    sheetOpen = false
+                    resolveOpen = true
+                },
+            )
+        }
+    }
 
     confirmDoor?.let { panelId ->
         val title = state.panels.firstOrNull { it.panel.id == panelId }?.panel?.let(::panelTitle).orEmpty()
@@ -222,6 +277,13 @@ fun TaskRemoteSection(
         )
     }
 
+    videoPanel?.let { panelId ->
+        state.panels.firstOrNull { it.panel.id == panelId }?.panel?.let { panel ->
+            val frames = remember(panel.id) { viewModel.videoFrames(panel) }
+            PanelVideoDialog(title = panelTitle(panel), frames = frames, onDismiss = { videoPanel = null })
+        }
+    }
+
     if (resolveOpen) {
         ResolveDialog(
             isResolving = state.isResolving,
@@ -239,8 +301,22 @@ fun TaskRemoteSection(
 internal fun panelTitle(panel: TaskPanelResponse): String =
     panel.label ?: panel.entrance?.let { "Подъезд $it" } ?: "Панель ${panel.id}"
 
-/** Содержимое блока без ViewModel — для превью и скриншотов. */
-@OptIn(ExperimentalLayoutApi::class)
+/** Пометка в шапке заявки: на адресе есть сетевые панели. */
+@Composable
+internal fun TaskPanelsBadge(count: Int, onClick: () -> Unit) {
+    Text(
+        text = "Панели · $count",
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = accentTextColor(),
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+    )
+}
+
+/** Содержимое шторки без ViewModel — для превью и скриншотов. Панель — одна строка. */
 @Composable
 internal fun TaskRemoteContent(
     panels: List<TaskRemoteViewModel.PanelState>,
@@ -248,67 +324,170 @@ internal fun TaskRemoteContent(
     onOpenDoor: (Long) -> Unit,
     onCheckLock: (Long) -> Unit,
     onScanCode: (Long) -> Unit,
-    onSnapshot: (Long) -> Unit,
+    onVideo: (Long) -> Unit,
     onResolve: () -> Unit,
 ) {
-    TaskSectionCard(
-        title = "Удалённо",
-        action = if (canResolve) {
-            { TextButton(onClick = onResolve) { Text("Решено удалённо") } }
-        } else {
-            null
-        },
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            panels.forEach { state ->
-                val panel = state.panel
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = panelTitle(panel),
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            val details = listOfNotNull(
-                                panel.model,
-                                state.doorOpen?.let { if (it) "дверь открыта" else "дверь закрыта" },
-                            )
-                            if (details.isNotEmpty()) {
-                                Text(
-                                    text = details.joinToString(" · "),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                        if (state.isBusy) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    }
-                    state.scanCode?.let { scan ->
-                        Text(
-                            text = buildAnnotatedString {
-                                append("Код записи ключей: ")
-                                withStyle(SpanStyle(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)) {
-                                    append(scan.code ?: "—")
-                                }
-                                if (!scan.active) append(" (режим выключен на панели)")
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Button(onClick = { onOpenDoor(panel.id) }, enabled = !state.isBusy) { Text("Открыть дверь") }
-                        TextButton(onClick = { onCheckLock(panel.id) }, enabled = !state.isBusy) { Text("Замок") }
-                        TextButton(onClick = { onScanCode(panel.id) }, enabled = !state.isBusy) { Text("Код ключей") }
-                        TextButton(onClick = { onSnapshot(panel.id) }, enabled = !state.isBusy) { Text("Кадр в фото") }
-                    }
-                }
+    Column(modifier = Modifier.navigationBarsPadding()) {
+        Text(
+            text = "Сетевые панели",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
+        )
+        LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f, fill = false)) {
+            items(panels, key = { it.panel.id }) { state ->
+                PanelRow(state, onOpenDoor, onCheckLock, onScanCode, onVideo)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            }
+        }
+        if (canResolve) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Помогли без выезда — закройте заявку",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onResolve) { Text("Решено удалённо") }
             }
         }
     }
+}
+
+@Composable
+private fun PanelRow(
+    state: TaskRemoteViewModel.PanelState,
+    onOpenDoor: (Long) -> Unit,
+    onCheckLock: (Long) -> Unit,
+    onScanCode: (Long) -> Unit,
+    onVideo: (Long) -> Unit,
+) {
+    val panel = state.panel
+    val compactButton = PaddingValues(horizontal = 8.dp)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = panelTitle(panel),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val details = listOfNotNull(
+                panel.model,
+                state.doorOpen?.let { if (it) "дверь открыта" else "дверь закрыта" },
+            ).joinToString(" · ")
+            if (details.isNotEmpty()) {
+                Text(
+                    text = details,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            // Код ключей — своей строкой: его диктуют жильцу, обрезать нельзя
+            state.scanCode?.let { scan ->
+                Text(
+                    text = buildAnnotatedString {
+                        append("код ")
+                        withStyle(SpanStyle(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)) {
+                            append(scan.code ?: "—")
+                        }
+                        if (!scan.active) append(" (выкл.)")
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+        FilledTonalButton(
+            onClick = { onOpenDoor(panel.id) },
+            enabled = !state.isBusy,
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            modifier = Modifier.height(34.dp).widthIn(min = 88.dp),
+        ) {
+            if (state.isBusy) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+            } else {
+                Text("Открыть")
+            }
+        }
+        TextButton(onClick = { onCheckLock(panel.id) }, enabled = !state.isBusy, contentPadding = compactButton) {
+            Text("Замок")
+        }
+        TextButton(onClick = { onScanCode(panel.id) }, enabled = !state.isBusy, contentPadding = compactButton) {
+            Text("Код")
+        }
+        TextButton(onClick = { onVideo(panel.id) }, contentPadding = compactButton) { Text("Видео") }
+    }
+}
+
+private sealed interface VideoFrame {
+    data object Loading : VideoFrame
+    data class Image(val bitmap: ImageBitmap) : VideoFrame
+    data class Error(val text: String) : VideoFrame
+}
+
+/** Видео с камеры панели: кадр раз в секунду, запросы идут только пока окно открыто. */
+@Composable
+private fun PanelVideoDialog(title: String, frames: Flow<Result<ByteArray>>, onDismiss: () -> Unit) {
+    val frame by produceState<VideoFrame>(VideoFrame.Loading, frames) {
+        frames.collect { result ->
+            val bitmap = result.getOrNull()?.let { bytes ->
+                withContext(Dispatchers.Default) { BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }
+            }
+            value = when {
+                bitmap != null -> VideoFrame.Image(bitmap)
+                // Сбой одного кадра не гасит уже показанную картинку
+                value is VideoFrame.Image -> value
+                else -> VideoFrame.Error(result.exceptionOrNull()?.message ?: "Панель не вернула кадр")
+            }
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Видео — $title") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    when (val current = frame) {
+                        VideoFrame.Loading -> CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
+                        is VideoFrame.Image -> Image(
+                            bitmap = current.bitmap,
+                            contentDescription = "Кадр с камеры панели",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        is VideoFrame.Error -> Text(
+                            text = current.text,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(16.dp),
+                        )
+                    }
+                }
+                Text(
+                    text = "Кадр обновляется раз в секунду",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Закрыть") } },
+    )
 }
 
 @Composable

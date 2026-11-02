@@ -19,7 +19,7 @@ data class ScanCode(val code: String?, val active: Boolean)
 
 /**
  * Удалённое решение из карточки заявки: панели адреса, дверь, код ключей,
- * кадр в фото и «Решено удалённо». Только при связи — устройство отвечает
+ * видео с камеры панели и «Решено удалённо». Только при связи — устройство отвечает
  * здесь и сейчас, в очередь такие действия не ставятся.
  */
 @Singleton
@@ -46,10 +46,11 @@ class RemoteResolutionRepository @Inject constructor(
             remoteApi.getScanCode(panel.addressId, panel.id, taskId)
         }.map { ScanCode(it.code, it.active == true) }
 
-    suspend fun snapshotToPhotos(panel: TaskPanelResponse, taskId: Long): Result<Unit> =
-        call("Не удалось получить кадр") {
-            remoteApi.saveSnapshotPhoto(taskId, panel.id)
-        }.map { }
+    /** JPEG-кадр с камеры панели; тело читаем здесь же, вне главного потока. */
+    suspend fun snapshot(panel: TaskPanelResponse): Result<ByteArray> {
+        val response = call("Не удалось получить кадр") { remoteApi.getSnapshot(panel.addressId, panel.id) }
+        return withContext(Dispatchers.IO) { response.mapCatching { body -> body.use { it.bytes() } } }
+    }
 
     /**
      * Закрыть заявку как решённую удалённо. [idempotencyKey] — один на попытку:
