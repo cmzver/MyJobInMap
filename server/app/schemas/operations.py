@@ -10,11 +10,11 @@ from app.schemas.address import AddressEquipmentResponse
 from app.schemas.task import TaskListResponse
 
 
-class MaintenanceCreate(BaseModel):
+class MaintenanceFields(BaseModel):
+    """Регламент без привязки к объекту — общая часть одиночного и массового."""
+
     title: str = Field(min_length=1, max_length=200)
     description: str = Field("", max_length=2000)
-    address_id: int = Field(gt=0)
-    equipment_id: int | None = None
     assigned_user_id: int | None = None
     priority: Literal["PLANNED", "CURRENT", "URGENT", "EMERGENCY"] = "PLANNED"
     frequency: Literal["daily", "weekly", "monthly"] = "monthly"
@@ -32,6 +32,62 @@ class MaintenanceCreate(BaseModel):
             raise ValueError("Укажите название")
         self.title = self.title.strip()
         return self
+
+
+class MaintenanceCreate(MaintenanceFields):
+    address_id: int = Field(gt=0)
+    equipment_id: int | None = None
+
+
+class MaintenanceBulkCreate(MaintenanceFields):
+    """Один регламент на много объектов: явный список или все объекты УК."""
+
+    address_ids: list[int] = Field(default_factory=list, max_length=500)
+    counterparty_id: int | None = None
+
+    @model_validator(mode="after")
+    def one_target(self):
+        if bool(self.address_ids) == (self.counterparty_id is not None):
+            raise ValueError("Выберите объекты или контрагента")
+        return self
+
+
+class MaintenanceBulkResult(BaseModel):
+    created: int
+    # Объекты, где регламент с таким названием уже есть, — пропущены
+    skipped: list[str]
+
+
+class ScheduleCell(BaseModel):
+    month: str
+    done: int = 0
+    open: int = 0
+    overdue: int = 0
+    planned: int = 0
+    cancelled: int = 0
+
+
+class ScheduleRow(BaseModel):
+    plan_id: int
+    title: str
+    address_id: int
+    address: str
+    counterparty_id: int | None = None
+    counterparty_name: str | None = None
+    assigned_user_name: str | None = None
+    frequency: str
+    interval: int
+    next_date: date
+    enabled: bool
+    cells: list[ScheduleCell]
+
+
+class ScheduleResponse(BaseModel):
+    """Сетка «регламент × месяц»: факт по созданным заявкам, впереди — прогноз."""
+
+    months: list[str]
+    rows: list[ScheduleRow]
+    totals: list[ScheduleCell]
 
 
 class MaintenanceResponse(MaintenanceCreate):

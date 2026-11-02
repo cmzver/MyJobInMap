@@ -15,6 +15,7 @@ from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
 from app.api.counterparties import router as counterparties_router
 from app.api.devices import router as devices_router
+from app.api.maintenance import router as maintenance_router
 from app.api.notifications import router as notifications_router
 from app.api.photos import router as photos_router
 from app.api.public_acts import router as public_acts_router
@@ -33,6 +34,7 @@ api_router.include_router(auth_router)
 api_router.include_router(tasks_router)
 api_router.include_router(acts_router)
 api_router.include_router(counterparties_router)
+api_router.include_router(maintenance_router)
 api_router.include_router(public_acts_router)
 api_router.include_router(photos_router)
 api_router.include_router(devices_router)
