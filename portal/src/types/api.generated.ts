@@ -1180,6 +1180,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/maintenance-plans/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Bulk Maintenance
+         * @description Один регламент на много объектов — список или все объекты контрагента
+         *     (договор с УК покрывает десятки домов).
+         */
+        post: operations["create_bulk_maintenance_api_maintenance_plans_bulk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/maintenance/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Maintenance Schedule
+         * @description Сетка выполнения ТО: по каждому регламенту и месяцу — выполнено, в работе,
+         *     просрочено, отменено (по созданным заявкам) и запланировано (прогноз).
+         */
+        get: operations["maintenance_schedule_api_maintenance_schedule_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/maintenance/report.xlsx": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Maintenance Report
+         * @description Отчёт выполнения ТО за месяц: выезды и сводка по объектам — Excel.
+         */
+        get: operations["maintenance_report_api_maintenance_report_xlsx_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/public/acts/verify": {
         parameters: {
             query?: never;
@@ -6760,8 +6822,11 @@ export interface components {
             /** Supporthours */
             supportHours: string;
         };
-        /** MaintenanceCreate */
-        MaintenanceCreate: {
+        /**
+         * MaintenanceBulkCreate
+         * @description Один регламент на много объектов: явный список или все объекты УК.
+         */
+        MaintenanceBulkCreate: {
             /** Title */
             title: string;
             /**
@@ -6769,10 +6834,6 @@ export interface components {
              * @default
              */
             description: string;
-            /** Address Id */
-            address_id: number;
-            /** Equipment Id */
-            equipment_id?: number | null;
             /** Assigned User Id */
             assigned_user_id?: number | null;
             /**
@@ -6806,6 +6867,64 @@ export interface components {
              * @default true
              */
             enabled: boolean;
+            /** Address Ids */
+            address_ids?: number[];
+            /** Counterparty Id */
+            counterparty_id?: number | null;
+        };
+        /** MaintenanceBulkResult */
+        MaintenanceBulkResult: {
+            /** Created */
+            created: number;
+            /** Skipped */
+            skipped: string[];
+        };
+        /** MaintenanceCreate */
+        MaintenanceCreate: {
+            /** Title */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Assigned User Id */
+            assigned_user_id?: number | null;
+            /**
+             * Priority
+             * @default PLANNED
+             * @enum {string}
+             */
+            priority: "PLANNED" | "CURRENT" | "URGENT" | "EMERGENCY";
+            /**
+             * Frequency
+             * @default monthly
+             * @enum {string}
+             */
+            frequency: "daily" | "weekly" | "monthly";
+            /**
+             * Interval
+             * @default 1
+             */
+            interval: number;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /** End Date */
+            end_date?: string | null;
+            /** Excluded Dates */
+            excluded_dates?: string[];
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Address Id */
+            address_id: number;
+            /** Equipment Id */
+            equipment_id?: number | null;
         };
         /** MaintenanceResponse */
         MaintenanceResponse: {
@@ -6816,10 +6935,6 @@ export interface components {
              * @default
              */
             description: string;
-            /** Address Id */
-            address_id: number;
-            /** Equipment Id */
-            equipment_id?: number | null;
             /** Assigned User Id */
             assigned_user_id?: number | null;
             /**
@@ -6853,6 +6968,10 @@ export interface components {
              * @default true
              */
             enabled: boolean;
+            /** Address Id */
+            address_id: number;
+            /** Equipment Id */
+            equipment_id?: number | null;
             /** Id */
             id: number;
             /**
@@ -7900,6 +8019,78 @@ export interface components {
         RouteUpdate: {
             /** Task Ids */
             task_ids: number[];
+        };
+        /** ScheduleCell */
+        ScheduleCell: {
+            /** Month */
+            month: string;
+            /**
+             * Done
+             * @default 0
+             */
+            done: number;
+            /**
+             * Open
+             * @default 0
+             */
+            open: number;
+            /**
+             * Overdue
+             * @default 0
+             */
+            overdue: number;
+            /**
+             * Planned
+             * @default 0
+             */
+            planned: number;
+            /**
+             * Cancelled
+             * @default 0
+             */
+            cancelled: number;
+        };
+        /**
+         * ScheduleResponse
+         * @description Сетка «регламент × месяц»: факт по созданным заявкам, впереди — прогноз.
+         */
+        ScheduleResponse: {
+            /** Months */
+            months: string[];
+            /** Rows */
+            rows: components["schemas"]["ScheduleRow"][];
+            /** Totals */
+            totals: components["schemas"]["ScheduleCell"][];
+        };
+        /** ScheduleRow */
+        ScheduleRow: {
+            /** Plan Id */
+            plan_id: number;
+            /** Title */
+            title: string;
+            /** Address Id */
+            address_id: number;
+            /** Address */
+            address: string;
+            /** Counterparty Id */
+            counterparty_id?: number | null;
+            /** Counterparty Name */
+            counterparty_name?: string | null;
+            /** Assigned User Name */
+            assigned_user_name?: string | null;
+            /** Frequency */
+            frequency: string;
+            /** Interval */
+            interval: number;
+            /**
+             * Next Date
+             * Format: date
+             */
+            next_date: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Cells */
+            cells: components["schemas"]["ScheduleCell"][];
         };
         /**
          * SettingResponse
@@ -12087,6 +12278,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_bulk_maintenance_api_maintenance_plans_bulk_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaintenanceBulkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaintenanceBulkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    maintenance_schedule_api_maintenance_schedule_get: {
+        parameters: {
+            query: {
+                month_from: string;
+                months?: number;
+                counterparty_id?: number | null;
+                assigned_user_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    maintenance_report_api_maintenance_report_xlsx_get: {
+        parameters: {
+            query: {
+                month: string;
+                counterparty_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
