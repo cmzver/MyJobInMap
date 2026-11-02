@@ -278,7 +278,7 @@ internal fun TaskRemoteSectionPreview() {
                     onOpenDoor = {},
                     onCheckLock = {},
                     onScanCode = {},
-                    onSnapshot = {},
+                    onVideo = {},
                     onResolve = {},
                 )
             }

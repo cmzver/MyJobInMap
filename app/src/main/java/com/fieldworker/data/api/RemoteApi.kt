@@ -3,10 +3,10 @@ package com.fieldworker.data.api
 import com.fieldworker.data.remote.generated.PanelDoorActionResponse
 import com.fieldworker.data.remote.generated.PanelLockStatusResponse
 import com.fieldworker.data.remote.generated.PanelMifareScanCodeResponse
-import com.fieldworker.data.remote.generated.PhotoResponse
 import com.fieldworker.data.remote.generated.RemoteResolveRequest
 import com.fieldworker.data.remote.generated.TaskPanelResponse
 import com.fieldworker.data.remote.generated.TaskResponse
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -44,12 +44,12 @@ interface RemoteApi {
         @Query("task_id") taskId: Long,
     ): Response<PanelMifareScanCodeResponse>
 
-    /** Кадр с панели — в фото заявки («после»). */
-    @POST("api/tasks/{id}/panels/{panelId}/snapshot-photo")
-    suspend fun saveSnapshotPhoto(
-        @Path("id") taskId: Long,
+    /** JPEG-кадр с камеры панели — для просмотра видео (опрос раз в секунду). */
+    @GET("api/addresses/{addressId}/panels/{panelId}/snapshot")
+    suspend fun getSnapshot(
+        @Path("addressId") addressId: Long,
         @Path("panelId") panelId: Long,
-    ): Response<PhotoResponse>
+    ): Response<ResponseBody>
 
     /** Решено удалённо: назначить на себя, если никто не назначен, и закрыть. */
     @POST("api/tasks/{id}/resolve-remotely")
