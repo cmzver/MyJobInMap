@@ -15,11 +15,17 @@ from app.models import (
     ActModel,
     AddressModel,
     AddressSystemModel,
+    ClientAccountModel,
     CounterpartyModel,
     UserModel,
     get_db,
 )
 from app.schemas.act import ActResponse
+from app.schemas.client import (
+    ClientAccountCreate,
+    ClientAccountResponse,
+    ClientAccountUpdate,
+)
 from app.schemas.counterparty import (
     MONTH_PATTERN,
     CounterpartyAddress,
@@ -34,6 +40,7 @@ from app.schemas.counterparty import (
 )
 from app.services import require_permission
 from app.services.act_service import ActServiceError
+from app.services.client_cabinet import normalize_login, set_password
 from app.services.summary_act_service import (
     BILLABLE_SYSTEM_STATUSES,
     SUMMARY,
@@ -316,3 +323,110 @@ def list_summary_acts(
         .all()
     )
     return [act_to_response(act) for act in acts]
+
+
+# ------------------------------------------------------- вход в кабинет клиента
+
+
+def _account(
+    db: Session, counterparty: CounterpartyModel, account_id: int
+) -> ClientAccountModel:
+    account = (
+        db.query(ClientAccountModel)
+        .filter(
+            ClientAccountModel.id == account_id,
+            ClientAccountModel.counterparty_id == counterparty.id,
+        )
+        .first()
+    )
+    if account is None:
+        raise HTTPException(status_code=404, detail="Вход не найден")
+    return account
+
+
+@router.get("/{counterparty_id}/accounts", response_model=List[ClientAccountResponse])
+def list_client_accounts(
+    counterparty_id: int,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(require_permission("manage_acts")),
+):
+    counterparty = _get(db, counterparty_id, user)
+    return (
+        db.query(ClientAccountModel)
+        .filter(ClientAccountModel.counterparty_id == counterparty.id)
+        .order_by(ClientAccountModel.full_name)
+        .all()
+    )
+
+
+@router.post(
+    "/{counterparty_id}/accounts",
+    response_model=ClientAccountResponse,
+    status_code=201,
+)
+def create_client_account(
+    counterparty_id: int,
+    data: ClientAccountCreate,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(require_permission("manage_acts")),
+):
+    """Вход в кабинет клиента для представителя контрагента."""
+    counterparty = _get(db, counterparty_id, user)
+    login = normalize_login(data.login)
+    if db.query(ClientAccountModel.id).filter_by(login=login).first() is not None:
+        raise HTTPException(status_code=409, detail="Такой логин уже занят")
+    account = ClientAccountModel(
+        organization_id=counterparty.organization_id,
+        counterparty_id=counterparty.id,
+        login=login,
+        password_hash="",
+        full_name=data.full_name.strip(),
+        position=(data.position or "").strip() or None,
+        phone=(data.phone or "").strip() or None,
+        email=(data.email or "").strip() or None,
+    )
+    set_password(account, data.password)
+    db.add(account)
+    db.commit()
+    db.refresh(account)
+    return account
+
+
+@router.patch(
+    "/{counterparty_id}/accounts/{account_id}",
+    response_model=ClientAccountResponse,
+)
+def update_client_account(
+    counterparty_id: int,
+    account_id: int,
+    data: ClientAccountUpdate,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(require_permission("manage_acts")),
+):
+    """Изменить, отключить или сбросить пароль — выданные токены гаснут."""
+    account = _account(db, _get(db, counterparty_id, user), account_id)
+    changes = data.model_dump(exclude_unset=True)
+    password = changes.pop("password", None)
+    if password:
+        set_password(account, password)
+    if changes.get("is_active") is False and account.is_active:
+        account.auth_version += 1
+    for field, value in changes.items():
+        if field in {"full_name", "is_active"} and value is None:
+            continue
+        setattr(account, field, value)
+    db.commit()
+    db.refresh(account)
+    return account
+
+
+@router.delete("/{counterparty_id}/accounts/{account_id}", status_code=204)
+def delete_client_account(
+    counterparty_id: int,
+    account_id: int,
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(require_permission("manage_acts")),
+):
+    """Удалить вход; поданные им заявки остаются (без ссылки на вход)."""
+    db.delete(_account(db, _get(db, counterparty_id, user), account_id))
+    db.commit()
