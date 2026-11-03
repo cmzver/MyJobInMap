@@ -6,6 +6,7 @@
 """
 
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional
 
@@ -16,6 +17,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
 )
@@ -270,8 +272,8 @@ class AddressSystemModel(Base):
     service_end_date: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True
     )  # ����� ������������
-    monthly_cost: Mapped[float] = mapped_column(
-        Float, nullable=True, default=0
+    monthly_cost: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(12, 2), nullable=True, default=0
     )  # ����������� �����
 
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

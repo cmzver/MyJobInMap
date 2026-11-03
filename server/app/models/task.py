@@ -5,6 +5,7 @@ Task Models
 """
 
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import (
@@ -14,6 +15,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
 )
@@ -156,7 +158,9 @@ class TaskModel(Base):
     # Финансовые поля
     is_remote: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
     is_paid: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
-    payment_amount: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
+    payment_amount: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(12, 2), default=0, nullable=True
+    )
 
     # Связи
     comments: Mapped[List["CommentModel"]] = relationship(

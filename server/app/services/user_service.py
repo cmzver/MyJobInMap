@@ -9,6 +9,7 @@ User Service
 
 import logging
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import List
 
 from fastapi import Depends
@@ -88,7 +89,9 @@ class UserService:
         completed_paid_tasks = [
             t for t in all_tasks if t.status == "DONE" and t.is_paid
         ]
-        total_earnings = sum(t.payment_amount or 0.0 for t in completed_paid_tasks)
+        total_earnings = sum(
+            (t.payment_amount or 0 for t in completed_paid_tasks), Decimal(0)
+        )
         paid_tasks_count = len(completed_paid_tasks)
         remote_tasks_count = sum(1 for t in all_tasks if t.is_remote)
 
@@ -106,9 +109,9 @@ class UserService:
             return value.astimezone(timezone.utc)
 
         completed_this_month = 0
-        earnings_this_month = 0.0
+        earnings_this_month = Decimal(0)
         completed_this_week = 0
-        earnings_this_week = 0.0
+        earnings_this_week = Decimal(0)
 
         for task in all_tasks:
             if task.status != "DONE" or not task.completed_at:
@@ -121,12 +124,12 @@ class UserService:
             if completed_at >= start_of_month:
                 completed_this_month += 1
                 if task.is_paid:
-                    earnings_this_month += task.payment_amount or 0.0
+                    earnings_this_month += task.payment_amount or 0
 
             if completed_at >= start_of_week:
                 completed_this_week += 1
                 if task.is_paid:
-                    earnings_this_week += task.payment_amount or 0.0
+                    earnings_this_week += task.payment_amount or 0
 
         return UserStatsResponse(
             user_id=user.id,
