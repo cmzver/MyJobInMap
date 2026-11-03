@@ -10,6 +10,7 @@ Task Service
 import logging
 import re
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Callable, Optional, Tuple
 
 from fastapi import Depends
@@ -47,6 +48,7 @@ from app.utils import (
     get_status_display_name,
     normalize_priority_value,
 )
+from app.utils.money import to_money
 
 
 class TaskServiceError(Exception):
@@ -380,7 +382,7 @@ class TaskService:
             created_by_id=user.id if user else None,
             is_remote=bool(data.is_remote) if data.is_remote is not None else False,
             is_paid=bool(data.is_paid) if data.is_paid is not None else False,
-            payment_amount=data.payment_amount or 0.0,
+            payment_amount=to_money(data.payment_amount) or Decimal(0),
             # Система и тип неисправности
             system_id=data.system_id,
             system_type=data.system_type,
@@ -467,7 +469,7 @@ class TaskService:
         if task_data.is_paid is not None:
             task.is_paid = task_data.is_paid
         if task_data.payment_amount is not None:
-            task.payment_amount = task_data.payment_amount
+            task.payment_amount = to_money(task_data.payment_amount)
 
         # Система и тип неисправности
         if task_data.system_id is not None:

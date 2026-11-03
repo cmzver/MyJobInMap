@@ -56,6 +56,7 @@ from app.services.organization_settings_service import (
     DEFAULT_ACT_NUMBER_PREFIX,
     act_template_of,
 )
+from app.utils.money import money
 
 PENDING = "pending_signature"
 SIGNED = "signed"
@@ -81,7 +82,7 @@ SCAN_TYPES = {
 }
 MAX_SCAN_BYTES = 15 * 1024 * 1024
 
-_CENTS = Decimal("0.01")
+
 _QTY = Decimal("0.001")
 _REQUISITE_FIELDS = (
     "legal_name",
@@ -106,8 +107,7 @@ class ActServiceError(Exception):
         super().__init__(message)
 
 
-def _money(value) -> Decimal:
-    return Decimal(str(value)).quantize(_CENTS, rounding=ROUND_HALF_UP)
+_money = money
 
 
 def _user_name(user: Optional[UserModel]) -> Optional[str]:

@@ -5,6 +5,7 @@ Finance API
 """
 
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -97,7 +98,9 @@ def get_finance_stats(
     completed_tasks = len(tasks)
     paid_tasks = sum(1 for t in tasks if t.is_paid)
     remote_tasks = sum(1 for t in tasks if t.is_remote)
-    total_amount = sum(t.payment_amount or 0.0 for t in tasks if t.is_paid)
+    total_amount = float(
+        sum((t.payment_amount or 0 for t in tasks if t.is_paid), Decimal(0))
+    )
 
     return FinanceStatsResponse(
         completed_tasks=completed_tasks,

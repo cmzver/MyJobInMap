@@ -248,7 +248,7 @@ def _base_task_dict(task: TaskModel) -> Dict[str, Any]:
         ),
         "is_remote": task.is_remote or False,
         "is_paid": task.is_paid or False,
-        "payment_amount": task.payment_amount or 0.0,
+        "payment_amount": float(task.payment_amount or 0),
         # Система и тип неисправности
         "system_id": task.system_id,
         "system_type": task.system_type,
