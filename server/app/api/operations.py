@@ -1,7 +1,6 @@
 """Плановое обслуживание, рабочий день, оборудование и материалы."""
 
-from datetime import date, datetime, time, timedelta, timezone
-from decimal import ROUND_HALF_UP, Decimal
+from datetime import date, datetime, time, timedelta
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -14,7 +13,6 @@ from app.api.deps import assert_task_access
 from app.models import (
     AddressEquipmentModel,
     AddressModel,
-    CommentModel,
     TaskModel,
     UserModel,
     get_db,
@@ -22,9 +20,6 @@ from app.models import (
 from app.models.operations import (
     DayRouteModel,
     MaintenancePlanModel,
-    MaterialModel,
-    MaterialMovementModel,
-    MaterialStockModel,
 )
 from app.models.outbox import OutboxEventModel
 from app.schemas.address import AddressEquipmentResponse
@@ -33,14 +28,8 @@ from app.schemas.operations import (
     EquipmentPassportResponse,
     MaintenanceCreate,
     MaintenanceResponse,
-    MaterialAdjustment,
-    MaterialCreate,
-    MaterialMovementCreate,
-    MaterialMovementResponse,
-    MaterialResponse,
     RouteResponse,
     RouteUpdate,
-    StockResponse,
 )
 from app.services import require_permission
 from app.services.auth import get_current_admin
@@ -263,215 +252,6 @@ def link_equipment(
     stage_task_event(db, task, user=user)
     db.commit()
     return task_to_list_response(task)
-
-
-@router.get("/materials", response_model=list[MaterialResponse])
-def materials(
-    db: Session = Depends(get_db),
-    user: UserModel = Depends(require_permission("view_tasks")),
-):
-    return (
-        TenantFilter(user)
-        .apply(db.query(MaterialModel), MaterialModel)
-        .filter(MaterialModel.active.is_(True))
-        .order_by(MaterialModel.name)
-        .all()
-    )
-
-
-@router.post("/materials", response_model=MaterialResponse)
-def create_material(
-    data: MaterialCreate,
-    db: Session = Depends(get_db),
-    user: UserModel = Depends(require_permission("assign_tasks")),
-):
-    row = MaterialModel(**data.model_dump(), organization_id=user.organization_id)
-    db.add(row)
-    db.commit()
-    return row
-
-
-@router.get("/materials/stocks", response_model=list[StockResponse])
-def material_stocks(
-    user_id: int | None = None,
-    db: Session = Depends(get_db),
-    user: UserModel = Depends(require_permission("view_tasks")),
-):
-    assigned = route_user(db, user, user_id)
-    rows = (
-        db.query(MaterialStockModel, MaterialModel)
-        .join(MaterialModel)
-        .filter(MaterialStockModel.user_id == assigned.id)
-    )
-    rows = TenantFilter(user).apply(rows, MaterialModel)
-    return [
-        {
-            "material_id": material.id,
-            "name": material.name,
-            "unit": material.unit,
-            "quantity": stock.quantity,
-            "user_id": stock.user_id,
-        }
-        for stock, material in rows.all()
-    ]
-
-
-def movement_response(row, material):
-    return MaterialMovementResponse(
-        id=row.id,
-        material_id=row.material_id,
-        material_name=material.name,
-        user_id=row.user_id,
-        task_id=row.task_id,
-        quantity=row.quantity,
-        unit=material.unit,
-        unit_cost=row.unit_cost,
-        total_cost=(abs(row.quantity) * row.unit_cost).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        ),
-        reason=row.reason,
-        created_at=row.created_at.replace(tzinfo=timezone.utc).isoformat(),
-    )
-
-
-def move_material(db, data, user, task=None):
-    from app.services.transactions import ensure_transaction
-
-    ensure_transaction(db)
-    material = scoped_object(db, MaterialModel, data.material_id, user)
-    if task is not None and task.organization_id != material.organization_id:
-        raise HTTPException(403, "Материал должен принадлежать организации заявки")
-    assigned = route_user(db, user, data.user_id)
-    if assigned.organization_id != material.organization_id:
-        raise HTTPException(403, "Материал и исполнитель должны быть одной организации")
-    existing = (
-        db.query(MaterialMovementModel)
-        .filter_by(created_by_id=user.id, operation_id=data.operation_id)
-        .first()
-    )
-    delta = (
-        -data.quantity
-        if task is not None or getattr(data, "kind", "receipt") == "write_off"
-        else data.quantity
-    )
-    if existing:
-        if (
-            existing.task_id != (task.id if task else None)
-            or existing.material_id != material.id
-            or existing.quantity != delta
-            or existing.user_id != assigned.id
-        ):
-            raise HTTPException(422, "Ключ операции уже использован с другими данными")
-        return movement_response(existing, material)
-    if not material.active:
-        raise HTTPException(422, "Материал архивирован")
-    stock = (
-        db.query(MaterialStockModel)
-        .filter_by(material_id=material.id, user_id=assigned.id)
-        .first()
-    )
-    if stock is None:
-        try:
-            with db.begin_nested():
-                stock = MaterialStockModel(
-                    material_id=material.id, user_id=assigned.id, quantity=0
-                )
-                db.add(stock)
-                db.flush()
-        except IntegrityError:
-            stock = (
-                db.query(MaterialStockModel)
-                .filter_by(material_id=material.id, user_id=assigned.id)
-                .one()
-            )
-    changed = (
-        db.query(MaterialStockModel)
-        .filter(
-            MaterialStockModel.id == stock.id, MaterialStockModel.quantity + delta >= 0
-        )
-        .update(
-            {MaterialStockModel.quantity: MaterialStockModel.quantity + delta},
-            synchronize_session=False,
-        )
-    )
-    if not changed:
-        db.rollback()
-        raise HTTPException(409, "Недостаточно материала у исполнителя")
-    row = MaterialMovementModel(
-        material_id=material.id,
-        user_id=assigned.id,
-        task_id=task.id if task else None,
-        quantity=delta,
-        unit_cost=material.unit_cost,
-        reason=data.reason,
-        operation_id=data.operation_id,
-        created_by_id=user.id,
-    )
-    db.add(row)
-    if task:
-        db.query(TaskModel).filter(TaskModel.id == task.id).update(
-            {TaskModel.updated_at: datetime.now(timezone.utc)},
-            synchronize_session=False,
-        )
-        stage_task_event(db, task, user=user)
-        db.add(
-            CommentModel(
-                task_id=task.id,
-                author_id=user.id,
-                author=user.full_name or user.username,
-                text=f"Материалы: {material.name}, {data.quantity} {material.unit}",
-            )
-        )
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        # Повтор потерянного ответа не списывает остаток дважды.
-        existing = (
-            db.query(MaterialMovementModel)
-            .filter_by(created_by_id=user.id, operation_id=data.operation_id)
-            .first()
-        )
-        if existing:
-            return move_material(db, data, user, task)
-        raise
-    return movement_response(row, material)
-
-
-@router.post("/materials/adjust", response_model=MaterialMovementResponse)
-def adjust_material(
-    data: MaterialAdjustment,
-    db: Session = Depends(get_db),
-    user: UserModel = Depends(require_permission("assign_tasks")),
-):
-    return move_material(db, data, user)
-
-
-@router.get("/tasks/{task_id}/materials", response_model=list[MaterialMovementResponse])
-def task_materials(
-    task_id: int,
-    db: Session = Depends(get_db),
-    user: UserModel = Depends(require_permission("view_tasks")),
-):
-    assert_task_access(db, user, task_id)
-    rows = (
-        db.query(MaterialMovementModel, MaterialModel)
-        .join(MaterialModel)
-        .filter(MaterialMovementModel.task_id == task_id)
-        .order_by(MaterialMovementModel.id)
-    )
-    return [movement_response(row, material) for row, material in rows.all()]
-
-
-@router.post("/tasks/{task_id}/materials", response_model=MaterialMovementResponse)
-def use_material(
-    task_id: int,
-    data: MaterialMovementCreate,
-    db: Session = Depends(get_db),
-    user: UserModel = Depends(require_permission("edit_tasks")),
-):
-    task = assert_task_access(db, user, task_id, "edit_tasks")
-    return move_material(db, data, user, task)
 
 
 @router.get("/equipment/{equipment_id}/qr", response_class=Response)

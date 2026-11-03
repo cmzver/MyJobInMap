@@ -9,6 +9,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -87,6 +88,12 @@ class MaterialModel(Base):
     unit: Mapped[str] = mapped_column(String(20), default="шт.")
     unit_cost: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Остаток на складе организации — кэш суммы проводок с пустым user_id.
+    warehouse_quantity: Mapped[Decimal] = mapped_column(
+        Numeric(14, 3), default=0, server_default="0"
+    )
+    # Ниже этого остатка на складе материал подсвечивается «пора закупать».
+    min_quantity: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
 
 
 class MaterialStockModel(Base):
@@ -106,9 +113,17 @@ class MaterialStockModel(Base):
 
 
 class MaterialMovementModel(Base):
+    """Проводка по одному держателю: user_id пустой — склад организации.
+
+    kind: receipt (приход), issue (склад → исполнитель), return (исполнитель →
+    склад), write_off (списание, на заявку или вне её), act (досписание по акту),
+    act_cancel (возврат при аннулировании акта), adjust (инвентаризация).
+    Передача между держателями — две проводки одного вида с общим основанием."""
+
     __tablename__ = "material_movements"
     __table_args__ = (
         UniqueConstraint("created_by_id", "operation_id", name="uq_material_operation"),
+        Index("ix_material_movements_created_at", "created_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -127,5 +142,8 @@ class MaterialMovementModel(Base):
     created_by_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
-    operation_id: Mapped[str] = mapped_column(String(64))
+    operation_id: Mapped[str] = mapped_column(String(80))
+    kind: Mapped[str] = mapped_column(
+        String(16), default="receipt", server_default="receipt"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

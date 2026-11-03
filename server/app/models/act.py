@@ -56,6 +56,14 @@ class ServiceCatalogItemModel(Base):
     system_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Позиция склада для строки-материала: по акту она списывается у исполнителя.
+    material_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey(
+            "materials.id", ondelete="SET NULL", name="fk_service_catalog_material_id"
+        ),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=utcnow, nullable=False
     )
@@ -208,6 +216,14 @@ class ActLineModel(Base):
             "address_equipment.id",
             ondelete="SET NULL",
             name="fk_act_lines_equipment_id",
+        ),
+        nullable=True,
+    )
+    # Позиция склада (из прайса на момент акта) — для списания у исполнителя.
+    material_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey(
+            "materials.id", ondelete="SET NULL", name="fk_act_lines_material_id"
         ),
         nullable=True,
     )

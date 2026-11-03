@@ -336,76 +336,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/materials": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Materials */
-        get: operations["materials_api_materials_get"];
-        put?: never;
-        /** Create Material */
-        post: operations["create_material_api_materials_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/materials/stocks": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Material Stocks */
-        get: operations["material_stocks_api_materials_stocks_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/materials/adjust": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Adjust Material */
-        post: operations["adjust_material_api_materials_adjust_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/tasks/{task_id}/materials": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Task Materials */
-        get: operations["task_materials_api_tasks__task_id__materials_get"];
-        put?: never;
-        /** Use Material */
-        post: operations["use_material_api_tasks__task_id__materials_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/equipment/{equipment_id}/qr": {
         parameters: {
             query?: never;
@@ -451,6 +381,196 @@ export interface paths {
         put?: never;
         /** Retry Outbox */
         post: operations["retry_outbox_api_outbox__event_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Materials */
+        get: operations["list_materials_api_materials_get"];
+        put?: never;
+        /** Create Material */
+        post: operations["create_material_api_materials_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/materials/{material_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Material */
+        patch: operations["update_material_api_materials__material_id__patch"];
+        trace?: never;
+    };
+    "/api/materials/stocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Material Stocks
+         * @description Остатки одного исполнителя (по умолчанию — свои).
+         */
+        get: operations["material_stocks_api_materials_stocks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/materials/balances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Material Balances
+         * @description Сводка: остаток склада и у каждого исполнителя по всем материалам.
+         */
+        get: operations["material_balances_api_materials_balances_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/materials/movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Material Movements */
+        get: operations["material_movements_api_materials_movements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/materials/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Material Operation
+         * @description Приход, выдача, возврат, списание или инвентаризация.
+         */
+        post: operations["material_operation_api_materials_operations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/materials/adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Adjust Material
+         * @description Прежний вид операции: выдать исполнителю напрямую или списать у него.
+         */
+        post: operations["adjust_material_api_materials_adjust_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tasks/{task_id}/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Task Materials */
+        get: operations["task_materials_api_tasks__task_id__materials_get"];
+        put?: never;
+        /**
+         * Use Material
+         * @description Списать материал на заявку со своих остатков (или выбранного исполнителя).
+         */
+        post: operations["use_material_api_tasks__task_id__materials_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/materials/turnover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Material Turnover
+         * @description Обороты за месяц: на начало, получено, на заявки, передано, на конец.
+         */
+        get: operations["material_turnover_api_materials_turnover_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/materials/turnover.xlsx": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Material Turnover Xlsx */
+        get: operations["material_turnover_xlsx_api_materials_turnover_xlsx_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5916,6 +6036,8 @@ export interface components {
              * @default 0
              */
             sort_order: number;
+            /** Material Id */
+            material_id?: number | null;
         };
         /** CatalogItemResponse */
         CatalogItemResponse: {
@@ -5949,6 +6071,8 @@ export interface components {
              * @default 0
              */
             sort_order: number;
+            /** Material Id */
+            material_id?: number | null;
             /** Id */
             id: number;
         };
@@ -5968,6 +6092,8 @@ export interface components {
             is_active?: boolean | null;
             /** Sort Order */
             sort_order?: number | null;
+            /** Material Id */
+            material_id?: number | null;
         };
         /**
          * CommentCreate
@@ -6638,6 +6764,15 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HolderBalance */
+        HolderBalance: {
+            /** User Id */
+            user_id: number;
+            /** Name */
+            name: string;
+            /** Quantity */
+            quantity: string;
+        };
         /** InitialAdminCreate */
         InitialAdminCreate: {
             /** Username */
@@ -7002,6 +7137,34 @@ export interface components {
              */
             kind: "receipt" | "write_off";
         };
+        /**
+         * MaterialBalance
+         * @description Строка сводки остатков: склад и исполнители по одному материалу.
+         */
+        MaterialBalance: {
+            /** Material Id */
+            material_id: number;
+            /** Name */
+            name: string;
+            /** Unit */
+            unit: string;
+            /** Unit Cost */
+            unit_cost: string;
+            /** Active */
+            active: boolean;
+            /** Warehouse Quantity */
+            warehouse_quantity: string;
+            /** Min Quantity */
+            min_quantity: string | null;
+            /** Low */
+            low: boolean;
+            /** Holders */
+            holders: components["schemas"]["HolderBalance"][];
+            /** Total Quantity */
+            total_quantity: string;
+            /** Total Cost */
+            total_cost: string;
+        };
         /** MaterialCreate */
         MaterialCreate: {
             /** Name */
@@ -7016,6 +7179,8 @@ export interface components {
              * @default 0
              */
             unit_cost: number | string;
+            /** Min Quantity */
+            min_quantity?: number | string | null;
         };
         /** MaterialMovementCreate */
         MaterialMovementCreate: {
@@ -7033,6 +7198,13 @@ export interface components {
             /** Operation Id */
             operation_id: string;
         };
+        /** MaterialMovementPage */
+        MaterialMovementPage: {
+            /** Items */
+            items: components["schemas"]["MaterialMovementResponse"][];
+            /** Total */
+            total: number;
+        };
         /** MaterialMovementResponse */
         MaterialMovementResponse: {
             /** Id */
@@ -7041,10 +7213,18 @@ export interface components {
             material_id: number;
             /** Material Name */
             material_name: string;
+            /** Kind */
+            kind: string;
             /** User Id */
             user_id: number | null;
+            /** Holder */
+            holder?: string | null;
             /** Task Id */
             task_id: number | null;
+            /** Task Number */
+            task_number?: string | null;
+            /** Created By */
+            created_by?: string | null;
             /** Quantity */
             quantity: string;
             /** Unit */
@@ -7057,6 +7237,30 @@ export interface components {
             reason: string;
             /** Created At */
             created_at: string;
+        };
+        /**
+         * MaterialOperationCreate
+         * @description Операция склада. adjust — инвентаризация: quantity — фактический остаток.
+         */
+        MaterialOperationCreate: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "receipt" | "issue" | "return" | "write_off" | "adjust";
+            /** Material Id */
+            material_id: number;
+            /** User Id */
+            user_id?: number | null;
+            /** Quantity */
+            quantity: number | string;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Operation Id */
+            operation_id: string;
         };
         /** MaterialResponse */
         MaterialResponse: {
@@ -7072,10 +7276,27 @@ export interface components {
              * @default 0
              */
             unit_cost: string;
+            /** Min Quantity */
+            min_quantity?: string | null;
             /** Id */
             id: number;
             /** Active */
             active: boolean;
+            /** Warehouse Quantity */
+            warehouse_quantity: string;
+        };
+        /** MaterialUpdate */
+        MaterialUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Unit */
+            unit?: string | null;
+            /** Unit Cost */
+            unit_cost?: number | string | null;
+            /** Min Quantity */
+            min_quantity?: number | string | null;
+            /** Active */
+            active?: boolean | null;
         };
         /**
          * MemberAddRequest
@@ -9377,6 +9598,35 @@ export interface components {
             /** Organization Name */
             organization_name?: string | null;
         };
+        /** TurnoverRowResponse */
+        TurnoverRowResponse: {
+            /** User Id */
+            user_id: number | null;
+            /** Holder */
+            holder: string;
+            /** Material Id */
+            material_id: number;
+            /** Material */
+            material: string;
+            /** Unit */
+            unit: string;
+            /** Unit Cost */
+            unit_cost: string;
+            /** Opening */
+            opening: string;
+            /** Received */
+            received: string;
+            /** Used */
+            used: string;
+            /** Transferred */
+            transferred: string;
+            /** Other */
+            other: string;
+            /** Closing */
+            closing: string;
+            /** Cost */
+            cost: string;
+        };
         /** UpdateRolePermissionRequest */
         UpdateRolePermissionRequest: {
             /** Permissions */
@@ -10474,9 +10724,93 @@ export interface operations {
             };
         };
     };
-    materials_api_materials_get: {
+    equipment_qr_api_equipment__equipment_id__qr_get: {
+        parameters: {
+            query?: {
+                origin?: string | null;
+            };
+            header?: never;
+            path: {
+                equipment_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    outbox_status_api_outbox_get: {
         parameters: {
             query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    retry_outbox_api_outbox__event_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                event_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_materials_api_materials_get: {
+        parameters: {
+            query?: {
+                include_archived?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -10492,6 +10826,15 @@ export interface operations {
                     "application/json": components["schemas"]["MaterialResponse"][];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     create_material_api_materials_post: {
@@ -10504,6 +10847,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["MaterialCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_material_api_materials__material_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                material_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaterialUpdate"];
             };
         };
         responses: {
@@ -10545,6 +10923,96 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StockResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    material_balances_api_materials_balances_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialBalance"][];
+                };
+            };
+        };
+    };
+    material_movements_api_materials_movements_get: {
+        parameters: {
+            query?: {
+                month?: string | null;
+                material_id?: number | null;
+                /** @description Исполнитель; 0 — склад */
+                user_id?: number | null;
+                kind?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialMovementPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    material_operation_api_materials_operations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaterialOperationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialMovementResponse"];
                 };
             };
             /** @description Validation Error */
@@ -10657,40 +11125,12 @@ export interface operations {
             };
         };
     };
-    equipment_qr_api_equipment__equipment_id__qr_get: {
+    material_turnover_api_materials_turnover_get: {
         parameters: {
-            query?: {
-                origin?: string | null;
+            query: {
+                /** @description ГГГГ-ММ */
+                month: string;
             };
-            header?: never;
-            path: {
-                equipment_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    outbox_status_api_outbox_get: {
-        parameters: {
-            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -10703,18 +11143,28 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TurnoverRowResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
     };
-    retry_outbox_api_outbox__event_id__retry_post: {
+    material_turnover_xlsx_api_materials_turnover_xlsx_get: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                event_id: number;
+            query: {
+                /** @description ГГГГ-ММ */
+                month: string;
             };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;

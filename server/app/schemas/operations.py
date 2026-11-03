@@ -135,12 +135,63 @@ class MaterialCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     unit: str = Field("шт.", min_length=1, max_length=20)
     unit_cost: Decimal = Field(Decimal("0"), ge=0, max_digits=14, decimal_places=2)
+    min_quantity: Decimal | None = Field(None, ge=0, max_digits=14, decimal_places=3)
+
+
+class MaterialUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=200)
+    unit: str | None = Field(None, min_length=1, max_length=20)
+    unit_cost: Decimal | None = Field(None, ge=0, max_digits=14, decimal_places=2)
+    min_quantity: Decimal | None = Field(None, ge=0, max_digits=14, decimal_places=3)
+    active: bool | None = None
 
 
 class MaterialResponse(MaterialCreate):
     model_config = ConfigDict(from_attributes=True)
     id: int
     active: bool
+    warehouse_quantity: Decimal
+
+
+class HolderBalance(BaseModel):
+    user_id: int
+    name: str
+    quantity: Decimal
+
+
+class MaterialBalance(BaseModel):
+    """Строка сводки остатков: склад и исполнители по одному материалу."""
+
+    material_id: int
+    name: str
+    unit: str
+    unit_cost: Decimal
+    active: bool
+    warehouse_quantity: Decimal
+    min_quantity: Decimal | None
+    # Остаток склада ниже минимального — пора закупать
+    low: bool
+    holders: list[HolderBalance]
+    total_quantity: Decimal
+    total_cost: Decimal
+
+
+class MaterialOperationCreate(BaseModel):
+    """Операция склада. adjust — инвентаризация: quantity — фактический остаток."""
+
+    kind: Literal["receipt", "issue", "return", "write_off", "adjust"]
+    material_id: int = Field(gt=0)
+    # Пусто — склад организации; для issue/return — обязательно
+    user_id: int | None = None
+    quantity: Decimal = Field(ge=0, max_digits=14, decimal_places=3)
+    reason: str = Field("", max_length=500)
+    operation_id: str = Field(min_length=1, max_length=64)
+
+    @model_validator(mode="after")
+    def _positive_unless_inventory(self):
+        if self.kind != "adjust" and self.quantity <= 0:
+            raise ValueError("Количество должно быть больше нуля")
+        return self
 
 
 class MaterialMovementCreate(BaseModel):
@@ -159,11 +210,37 @@ class MaterialMovementResponse(BaseModel):
     id: int
     material_id: int
     material_name: str
+    kind: str
     user_id: int | None
+    # «Склад» или имя исполнителя
+    holder: str | None = None
     task_id: int | None
+    task_number: str | None = None
+    created_by: str | None = None
     quantity: Decimal
     unit: str
     unit_cost: Decimal
     total_cost: Decimal
     reason: str
     created_at: str
+
+
+class MaterialMovementPage(BaseModel):
+    items: list[MaterialMovementResponse]
+    total: int
+
+
+class TurnoverRowResponse(BaseModel):
+    user_id: int | None
+    holder: str
+    material_id: int
+    material: str
+    unit: str
+    unit_cost: Decimal
+    opening: Decimal
+    received: Decimal
+    used: Decimal
+    transferred: Decimal
+    other: Decimal
+    closing: Decimal
+    cost: Decimal
