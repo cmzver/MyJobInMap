@@ -37,6 +37,7 @@ from app.models import (
     UserModel,
     get_db,
 )
+from app.models.operations import MaterialModel
 from app.schemas.act import (
     ActCancelRequest,
     ActCreate,
@@ -197,7 +198,16 @@ def _catalog_response(item: ServiceCatalogItemModel) -> CatalogItemResponse:
         system_type=item.system_type,
         is_active=item.is_active,
         sort_order=item.sort_order,
+        material_id=item.material_id,
     )
+
+
+def _check_material(db: Session, material_id: Optional[int], user: UserModel) -> None:
+    if material_id is None:
+        return
+    material = db.get(MaterialModel, material_id)
+    if material is None or material.organization_id != _organization_id(user):
+        raise HTTPException(status_code=422, detail="Материал склада не найден")
 
 
 @router.post(
@@ -208,6 +218,7 @@ def create_catalog_item(
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("manage_acts")),
 ):
+    _check_material(db, data.material_id, user)
     item = ServiceCatalogItemModel(
         organization_id=_organization_id(user), **data.model_dump()
     )
@@ -239,7 +250,9 @@ def update_catalog_item(
     user: UserModel = Depends(require_permission("manage_acts")),
 ):
     item = _own_item(db, item_id, user)
-    for name, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+    _check_material(db, changes.get("material_id"), user)
+    for name, value in changes.items():
         setattr(item, name, value)
     db.commit()
     db.refresh(item)

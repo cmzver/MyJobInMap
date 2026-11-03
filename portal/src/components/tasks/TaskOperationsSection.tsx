@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addressesApi } from '@/api/addresses'
 import { operationsApi } from '@/api/operations'
+import { materialsApi } from '@/api/materials'
 import { useAuthStore } from '@/store/authStore'
 import { showApiError } from '@/utils/apiError'
 import Button from '@/components/Button'
@@ -16,9 +17,9 @@ export default function TaskOperationsSection({ task }: { task: Task | TaskDetai
   const [quantity, setQuantity] = useState('1')
   const [operationId, setOperationId] = useState(() => crypto.randomUUID())
   const key = ['task-materials', user?.organizationId, task.id]
-  const movements = useQuery({ queryKey: key, queryFn: () => operationsApi.taskMaterials(task.id) })
-  const stocks = useQuery({ queryKey: ['materials', user?.organizationId, 'stock', user?.id], queryFn: () => operationsApi.stocks() })
-  const consume = useMutation({ mutationFn: () => operationsApi.consumeMaterial(task.id, { material_id: Number(materialId), quantity, reason: '', operation_id: operationId }),
+  const movements = useQuery({ queryKey: key, queryFn: () => materialsApi.taskMaterials(task.id) })
+  const stocks = useQuery({ queryKey: ['materials', user?.organizationId, 'stock', user?.id], queryFn: () => materialsApi.stocks() })
+  const consume = useMutation({ mutationFn: () => materialsApi.consume(task.id, { material_id: Number(materialId), quantity, reason: '', operation_id: operationId }),
     onSuccess: () => { setOperationId(crypto.randomUUID()); client.invalidateQueries({ queryKey: key }); client.invalidateQueries({ queryKey: ['materials'] }); client.invalidateQueries({ queryKey: ['comments'] }) },
     onError: (error) => showApiError(error, 'Не удалось списать материал') })
   const submit = (e: FormEvent) => { e.preventDefault(); consume.mutate() }

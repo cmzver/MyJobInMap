@@ -6,12 +6,14 @@ import Select from '@/components/Select'
 import { SettingsCard } from '@/components/settings/SettingsSection'
 import { useCatalogMutations, useServiceCatalog } from '@/hooks/useActs'
 import type { CatalogItem } from '@/api/acts'
+import type { Material } from '@/api/materials'
+import { useMaterialCatalog } from '@/hooks/useMaterials'
 import { LINE_TYPE_OPTIONS } from '@/components/acts/actLabels'
 import { showApiError } from '@/utils/apiError'
 
 const EMPTY = { name: '', unit: 'шт', price: '', line_type: 'work' }
 
-function CatalogRow({ item }: { item: CatalogItem }) {
+function CatalogRow({ item, materials }: { item: CatalogItem; materials: Material[] }) {
   const { update, remove } = useCatalogMutations()
   const [price, setPrice] = useState(String(item.price ?? 0))
 
@@ -34,6 +36,27 @@ function CatalogRow({ item }: { item: CatalogItem }) {
           {item.line_type === 'material' ? 'материал' : 'работа'} · {item.unit}
         </p>
       </div>
+      {item.line_type === 'material' && (
+        <select
+          aria-label={`Склад: ${item.name}`}
+          title="Позиция склада: по акту материал списывается у исполнителя"
+          className="field h-8 w-48"
+          value={item.material_id ?? ''}
+          onChange={(event) =>
+            update.mutate(
+              { id: item.id, item: { material_id: event.target.value ? Number(event.target.value) : null } },
+              { onError: (error) => showApiError(error, 'Не удалось связать со складом') },
+            )
+          }
+        >
+          <option value="">Не со склада</option>
+          {materials.map((material) => (
+            <option key={material.id} value={material.id}>
+              {material.name} ({material.unit})
+            </option>
+          ))}
+        </select>
+      )}
       <div className="w-28">
         <Input
           aria-label={`Цена: ${item.name}`}
@@ -67,6 +90,7 @@ function CatalogRow({ item }: { item: CatalogItem }) {
 /** Прайс-лист организации: подставляется в строки актов. */
 export default function ServiceCatalogCard() {
   const { data: items = [], isLoading } = useServiceCatalog(true)
+  const { data: materials = [] } = useMaterialCatalog()
   const { create } = useCatalogMutations()
   const [draft, setDraft] = useState(EMPTY)
 
@@ -90,7 +114,7 @@ export default function ServiceCatalogCard() {
     <SettingsCard
       title="Прайс-лист"
       icon={ListChecks}
-      description="Работы и материалы с ценой по умолчанию — подставляются в акты; цену в акте можно поменять."
+      description="Работы и материалы с ценой по умолчанию — подставляются в акты; цену в акте можно поменять. Материал, связанный со складом, списывается у исполнителя по акту."
     >
       {isLoading ? (
         <p className="text-sm text-gray-500 dark:text-gray-400">Загружаем…</p>
@@ -99,7 +123,7 @@ export default function ServiceCatalogCard() {
       ) : (
         <ul className="divide-y divide-gray-100 dark:divide-gray-700">
           {items.map((item) => (
-            <CatalogRow key={`${item.id}-${item.price}`} item={item} />
+            <CatalogRow key={`${item.id}-${item.price}`} item={item} materials={materials} />
           ))}
         </ul>
       )}

@@ -18,9 +18,11 @@ from app.api.tasks.text_import import router as text_import_router
 router = APIRouter()
 router.include_router(calendar_router)
 router.include_router(views_router)
-from app.api.operations import router as operations_router
+from app.api.materials import router as materials_router  # noqa: E402
+from app.api.operations import router as operations_router  # noqa: E402
 
 router.include_router(operations_router)
+router.include_router(materials_router)
 router.include_router(core_router)
 router.include_router(remote_router)
 router.include_router(comments_router)

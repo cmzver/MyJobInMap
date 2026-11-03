@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usersApi } from '@/api/users'
 import type { CreateUserData, UpdateUserData } from '@/types/user'
+import { useAuthStore } from '@/store/authStore'
 
 // Query keys
 export const userKeys = {
@@ -12,10 +13,13 @@ export const userKeys = {
 }
 
 // Get all users
+// Админ видит всех (и отключённых) через /admin/users; диспетчеру этот путь закрыт —
+// ему отдаём активных пользователей организации для выбора исполнителя.
 export function useUsers(options?: { enabled?: boolean }) {
+  const isAdmin = useAuthStore((state) => state.user?.baseAccess === 'admin')
   return useQuery({
-    queryKey: userKeys.list(),
-    queryFn: () => usersApi.getUsers(),
+    queryKey: [...userKeys.list(), isAdmin ? 'all' : 'active'],
+    queryFn: () => (isAdmin ? usersApi.getUsers() : usersApi.getActiveUsers()),
     enabled: options?.enabled,
   })
 }

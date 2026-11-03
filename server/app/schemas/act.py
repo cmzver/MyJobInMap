@@ -26,6 +26,8 @@ class CatalogItemBase(BaseModel):
     system_type: Optional[str] = Field(None, max_length=50)
     is_active: bool = True
     sort_order: int = 0
+    # Позиция склада: по акту материал списывается у исполнителя заявки
+    material_id: Optional[int] = Field(None, gt=0)
 
 
 class CatalogItemCreate(CatalogItemBase):
@@ -40,6 +42,7 @@ class CatalogItemUpdate(BaseModel):
     system_type: Optional[str] = Field(None, max_length=50)
     is_active: Optional[bool] = None
     sort_order: Optional[int] = None
+    material_id: Optional[int] = Field(None, gt=0)
 
 
 class CatalogItemResponse(CatalogItemBase):

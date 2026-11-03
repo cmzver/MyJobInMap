@@ -51,6 +51,7 @@ from app.models import (
     UserModel,
 )
 from app.schemas.act import ActCreate, ActMobileCreate
+from app.services import stock_service
 from app.services.business_time import business_tz, to_naive_utc
 from app.services.organization_settings_service import (
     DEFAULT_ACT_NUMBER_PREFIX,
@@ -245,6 +246,8 @@ def _build_lines(db: Session, organization_id: int, data: ActCreate) -> List[dic
         # Ключ только у установленных материалов: снимок прежних актов не меняется
         if line.install_to_object and line_type == "material":
             built["install_to_object"] = True
+        if item is not None and item.material_id and line_type == "material":
+            built["material_id"] = item.material_id
         lines.append(built)
     return lines
 
@@ -398,7 +401,8 @@ def create_act(
         "payment_method": data.payment_method,
         "lines": [
             {
-                **line,
+                # Связь со складом — служебная, в документ клиента не входит
+                **{key: value for key, value in line.items() if key != "material_id"},
                 "qty": str(line["qty"].normalize()),
                 "price": str(line["price"]),
                 "amount": str(line["amount"]),
@@ -467,7 +471,9 @@ def create_act(
     db.add(act)
     if superseded is not None:
         _cancel(superseded, f"Заменён актом №{number}", user)
+        stock_service.return_for_cancelled_act(db, superseded, user)
     installed = _install_materials(db, task, act, user)
+    written_off = stock_service.write_off_for_act(db, act, task, user)
     text = f"Оформлен акт №{number} на сумму {total} ₽"
     if status == SIGNED:
         text += ", подписан клиентом на экране"
@@ -475,6 +481,8 @@ def create_act(
         text += f". Клиент отказался подписать: {content['refusal_reason']}"
     if installed:
         text += ". На объект установлено: " + ", ".join(installed)
+    if written_off:
+        text += ". Списано со склада: " + ", ".join(written_off)
     _comment(db, task.id, text, user)
     db.flush()
     if stage is not None:
@@ -498,6 +506,7 @@ def cancel_act(db: Session, act: ActModel, reason: str, user: UserModel) -> ActM
     if act.status == CANCELLED:
         raise ActServiceError("Акт уже аннулирован", 400)
     _cancel(act, reason.strip(), user)
+    stock_service.return_for_cancelled_act(db, act, user)
     _comment(db, act.task_id, f"Акт №{act.number} аннулирован: {reason.strip()}", user)
     db.commit()
     db.refresh(act)

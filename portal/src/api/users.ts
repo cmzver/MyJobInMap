@@ -11,6 +11,12 @@ export const usersApi = {
     return data
   },
 
+  // Активные пользователи организации — для выбора исполнителя (не только админам)
+  async getActiveUsers(): Promise<User[]> {
+    const { data } = await apiClient.get<User[]>('/users')
+    return data
+  },
+
   // Get single user
   async getUser(id: number): Promise<User> {
     const { data } = await apiClient.get<User>(`${USERS_BASE}/${id}`)
