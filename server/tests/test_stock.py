@@ -279,3 +279,66 @@ class TestTurnover:
         )
         assert xlsx.status_code == 200
         assert xlsx.content[:2] == b"PK"
+
+
+class TestActReassignment:
+    def test_reassigned_task_is_not_written_off_twice(
+        self, client: TestClient, db_session
+    ):
+        from tests.test_multitenant_isolation_api import _create_org_user
+
+        ctx, material, item = TestActWriteOff()._setup(client, db_session, "ReaOrg")
+        headers = ctx.dispatcher.headers
+        first_worker = ctx.worker.user.id
+        second = _create_org_user(
+            db_session,
+            username="reaorg-second",
+            password="pass123",
+            role="worker",
+            organization_id=ctx.org.id,
+        )
+        _op(client, headers, "issue", material["id"], 2, "i2", second.id)
+        first = _act(
+            client,
+            headers,
+            ctx.task.id,
+            lines=[{"catalog_item_id": item["id"], "qty": 2}],
+        ).json()
+        ctx.task.assigned_user_id = second.id
+        db_session.commit()
+        _act(
+            client,
+            headers,
+            ctx.task.id,
+            lines=[{"catalog_item_id": item["id"], "qty": 1}],
+        )
+        # Всего в актах 3: 2 с первого, 1 со второго — без повторного списания
+        assert _stock(client, headers, first_worker)[material["id"]] == Decimal("0")
+        assert _stock(client, headers, second.id)[material["id"]] == Decimal("1")
+
+        # Аннулирование первого акта: возвращает первому, не падает на ключе
+        cancelled = client.post(
+            f"/api/acts/{first['id']}/cancel",
+            json={"reason": "ошибка"},
+            headers=headers,
+        )
+        assert cancelled.status_code == 200, cancelled.text
+        total = (
+            _stock(client, headers, first_worker)[material["id"]]
+            + _stock(client, headers, second.id)[material["id"]]
+        )
+        assert total == Decimal("3")  # 4 выдано − 1 по действующему акту
+
+    def test_act_without_assignee_uses_warehouse(self, client: TestClient, db_session):
+        ctx, material, item = TestActWriteOff()._setup(client, db_session, "NoAsg")
+        ctx.task.assigned_user_id = None
+        db_session.commit()
+        before = _stock(client, ctx.dispatcher.headers, ctx.dispatcher.user.id)
+        _act(
+            client,
+            ctx.dispatcher.headers,
+            ctx.task.id,
+            lines=[{"catalog_item_id": item["id"], "qty": 1}],
+        )
+        assert _stock(client, ctx.dispatcher.headers, ctx.dispatcher.user.id) == before
+        assert _warehouse(db_session, material["id"]) == Decimal("2")

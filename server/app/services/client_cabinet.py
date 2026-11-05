@@ -11,7 +11,7 @@ from typing import List, Optional
 
 from fastapi import Depends, HTTPException, status
 from jose import JWTError, jwt
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Query, Session
 
 from app.config import settings
@@ -139,14 +139,22 @@ def tasks_query(db: Session, account: ClientAccountModel) -> Query:
     )
 
 
+# Акты по заявке, которые подписывает сторона контрагента. Акты жильцов
+# (платные работы в квартире) — с их ФИО, телефоном и суммой — кабинету не видны.
+ORGANIZATION_SIGNER_ROLES = ("uk_rep", "chairman")
+
+
 def acts_query(db: Session, account: ClientAccountModel) -> Query:
-    """Акты по заявкам контрагента и его сводные акты."""
+    """Сводные акты контрагента и акты по его заявкам, где подписант — УК/председатель."""
     task_ids = tasks_query(db, account).with_entities(TaskModel.id)
     return db.query(ActModel).filter(
         ActModel.organization_id == account.organization_id,
         or_(
-            ActModel.task_id.in_(task_ids),
             ActModel.counterparty_id == account.counterparty_id,
+            and_(
+                ActModel.task_id.in_(task_ids),
+                ActModel.customer_role.in_(ORGANIZATION_SIGNER_ROLES),
+            ),
         ),
     )
 
@@ -158,8 +166,14 @@ def own_task(db: Session, account: ClientAccountModel, task_id: int) -> TaskMode
     return task
 
 
-def own_act(db: Session, account: ClientAccountModel, act_id: int) -> ActModel:
-    act = acts_query(db, account).filter(ActModel.id == act_id).first()
+def own_act(
+    db: Session, account: ClientAccountModel, act_id: int, for_update: bool = False
+) -> ActModel:
+    query = acts_query(db, account).filter(ActModel.id == act_id)
+    if for_update:
+        # Подпись по ссылке и в кабинете одновременно — вторая увидит «подписан»
+        query = query.with_for_update()
+    act = query.first()
     if act is None:
         raise HTTPException(status_code=404, detail="Акт не найден")
     return act

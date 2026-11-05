@@ -29,7 +29,8 @@ logger = logging.getLogger(__name__)
 TELEGRAM = "telegram"
 # События, о которых сообщаем, и тексты (номер подставляется)
 MESSAGES = {
-    "created": "Заявка {number} принята: {title}.",
+    # Без текста заявки: его задаёт заявитель, а SMS уходит от имени организации
+    "created": "Заявка {number} принята.",
     "planned": "Заявка {number}: мастер приедет {date}.",
     "IN_PROGRESS": "Заявка {number} в работе.",
     "DONE": "Заявка {number} выполнена.",
@@ -44,9 +45,17 @@ class DeliveryError(Exception):
     """Временная ошибка доставки — outbox повторит."""
 
 
-def ensure_token(task: TaskModel) -> str:
-    if not task.public_token:
-        task.public_token = secrets.token_urlsafe(24)
+def ensure_token(db: Session, task: TaskModel) -> str:
+    """Токен ссылки на статус; при гонке побеждает первый — ссылка не меняется."""
+    if task.public_token:
+        return task.public_token
+    db.flush()
+    db.query(TaskModel).filter(
+        TaskModel.id == task.id, TaskModel.public_token.is_(None)
+    ).update(
+        {TaskModel.public_token: secrets.token_urlsafe(24)}, synchronize_session=False
+    )
+    db.refresh(task, ["public_token"])
     return task.public_token
 
 
@@ -99,12 +108,11 @@ def _text(task: TaskModel, event: str) -> Optional[str]:
         date = moment.astimezone(business_tz()).strftime("%d.%m.%Y")
     return template.format(
         number=task.task_number or f"Z-{task.id:05d}",
-        title=(task.title or "")[:80],
         date=date,
     )
 
 
-def notify(db: Session, task: TaskModel, event: str) -> None:
+def notify(db: Session, task: TaskModel, event: str, sms: bool = True) -> None:
     """Поставить уведомления заявителю в outbox (без коммита)."""
     if task.organization_id is None:
         return
@@ -133,10 +141,10 @@ def notify(db: Session, task: TaskModel, event: str) -> None:
             )
 
     phone = normalize_phone(task.customer_phone)
-    if sms_on and phone and event in SMS_EVENTS:
+    if sms and sms_on and phone and event in SMS_EVENTS:
         message = text
         if event == "created":
-            url = status_url(ensure_token(task))
+            url = status_url(ensure_token(db, task))
             if url:
                 message = f"{text} Статус: {url}"
         stage_event(
@@ -183,14 +191,29 @@ async def send_sms(organization_id: int, phone: str, text: str) -> None:
     api_id = await asyncio.to_thread(_sms_api_id, organization_id)
     if not api_id:
         return  # SMS выключили, пока событие ждало отправки
-    async with httpx.AsyncClient(timeout=15) as client:
-        response = await client.post(
-            "https://sms.ru/sms/send",
-            data={"api_id": api_id, "to": phone, "msg": text, "json": 1},
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.post(
+                "https://sms.ru/sms/send",
+                data={"api_id": api_id, "to": phone, "msg": text, "json": 1},
+            )
+    except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+        # До SMS.ru не дошли — повтор безопасен
+        raise DeliveryError(f"SMS.ru недоступен: {type(exc).__name__}")
+    except httpx.HTTPError as exc:
+        # Запрос мог уйти и SMS — отправиться: повтор стоил бы второго платного SMS
+        logger.warning(
+            "SMS.ru: ответ не получен (%s), не повторяем", type(exc).__name__
         )
+        return
     if response.status_code >= 500:
-        raise DeliveryError(f"SMS.ru HTTP {response.status_code}")
-    data = response.json() if response.content else {}
+        logger.warning("SMS.ru HTTP %s, не повторяем", response.status_code)
+        return
+    try:
+        data = response.json() if response.content else {}
+    except ValueError:
+        logger.warning("SMS.ru: неразборчивый ответ")
+        return
     if data.get("status") != "OK":
         # Ошибки ключа/баланса/номера повтором не лечатся — в журнал
         logger.warning("SMS.ru: %s", data.get("status_text") or data)

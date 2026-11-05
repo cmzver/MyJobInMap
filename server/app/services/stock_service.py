@@ -195,21 +195,24 @@ def apply(db: Session, op: Operation) -> MaterialMovementModel:
 # ------------------------------------------------------------------ акты
 
 
-def _task_balance(
-    db: Session, task_id: int, user_id: int, material_id: int, kinds: Iterable[str]
-) -> Decimal:
-    """Сколько списано (положительное число) проводками этих видов по заявке."""
-    total = (
-        db.query(func.coalesce(func.sum(MaterialMovementModel.quantity), 0))
+def _task_postings(
+    db: Session, task_id: int, material_id: int, kinds: Iterable[str]
+) -> Dict[Optional[int], Decimal]:
+    """Списано (положительное число) проводками этих видов по заявке — по держателям."""
+    rows = (
+        db.query(
+            MaterialMovementModel.user_id,
+            func.coalesce(func.sum(MaterialMovementModel.quantity), 0),
+        )
         .filter(
             MaterialMovementModel.task_id == task_id,
-            MaterialMovementModel.user_id == user_id,
             MaterialMovementModel.material_id == material_id,
             MaterialMovementModel.kind.in_(list(kinds)),
         )
-        .scalar()
+        .group_by(MaterialMovementModel.user_id)
+        .all()
     )
-    return -Decimal(str(total))
+    return {user_id: -Decimal(str(total)) for user_id, total in rows}
 
 
 def _acts_quantity(db: Session, task_id: int, material_id: int) -> Decimal:
@@ -233,31 +236,52 @@ def _acts_quantity(db: Session, task_id: int, material_id: int) -> Decimal:
 def _reconcile(
     db: Session,
     act: ActModel,
-    holder_id: int,
     material: MaterialModel,
+    holder_id: Optional[int],
     created_by_id: int,
     suffix: str,
-) -> Optional[MaterialMovementModel]:
-    """Довести списанное актами до max(0, в актах − списано вручную)."""
+) -> List[MaterialMovementModel]:
+    """Довести списанное актами по заявке до max(0, в актах − списано вручную).
+
+    Считается по заявке целиком, а не по держателю: после переназначения
+    заявки материал не списывается второй раз. Недостающее списывается с
+    holder_id (исполнитель заявки; None — склад организации), лишнее
+    возвращается тем, с кого акты списывали, — начиная с больших сумм."""
     task_id = act.task_id
-    manual = _task_balance(db, task_id, holder_id, material.id, [WRITE_OFF])
-    by_acts = _task_balance(db, task_id, holder_id, material.id, [ACT, ACT_CANCEL])
-    target = max(Decimal(0), _acts_quantity(db, task_id, material.id) - manual)
-    delta = target - by_acts
-    if delta == 0:
-        return None
-    return post(
-        db,
-        material=material,
-        user_id=holder_id,
-        delta=-delta,
-        kind=ACT if delta > 0 else ACT_CANCEL,
-        operation_id=f"act:{act.id}:{material.id}:{suffix}",
-        created_by_id=created_by_id,
-        task_id=task_id,
-        reason=f"Акт №{act.number}",
-        allow_negative=True,
+    manual = sum(
+        _task_postings(db, task_id, material.id, [WRITE_OFF]).values(), Decimal(0)
     )
+    by_holder = _task_postings(db, task_id, material.id, [ACT, ACT_CANCEL])
+    target = max(Decimal(0), _acts_quantity(db, task_id, material.id) - manual)
+    delta = target - sum(by_holder.values(), Decimal(0))
+    if delta == 0:
+        return []
+
+    def posting(user_id: Optional[int], amount: Decimal) -> MaterialMovementModel:
+        holder_key = "wh" if user_id is None else user_id
+        return post(
+            db,
+            material=material,
+            user_id=user_id,
+            delta=-amount,
+            kind=ACT if amount > 0 else ACT_CANCEL,
+            operation_id=f"act:{act.id}:{material.id}:{holder_key}:{suffix}",
+            created_by_id=created_by_id,
+            task_id=task_id,
+            reason=f"Акт №{act.number}",
+            allow_negative=True,
+        )
+
+    if delta > 0:
+        return [posting(holder_id, delta)]
+    rows, excess = [], -delta
+    for user_id, written in sorted(by_holder.items(), key=lambda item: -item[1]):
+        if excess <= 0 or written <= 0:
+            break
+        amount = min(written, excess)
+        rows.append(posting(user_id, -amount))
+        excess -= amount
+    return rows
 
 
 def _act_materials(db: Session, act: ActModel) -> List[MaterialModel]:
@@ -277,38 +301,30 @@ def _act_materials(db: Session, act: ActModel) -> List[MaterialModel]:
 def write_off_for_act(
     db: Session, act: ActModel, task: TaskModel, user: UserModel
 ) -> List[str]:
-    """Досписать материалы акта у исполнителя заявки; вернуть строки отчёта."""
+    """Досписать материалы акта у исполнителя заявки; вернуть строки отчёта.
+
+    Без исполнителя — со склада организации, а не с того, кто оформил акт."""
     if act.task_id is None:
         return []
-    holder_id = task.assigned_user_id or user.id
     db.flush()
     report = []
     for material in _act_materials(db, act):
-        row = _reconcile(db, act, holder_id, material, user.id, "w")
-        if row is not None:
-            report.append(f"{material.name} {abs(row.quantity).normalize()}")
+        rows = _reconcile(db, act, material, task.assigned_user_id, user.id, "w")
+        written = sum((-row.quantity for row in rows), Decimal(0))
+        if written > 0:
+            report.append(f"{material.name} {written.normalize()}")
     return report
 
 
 def return_for_cancelled_act(db: Session, act: ActModel, user: UserModel) -> None:
-    """Аннулирование акта: вернуть исполнителям то, что акт досписал."""
+    """Аннулирование акта: вернуть держателям то, что акты досписали сверх нужного."""
     if act.task_id is None:
         return
     db.flush()
+    task = db.get(TaskModel, act.task_id)
+    holder_id = task.assigned_user_id if task else None
     for material in _act_materials(db, act):
-        holders = {
-            holder
-            for (holder,) in db.query(MaterialMovementModel.user_id)
-            .filter(
-                MaterialMovementModel.task_id == act.task_id,
-                MaterialMovementModel.material_id == material.id,
-                MaterialMovementModel.kind.in_([ACT, ACT_CANCEL]),
-                MaterialMovementModel.user_id.isnot(None),
-            )
-            .distinct()
-        }
-        for holder_id in holders:
-            _reconcile(db, act, holder_id, material, user.id, "r")
+        _reconcile(db, act, material, holder_id, user.id, "r")
 
 
 # ---------------------------------------------------------------- обороты
@@ -376,10 +392,9 @@ def turnover(
             m.material_id,
             m.kind,
             has_task,
-            m.quantity > 0,
             func.sum(m.quantity),
         )
-        .group_by(m.user_id, m.material_id, m.kind, has_task, m.quantity > 0)
+        .group_by(m.user_id, m.material_id, m.kind, has_task)
         .all()
     )
     keys = {(u, mat) for u, mat, _ in opening} | {(u, mat) for u, mat, *_ in inside}
@@ -409,7 +424,7 @@ def turnover(
         )
     for user_id, material_id, total in opening:
         rows[(user_id, material_id)].opening = Decimal(str(total or 0))
-    for user_id, material_id, kind, with_task, _positive, total in inside:
+    for user_id, material_id, kind, with_task, total in inside:
         _classify(
             rows[(user_id, material_id)], kind, bool(with_task), Decimal(str(total))
         )

@@ -22,7 +22,8 @@ async function copy(text: string) {
 export default function StatusLinkButton({ taskId, phone }: { taskId: number; phone?: string | null }) {
   const [link, setLink] = useState<StatusLink | null>(null)
   const issue = useMutation({
-    mutationFn: async () => (await apiClient.post<StatusLink>(`/tasks/${taskId}/status-link`)).data,
+    mutationFn: async (renew: boolean = false) =>
+      (await apiClient.post<StatusLink>(`/tasks/${taskId}/status-link`, null, { params: { renew } })).data,
     onSuccess: setLink,
     onError: (error) => showApiError(error, 'Не удалось получить ссылку'),
   })
@@ -31,7 +32,7 @@ export default function StatusLinkButton({ taskId, phone }: { taskId: number; ph
 
   return (
     <>
-      <Button variant="outline" size="sm" isLoading={issue.isPending} onClick={() => issue.mutate()}>
+      <Button variant="outline" size="sm" isLoading={issue.isPending} onClick={() => issue.mutate(false)}>
         <Link2 className="mr-2 h-4 w-4" />
         Ссылка заявителю
       </Button>
@@ -47,6 +48,20 @@ export default function StatusLinkButton({ taskId, phone }: { taskId: number; ph
           {link.subscribers > 0 && (
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Подписаны в Telegram: {link.subscribers}</p>
           )}
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            Ссылка перестанет работать через 30 дней после закрытия заявки.{' '}
+            <button
+              type="button"
+              className="text-red-600 hover:underline dark:text-red-400"
+              onClick={() => {
+                if (window.confirm('Выпустить новую ссылку? Старая перестанет открываться, подписки Telegram отключатся.')) {
+                  issue.mutate(true)
+                }
+              }}
+            >
+              Выпустить новую
+            </button>
+          </p>
           <div className="mt-4 flex flex-wrap justify-end gap-2">
             {digits.length >= 10 && (
               <a

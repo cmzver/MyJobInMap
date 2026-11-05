@@ -6,10 +6,13 @@
 секретом ``X-Bot-Secret``.
 """
 
+import re
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import TaskAccess, require_task_access
@@ -31,6 +34,9 @@ router = APIRouter(prefix="/api/public/tasks", tags=["Public tasks"])
 staff_router = APIRouter(prefix="/api/tasks", tags=["Tasks"])
 
 TOKEN_PATTERN = r"^[A-Za-z0-9_-]{16,64}$"
+LINK_TTL_AFTER_CLOSE = timedelta(days=30)
+CLOSED_STATUSES = ("DONE", "CANCELLED")
+_APARTMENT = re.compile(r",?\s*(кв|квартира)\.?\s*\d+\S*", re.IGNORECASE)
 
 
 class PublicTaskEvent(BaseModel):
@@ -83,13 +89,32 @@ class TelegramSubscribed(BaseModel):
     url: Optional[str] = None
 
 
+def _closed_long_ago(task: TaskModel) -> bool:
+    """Ссылка гаснет через LINK_TTL_AFTER_CLOSE после закрытия заявки."""
+    if task.status not in CLOSED_STATUSES:
+        return False
+    closed = task.completed_at or task.updated_at
+    if closed is None:
+        return False
+    if closed.tzinfo is not None:
+        closed = closed.astimezone(timezone.utc).replace(tzinfo=None)
+    return (
+        datetime.now(timezone.utc).replace(tzinfo=None) - closed > LINK_TTL_AFTER_CLOSE
+    )
+
+
 def _task_by_token(db: Session, token: str) -> TaskModel:
     task = None
     if 16 <= len(token) <= 64:
         task = db.query(TaskModel).filter(TaskModel.public_token == token).first()
-    if task is None:
+    if task is None or _closed_long_ago(task):
         raise HTTPException(status_code=404, detail="Ссылка недействительна")
     return task
+
+
+def _public_address(raw: str) -> str:
+    """Адрес без квартиры: по пересланной ссылке не видно, чья это квартира."""
+    return _APARTMENT.sub("", raw or "").strip(" ,")
 
 
 def _number(task: TaskModel) -> str:
@@ -140,7 +165,10 @@ def telegram_subscribe(
                 address=data.chat_id,
             )
         )
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()  # повторный /start одновременно — подписка уже есть
     return TelegramSubscribed(
         number=_number(task),
         status_label=get_status_display_name(task.status),
@@ -192,7 +220,7 @@ def public_task(token: str, db: Session = Depends(get_db)):
     return PublicTaskView(
         number=_number(task),
         title=task.title,
-        address=task.raw_address,
+        address=_public_address(task.raw_address),
         status=task.status,
         status_label=get_status_display_name(task.status),
         created_at=task.created_at,
@@ -218,12 +246,21 @@ def public_task(token: str, db: Session = Depends(get_db)):
 @staff_router.post("/{task_id}/status-link", response_model=TaskStatusLink)
 def task_status_link(
     request: Request,
+    renew: bool = False,
     access: TaskAccess = Depends(require_task_access("view_tasks")),
     db: Session = Depends(get_db),
 ):
-    """Ссылка заявителю на статус заявки: одна и та же при повторных запросах."""
+    """Ссылка заявителю на статус заявки: одна и та же при повторных запросах.
+
+    renew — выпустить новую: прежняя ссылка и подписки Telegram перестают действовать.
+    """
     task = access.task
-    token = applicant_notify.ensure_token(task)
+    if renew:
+        task.public_token = None
+        db.query(TaskSubscriberModel).filter_by(task_id=task.id).delete(
+            synchronize_session=False
+        )
+    token = applicant_notify.ensure_token(db, task)
     db.commit()
     subscribers = db.query(TaskSubscriberModel.id).filter_by(task_id=task.id).count()
     return TaskStatusLink(

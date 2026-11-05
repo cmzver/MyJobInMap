@@ -1721,6 +1721,8 @@ export interface paths {
         /**
          * Task Status Link
          * @description Ссылка заявителю на статус заявки: одна и та же при повторных запросах.
+         *
+         *     renew — выпустить новую: прежняя ссылка и подписки Telegram перестают действовать.
          */
         post: operations["task_status_link_api_tasks__task_id__status_link_post"];
         delete?: never;
@@ -14242,7 +14244,9 @@ export interface operations {
     };
     task_status_link_api_tasks__task_id__status_link_post: {
         parameters: {
-            query?: never;
+            query?: {
+                renew?: boolean;
+            };
             header?: never;
             path: {
                 task_id: number;

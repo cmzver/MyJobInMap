@@ -295,8 +295,13 @@ def _existing(
     )
 
 
-def _commit_operation(db: Session, user: UserModel, operation_id: str, make):
-    """Провести операцию один раз: повтор с тем же ключом вернёт прежнюю."""
+def _commit_operation(
+    db: Session, user: UserModel, operation_id: str, make, verify=None
+):
+    """Провести операцию один раз: повтор с тем же ключом вернёт прежнюю.
+
+    verify(row) проверяет, что ключ использован с теми же данными (422 иначе) —
+    и для параллельного повтора, проигравшего гонку на уникальном ключе."""
     try:
         row = make()
         db.commit()
@@ -309,6 +314,8 @@ def _commit_operation(db: Session, user: UserModel, operation_id: str, make):
         row = _existing(db, user, operation_id)
         if row is None:
             raise
+        if verify is not None:
+            verify(row)
         return row
 
 
@@ -353,6 +360,7 @@ def material_operation(
                 reason=data.reason,
             ),
         ),
+        verify=lambda row: _same(row, material.id, data.kind, None),
     )
     return movement_response(row, material)
 
@@ -450,7 +458,12 @@ def use_material(
         )
         return row
 
-    row = _commit_operation(db, user, data.operation_id, write_off)
+    def verify(row: MaterialMovementModel) -> None:
+        _same(row, material.id, stock_service.WRITE_OFF, task.id)
+        if row.quantity != -quantity or row.user_id != holder.id:
+            raise HTTPException(422, "Ключ операции уже использован с другими данными")
+
+    row = _commit_operation(db, user, data.operation_id, write_off, verify=verify)
     return movement_response(row, material)
 
 

@@ -189,13 +189,36 @@ class TestIsolation:
 
     def test_acts_scoped_and_pdf(self, client: TestClient, db_session):
         env = _setup(client, db_session, "CabActs")
-        own = _act(client, env.dispatcher.headers, env.task.id).json()
+        own = _act(
+            client, env.dispatcher.headers, env.task.id, customer_role="uk_rep"
+        ).json()
+        # Акт жильца по той же заявке: его ФИО, телефон и сумма — не для УК
+        resident = _act(client, env.dispatcher.headers, env.task.id).json()
         foreign_task_act = _act(
-            client, env.dispatcher.headers, env.foreign_task.id
+            client, env.dispatcher.headers, env.foreign_task.id, customer_role="uk_rep"
         ).json()
         headers = _headers(client, "uk-smirnova")
         acts = client.get("/api/client/acts", headers=headers).json()
         assert [a["id"] for a in acts["items"]] == [own["id"]]
+        detail = client.get(f"/api/client/tasks/{env.task.id}", headers=headers).json()
+        assert [a["id"] for a in detail["acts"]] == [own["id"]]
+        assert detail["acts_count"] == 1
+        for act_id in (resident["id"], foreign_task_act["id"]):
+            assert (
+                client.get(
+                    f"/api/client/acts/{act_id}/pdf", headers=headers
+                ).status_code
+                == 404
+            )
+            assert (
+                client.post(
+                    f"/api/client/acts/{act_id}/sign",
+                    data={"consent": "true"},
+                    files={"signature": ("s.png", _png(), "image/png")},
+                    headers=headers,
+                ).status_code
+                == 404
+            )
         pdf = client.get(f"/api/client/acts/{own['id']}/pdf", headers=headers)
         assert pdf.status_code == 200
         assert pdf.content[:4] == b"%PDF"
@@ -243,6 +266,43 @@ class TestCabinetTasks:
             headers=headers,
         )
         assert foreign.status_code == 404
+
+    def test_no_sms_and_rate_limit(self, client: TestClient, db_session, monkeypatch):
+        from app.api import client as client_api
+        from app.models import OrganizationSettingsModel
+        from app.models.outbox import OutboxEventModel
+
+        env = _setup(client, db_session, "CabLimit")
+        db_session.add(
+            OrganizationSettingsModel(
+                organization_id=env.org.id, sms_enabled=True, sms_api_id="KEY"
+            )
+        )
+        db_session.commit()
+        monkeypatch.setattr(client_api, "MAX_TASKS_PER_HOUR", 2)
+        headers = _headers(client, "uk-smirnova")
+        body = {
+            "address_id": env.own_address.id,
+            "title": "Купите подписку на сайте",
+            "contact_phone": "+79110000000",
+        }
+        codes = [
+            client.post("/api/client/tasks", json=body, headers=headers).status_code
+            for _ in range(3)
+        ]
+        assert codes == [201, 201, 429]
+        assert (
+            db_session.query(OutboxEventModel).filter_by(kind="sms_send").count() == 0
+        )
+
+    def test_description_only_for_own_tasks(self, client: TestClient, db_session):
+        env = _setup(client, db_session, "CabDesc")
+        env.task.description = "Звонила жилица, тел. +79119998877"
+        db_session.commit()
+        detail = client.get(
+            f"/api/client/tasks/{env.task.id}", headers=_headers(client, "uk-smirnova")
+        ).json()
+        assert detail["description"] == ""
 
     def test_maintenance_list(self, client: TestClient, db_session):
         env = _setup(client, db_session, "CabTo")
