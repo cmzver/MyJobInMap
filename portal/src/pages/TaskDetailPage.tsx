@@ -129,7 +129,9 @@ export default function TaskDetailPage() {
   // Data fetching
   const { data: task, isLoading, isError, error } = useTask(taskId)
   const { data: comments = [], isLoading: commentsLoading } = useComments(taskId)
-  const { data: addressHistory } = useRelatedTasks(taskId ? { task_id: taskId } : null)
+  // История места — после загрузки заявки: блок свёрнут, а к недоступной
+  // заявке (чужая у мастера) запрос заведомо вернёт ошибку
+  const { data: addressHistory } = useRelatedTasks(task ? { task_id: taskId } : null)
   const { data: photos = [], isLoading: photosLoading } = usePhotos(taskId)
   const { data: users = [] } = useUsers()
   const { user } = useAuthStore()
