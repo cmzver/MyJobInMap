@@ -7,6 +7,7 @@ import Spinner from '@/components/Spinner'
 import { formatDateOnly, formatDateTime } from '@/utils/dateFormat'
 import { cn } from '@/utils/cn'
 import PublicShell, { PublicCard } from './PublicShell'
+import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 
 type PublicTask = components['schemas']['PublicTaskView']
 
@@ -32,6 +33,7 @@ export default function PublicTaskPage() {
     retry: false,
     refetchInterval: 60_000,
   })
+  useDocumentTitle(query.data ? `Заявка ${query.data.number}` : 'Статус заявки')
 
   if (query.isPending) {
     return (

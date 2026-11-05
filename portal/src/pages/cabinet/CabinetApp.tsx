@@ -15,6 +15,7 @@ import CabinetObjectsPage from './CabinetObjectsPage'
 import CabinetActsPage from './CabinetActsPage'
 import CabinetMaintenancePage from './CabinetMaintenancePage'
 import { shouldRetryQuery } from '@/utils/queryRetry'
+import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 
 // Свой кэш запросов: данные кабинета не смешиваются с кэшем сотрудника
 const queryClient = new QueryClient({
@@ -46,6 +47,7 @@ function CabinetLayout() {
   const logout = useCabinetSession((state) => state.logout)
   const navigate = useNavigate()
   const [changingPassword, setChangingPassword] = useState(false)
+  useDocumentTitle(me?.counterparty_name ? `Кабинет · ${me.counterparty_name}` : 'Кабинет клиента')
 
   const exit = () => {
     logout()

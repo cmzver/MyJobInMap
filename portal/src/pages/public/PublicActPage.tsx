@@ -11,6 +11,7 @@ import { publicActsApi, type PublicAct } from '@/api/publicActs'
 import { formatDateOnly } from '@/utils/dateFormat'
 import { getApiErrorMessage } from '@/utils/apiError'
 import PublicShell, { PublicCard } from './PublicShell'
+import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 
 const publicActKey = (token: string) => ['public-act', token] as const
 
@@ -155,6 +156,7 @@ export default function PublicActPage() {
     retry: false,
     enabled: token.length > 0,
   })
+  useDocumentTitle(act ? `Акт № ${act.number}` : 'Акт')
 
   if (isLoading) {
     return (

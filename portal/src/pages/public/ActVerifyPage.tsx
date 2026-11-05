@@ -10,6 +10,7 @@ import { ACT_STATUS, formatRub } from '@/components/acts/actLabels'
 import { publicActsApi, type ActVerification } from '@/api/publicActs'
 import { getApiErrorMessage } from '@/utils/apiError'
 import PublicShell, { PublicCard } from './PublicShell'
+import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 
 const MIN_HASH = 16
 
@@ -82,6 +83,7 @@ export default function ActVerifyPage() {
     enabled,
     retry: false,
   })
+  useDocumentTitle('Проверка акта')
   const notFound = axios.isAxiosError(error) && error.response?.status === 404
 
   return (
