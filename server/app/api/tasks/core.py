@@ -5,7 +5,6 @@ CRUD заявок, список с фильтрами/сортировкой, с
 плановая дата и назначение исполнителя.
 """
 
-import asyncio
 import logging
 from datetime import date, datetime, time, timedelta, timezone
 from types import SimpleNamespace
@@ -694,7 +693,8 @@ def update_task_status(
 
 
 @router.delete("/{task_id}")
-async def delete_task(
+def delete_task(
+    background_tasks: BackgroundTasks,
     task_id: int,
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("delete_tasks")),
@@ -714,13 +714,12 @@ async def delete_task(
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
     # WebSocket broadcast
-    asyncio.ensure_future(
-        broadcast_task_deleted(
-            task_id=task_id,
-            task_number=task_number,
-            user_id=user.id,
-            organization_id=task_obj.organization_id if task_obj else None,
-        )
+    background_tasks.add_task(
+        broadcast_task_deleted,
+        task_id=task_id,
+        task_number=task_number,
+        user_id=user.id,
+        organization_id=task_obj.organization_id if task_obj else None,
     )
 
     return {"message": "Task deleted", "id": task_id}
@@ -766,7 +765,8 @@ def update_planned_date(
 
 
 @router.patch("/{task_id}/assign", response_model=TaskResponse)
-async def assign_task(
+def assign_task(
+    background_tasks: BackgroundTasks,
     task_id: int,
     assignee_data: TaskAssignRequest,
     db: Session = Depends(get_db),
@@ -805,15 +805,14 @@ async def assign_task(
             .first()
         )
         assignee_name = (assignee.full_name or assignee.username) if assignee else ""
-        asyncio.ensure_future(
-            broadcast_task_assigned(
-                task_id=task_id,
-                task_number=task.task_number or "",
-                assigned_user_id=assignee_data.assigned_user_id,
-                assigned_user_name=assignee_name,
-                user_id=user.id,
-                organization_id=task.organization_id,
-            )
+        background_tasks.add_task(
+            broadcast_task_assigned,
+            task_id=task_id,
+            task_number=task.task_number or "",
+            assigned_user_id=assignee_data.assigned_user_id,
+            assigned_user_name=assignee_name,
+            user_id=user.id,
+            organization_id=task.organization_id,
         )
 
     return task_to_response(task)

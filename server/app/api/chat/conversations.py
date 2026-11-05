@@ -5,12 +5,19 @@ Chat API — conversations
 mute/archive и шорткат чата заявки.
 """
 
-import asyncio
 import uuid
 from pathlib import Path
 from typing import List, Optional, cast
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    UploadFile,
+)
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -84,7 +91,8 @@ def get_conversation(
 
 
 @router.patch("/conversations/{conv_id}", response_model=ConversationResponse)
-async def update_conversation(
+def update_conversation(
+    background_tasks: BackgroundTasks,
     conv_id: int,
     data: ConversationUpdate,
     current_user: UserModel = Depends(get_current_user_required),
@@ -100,18 +108,15 @@ async def update_conversation(
     )
 
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
-    asyncio.ensure_future(
-        broadcast_chat_conversation_updated(
-            member_user_ids=member_ids,
-            conversation_id=conv_id,
-            action=(
-                "conversation_renamed"
-                if data.name is not None
-                else "conversation_updated"
-            ),
-            actor_user_id=current_user.id,
-            name=conv.name,
-        )
+    background_tasks.add_task(
+        broadcast_chat_conversation_updated,
+        member_user_ids=member_ids,
+        conversation_id=conv_id,
+        action=(
+            "conversation_renamed" if data.name is not None else "conversation_updated"
+        ),
+        actor_user_id=current_user.id,
+        name=conv.name,
     )
     return ConversationResponse.model_validate(conv)
 
@@ -152,7 +157,8 @@ def get_conversation_avatar(
 
 
 @router.post("/conversations/{conv_id}/avatar", response_model=ConversationResponse)
-async def upload_conversation_avatar(
+def upload_conversation_avatar(
+    background_tasks: BackgroundTasks,
     conv_id: int,
     avatar: UploadFile = File(...),
     current_user: UserModel = Depends(get_current_user_required),
@@ -176,7 +182,7 @@ async def upload_conversation_avatar(
     if not avatar.content_type or not avatar.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Разрешены только изображения")
 
-    content = await avatar.read()
+    content = avatar.file.read()
     if len(content) == 0:
         raise HTTPException(status_code=400, detail="Файл пустой")
     if len(content) > 5 * 1024 * 1024:
@@ -213,21 +219,21 @@ async def upload_conversation_avatar(
     db.refresh(conv)
 
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
-    asyncio.ensure_future(
-        broadcast_chat_conversation_updated(
-            member_user_ids=member_ids,
-            conversation_id=conv_id,
-            action="conversation_avatar_updated",
-            actor_user_id=current_user_id,
-            name=conv_name,
-        )
+    background_tasks.add_task(
+        broadcast_chat_conversation_updated,
+        member_user_ids=member_ids,
+        conversation_id=conv_id,
+        action="conversation_avatar_updated",
+        actor_user_id=current_user_id,
+        name=conv_name,
     )
 
     return ConversationResponse.model_validate(conv)
 
 
 @router.post("/conversations/{conv_id}/members", response_model=List[MemberInfo])
-async def add_members(
+def add_members(
+    background_tasks: BackgroundTasks,
     conv_id: int,
     data: MemberAddRequest,
     current_user: UserModel = Depends(get_current_user_required),
@@ -238,21 +244,21 @@ async def add_members(
 
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
     for added_user_id in data.user_ids:
-        asyncio.ensure_future(
-            broadcast_chat_conversation_updated(
-                member_user_ids=member_ids,
-                conversation_id=conv_id,
-                action="member_added",
-                actor_user_id=current_user.id,
-                target_user_id=added_user_id,
-            )
+        background_tasks.add_task(
+            broadcast_chat_conversation_updated,
+            member_user_ids=member_ids,
+            conversation_id=conv_id,
+            action="member_added",
+            actor_user_id=current_user.id,
+            target_user_id=added_user_id,
         )
 
     return members
 
 
 @router.delete("/conversations/{conv_id}/members/{user_id}")
-async def remove_member(
+def remove_member(
+    background_tasks: BackgroundTasks,
     conv_id: int,
     user_id: int,
     current_user: UserModel = Depends(get_current_user_required),
@@ -263,14 +269,13 @@ async def remove_member(
 
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
     notify_ids = list(dict.fromkeys(member_ids + [user_id]))
-    asyncio.ensure_future(
-        broadcast_chat_conversation_updated(
-            member_user_ids=notify_ids,
-            conversation_id=conv_id,
-            action="member_removed",
-            actor_user_id=current_user.id,
-            target_user_id=user_id,
-        )
+    background_tasks.add_task(
+        broadcast_chat_conversation_updated,
+        member_user_ids=notify_ids,
+        conversation_id=conv_id,
+        action="member_removed",
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
     )
     return {"detail": "ok"}
 
@@ -278,7 +283,8 @@ async def remove_member(
 @router.patch(
     "/conversations/{conv_id}/members/{user_id}", response_model=List[MemberInfo]
 )
-async def update_member_role(
+def update_member_role(
+    background_tasks: BackgroundTasks,
     conv_id: int,
     user_id: int,
     data: MemberRoleUpdateRequest,
@@ -291,15 +297,14 @@ async def update_member_role(
     )
 
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
-    asyncio.ensure_future(
-        broadcast_chat_conversation_updated(
-            member_user_ids=member_ids,
-            conversation_id=conv_id,
-            action="member_role_updated",
-            actor_user_id=current_user.id,
-            target_user_id=user_id,
-            role=data.role,
-        )
+    background_tasks.add_task(
+        broadcast_chat_conversation_updated,
+        member_user_ids=member_ids,
+        conversation_id=conv_id,
+        action="member_role_updated",
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
+        role=data.role,
     )
     return members
 
@@ -307,7 +312,8 @@ async def update_member_role(
 @router.post(
     "/conversations/{conv_id}/transfer-ownership", response_model=List[MemberInfo]
 )
-async def transfer_ownership(
+def transfer_ownership(
+    background_tasks: BackgroundTasks,
     conv_id: int,
     data: OwnershipTransferRequest,
     current_user: UserModel = Depends(get_current_user_required),
@@ -319,15 +325,14 @@ async def transfer_ownership(
     )
 
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
-    asyncio.ensure_future(
-        broadcast_chat_conversation_updated(
-            member_user_ids=member_ids,
-            conversation_id=conv_id,
-            action="ownership_transferred",
-            actor_user_id=current_user.id,
-            target_user_id=data.user_id,
-            role="owner",
-        )
+    background_tasks.add_task(
+        broadcast_chat_conversation_updated,
+        member_user_ids=member_ids,
+        conversation_id=conv_id,
+        action="ownership_transferred",
+        actor_user_id=current_user.id,
+        target_user_id=data.user_id,
+        role="owner",
     )
     return members
 

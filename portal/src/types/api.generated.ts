@@ -6149,7 +6149,6 @@ export interface components {
         Body_client_sign_act_api_client_acts__act_id__sign_post: {
             /**
              * Signature
-             * Format: binary
              * @description Подпись, PNG
              */
             signature: string;
@@ -6207,10 +6206,7 @@ export interface components {
         };
         /** Body_send_message_with_attachment_api_chat_conversations__conv_id__messages_with_attachment_post */
         Body_send_message_with_attachment_api_chat_conversations__conv_id__messages_with_attachment_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /** Text */
             text?: string | null;
@@ -6221,7 +6217,6 @@ export interface components {
         Body_sign_public_act_api_public_acts__token__sign_post: {
             /**
              * Signature
-             * Format: binary
              * @description Подпись клиента, PNG
              */
             signature: string;
@@ -6234,18 +6229,12 @@ export interface components {
         };
         /** Body_upload_act_scan_api_acts__act_id__scan_post */
         Body_upload_act_scan_api_acts__act_id__scan_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_address_document_api_addresses__address_id__documents_post */
         Body_upload_address_document_api_addresses__address_id__documents_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /** Name */
             name: string;
@@ -6265,7 +6254,6 @@ export interface components {
         Body_upload_apk_api_updates_upload_post: {
             /**
              * File
-             * Format: binary
              * @description APK файл
              */
             file: string;
@@ -6294,42 +6282,27 @@ export interface components {
         };
         /** Body_upload_attachment_api_chat_messages__message_id__attachments_post */
         Body_upload_attachment_api_chat_messages__message_id__attachments_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_avatar_api_auth_avatar_post */
         Body_upload_avatar_api_auth_avatar_post: {
-            /**
-             * Avatar
-             * Format: binary
-             */
+            /** Avatar */
             avatar: string;
         };
         /** Body_upload_conversation_avatar_api_chat_conversations__conv_id__avatar_post */
         Body_upload_conversation_avatar_api_chat_conversations__conv_id__avatar_post: {
-            /**
-             * Avatar
-             * Format: binary
-             */
+            /** Avatar */
             avatar: string;
         };
         /** Body_upload_logo_api_admin_organization_settings_logo_put */
         Body_upload_logo_api_admin_organization_settings_logo_put: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_task_photo_api_tasks__task_id__photos_post */
         Body_upload_task_photo_api_tasks__task_id__photos_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** CatalogItemCreate */
@@ -10554,6 +10527,10 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
         /** ViewCreate */
         ViewCreate: {

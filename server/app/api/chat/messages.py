@@ -5,10 +5,9 @@ Chat API — messages
 и отметки прочтения.
 """
 
-import asyncio
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import assert_task_access
@@ -56,7 +55,8 @@ def get_messages(
 
 
 @router.post("/conversations/{conv_id}/messages", response_model=MessageResponse)
-async def send_message(
+def send_message(
+    background_tasks: BackgroundTasks,
     conv_id: int,
     data: MessageCreate,
     current_user: UserModel = Depends(get_current_user_required),
@@ -157,23 +157,23 @@ async def send_message(
 
     # Полный MessageResponse в payload → клиент патчит кэш без рефетча истории.
     # conversation_name — доп. поле для пуш-тостов (вне схемы; Android игнорирует лишнее).
-    asyncio.ensure_future(
-        broadcast_chat_message(
-            member_user_ids=member_ids,
-            conversation_id=conv_id,
-            message_data={
-                **result.model_dump(mode="json"),
-                "conversation_name": conv.name if conv and conv.name else None,
-            },
-            sender_id=current_user.id,
-        )
+    background_tasks.add_task(
+        broadcast_chat_message,
+        member_user_ids=member_ids,
+        conversation_id=conv_id,
+        message_data={
+            **result.model_dump(mode="json"),
+            "conversation_name": conv.name if conv and conv.name else None,
+        },
+        sender_id=current_user.id,
     )
 
     return result
 
 
 @router.patch("/messages/{message_id}", response_model=MessageResponse)
-async def edit_message(
+def edit_message(
+    background_tasks: BackgroundTasks,
     message_id: int,
     data: MessageUpdate,
     current_user: UserModel = Depends(get_current_user_required),
@@ -183,21 +183,21 @@ async def edit_message(
     result = chat_service.edit_message(db, message_id, current_user.id, data.text)
 
     member_ids = chat_service.get_conversation_member_ids(db, result.conversation_id)
-    asyncio.ensure_future(
-        broadcast_chat_message_edited(
-            member_user_ids=member_ids,
-            conversation_id=result.conversation_id,
-            message_id=message_id,
-            new_text=data.text,
-            sender_id=current_user.id,
-        )
+    background_tasks.add_task(
+        broadcast_chat_message_edited,
+        member_user_ids=member_ids,
+        conversation_id=result.conversation_id,
+        message_id=message_id,
+        new_text=data.text,
+        sender_id=current_user.id,
     )
 
     return result
 
 
 @router.delete("/messages/{message_id}")
-async def delete_message(
+def delete_message(
+    background_tasks: BackgroundTasks,
     message_id: int,
     current_user: UserModel = Depends(get_current_user_required),
     db: Session = Depends(get_db),
@@ -211,13 +211,12 @@ async def delete_message(
 
     if conv_id:
         member_ids = chat_service.get_conversation_member_ids(db, conv_id)
-        asyncio.ensure_future(
-            broadcast_chat_message_deleted(
-                member_user_ids=member_ids,
-                conversation_id=conv_id,
-                message_id=message_id,
-                sender_id=current_user.id,
-            )
+        background_tasks.add_task(
+            broadcast_chat_message_deleted,
+            member_user_ids=member_ids,
+            conversation_id=conv_id,
+            message_id=message_id,
+            sender_id=current_user.id,
         )
 
     return {"detail": "ok"}
@@ -247,7 +246,8 @@ def search_all_messages(
 
 
 @router.post("/messages/{message_id}/reactions", response_model=List[ReactionInfo])
-async def toggle_reaction(
+def toggle_reaction(
+    background_tasks: BackgroundTasks,
     message_id: int,
     data: ReactionCreate,
     current_user: UserModel = Depends(get_current_user_required),
@@ -265,22 +265,22 @@ async def toggle_reaction(
             for r in result
             if r.emoji == data.emoji
         )
-        asyncio.ensure_future(
-            broadcast_chat_reaction(
-                member_user_ids=member_ids,
-                conversation_id=msg.conversation_id,
-                message_id=message_id,
-                emoji=data.emoji,
-                user_id=current_user.id,
-                action="added" if has_reaction else "removed",
-            )
+        background_tasks.add_task(
+            broadcast_chat_reaction,
+            member_user_ids=member_ids,
+            conversation_id=msg.conversation_id,
+            message_id=message_id,
+            emoji=data.emoji,
+            user_id=current_user.id,
+            action="added" if has_reaction else "removed",
         )
 
     return result
 
 
 @router.post("/conversations/{conv_id}/read")
-async def mark_as_read(
+def mark_as_read(
+    background_tasks: BackgroundTasks,
     conv_id: int,
     data: ReadReceiptRequest,
     current_user: UserModel = Depends(get_current_user_required),
@@ -290,13 +290,12 @@ async def mark_as_read(
     chat_service.mark_as_read(db, conv_id, current_user.id, data.last_message_id)
 
     member_ids = chat_service.get_conversation_member_ids(db, conv_id)
-    asyncio.ensure_future(
-        broadcast_chat_read(
-            member_user_ids=member_ids,
-            conversation_id=conv_id,
-            user_id=current_user.id,
-            last_message_id=data.last_message_id,
-        )
+    background_tasks.add_task(
+        broadcast_chat_read,
+        member_user_ids=member_ids,
+        conversation_id=conv_id,
+        user_id=current_user.id,
+        last_message_id=data.last_message_id,
     )
 
     return {"detail": "ok"}

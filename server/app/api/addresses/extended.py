@@ -816,7 +816,7 @@ def get_address_documents(
 @router.post(
     "/{address_id}/documents", response_model=AddressDocumentResponse, status_code=201
 )
-async def upload_address_document(
+def upload_address_document(
     address_id: int,
     file: UploadFile = File(...),
     name: str = Form(...),
@@ -840,7 +840,7 @@ async def upload_address_document(
     file_path = os.path.join(address_dir, unique_filename)
 
     # Сохраняем файл
-    content = await file.read()
+    content = file.file.read()
     with open(file_path, "wb") as f:
         f.write(content)
 

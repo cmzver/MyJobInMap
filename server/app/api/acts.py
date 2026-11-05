@@ -289,16 +289,16 @@ def create_task_act(
     return act_to_response(act)
 
 
-async def _read_signature(upload: Optional[UploadFile]) -> Optional[bytes]:
+def _read_signature(upload: Optional[UploadFile]) -> Optional[bytes]:
     if upload is None:
         return None
-    return await upload.read(MAX_SIGNATURE_BYTES + 1)
+    return upload.file.read(MAX_SIGNATURE_BYTES + 1)
 
 
 @router.post(
     "/api/tasks/{task_id}/acts/mobile", response_model=ActResponse, status_code=201
 )
-async def create_task_act_mobile(
+def create_task_act_mobile(
     payload: str = Form(..., description="ActMobileCreate в JSON"),
     customer_signature: Optional[UploadFile] = File(
         None, description="Подпись клиента, PNG"
@@ -339,8 +339,8 @@ async def create_task_act_mobile(
 
     signing = ActSigning.from_payload(
         data,
-        await _read_signature(customer_signature),
-        await _read_signature(worker_signature),
+        _read_signature(customer_signature),
+        _read_signature(worker_signature),
         stroke_data,
     )
     try:
@@ -582,7 +582,7 @@ def get_act_pdf(
 
 
 @router.post("/api/acts/{act_id}/scan", response_model=ActResponse)
-async def upload_act_scan(
+def upload_act_scan(
     act_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -590,7 +590,7 @@ async def upload_act_scan(
 ):
     """Скан акта, подписанного на бумаге: акт становится подписанным."""
     act = _get_act(db, act_id, user)
-    content = await file.read(MAX_SCAN_BYTES + 1)
+    content = file.file.read(MAX_SCAN_BYTES + 1)
     try:
         act = attach_signed_scan(db, act, content, file.content_type or "", user)
     except ActServiceError as exc:

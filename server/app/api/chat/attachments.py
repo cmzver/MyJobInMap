@@ -5,12 +5,19 @@ Chat API — attachments
 членства в чате).
 """
 
-import asyncio
 import os
 import uuid
 from typing import Optional, cast
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+)
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -70,7 +77,8 @@ def _persist_chat_file(
 
 
 @router.post("/messages/{message_id}/attachments", response_model=MessageResponse)
-async def upload_attachment(
+def upload_attachment(
+    background_tasks: BackgroundTasks,
     message_id: int,
     file: UploadFile = File(...),
     current_user: UserModel = Depends(get_current_user_required),
@@ -83,7 +91,7 @@ async def upload_attachment(
     if msg.sender_id != current_user.id:
         raise HTTPException(403, "Нельзя добавлять вложения к чужим сообщениям")
 
-    content: bytes = await file.read()
+    content: bytes = file.file.read()
     if len(content) > MAX_ATTACHMENT_BYTES:
         raise HTTPException(413, "Файл слишком большой (макс. 10 МБ)")
 
@@ -113,15 +121,14 @@ async def upload_attachment(
     member_ids = chat_service.get_conversation_member_ids(db, msg.conversation_id)
     # Полное сообщение в payload → получатель подхватывает вложение и тип
     # без рефетча истории.
-    asyncio.ensure_future(
-        broadcast_chat_message_edited(
-            member_user_ids=member_ids,
-            conversation_id=msg.conversation_id,
-            message_id=msg.id,
-            new_text=result.text or "",
-            sender_id=current_user.id,
-            message=result.model_dump(mode="json"),
-        )
+    background_tasks.add_task(
+        broadcast_chat_message_edited,
+        member_user_ids=member_ids,
+        conversation_id=msg.conversation_id,
+        message_id=msg.id,
+        new_text=result.text or "",
+        sender_id=current_user.id,
+        message=result.model_dump(mode="json"),
     )
 
     return result
@@ -131,7 +138,8 @@ async def upload_attachment(
     "/conversations/{conv_id}/messages/with-attachment",
     response_model=MessageResponse,
 )
-async def send_message_with_attachment(
+def send_message_with_attachment(
+    background_tasks: BackgroundTasks,
     conv_id: int,
     file: UploadFile = File(...),
     text: Optional[str] = Form(None),
@@ -146,7 +154,7 @@ async def send_message_with_attachment(
     """
     chat_service._ensure_membership(db, conv_id, current_user.id)
 
-    content: bytes = await file.read()
+    content: bytes = file.file.read()
     if len(content) > MAX_ATTACHMENT_BYTES:
         raise HTTPException(413, "Файл слишком большой (макс. 10 МБ)")
 
@@ -220,16 +228,15 @@ async def send_message_with_attachment(
             extra_data={"chat_id": str(conv_id)},
         )
 
-    asyncio.ensure_future(
-        broadcast_chat_message(
-            member_user_ids=member_ids,
-            conversation_id=conv_id,
-            message_data={
-                **result.model_dump(mode="json"),
-                "conversation_name": conv.name if conv and conv.name else None,
-            },
-            sender_id=current_user.id,
-        )
+    background_tasks.add_task(
+        broadcast_chat_message,
+        member_user_ids=member_ids,
+        conversation_id=conv_id,
+        message_data={
+            **result.model_dump(mode="json"),
+            "conversation_name": conv.name if conv and conv.name else None,
+        },
+        sender_id=current_user.id,
     )
 
     return result
