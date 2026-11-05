@@ -15,6 +15,7 @@ import { useContainerLogs, useSystemHealth } from '@/hooks/useSystemHealth'
 import Badge from '@/components/Badge'
 import Spinner from '@/components/Spinner'
 import { SettingsCard } from '@/components/settings/SettingsSection'
+import { getApiErrorMessage } from '@/utils/apiError'
 
 function formatUptime(seconds: number): string {
   const d = Math.floor(seconds / 86400)
@@ -317,7 +318,7 @@ export default function ServerHealthPanel() {
         </div>
       ) : isError ? (
         <p className="py-4 text-sm text-red-500">
-          Не удалось загрузить состояние сервера: {(error as Error)?.message ?? 'ошибка'}
+          Не удалось загрузить состояние сервера: {getApiErrorMessage(error, 'ошибка')}
         </p>
       ) : data ? (
         <HealthBody data={data} onShowLogs={setLogsContainer} />

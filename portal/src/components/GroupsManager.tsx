@@ -6,7 +6,7 @@ import apiClient from '@/api/client'
 import { useCreateGroup, useDeleteGroup, useGroups, useUpdateGroup } from '@/hooks/useGroups'
 import { useOrganizations } from '@/hooks/useOrganizations'
 import type { UserGroup } from '@/types/user'
-import { mutationToast } from '@/utils/apiError'
+import { mutationToast, getApiErrorMessage } from '@/utils/apiError'
 import Badge from '@/components/Badge'
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
@@ -104,7 +104,7 @@ export default function GroupsManager({ showOrgSelector = false }: GroupsManager
       toast.success('Права обновлены')
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Ошибка обновления прав')
+      toast.error(getApiErrorMessage(error, 'Ошибка обновления прав'))
     },
   })
 
@@ -222,7 +222,7 @@ export default function GroupsManager({ showOrgSelector = false }: GroupsManager
           toast.success('Группа создана')
           closeModal()
         },
-        onError: (error: Error) => toast.error(error.message || 'Ошибка создания'),
+        onError: (error: Error) => toast.error(getApiErrorMessage(error, 'Ошибка создания')),
       },
     )
   }

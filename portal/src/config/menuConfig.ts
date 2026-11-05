@@ -44,6 +44,10 @@ const HIDDEN_FOR_ORG_ADMIN = new Set(
   portalRoutes.filter(({ excludeOrgAdmin }) => excludeOrgAdmin).map(({ id }) => id)
 )
 
+const REQUIRES_ORGANIZATION = new Set(
+  portalRoutes.filter(({ requiresOrganization }) => requiresOrganization).map(({ id }) => id)
+)
+
 export function isOrgAdmin(role: UserRole, organizationId?: number | null): boolean {
   return normalizeRoleForAccess(role) === 'admin' && organizationId != null && role !== 'superadmin'
 }
@@ -62,6 +66,7 @@ export function getMenuForRole(
       items: section.items.filter((item) => {
         if (!item.roles.includes(normalizedRole)) return false
         if (orgAdmin && HIDDEN_FOR_ORG_ADMIN.has(item.id)) return false
+        if (organizationId == null && REQUIRES_ORGANIZATION.has(item.id)) return false
         return true
       }),
     }))

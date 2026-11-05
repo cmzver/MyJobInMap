@@ -201,14 +201,18 @@ export default function TaskFiltersPanel({
           </button>
         </div>
 
-        <TaskSavedViews
-          views={savedViews}
-          activeViewId={activeSavedViewId}
-          currentSettings={currentSavedViewSettings}
-          onApply={onApplySavedView}
-          onSave={onSaveCurrentView}
-          onDelete={onDeleteSavedView}
-        />
+        {/* На телефоне — только при раскрытых фильтрах: иначе панель занимает
+            весь первый экран и сами заявки начинаются ниже него */}
+        <div className={showAdvancedFilters ? '' : 'hidden sm:block'}>
+          <TaskSavedViews
+            views={savedViews}
+            activeViewId={activeSavedViewId}
+            currentSettings={currentSavedViewSettings}
+            onApply={onApplySavedView}
+            onSave={onSaveCurrentView}
+            onDelete={onDeleteSavedView}
+          />
+        </div>
 
         <div
           id="task-advanced-filters"
@@ -253,7 +257,12 @@ export default function TaskFiltersPanel({
       )}
 
       {summary && (
-        <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-gray-100 pt-3 dark:border-gray-800">
+        // На телефоне сводка видна, только когда есть о чём предупредить
+        <div
+          className={`mt-3 flex-wrap items-center gap-1.5 border-t border-gray-100 pt-3 dark:border-gray-800 ${
+            summary.overdue > 0 || summary.dueSoon > 0 || summary.urgent > 0 ? 'flex' : 'hidden sm:flex'
+          }`}
+        >
           <span className="eyebrow mr-1">Сводка</span>
           {[
             { label: 'Без исполнителя', value: summary.unassigned, active: false },

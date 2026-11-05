@@ -2,7 +2,7 @@ import { useCallback, useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { showApiError, showApiSuccess } from '@/utils/apiError'
+import { showApiError, showApiSuccess, getApiErrorMessage } from '@/utils/apiError'
 import {
   Settings,
   HardDrive,
@@ -1569,7 +1569,7 @@ function DevicesTab() {
       const detail = parts.length > 0 ? ` (${parts.join(', ')})` : ''
       toast.success(userId ? `Тестовое уведомление отправлено${detail}` : `Уведомление отправлено всем устройствам${detail}`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Ошибка отправки')
+      toast.error(getApiErrorMessage(error, 'Ошибка отправки'))
     }
   }
 
@@ -1579,7 +1579,7 @@ function DevicesTab() {
       toast.success('Устройство удалено')
       setDeleteConfirm(null)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Ошибка удаления')
+      toast.error(getApiErrorMessage(error, 'Ошибка удаления'))
     }
   }
 

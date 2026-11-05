@@ -93,3 +93,18 @@ describe('getApiErrorMessage', () => {
     expect(getApiErrorMessage(42, 'Custom fallback')).toBe('Custom fallback')
   })
 })
+
+describe('getApiErrorMessage: без технических текстов axios', () => {
+  it('нет ответа сервера — про связь', () => {
+    const error = Object.assign(new Error('Network Error'), { isAxiosError: true, response: undefined })
+    expect(getApiErrorMessage(error)).toBe('Нет связи с сервером. Проверьте подключение')
+  })
+
+  it('редкий код без тела — запасной текст, не «Request failed…»', () => {
+    expect(getApiErrorMessage(makeAxiosError(undefined, 418), 'Не получилось')).toBe('Не получилось')
+  })
+
+  it('5xx без тела — сервер недоступен', () => {
+    expect(getApiErrorMessage(makeAxiosError(undefined, 503))).toBe('Сервер временно недоступен, попробуйте позже')
+  })
+})

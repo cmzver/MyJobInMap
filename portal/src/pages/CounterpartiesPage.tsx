@@ -66,7 +66,7 @@ export default function CounterpartiesPage() {
                   className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40"
                   onClick={() => navigate(`/counterparties/${counterparty.id}`)}
                 >
-                  <td className="w-full max-w-0">
+                  <td className="w-full min-w-[10rem] max-w-0">
                     <p className="truncate font-medium text-gray-900 dark:text-white">
                       {counterparty.name}
                       {!counterparty.is_active && <span className="font-normal text-gray-400"> · отключён</span>}

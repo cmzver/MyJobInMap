@@ -37,7 +37,9 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // Карты исходников не публикуем: прод отдавал бы весь исходный код портала.
+    // Сервиса разбора ошибок (Sentry и т.п.), которому они нужны, нет.
+    sourcemap: false,
     rollupOptions: {
       output: {
         manualChunks: {

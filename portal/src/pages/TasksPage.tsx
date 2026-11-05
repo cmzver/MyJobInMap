@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { showApiError } from '@/utils/apiError'
+import { showApiError, getApiErrorMessage } from '@/utils/apiError'
 import { Plus, RefreshCw, AlertTriangle, List, TableProperties } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useUnreadTaskNotifications } from '@/hooks/useNotifications'
@@ -1510,7 +1510,7 @@ export default function TasksPage() {
             Ошибка загрузки
           </h3>
           <p className="text-red-600 dark:text-red-300 text-sm mb-4">
-            {error instanceof Error ? error.message : 'Не удалось загрузить заявки'}
+            {getApiErrorMessage(error, 'Не удалось загрузить заявки')}
           </p>
           <Button variant="danger" size="sm" onClick={() => refetch()}>
             Попробовать снова

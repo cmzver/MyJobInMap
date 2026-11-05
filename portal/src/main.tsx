@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App'
 import './index.css'
+import { shouldRetryQuery } from '@/utils/queryRetry'
 
 // После деплоя файлы прошлой сборки удаляются: открытая вкладка просит их
 // при переходе на ещё не загруженный раздел. Перезагружаемся один раз —
@@ -22,7 +23,7 @@ window.addEventListener('vite:preloadError', (event) => {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      retry: shouldRetryQuery,
       refetchOnWindowFocus: false,
       staleTime: 5 * 60 * 1000, // 5 минут
     },

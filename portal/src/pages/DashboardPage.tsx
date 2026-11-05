@@ -45,15 +45,22 @@ function KpiStrip({ data, repeats }: { data: AnalyticsData; repeats?: RepeatMetr
   const { summary, completion_time } = data.reports
   const { overview, timing } = data.sla
   const avg = completion_time ? completion_time.avg_hours : timing.avg_completion_hours
+  // Без выполненных заявок доли и время не определены: «—», а не «0%» / «0м»
+  const hasCompleted = overview.completed_tasks > 0
+  const hasClosed = (repeats?.overview.completed ?? 0) > 0
   return (
     <div className="grid grid-cols-2 divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white sm:grid-cols-3 lg:grid-cols-6 lg:divide-x dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-800">
       <Kpi label="Заявок" value={String(summary.total_tasks)} note={`≈ ${summary.avg_tasks_per_day.toFixed(1)} в день`} />
-      <Kpi label="Выполнено" value={String(summary.completed_tasks)} note={`${percent(summary.completion_rate)} от всех`} />
+      <Kpi
+        label="Выполнено"
+        value={String(summary.completed_tasks)}
+        note={summary.total_tasks > 0 ? `${percent(summary.completion_rate)} от всех` : 'заявок нет'}
+      />
       <Kpi
         label="В срок"
-        value={percent(overview.sla_compliance_rate)}
-        note="из выполненных"
-        tone={overview.completed_tasks > 0 ? complianceColor(overview.sla_compliance_rate) : undefined}
+        value={hasCompleted ? percent(overview.sla_compliance_rate) : '—'}
+        note={hasCompleted ? 'из выполненных' : 'нет выполненных'}
+        tone={hasCompleted ? complianceColor(overview.sla_compliance_rate) : undefined}
       />
       <Kpi
         label="Просрочено"
@@ -61,11 +68,21 @@ function KpiStrip({ data, repeats }: { data: AnalyticsData; repeats?: RepeatMetr
         note="открытых сейчас"
         tone={overview.active_overdue > 0 ? 'text-red-600 dark:text-red-400' : undefined}
       />
-      <Kpi label="Время выполнения" value={formatHours(avg)} note={`медиана ${formatHours(timing.median_completion_hours)}`} />
+      <Kpi
+        label="Время выполнения"
+        value={hasCompleted ? formatHours(avg) : '—'}
+        note={hasCompleted ? `медиана ${formatHours(timing.median_completion_hours)}` : 'нет выполненных'}
+      />
       <Kpi
         label="Повторы"
-        value={repeats ? percent(repeats.overview.return_rate) : '—'}
-        note={repeats ? `${repeats.overview.returned} из ${repeats.overview.completed} закрытых` : 'загрузка…'}
+        value={hasClosed ? percent(repeats!.overview.return_rate) : '—'}
+        note={
+          !repeats
+            ? 'загрузка…'
+            : hasClosed
+              ? `${repeats.overview.returned} из ${repeats.overview.completed} закрытых`
+              : 'нет закрытых'
+        }
       />
     </div>
   )

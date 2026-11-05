@@ -13,6 +13,7 @@ import ErrorBoundary from '@/components/ErrorBoundary'
 import Spinner from '@/components/Spinner'
 import LoginPage from '@/pages/LoginPage'
 import DashboardLayout from '@/layouts/DashboardLayout'
+import { ROUTER_FUTURE } from '@/config/routerFuture'
 
 // Страницы без входа: акт по ссылке и проверка подлинности распечатки
 const PublicActPage = lazy(() => import('@/pages/public/PublicActPage'))
@@ -35,10 +36,12 @@ function ProtectedRoute({
   children,
   allowedRoles,
   excludeOrgAdmin = false,
+  requiresOrganization = false,
 }: {
   children: React.ReactNode
   allowedRoles?: AccessRole[]
   excludeOrgAdmin?: boolean
+  requiresOrganization?: boolean
 }) {
   const { isAuthenticated, user } = useAuthStore()
   const location = useLocation()
@@ -56,6 +59,10 @@ function ProtectedRoute({
   }
 
   if (excludeOrgAdmin && user?.role && isOrgAdmin(user.role, user.organizationId)) {
+    return <Navigate to={getHomePathForRole(user.role, user.baseAccess)} replace />
+  }
+
+  if (requiresOrganization && user?.role && user.organizationId == null) {
     return <Navigate to={getHomePathForRole(user.role, user.baseAccess)} replace />
   }
 
@@ -95,7 +102,7 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <BrowserRouter basename={APP_BASENAME}>
+      <BrowserRouter basename={APP_BASENAME} future={ROUTER_FUTURE}>
         <Toaster
           position="top-right"
           toastOptions={{
@@ -174,6 +181,7 @@ function App() {
                             <ProtectedRoute
                               allowedRoles={route.roles}
                               excludeOrgAdmin={route.excludeOrgAdmin}
+                              requiresOrganization={route.requiresOrganization}
                             >
                               {route.redirectTo ? (
                                 <Navigate to={route.redirectTo} replace />

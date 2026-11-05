@@ -289,7 +289,7 @@ function AddressActsCard({ addressId }: { addressId: number }) {
                     <span className="font-mono text-xs">{act.number}</span>
                     <span className="text-xs text-gray-500 dark:text-gray-400"> · {formatDate(act.created_at)}</span>
                   </td>
-                  <td className="w-full max-w-0">
+                  <td className="w-full min-w-[10rem] max-w-0">
                     <p className="truncate">
                       {act.task_id ? (
                         <Link to={`/tasks/${act.task_id}`} className="text-primary-600 hover:underline dark:text-primary-400">
@@ -767,8 +767,8 @@ export default function AddressDetailPage() {
                       const statusConfig = systemStatusConfig[system.status]
                       return (
                         <tr key={system.id} >
-                          <td className="w-full max-w-0">
-                            <div className="flex min-w-[10rem] items-center gap-2">
+                          <td className="w-full min-w-[10rem] max-w-0">
+                            <div className="flex items-center gap-2">
                               <SystemIcon className="h-4 w-4 shrink-0 text-gray-400" />
                               <div className="min-w-0">
                                 <p className="truncate font-medium text-gray-900 dark:text-white" title={system.name}>{system.name}</p>
@@ -838,8 +838,8 @@ export default function AddressDetailPage() {
                       const StatusIcon = statusConfig.Icon
                       return (
                         <tr key={item.id} >
-                          <td className="w-full max-w-0">
-                            <div className="flex min-w-[10rem] items-center gap-2">
+                          <td className="w-full min-w-[10rem] max-w-0">
+                            <div className="flex items-center gap-2">
                               <ItemIcon className="h-4 w-4 shrink-0 text-gray-400" />
                               <div className="min-w-0">
                                 <Link
@@ -918,8 +918,8 @@ export default function AddressDetailPage() {
                   <tbody>
                     {documents.map((doc) => (
                       <tr key={doc.id} >
-                        <td className="w-full max-w-0">
-                          <div className="flex min-w-[10rem] items-center gap-2">
+                        <td className="w-full min-w-[10rem] max-w-0">
+                          <div className="flex items-center gap-2">
                             <FileText className="h-4 w-4 shrink-0 text-gray-400" />
                             <div className="min-w-0">
                               <p className="truncate font-medium text-gray-900 dark:text-white" title={doc.name}>{doc.name}</p>

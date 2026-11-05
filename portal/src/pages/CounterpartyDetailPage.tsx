@@ -232,7 +232,7 @@ function SummarySection({ counterparty }: { counterparty: Counterparty }) {
               {data.lines.map((line) => (
                 <tr key={line.position}>
                   <td className="tabular-nums text-gray-500">{line.position}</td>
-                  <td className="w-full max-w-0">
+                  <td className="w-full min-w-[10rem] max-w-0">
                     <p className="truncate text-gray-900 dark:text-white">{line.name}</p>
                     {line.details && (
                       <p className="truncate text-xs text-gray-500 dark:text-gray-400" title={line.details}>
@@ -276,7 +276,7 @@ function SummarySection({ counterparty }: { counterparty: Counterparty }) {
                         {visit.task_number}
                       </Link>
                     </td>
-                    <td className="w-full max-w-0">
+                    <td className="w-full min-w-[10rem] max-w-0">
                       <p className="truncate" title={visit.address}>
                         {visit.address}
                         <span className="text-gray-500 dark:text-gray-400"> · {visit.title}{visit.remote ? ' (удалённо)' : ''}</span>

@@ -4,8 +4,6 @@
     <string name="stat_new">Новые</string>
     <string name="stat_in_progress">В работе</string>
     <string name="stat_done">Готово</string>
-    <string name="offline_mode">Оффлайн режим</string>
-    <string name="offline_unsynced">Несинхронизировано: %1$d</string>
     <string name="map_my_location">Мое местоположение</string>
     <string name="map_refresh">Обновить</string>
     <string name="login_title">FieldWorker</string>

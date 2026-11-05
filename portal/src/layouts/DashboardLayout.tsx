@@ -23,6 +23,7 @@ import {
   Building2,
   Clock,
 } from 'lucide-react'
+import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 
 interface DashboardLayoutProps {
   children: ReactNode
@@ -150,6 +151,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const menuSections = user?.role ? getMenuForRole(user.role, user.organizationId, user.baseAccess) : []
   const mobileMenuItems = user?.role ? getMobileMenuForRole(user.role, user.organizationId, user.baseAccess) : []
   const isWorker = normalizeRoleForAccess(user?.role, user?.baseAccess) === 'worker'
+  // Заголовок вкладки — раздел меню, к которому относится текущий адрес
+  const activeMenuLabel = menuSections
+    .flatMap((section) => section.items)
+    .filter((item) => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`))
+    .sort((a, b) => b.path.length - a.path.length)[0]?.label
+  useDocumentTitle(activeMenuLabel)
 
   const themeOptions = [
     { value: 'light' as const, label: 'Светлая', icon: Sun },

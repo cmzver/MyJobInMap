@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
-
     <!-- Бренд (как AppColors.Primary в Compose-теме и primary в портале) -->
     <color name="primary">#FFF57C00</color>
-    <color name="primary_dark">#FFE65100</color>
 
     <!-- Splash Screen -->
     <color name="splash_background">@color/primary</color>

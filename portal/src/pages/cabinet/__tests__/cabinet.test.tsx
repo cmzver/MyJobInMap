@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cabinetApi, http, useCabinetSession, type CabinetAct } from '@/api/cabinet'
 import CabinetLoginPage from '../CabinetLoginPage'
 import { actTitle } from '../cabinetLabels'
+import { ROUTER_FUTURE } from '@/config/routerFuture'
 
 const me = {
   id: 1,
@@ -29,7 +30,7 @@ afterEach(() => {
 
 function renderLogin() {
   return render(
-    <MemoryRouter initialEntries={['/client/login']}>
+    <MemoryRouter future={ROUTER_FUTURE} initialEntries={['/client/login']}>
       <Routes>
         <Route path="/client/login" element={<CabinetLoginPage />} />
         <Route path="/client" element={<p>Заявки кабинета</p>} />

@@ -25,8 +25,8 @@ android {
         applicationId = "com.fieldworker"
         minSdk = 24
         targetSdk = 34
-        versionCode = 24600
-        versionName = "2.46.0"
+        versionCode = 24601
+        versionName = "2.46.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -122,6 +122,8 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.splashscreen)
     implementation(libs.androidx.security.crypto)
+    // Поворот фото по EXIF: системный android.media.ExifInterface ошибается на части устройств
+    implementation(libs.androidx.exifinterface)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     
     // Compose

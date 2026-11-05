@@ -3,6 +3,8 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
+
+import { ROUTER_FUTURE } from '@/config/routerFuture'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { materialsApi } from '@/api/materials'
 import { usersApi } from '@/api/users'
@@ -56,7 +58,7 @@ function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter future={ROUTER_FUTURE}>
         <MaterialsPage />
       </MemoryRouter>
     </QueryClientProvider>,

@@ -192,7 +192,7 @@ export default function MaintenancePage() {
                 const plan = planById.get(row.plan_id)
                 return (
                   <tr key={row.plan_id} className={cn(!row.enabled && 'opacity-60')}>
-                    <td className="w-full max-w-0">
+                    <td className="w-full min-w-[10rem] max-w-0">
                       <p className="truncate font-medium text-gray-900 dark:text-white" title={row.title}>
                         {row.title}
                         {!row.enabled && <span className="font-normal text-gray-400"> · пауза</span>}
