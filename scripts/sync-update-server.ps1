@@ -12,6 +12,10 @@ param(
     [switch]$SkipPortalSync = $false,
     [switch]$SkipRestart = $false,
     [switch]$IncludeServiceEnvFiles = $false,
+    # Перезаписать уже существующий на сервере .env локальным. Без флага
+    # отличающийся удалённый .env не трогается: локальный — dev-копия
+    # (другие SECRET_KEY/VAPID), заливка разлогинила бы всех и сломала push.
+    [switch]$OverwriteRemoteEnv = $false,
     [switch]$DryRun = $false,
     [switch]$Force = $false,
 
@@ -346,6 +350,11 @@ function Copy-ServiceEnvFiles {
 
         if ($localHash -eq $remoteHash) {
             Write-Log "$($envFile.Name) unchanged, skipping upload" "Info"
+            continue
+        }
+
+        if ($remoteHash -and -not $OverwriteRemoteEnv) {
+            Write-Log "$($envFile.Name) on the server differs from the local copy - keeping the server version (pass -OverwriteRemoteEnv to replace it)" "Warning"
             continue
         }
 

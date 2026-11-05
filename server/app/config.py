@@ -7,10 +7,10 @@ Configuration
 
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import Annotated, List, Optional, Set
 
-from pydantic import Field, computed_field, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, computed_field, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -219,10 +219,23 @@ class Settings(BaseSettings):
     )
 
     # === CORS ===
-    CORS_ORIGINS: List[str] = Field(
+    # NoDecode: из .env приходит строка «a,b», а не JSON-массив
+    CORS_ORIGINS: Annotated[List[str], NoDecode] = Field(
         default=["*"],
         description="Список разрешённых CORS origins (через запятую в .env)",
     )
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def _split_cors_origins(cls, value):
+        if isinstance(value, str):
+            text = value.strip()
+            if text.startswith("["):
+                import json
+
+                return json.loads(text)
+            return [part.strip() for part in text.split(",") if part.strip()]
+        return value
 
     # === Время бизнеса ===
     BUSINESS_TIMEZONE: str = Field(
