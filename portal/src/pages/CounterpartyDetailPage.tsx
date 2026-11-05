@@ -8,6 +8,7 @@ import { Ban, Building2, Edit, FileCheck2, FileText, Search, Upload } from 'luci
 import Badge from '@/components/Badge'
 import Button from '@/components/Button'
 import Card from '@/components/Card'
+import ClientAccountsCard from '@/components/counterparties/ClientAccountsCard'
 import Modal from '@/components/Modal'
 import PageHeader from '@/components/PageHeader'
 import QueryStatePanel from '@/components/QueryStatePanel'
@@ -130,6 +131,8 @@ export default function CounterpartyDetailPage() {
               </p>
             )}
           </Card>
+
+          <ClientAccountsCard counterparty={counterparty} />
         </aside>
 
         <div className="min-w-0 space-y-4">
