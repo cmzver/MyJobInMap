@@ -1300,6 +1300,225 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/counterparties/{counterparty_id}/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Client Accounts */
+        get: operations["list_client_accounts_api_counterparties__counterparty_id__accounts_get"];
+        put?: never;
+        /**
+         * Create Client Account
+         * @description Вход в кабинет клиента для представителя контрагента.
+         */
+        post: operations["create_client_account_api_counterparties__counterparty_id__accounts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/counterparties/{counterparty_id}/accounts/{account_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Client Account
+         * @description Удалить вход; поданные им заявки остаются (без ссылки на вход).
+         */
+        delete: operations["delete_client_account_api_counterparties__counterparty_id__accounts__account_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Client Account
+         * @description Изменить, отключить или сбросить пароль — выданные токены гаснут.
+         */
+        patch: operations["update_client_account_api_counterparties__counterparty_id__accounts__account_id__patch"];
+        trace?: never;
+    };
+    "/api/client/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Client Login */
+        post: operations["client_login_api_client_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Client Me */
+        get: operations["client_me_api_client_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Client Change Password */
+        post: operations["client_change_password_api_client_auth_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client/objects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Client Objects */
+        get: operations["client_objects_api_client_objects_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Client Tasks */
+        get: operations["client_tasks_api_client_tasks_get"];
+        put?: never;
+        /** Client Create Task */
+        post: operations["client_create_task_api_client_tasks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client/tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Client Task */
+        get: operations["client_task_api_client_tasks__task_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client/acts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Client Acts */
+        get: operations["client_acts_api_client_acts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client/acts/{act_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Client Act Pdf */
+        get: operations["client_act_pdf_api_client_acts__act_id__pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client/acts/{act_id}/sign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Client Sign Act
+         * @description Представитель подписывает акт в кабинете — от своего имени.
+         */
+        post: operations["client_sign_act_api_client_acts__act_id__sign_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client/maintenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Client Maintenance */
+        get: operations["client_maintenance_api_client_maintenance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/maintenance-plans/bulk": {
         parameters: {
             query?: never;
@@ -5830,6 +6049,19 @@ export interface components {
              */
             permanent: boolean;
         };
+        /** Body_client_sign_act_api_client_acts__act_id__sign_post */
+        Body_client_sign_act_api_client_acts__act_id__sign_post: {
+            /**
+             * Signature
+             * Format: binary
+             * @description Подпись, PNG
+             */
+            signature: string;
+            /** Consent */
+            consent: boolean;
+            /** Strokes */
+            strokes?: string | null;
+        };
         /** Body_create_task_act_mobile_api_tasks__task_id__acts_mobile_post */
         Body_create_task_act_mobile_api_tasks__task_id__acts_mobile_post: {
             /**
@@ -6094,6 +6326,305 @@ export interface components {
             sort_order?: number | null;
             /** Material Id */
             material_id?: number | null;
+        };
+        /** ClientAccountCreate */
+        ClientAccountCreate: {
+            /** Login */
+            login: string;
+            /** Password */
+            password: string;
+            /** Full Name */
+            full_name: string;
+            /** Position */
+            position?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Email */
+            email?: string | null;
+        };
+        /** ClientAccountResponse */
+        ClientAccountResponse: {
+            /** Id */
+            id: number;
+            /** Counterparty Id */
+            counterparty_id: number;
+            /** Login */
+            login: string;
+            /** Full Name */
+            full_name: string;
+            /** Position */
+            position?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Last Login At */
+            last_login_at?: string | null;
+            /** Created At */
+            created_at?: string | null;
+        };
+        /** ClientAccountUpdate */
+        ClientAccountUpdate: {
+            /** Full Name */
+            full_name?: string | null;
+            /** Position */
+            position?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Password */
+            password?: string | null;
+        };
+        /** ClientAct */
+        ClientAct: {
+            /** Id */
+            id: number;
+            /** Number */
+            number: string;
+            /** Kind */
+            kind: string;
+            /** Status */
+            status: string;
+            /** Total Amount */
+            total_amount: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Signed At */
+            signed_at?: string | null;
+            /** Task Id */
+            task_id?: number | null;
+            /** Task Number */
+            task_number?: string | null;
+            /** Period Start */
+            period_start?: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+        };
+        /** ClientActPage */
+        ClientActPage: {
+            /** Items */
+            items: components["schemas"]["ClientAct"][];
+            /** Total */
+            total: number;
+        };
+        /** ClientLogin */
+        ClientLogin: {
+            /** Login */
+            login: string;
+            /** Password */
+            password: string;
+        };
+        /** ClientMaintenance */
+        ClientMaintenance: {
+            /** Plan Id */
+            plan_id: number;
+            /** Title */
+            title: string;
+            /** Address */
+            address: string;
+            /** Address Id */
+            address_id: number;
+            /** Frequency */
+            frequency: string;
+            /** Interval */
+            interval: number;
+            /** Next Date */
+            next_date?: string | null;
+            /** Last Done At */
+            last_done_at?: string | null;
+        };
+        /** ClientMe */
+        ClientMe: {
+            /** Id */
+            id: number;
+            /** Login */
+            login: string;
+            /** Full Name */
+            full_name: string;
+            /** Position */
+            position?: string | null;
+            /** Counterparty Id */
+            counterparty_id: number;
+            /** Counterparty Name */
+            counterparty_name: string;
+            /** Organization Name */
+            organization_name: string;
+            /** Organization Phone */
+            organization_phone?: string | null;
+        };
+        /** ClientObject */
+        ClientObject: {
+            /** Id */
+            id: number;
+            /** Address */
+            address: string;
+            /** Systems */
+            systems: components["schemas"]["ClientSystem"][];
+            /** Open Tasks */
+            open_tasks: number;
+            /** Next Maintenance */
+            next_maintenance?: string | null;
+        };
+        /** ClientPasswordChange */
+        ClientPasswordChange: {
+            /** Current Password */
+            current_password: string;
+            /** New Password */
+            new_password: string;
+        };
+        /** ClientSystem */
+        ClientSystem: {
+            /** Id */
+            id: number;
+            /** System Type */
+            system_type: string;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /** Contract Number */
+            contract_number?: string | null;
+            /**
+             * Monthly Cost
+             * @default 0
+             */
+            monthly_cost: string;
+        };
+        /** ClientTaskCreate */
+        ClientTaskCreate: {
+            /** Address Id */
+            address_id: number;
+            /** Title */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Apartment */
+            apartment?: string | null;
+            /** Contact Name */
+            contact_name?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /**
+             * Urgent
+             * @default false
+             */
+            urgent: boolean;
+        };
+        /** ClientTaskDetail */
+        ClientTaskDetail: {
+            /** Id */
+            id: number;
+            /** Number */
+            number: string;
+            /** Title */
+            title: string;
+            /** Address */
+            address: string;
+            /** Address Id */
+            address_id?: number | null;
+            /** Status */
+            status: string;
+            /** Status Label */
+            status_label: string;
+            /** Priority */
+            priority: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Planned Date */
+            planned_date?: string | null;
+            /** Completed At */
+            completed_at?: string | null;
+            /**
+             * From Cabinet
+             * @default false
+             */
+            from_cabinet: boolean;
+            /**
+             * Acts Count
+             * @default 0
+             */
+            acts_count: number;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Executor */
+            executor?: string | null;
+            /** Events */
+            events: components["schemas"]["ClientTaskEvent"][];
+            /** Acts */
+            acts: components["schemas"]["ClientAct"][];
+        };
+        /** ClientTaskEvent */
+        ClientTaskEvent: {
+            /** At */
+            at: string;
+            /** Text */
+            text: string;
+        };
+        /** ClientTaskItem */
+        ClientTaskItem: {
+            /** Id */
+            id: number;
+            /** Number */
+            number: string;
+            /** Title */
+            title: string;
+            /** Address */
+            address: string;
+            /** Address Id */
+            address_id?: number | null;
+            /** Status */
+            status: string;
+            /** Status Label */
+            status_label: string;
+            /** Priority */
+            priority: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Planned Date */
+            planned_date?: string | null;
+            /** Completed At */
+            completed_at?: string | null;
+            /**
+             * From Cabinet
+             * @default false
+             */
+            from_cabinet: boolean;
+            /**
+             * Acts Count
+             * @default 0
+             */
+            acts_count: number;
+        };
+        /** ClientTaskPage */
+        ClientTaskPage: {
+            /** Items */
+            items: components["schemas"]["ClientTaskItem"][];
+            /** Total */
+            total: number;
+        };
+        /** ClientToken */
+        ClientToken: {
+            /** Access Token */
+            access_token: string;
+            /**
+             * Token Type
+             * @default bearer
+             */
+            token_type: string;
+            /** Expires In */
+            expires_in: number;
+            account: components["schemas"]["ClientMe"];
         };
         /**
          * CommentCreate
@@ -12737,6 +13268,461 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_client_accounts_api_counterparties__counterparty_id__accounts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                counterparty_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientAccountResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_client_account_api_counterparties__counterparty_id__accounts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                counterparty_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientAccountCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientAccountResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_client_account_api_counterparties__counterparty_id__accounts__account_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                counterparty_id: number;
+                account_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_client_account_api_counterparties__counterparty_id__accounts__account_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                counterparty_id: number;
+                account_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientAccountUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientAccountResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_login_api_client_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientLogin"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientToken"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_me_api_client_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientMe"];
+                };
+            };
+        };
+    };
+    client_change_password_api_client_auth_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientPasswordChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_objects_api_client_objects_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientObject"][];
+                };
+            };
+        };
+    };
+    client_tasks_api_client_tasks_get: {
+        parameters: {
+            query?: {
+                status?: "open" | "done" | "all";
+                address_id?: number | null;
+                search?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientTaskPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_create_task_api_client_tasks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientTaskCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientTaskDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_task_api_client_tasks__task_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientTaskDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_acts_api_client_acts_get: {
+        parameters: {
+            query?: {
+                kind?: ("task" | "summary") | null;
+                pending?: boolean;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientActPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_act_pdf_api_client_acts__act_id__pdf_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                act_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_sign_act_api_client_acts__act_id__sign_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                act_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_client_sign_act_api_client_acts__act_id__sign_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientAct"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_maintenance_api_client_maintenance_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientMaintenance"][];
                 };
             };
         };

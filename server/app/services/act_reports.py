@@ -38,7 +38,12 @@ PAYMENT_LABELS = {
     "contract": "По договору",
     "none": "Без оплаты",
 }
-SIGNED_VIA_LABELS = {"screen": "на экране", "paper": "на бумаге", "link": "по ссылке"}
+SIGNED_VIA_LABELS = {
+    "screen": "на экране",
+    "paper": "на бумаге",
+    "link": "по ссылке",
+    "cabinet": "в кабинете",
+}
 PAYMENT_ORDER = ("cash", "card", "transfer", "contract", "none")
 
 # Архив за месяц собирается в памяти — ограничиваем размер разумным месяцем.

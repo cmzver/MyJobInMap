@@ -476,7 +476,9 @@ def _signatures(
     customer_notes = []
     signature = content.get("signature")
     if signature:
-        how = "по ссылке" if signature.get("via") == "link" else "на экране"
+        how = {"link": "по ссылке", "cabinet": "в кабинете клиента"}.get(
+            signature.get("via"), "на экране"
+        )
         customer_notes.append(f"Подписано {how} {signature.get('signed_local', '')}")
     if content.get("refusal_reason"):
         customer_notes.append(f"От подписи отказался: {content['refusal_reason']}")

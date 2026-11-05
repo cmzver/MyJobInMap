@@ -140,6 +140,14 @@ class TaskModel(Base):
         nullable=True,
     )
     repeat_kind: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    # Заявку подал представитель контрагента из кабинета клиента
+    client_account_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey(
+            "client_accounts.id", ondelete="SET NULL", name="fk_tasks_client_account_id"
+        ),
+        nullable=True,
+    )
     repeat_of: Mapped[Optional["TaskModel"]] = relationship(
         "TaskModel", remote_side=[id], foreign_keys=[repeat_of_task_id]
     )

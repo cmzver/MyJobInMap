@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   counterpartiesApi,
+  type ClientAccountCreate,
+  type ClientAccountUpdate,
   type CounterpartyCreate,
   type CounterpartyUpdate,
 } from '@/api/counterparties'
@@ -13,6 +15,7 @@ export const counterpartyKeys = {
   addresses: (id: number) => [...counterpartyKeys.all, 'addresses', id] as const,
   preview: (id: number, month: string) => [...counterpartyKeys.all, 'preview', id, month] as const,
   acts: (id: number) => [...counterpartyKeys.all, 'acts', id] as const,
+  accounts: (id: number) => [...counterpartyKeys.all, 'accounts', id] as const,
 }
 
 export function useCounterparties(includeInactive = false, enabled = true) {
@@ -89,6 +92,33 @@ export function useCounterpartyMutations() {
         refresh()
         queryClient.invalidateQueries({ queryKey: actKeys.all })
       },
+    }),
+  }
+}
+
+export function useClientAccounts(counterpartyId: number) {
+  return useQuery({
+    queryKey: counterpartyKeys.accounts(counterpartyId),
+    queryFn: () => counterpartiesApi.accounts(counterpartyId),
+  })
+}
+
+export function useClientAccountMutations(counterpartyId: number) {
+  const client = useQueryClient()
+  const invalidate = () => client.invalidateQueries({ queryKey: counterpartyKeys.accounts(counterpartyId) })
+  return {
+    create: useMutation({
+      mutationFn: (body: ClientAccountCreate) => counterpartiesApi.createAccount(counterpartyId, body),
+      onSuccess: invalidate,
+    }),
+    update: useMutation({
+      mutationFn: ({ id, body }: { id: number; body: ClientAccountUpdate }) =>
+        counterpartiesApi.updateAccount(counterpartyId, id, body),
+      onSuccess: invalidate,
+    }),
+    remove: useMutation({
+      mutationFn: (id: number) => counterpartiesApi.deleteAccount(counterpartyId, id),
+      onSuccess: invalidate,
     }),
   }
 }

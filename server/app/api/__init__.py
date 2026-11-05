@@ -13,6 +13,7 @@ from app.api.admin import router as admin_router
 from app.api.analytics import router as analytics_router
 from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
+from app.api.client import router as client_router
 from app.api.counterparties import router as counterparties_router
 from app.api.devices import router as devices_router
 from app.api.maintenance import router as maintenance_router
@@ -34,6 +35,7 @@ api_router.include_router(auth_router)
 api_router.include_router(tasks_router)
 api_router.include_router(acts_router)
 api_router.include_router(counterparties_router)
+api_router.include_router(client_router)
 api_router.include_router(maintenance_router)
 api_router.include_router(public_acts_router)
 api_router.include_router(photos_router)

@@ -641,9 +641,11 @@ def sign_by_link(
     signer_name: str,
     ip: Optional[str] = None,
     device: Optional[str] = None,
+    via: str = "link",
 ) -> ActModel:
-    """Клиент подписал акт по ссылке: подпись, ФИО, время сервера, IP и
-    браузер. Хеш пересчитывается — в него входят подписи."""
+    """Клиент подписал акт по ссылке (или представитель — в кабинете, via =
+    "cabinet"): подпись, ФИО, время сервера, IP и браузер. Хеш
+    пересчитывается — в него входят подписи."""
     if act.status != PENDING:
         raise ActServiceError("Акт уже подписан", 409)
     name = " ".join(signer_name.split())[:200]
@@ -659,7 +661,7 @@ def sign_by_link(
     content = copy.deepcopy(act.content_snapshot or {})
     content.setdefault("customer", {})["name"] = name
     content["signature"] = {
-        "via": "link",
+        "via": via,
         "signed_local": now.astimezone(business_tz()).strftime("%d.%m.%Y %H:%M"),
     }
     act.content_snapshot = content
@@ -667,7 +669,7 @@ def sign_by_link(
     act.customer_signature_file = customer_file
     act.signature_strokes = _strokes(strokes)
     act.status = SIGNED
-    act.signed_via = "link"
+    act.signed_via = via
     act.signed_at = to_naive_utc(now)
     act.sign_ip = (ip or "")[:64] or None
     act.sign_device = (device or "")[:100] or None
@@ -678,7 +680,11 @@ def sign_by_link(
         db.add(
             CommentModel(
                 task_id=act.task_id,
-                text=f"Акт №{act.number} подписан клиентом по ссылке: {name}",
+                text=(
+                    f"Акт №{act.number} подписан в кабинете клиента: {name}"
+                    if via == "cabinet"
+                    else f"Акт №{act.number} подписан клиентом по ссылке: {name}"
+                ),
             )
         )
     db.commit()

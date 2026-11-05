@@ -8,8 +8,31 @@ export type CounterpartyCreate = components['schemas']['CounterpartyCreate']
 export type CounterpartyUpdate = components['schemas']['CounterpartyUpdate']
 export type CounterpartyAddress = components['schemas']['CounterpartyAddress']
 export type SummaryPreview = components['schemas']['SummaryPreview']
+export type ClientAccount = components['schemas']['ClientAccountResponse']
+export type ClientAccountCreate = components['schemas']['ClientAccountCreate']
+export type ClientAccountUpdate = components['schemas']['ClientAccountUpdate']
 
 export const counterpartiesApi = {
+  /** Входы в кабинет клиента представителей контрагента. */
+  async accounts(id: number): Promise<ClientAccount[]> {
+    const { data } = await apiClient.get<ClientAccount[]>(`/counterparties/${id}/accounts`)
+    return data
+  },
+
+  async createAccount(id: number, body: ClientAccountCreate): Promise<ClientAccount> {
+    const { data } = await apiClient.post<ClientAccount>(`/counterparties/${id}/accounts`, body)
+    return data
+  },
+
+  async updateAccount(id: number, accountId: number, body: ClientAccountUpdate): Promise<ClientAccount> {
+    const { data } = await apiClient.patch<ClientAccount>(`/counterparties/${id}/accounts/${accountId}`, body)
+    return data
+  },
+
+  async deleteAccount(id: number, accountId: number): Promise<void> {
+    await apiClient.delete(`/counterparties/${id}/accounts/${accountId}`)
+  },
+
   async list(includeInactive = false): Promise<Counterparty[]> {
     const { data } = await apiClient.get<Counterparty[]>('/counterparties', {
       params: { include_inactive: includeInactive },

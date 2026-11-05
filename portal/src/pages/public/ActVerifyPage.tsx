@@ -25,7 +25,7 @@ function Fact({ label, value }: { label: string; value?: string | null }) {
 
 function signedText(result: ActVerification): string | null {
   if (!result.signed_local) return null
-  const how = { screen: 'на экране', link: 'по ссылке', paper: 'на бумаге' }[result.signed_via ?? ''] ?? ''
+  const how = { screen: 'на экране', link: 'по ссылке', paper: 'на бумаге', cabinet: 'в кабинете клиента' }[result.signed_via ?? ''] ?? ''
   return `${result.signed_local}${how && `, ${how}`}`
 }
 
