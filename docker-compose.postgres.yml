@@ -96,6 +96,9 @@ services:
       # read-only docker-socket-proxy, без прямого доступа api к docker.sock.
       - DOCKER_PROXY_URL=http://docker-proxy:2375
       - TASK_QUEUE_ENABLED=true
+      # События WebSocket, лимитер входа и лидер фоновых заданий — через Redis:
+      # можно запускать несколько процессов API (uvicorn --workers N)
+      - REALTIME_REDIS_ENABLED=${REALTIME_REDIS_ENABLED:-true}
       # В контейнере pg_dump установлен — docker-exec режим не нужен; гасим
       # возможное значение из server/.env (оно для запуска на хосте).
       - BACKUP_PG_DOCKER_CONTAINER=
@@ -141,6 +144,9 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-fieldworker}:${POSTGRES_PASSWORD:-fieldworker_secret}@db:5432/${POSTGRES_DB:-fieldworker_db}
       - REDIS_URL=redis://redis:6379/0
       - TASK_QUEUE_ENABLED=true
+      # События WebSocket, лимитер входа и лидер фоновых заданий — через Redis:
+      # можно запускать несколько процессов API (uvicorn --workers N)
+      - REALTIME_REDIS_ENABLED=${REALTIME_REDIS_ENABLED:-true}
       - BACKUP_PG_DOCKER_CONTAINER=
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - RUN_MIGRATIONS_ON_STARTUP=false
