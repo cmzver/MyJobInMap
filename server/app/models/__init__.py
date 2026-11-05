@@ -73,6 +73,7 @@ from app.models.settings import (
     init_default_settings,
     set_setting,
 )
+from app.models.subscriber import TaskSubscriberModel
 from app.models.support import (
     SupportTicketCategory,
     SupportTicketCommentModel,
@@ -122,6 +123,7 @@ __all__ = [
     "ActModel",
     "ClientAccountModel",
     "CounterpartyModel",
+    "TaskSubscriberModel",
     "ActLineModel",
     "ActCounterModel",
     "ServiceCatalogItemModel",

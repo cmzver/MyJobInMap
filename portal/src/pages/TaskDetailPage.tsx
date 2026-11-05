@@ -33,6 +33,7 @@ import {
 import RepeatMarkModal from '@/components/tasks/RepeatMarkModal'
 import TaskOperationsSection from '@/components/tasks/TaskOperationsSection'
 import TaskPanelsBadge from '@/components/tasks/TaskPanelsBadge'
+import StatusLinkButton from '@/components/tasks/StatusLinkButton'
 import TaskActsSection from '@/components/acts/TaskActsSection'
 import { useUsers } from '@/hooks/useUsers'
 import { useComments, useAddComment } from '@/hooks/useComments'
@@ -462,6 +463,7 @@ export default function TaskDetailPage() {
                 <Send className="h-4 w-4 mr-2" />
                 В чат
               </Button>
+              <StatusLinkButton taskId={taskId} phone={task.customer_phone} />
               {canEdit && (
                 <Button variant="outline" size="sm" onClick={() => navigate(`/tasks/${taskId}/edit`)}>
                   <Edit className="h-4 w-4 mr-2" />

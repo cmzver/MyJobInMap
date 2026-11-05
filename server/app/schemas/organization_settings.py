@@ -61,11 +61,16 @@ class OrganizationSettingsBase(BaseModel):
     act_template: ActTemplate = Field(default_factory=ActTemplate)
     repeat_window_days: int = Field(30, ge=1, le=365)
     sla_escalations_enabled: bool = True
+    # Уведомления заявителю: Telegram по подписке и SMS через SMS.ru
+    notify_telegram_enabled: bool = True
+    sms_enabled: bool = False
 
 
 class OrganizationSettingsUpdate(OrganizationSettingsBase):
     # null — вернуть нормативы по умолчанию.
     sla_hours: Optional[SlaHours] = None
+    # Ключ SMS.ru только записывается: null — не менять, "" — удалить
+    sms_api_id: Optional[str] = Field(None, max_length=100)
 
 
 class OrganizationSettingsResponse(OrganizationSettingsBase):
@@ -74,3 +79,6 @@ class OrganizationSettingsResponse(OrganizationSettingsBase):
     sla_hours: SlaHours
     sla_hours_customized: bool
     has_act_logo: bool = False
+    sms_configured: bool = False
+    # Бот для подписки задан в окружении сервера
+    telegram_available: bool = False

@@ -219,6 +219,14 @@ async def dispatch_event(kind, payload):
         )
 
         await broadcast_created_notification_async(payload["user_id"], payload["event"])
+    elif kind == "telegram_send":
+        from app.services.applicant_notify import send_telegram
+
+        await send_telegram(**payload)
+    elif kind == "sms_send":
+        from app.services.applicant_notify import send_sms
+
+        await send_sms(**payload)
     elif kind in {"push_send", "web_push_send"}:
         result = await asyncio.to_thread(_resolve(kind), **payload)
         raise_retryable_delivery_failure(result)

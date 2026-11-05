@@ -15,6 +15,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    false,
     true,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -127,6 +128,15 @@ class OrganizationSettingsModel(Base):
     sla_escalations_enabled: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=true(), nullable=False
     )
+    # Уведомления заявителю: Telegram (по подписке со страницы статуса) и SMS
+    # на телефон заявки через SMS.ru (платно — выключено по умолчанию).
+    notify_telegram_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=true(), nullable=False
+    )
+    sms_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    sms_api_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=utcnow, onupdate=utcnow, nullable=True

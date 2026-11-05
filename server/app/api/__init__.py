@@ -20,6 +20,8 @@ from app.api.maintenance import router as maintenance_router
 from app.api.notifications import router as notifications_router
 from app.api.photos import router as photos_router
 from app.api.public_acts import router as public_acts_router
+from app.api.public_tasks import router as public_tasks_router
+from app.api.public_tasks import staff_router as task_status_link_router
 from app.api.push import router as push_router
 from app.api.support import router as support_router
 from app.api.tasks import router as tasks_router
@@ -38,6 +40,8 @@ api_router.include_router(counterparties_router)
 api_router.include_router(client_router)
 api_router.include_router(maintenance_router)
 api_router.include_router(public_acts_router)
+api_router.include_router(public_tasks_router)
+api_router.include_router(task_status_link_router)
 api_router.include_router(photos_router)
 api_router.include_router(devices_router)
 api_router.include_router(push_router)

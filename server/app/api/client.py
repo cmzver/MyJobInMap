@@ -56,6 +56,7 @@ from app.schemas.client import (
     ClientTaskPage,
     ClientToken,
 )
+from app.services import applicant_notify
 from app.services import client_cabinet as cabinet
 from app.services.act_pdf import render_act_pdf
 from app.services.act_service import (
@@ -384,6 +385,7 @@ def client_create_task(
     db.flush()
     task.task_number = f"Z-{task.id:05d}"
     stage_task_event(db, task, "task_created", None, title=task.title)
+    applicant_notify.notify(db, task, "created")
     counterparty = db.get(CounterpartyModel, account.counterparty_id)
     for manager in org_managers(db, account.organization_id):
         create_notification(

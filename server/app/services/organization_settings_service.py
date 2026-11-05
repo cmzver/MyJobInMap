@@ -37,7 +37,7 @@ LOGO_FORMATS = frozenset({"PNG", "JPEG", "MPO", "WEBP", "GIF", "BMP", "TIFF", "A
 _PLAIN_FIELDS = tuple(
     name
     for name in OrganizationSettingsUpdate.model_fields
-    if name not in ("sla_hours", "act_template")
+    if name not in ("sla_hours", "act_template", "sms_api_id")
 )
 
 
@@ -72,6 +72,10 @@ def get_organization_settings(
         sla_hours=SlaHours(**{p: hours[p] for p in SlaHours.model_fields}),
         sla_hours_customized=bool(row and row.sla_hours),
         has_act_logo=bool(row and row.act_logo_file),
+        sms_configured=bool(row and row.sms_api_id),
+        telegram_available=bool(
+            settings.TELEGRAM_BOT_TOKEN and settings.TELEGRAM_BOT_USERNAME
+        ),
     )
 
 
@@ -99,6 +103,8 @@ def update_organization_settings(
     row.act_number_prefix = row.act_number_prefix or DEFAULT_ACT_NUMBER_PREFIX
     row.act_template = data.act_template.model_dump()
     row.sla_hours = data.sla_hours.model_dump() if data.sla_hours else None
+    if data.sms_api_id is not None:
+        row.sms_api_id = data.sms_api_id.strip() or None
     row.updated_by_id = user.id if user else None
     db.commit()
     return get_organization_settings(db, organization_id)

@@ -10,6 +10,7 @@ Telegram-бот диспетчер заявок для FieldWorker.
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -394,8 +395,76 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.message.reply_text(reply)
 
 
+# Подписка заявителя: ссылка со страницы статуса t.me/<бот>?start=<токен>
+_SUBSCRIBE_CODE = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
+
+
+def _bot_secret() -> str:
+    """Чем бот подтверждает себя серверу: хеш собственного токена."""
+    return hashlib.sha256(TELEGRAM_BOT_TOKEN.encode()).hexdigest()
+
+
+def _public_post(path: str, payload: dict) -> requests.Response:
+    return requests.post(
+        f"{API_BASE_URL}/api/public/tasks/{path}",
+        json=payload,
+        headers={"X-Bot-Secret": _bot_secret()},
+        timeout=10,
+    )
+
+
+async def subscribe_applicant(update: Update, code: str) -> None:
+    chat_id = str(update.effective_chat.id)
+    try:
+        response = await asyncio.to_thread(
+            _public_post, "telegram/subscribe", {"code": code, "chat_id": chat_id}
+        )
+    except requests.exceptions.RequestException as exc:
+        logger.error(f"Подписка на заявку: сервер недоступен: {exc}")
+        await update.message.reply_text("Сервер недоступен, попробуйте позже.")
+        return
+    if response.status_code == 404:
+        await update.message.reply_text("Ссылка устарела или неверна.")
+        return
+    if response.status_code == 409:
+        await update.message.reply_text("Уведомления в Telegram отключены организацией.")
+        return
+    if not response.ok:
+        logger.error(f"Подписка на заявку: HTTP {response.status_code}")
+        await update.message.reply_text("Не удалось подписаться, попробуйте позже.")
+        return
+    data = response.json()
+    text = (
+        f"Готово! Сообщу, когда изменится статус заявки {data['number']}.\n"
+        f"Сейчас: {data['status_label']}."
+    )
+    if data.get("url"):
+        text += f"\n{data['url']}"
+    text += "\n\nОтписаться: /stop"
+    await update.message.reply_text(text, disable_web_page_preview=True)
+
+
+async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Отписаться от уведомлений обо всех заявках."""
+    try:
+        response = await asyncio.to_thread(
+            _public_post,
+            "telegram/unsubscribe",
+            {"chat_id": str(update.effective_chat.id)},
+        )
+        ok = response.ok
+    except requests.exceptions.RequestException:
+        ok = False
+    await update.message.reply_text(
+        "Вы отписаны от уведомлений о заявках." if ok else "Не удалось отписаться, попробуйте позже."
+    )
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик команды /start."""
+    """Обработчик команды /start (с кодом — подписка заявителя на заявку)."""
+    if context.args and _SUBSCRIBE_CODE.match(context.args[0]):
+        await subscribe_applicant(update, context.args[0])
+        return
     await update.message.reply_text(
         "👋 Привет! Я бот-диспетчер заявок.\n\n"
         "📝 <b>Поддерживаемые форматы:</b>\n\n"
@@ -482,6 +551,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("status", status_command))
+    application.add_handler(CommandHandler("stop", stop_command))
     
     # Регистрируем обработчик сообщений (текстовые, не команды)
     application.add_handler(

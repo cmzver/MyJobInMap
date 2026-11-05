@@ -17,6 +17,7 @@ import DashboardLayout from '@/layouts/DashboardLayout'
 // Страницы без входа: акт по ссылке и проверка подлинности распечатки
 const PublicActPage = lazy(() => import('@/pages/public/PublicActPage'))
 const ActVerifyPage = lazy(() => import('@/pages/public/ActVerifyPage'))
+const PublicTaskPage = lazy(() => import('@/pages/public/PublicTaskPage'))
 // Кабинет клиента (представители УК/ТСЖ) — своя сессия, отдельно от входа сотрудников
 const CabinetApp = lazy(() => import('@/pages/cabinet/CabinetApp'))
 
@@ -128,6 +129,14 @@ function App() {
             element={
               <Suspense fallback={<PageLoader />}>
                 <PublicActPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/t/:token"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <PublicTaskPage />
               </Suspense>
             }
           />
