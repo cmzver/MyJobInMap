@@ -75,6 +75,18 @@ def telegram_link(token: str) -> Optional[str]:
     return f"https://t.me/{settings.TELEGRAM_BOT_USERNAME.lstrip('@')}?start={token}"
 
 
+def telegram_enabled(db: Session, task: TaskModel) -> bool:
+    """Подписка доступна: бот настроен на сервере и организация не выключила."""
+    if not telegram_link("x"):
+        return False
+    org = (
+        db.get(OrganizationSettingsModel, task.organization_id)
+        if task.organization_id
+        else None
+    )
+    return org is None or org.notify_telegram_enabled
+
+
 def bot_secret() -> Optional[str]:
     """Секрет, которым бот подтверждает подписку: хеш токена бота."""
     token = settings.TELEGRAM_BOT_TOKEN

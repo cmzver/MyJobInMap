@@ -126,7 +126,35 @@ def post(
         kind=kind,
     )
     db.add(row)
+    if user_id is None and delta < 0:
+        _notify_low_stock(db, material, delta)
     return row
+
+
+def _notify_low_stock(db: Session, material: MaterialModel, delta: Decimal) -> None:
+    """Склад опустился ниже минимума — уведомить диспетчеров один раз, на пороге."""
+    if material.min_quantity is None or material.organization_id is None:
+        return
+    db.refresh(material, ["warehouse_quantity"])
+    after = Decimal(material.warehouse_quantity or 0)
+    before = after - delta
+    minimum = Decimal(material.min_quantity)
+    if not (before >= minimum > after):
+        return
+    from app.services.notification_service import create_notification
+    from app.services.role_utils import org_managers
+
+    for manager in org_managers(db, material.organization_id):
+        create_notification(
+            db,
+            manager.id,
+            f"Пора закупать: {material.name}",
+            f"На складе {after.normalize()} {material.unit}, минимум"
+            f" {minimum.normalize()}",
+            notification_type="system",
+            commit=False,
+            broadcast=False,
+        )
 
 
 def balance(db: Session, material: MaterialModel, user_id: Optional[int]) -> Decimal:

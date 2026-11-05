@@ -127,6 +127,7 @@ def _require_bot(secret: Optional[str]) -> None:
 
 
 def _telegram_enabled(db: Session, task: TaskModel) -> bool:
+    """Организация не выключила Telegram (настроен ли бот — решает telegram_link)."""
     from app.models import OrganizationSettingsModel
 
     org = (

@@ -23,6 +23,7 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.responses import Response
+from pydantic import BaseModel
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
@@ -356,6 +357,25 @@ def client_task(
         events=_events(db, task),
         acts=[_client_act(act, numbers) for act in acts],
     )
+
+
+class ClientTelegramLink(BaseModel):
+    url: str
+
+
+@router.post("/tasks/{task_id}/telegram", response_model=ClientTelegramLink)
+def client_task_telegram(
+    task_id: int,
+    account: ClientAccountModel = Depends(get_current_client),
+    db: Session = Depends(get_db),
+):
+    """Ссылка на бота: подписаться на смены статуса этой заявки в Telegram."""
+    task = cabinet.own_task(db, account, task_id)
+    if not applicant_notify.telegram_enabled(db, task):
+        raise HTTPException(status_code=409, detail="Уведомления в Telegram недоступны")
+    token = applicant_notify.ensure_token(db, task)
+    db.commit()
+    return ClientTelegramLink(url=applicant_notify.telegram_link(token))
 
 
 @router.post("/tasks", response_model=ClientTaskDetail, status_code=201)

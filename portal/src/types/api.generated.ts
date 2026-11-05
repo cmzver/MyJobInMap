@@ -1448,6 +1448,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/client/tasks/{task_id}/telegram": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Client Task Telegram
+         * @description Ссылка на бота: подписаться на смены статуса этой заявки в Telegram.
+         */
+        post: operations["client_task_telegram_api_client_tasks__task_id__telegram_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/client/acts": {
         parameters: {
             query?: never;
@@ -6688,6 +6708,11 @@ export interface components {
             items: components["schemas"]["ClientTaskItem"][];
             /** Total */
             total: number;
+        };
+        /** ClientTelegramLink */
+        ClientTelegramLink: {
+            /** Url */
+            url: string;
         };
         /** ClientToken */
         ClientToken: {
@@ -13782,6 +13807,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClientTaskDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    client_task_telegram_api_client_tasks__task_id__telegram_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientTelegramLink"];
                 };
             };
             /** @description Validation Error */

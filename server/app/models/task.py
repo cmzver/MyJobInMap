@@ -48,6 +48,7 @@ class TaskModel(Base):
         Index("ix_tasks_org_address_key", "organization_id", "address_key"),
         Index("ix_tasks_repeat_of_task_id", "repeat_of_task_id"),
         UniqueConstraint("public_token", name="uq_tasks_public_token"),
+        Index("ix_tasks_client_account_id", "client_account_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)

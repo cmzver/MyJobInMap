@@ -1,9 +1,12 @@
 import { Link, useParams } from 'react-router-dom'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Send } from 'lucide-react'
 import { cabinetApi } from '@/api/cabinet'
 import { formatDateOnly, formatDateTime } from '@/utils/dateFormat'
+import Button from '@/components/Button'
 import Card from '@/components/Card'
+import { showApiError } from '@/utils/apiError'
 import QueryStatePanel from '@/components/QueryStatePanel'
 import { ActRow, EmptyLine, TaskStatusBadge } from './CabinetShared'
 
@@ -13,6 +16,34 @@ function Fact({ label, value }: { label: string; value?: string | null }) {
     <div className="min-w-0">
       <dt className="text-xs text-gray-500 dark:text-gray-400">{label}</dt>
       <dd className="mt-0.5 break-words text-sm text-gray-900 dark:text-white">{value}</dd>
+    </div>
+  )
+}
+
+/** Подписка на смены статуса в Telegram: ссылка на бота открывается в новой вкладке. */
+function TelegramButton({ taskId }: { taskId: number }) {
+  const [loading, setLoading] = useState(false)
+  const open = async () => {
+    // Окно открываем до запроса, иначе браузер сочтёт его всплывающим
+    const target = window.open('', '_blank')
+    setLoading(true)
+    try {
+      const url = await cabinetApi.telegramLink(taskId)
+      if (target) target.location.href = url
+      else window.location.href = url
+    } catch (error) {
+      target?.close()
+      showApiError(error, 'Уведомления в Telegram недоступны')
+    } finally {
+      setLoading(false)
+    }
+  }
+  return (
+    <div>
+      <Button size="sm" variant="secondary" isLoading={loading} onClick={open}>
+        <Send className="mr-1.5 h-4 w-4" />
+        Уведомлять в Telegram
+      </Button>
     </div>
   )
 }
@@ -40,6 +71,7 @@ export default function CabinetTaskPage() {
         </div>
         <TaskStatusBadge status={data.status} label={data.status_label} />
       </div>
+      {(data.status === 'NEW' || data.status === 'IN_PROGRESS') && <TelegramButton taskId={data.id} />}
 
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="min-w-0 space-y-4">

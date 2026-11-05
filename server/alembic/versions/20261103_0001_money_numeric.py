@@ -38,7 +38,15 @@ def _alter(table: str, column: str, new_type, old_type, using: str) -> None:
 
 
 def upgrade():
+    postgres = op.get_bind().dialect.name == "postgresql"
     for table, column in _COLUMNS:
+        if not postgres:
+            # SQLite при смене типа значения не трогает — округляем явно. В
+            # PostgreSQL round(double, int) нет: там округляет USING ниже.
+            op.execute(
+                f"UPDATE {table} SET {column} = round({column}, 2)"
+                f" WHERE {column} IS NOT NULL"
+            )
         _alter(
             table,
             column,
