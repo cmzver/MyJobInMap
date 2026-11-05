@@ -11,9 +11,17 @@ HTTP-метрики (latency, статус-коды, RPS) предоставля
 становятся no-op заглушками, поэтому инструментирование сервисов никогда не
 роняет приложение. Инструментируйте через функции ``record_*`` — это держит
 импорты в местах вызова лёгкими и единообразными.
+
+Несколько процессов API (uvicorn --workers N): scripts/start-api.sh задаёт
+``PROMETHEUS_MULTIPROC_DIR`` — каждый процесс пишет значения в файлы, а
+``/metrics`` (инструментатор) суммирует их по всем процессам. Gauge поэтому
+объявляются с ``multiprocess_mode``.
 """
 
+import glob
 import logging
+import os
+import re
 
 logger = logging.getLogger("metrics")
 
@@ -84,6 +92,8 @@ queue_jobs_processed_total = Counter(
 websocket_connections = Gauge(
     "fieldworker_websocket_connections",
     "Активные WebSocket-подключения",
+    # Сумма по живым процессам: у каждого процесса свои соединения
+    multiprocess_mode="livesum",
 )
 
 
@@ -115,3 +125,61 @@ def record_queue_processed(job: str, result: str) -> None:
 
 def set_websocket_connections(value: int) -> None:
     websocket_connections.set(value)
+
+
+# ------------------------------------------------------------- multiprocess
+
+_GAUGE_FILE = re.compile(r"gauge_live\w+_(\d+)\.db$")
+
+
+def _multiproc_dir():
+    return os.environ.get("PROMETHEUS_MULTIPROC_DIR") if _ENABLED else None
+
+
+def _pid_alive(pid: int) -> bool:
+    if os.name == "nt":
+        # На Windows os.kill(pid, 0) не проверяет, а ЗАВЕРШАЕТ процесс
+        return True
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except (PermissionError, OSError):
+        return True  # процесс есть, но не наш — считаем живым
+    return True
+
+
+def cleanup_dead_processes() -> int:
+    """Убрать «живые» gauge процессов, упавших без штатной остановки.
+
+    Иначе livesum продолжал бы учитывать их соединения. Вызывается при старте
+    каждого процесса API; возвращает число убранных процессов.
+    """
+    path = _multiproc_dir()
+    if not path:
+        return 0
+    from prometheus_client import multiprocess
+
+    dead = set()
+    for name in glob.glob(os.path.join(path, "gauge_live*_*.db")):
+        match = _GAUGE_FILE.search(name)
+        if match and int(match.group(1)) != os.getpid():
+            pid = int(match.group(1))
+            if not _pid_alive(pid):
+                dead.add(pid)
+    for pid in dead:
+        multiprocess.mark_process_dead(pid, path)
+    return len(dead)
+
+
+def mark_this_process_dead() -> None:
+    """Штатная остановка процесса API — его gauge больше не учитываются."""
+    path = _multiproc_dir()
+    if not path:
+        return
+    from prometheus_client import multiprocess
+
+    try:
+        multiprocess.mark_process_dead(os.getpid(), path)
+    except OSError as exc:  # остановку не роняем: в худшем случае уберёт cleanup
+        logger.warning("Метрики: не удалось убрать gauge процесса (%s)", exc)

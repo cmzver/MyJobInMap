@@ -20,14 +20,16 @@ from app.config import settings
 from app.models import UserModel, UserRole
 from app.models.base import get_db
 from app.models.chat import ConversationMemberModel
-from app.services.chat_service import mark_as_read
+from app.services import redis_realtime
+from app.services.chat_service import MEMBERS_CACHE, mark_as_read
 from app.services.websocket_manager import ws_manager
 
 router = APIRouter(tags=["WebSocket"])
 
 # Кэш состава чатов для typing-индикатора: conv_id -> (monotonic_ts, [user_id]).
-# Короткий TTL — typing не требует строгой свежести, зато не бьём в БД на каждый
-# keystroke и не блокируем event loop.
+# Не бьём в БД на каждый keystroke и не блокируем event loop. При изменении
+# состава кэш сбрасывается во всех процессах (chat_service → invalidate),
+# TTL — страховка, если сброс не дошёл (Redis недоступен).
 _member_cache: dict[int, tuple[float, list[int]]] = {}
 _MEMBER_CACHE_TTL = 30.0
 
@@ -46,6 +48,17 @@ def _get_conversation_member_ids_cached(db: Session, conv_id: int) -> list[int]:
     ]
     _member_cache[conv_id] = (now, member_ids)
     return member_ids
+
+
+def _invalidate_members(conv_id: str | None) -> None:
+    """Состав чата изменился (в любом процессе) — забыть закэшированный."""
+    if conv_id is None:
+        _member_cache.clear()
+    else:
+        _member_cache.pop(int(conv_id), None)
+
+
+redis_realtime.register_invalidator(MEMBERS_CACHE, _invalidate_members)
 
 
 logger = logging.getLogger(__name__)

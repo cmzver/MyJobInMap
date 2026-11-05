@@ -39,7 +39,11 @@ from app.schemas.chat import (
     ReplyPreview,
     TaskPreview,
 )
+from app.services import redis_realtime
 from app.utils import build_user_avatar_url
+
+# Кэш состава чатов в памяти процессов (индикатор «печатает», api/websocket.py)
+MEMBERS_CACHE = "chat_members"
 
 logger = logging.getLogger(__name__)
 
@@ -483,6 +487,7 @@ def add_members(
             )
 
     db.commit()
+    redis_realtime.invalidate(MEMBERS_CACHE, conv_id)
     return _get_members_info(db, conv_id)
 
 
@@ -529,6 +534,7 @@ def remove_member(
         f"{'вышел(а) из чата' if target_user_id == removed_by else f'удалил(а) {user.full_name or user.username if user else target_user_id} из чата'}",
     )
     db.commit()
+    redis_realtime.invalidate(MEMBERS_CACHE, conv_id)
 
 
 def update_member_role(
@@ -704,6 +710,7 @@ def get_or_create_task_conversation(
                 )
             )
             db.commit()
+            redis_realtime.invalidate(MEMBERS_CACHE, existing.id)
         return existing
 
     return create_conversation(

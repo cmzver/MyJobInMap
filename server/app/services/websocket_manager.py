@@ -190,6 +190,12 @@ class ConnectionManager:
                 [int(uid) for uid in bus_message.get("user_ids") or []],
                 bus_message.get("exclude_user_id"),
             )
+        elif op == "invalidate":
+            from app.services import redis_realtime
+
+            redis_realtime.apply_invalidation(
+                str(bus_message.get("cache")), bus_message.get("key")
+            )
         else:
             logger.warning("Шина WebSocket: неизвестная операция %r", op)
 

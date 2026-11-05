@@ -124,6 +124,57 @@ async def _subscribe_loop(handler: Handler) -> None:
                     pass
 
 
+# ------------------------------------------------------- сброс кэшей процессов
+
+# Кэши в памяти процесса (бан-лист ip_guard, состав чатов) регистрируют здесь
+# функцию сброса; invalidate() вызывает её в этом процессе и рассылает по шине
+# остальным — изменение видно всем процессам сразу, а не по истечении TTL.
+Invalidator = Callable[[Optional[str]], None]
+_invalidators: dict[str, Invalidator] = {}
+
+
+def register_invalidator(name: str, fn: Invalidator) -> None:
+    _invalidators[name] = fn
+
+
+def apply_invalidation(name: str, key: Optional[str] = None) -> None:
+    fn = _invalidators.get(name)
+    if fn is None:
+        return
+    try:
+        fn(key)
+    except Exception:  # noqa: BLE001 — сброс кэша не должен ронять запрос
+        logger.exception("Сброс кэша %s не удался", name)
+
+
+def invalidate(name: str, key: Any = None) -> None:
+    """Сбросить кэш ``name`` (целиком или по ``key``) во всех процессах.
+
+    Можно вызывать и из потока (sync-маршруты), и из event loop.
+    """
+    key = None if key is None else str(key)
+    apply_invalidation(name, key)
+    if not enabled():
+        return
+    message = {"op": "invalidate", "cache": name, "key": key}
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop is not None:
+        # В event loop синхронный клиент заблокировал бы все соединения
+        loop.create_task(publish(message))
+        return
+    try:
+        sync_client().publish(CHANNEL, json.dumps(message))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Сброс кэша %s: Redis недоступен (%s) — другие процессы обновятся по TTL",
+            name,
+            type(exc).__name__,
+        )
+
+
 def start_subscriber(handler: Handler) -> bool:
     global _subscriber
     if not enabled():
