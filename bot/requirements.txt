@@ -1,3 +1,6 @@
-python-telegram-bot>=20.0
-requests>=2.28.0
-python-dotenv>=1.0.0
+# Прямые зависимости бота. Образ ставит requirements.lock (все транзитивные
+# версии с хешами). После правки этого файла пересоберите lock:
+#   uv pip compile requirements.txt --python-version 3.11 --python-platform x86_64-manylinux_2_28 --generate-hashes --no-header -o requirements.lock
+python-telegram-bot==22.8
+requests==2.34.2
+python-dotenv==1.2.4

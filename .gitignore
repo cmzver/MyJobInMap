@@ -120,7 +120,7 @@ chat_results.txt
 .github/*
 !.github/workflows/
 .github/workflows/*
-!.github/workflows/ci-android.yml
+!.github/workflows/*.yml
 .obsidian/
 **/.obsidian/
 

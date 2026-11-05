@@ -3,9 +3,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Копируем requirements и устанавливаем зависимости
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Ставим lock: все транзитивные версии закреплены и сверяются по хешам
+COPY requirements.txt requirements.lock ./
+RUN pip install --no-cache-dir --require-hashes -r requirements.lock
 
 # Копируем код
 COPY . .
