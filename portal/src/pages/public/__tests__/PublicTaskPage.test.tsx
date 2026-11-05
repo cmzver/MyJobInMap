@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import apiClient from '@/api/client'
 import PublicTaskPage from '../PublicTaskPage'
+import { ROUTER_FUTURE } from '@/config/routerFuture'
 
 const task = {
   number: 'Z-00042',
@@ -35,7 +36,7 @@ function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/t/abcdefghijklmnopqrstuvwx']}>
+      <MemoryRouter future={ROUTER_FUTURE} initialEntries={['/t/abcdefghijklmnopqrstuvwx']}>
         <Routes>
           <Route path="/t/:token" element={<PublicTaskPage />} />
         </Routes>

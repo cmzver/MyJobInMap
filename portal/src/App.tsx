@@ -13,6 +13,7 @@ import ErrorBoundary from '@/components/ErrorBoundary'
 import Spinner from '@/components/Spinner'
 import LoginPage from '@/pages/LoginPage'
 import DashboardLayout from '@/layouts/DashboardLayout'
+import { ROUTER_FUTURE } from '@/config/routerFuture'
 
 // Страницы без входа: акт по ссылке и проверка подлинности распечатки
 const PublicActPage = lazy(() => import('@/pages/public/PublicActPage'))
@@ -101,7 +102,7 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <BrowserRouter basename={APP_BASENAME}>
+      <BrowserRouter basename={APP_BASENAME} future={ROUTER_FUTURE}>
         <Toaster
           position="top-right"
           toastOptions={{
