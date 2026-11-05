@@ -105,6 +105,8 @@ services:
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - RUN_MIGRATIONS_ON_STARTUP=false
       - PORT=8001
+      # Процессов API (uvicorn). >1 — только вместе с REALTIME_REDIS_ENABLED
+      - WEB_CONCURRENCY=${WEB_CONCURRENCY:-1}
       - LOG_FORMAT=json
       - BACKUP_SCHEDULER_ENABLED=${BACKUP_SCHEDULER_ENABLED:-false}
     ports:

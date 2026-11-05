@@ -138,6 +138,11 @@ async def lifespan(app: FastAPI):
     if redis_realtime.start_subscriber(ws_manager.handle_bus_message):
         redis_realtime.start_leader_election()
         logger.info("   🔁 Realtime via Redis: %s", redis_realtime.PROCESS_ID)
+    from app.services import metrics
+
+    if os.environ.get("PROMETHEUS_MULTIPROC_DIR"):
+        removed = metrics.cleanup_dead_processes()
+        logger.info("   📊 Metrics: multiprocess mode (убрано упавших: %s)", removed)
 
     logger.info("✅ Server ready!")
     logger.info(f"   📡 API docs: http://localhost:{settings.PORT}/docs")
@@ -153,6 +158,7 @@ async def lifespan(app: FastAPI):
     from app.services import redis_realtime
 
     await redis_realtime.stop()
+    metrics.mark_this_process_dead()
     await stop_periodic_jobs()
     stop_scheduler()
     engine.dispose()

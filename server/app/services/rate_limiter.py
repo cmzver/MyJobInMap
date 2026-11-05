@@ -155,19 +155,34 @@ class SharedRateLimiter(RateLimiter):
     """
 
     KEY_PREFIX = "fieldworker:ratelimit"
+    # После сбоя Redis не обращаться к нему столько секунд: иначе каждый
+    # запрос ждал бы таймаут соединения, прежде чем перейти на память.
+    REDIS_BACKOFF_SECONDS = 5.0
 
     def __init__(self, name: str, max_attempts: int = 5, window_seconds: int = 60):
         super().__init__(max_attempts=max_attempts, window_seconds=window_seconds)
         self.name = name
+        self._redis_down_until = 0.0
 
     def _key(self, ip_address: str) -> str:
         return f"{self.KEY_PREFIX}:{self.name}:{ip_address}"
 
-    @staticmethod
-    def _redis():
+    def _redis(self):
         from app.services import redis_realtime
 
-        return redis_realtime.sync_client() if redis_realtime.enabled() else None
+        if not redis_realtime.enabled():
+            return None
+        if time.monotonic() < self._redis_down_until:
+            return None
+        return redis_realtime.sync_client()
+
+    def _redis_failed(self, exc: Exception) -> None:
+        self._redis_down_until = time.monotonic() + self.REDIS_BACKOFF_SECONDS
+        logger.warning(
+            "Лимитер %s: Redis недоступен (%s), считаем в памяти",
+            self.name,
+            type(exc).__name__,
+        )
 
     def is_allowed(self, ip_address: str) -> Tuple[bool, int]:
         redis = self._redis()
@@ -183,9 +198,7 @@ class SharedRateLimiter(RateLimiter):
             pipe.expire(key, self.window_seconds)
             _, count, _, _ = pipe.execute()
         except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "Лимитер %s: Redis недоступен (%s)", self.name, type(exc).__name__
-            )
+            self._redis_failed(exc)
             return super().is_allowed(ip_address)
         allowed = count < self.max_attempts
         return allowed, (self.max_attempts - count - 1) if allowed else 0
@@ -210,6 +223,86 @@ class SharedRateLimiter(RateLimiter):
                 redis.delete(self._key(ip_address))
             except Exception:  # noqa: BLE001
                 pass
+
+
+class SharedWindowCounter(SharedRateLimiter):
+    """Общий счётчик запросов для DDoS-защиты — дёшево на каждый запрос.
+
+    В отличие от SharedRateLimiter не хранит отметку каждого запроса: счётчики
+    двух соседних окон (INCR) и оценка скользящего окна
+    ``предыдущее × (доля, ещё попадающая в окно) + текущее`` — один запрос
+    к Redis и O(1) памяти на IP при любом потоке.
+    """
+
+    KEY_PREFIX = "fieldworker:reqcount"
+
+    def _bucket_key(self, ip_address: str, bucket: int) -> str:
+        return f"{self.KEY_PREFIX}:{self.name}:{ip_address}:{bucket}"
+
+    def is_allowed(self, ip_address: str) -> Tuple[bool, int]:
+        redis = self._redis()
+        if redis is None:
+            return RateLimiter.is_allowed(self, ip_address)
+        now = time.time()
+        bucket, offset = divmod(now, self.window_seconds)
+        bucket = int(bucket)
+        current_key = self._bucket_key(ip_address, bucket)
+        try:
+            pipe = redis.pipeline()
+            pipe.incr(current_key)
+            pipe.expire(current_key, self.window_seconds * 2)
+            pipe.get(self._bucket_key(ip_address, bucket - 1))
+            current, _, previous = pipe.execute()
+        except Exception as exc:  # noqa: BLE001
+            self._redis_failed(exc)
+            return RateLimiter.is_allowed(self, ip_address)
+        weight = 1.0 - offset / self.window_seconds
+        # Текущий запрос уже учтён в current — сравниваем «до него»
+        before = int(previous or 0) * weight + int(current) - 1
+        allowed = before < self.max_attempts
+        return allowed, max(0, int(self.max_attempts - before - 1)) if allowed else 0
+
+    def get_retry_after(self, ip_address: str) -> int:
+        return RateLimiter.get_retry_after(self, ip_address)
+
+    def reset(self, ip_address: str) -> None:
+        RateLimiter.reset(self, ip_address)
+        self._delete_keys(f"{self.KEY_PREFIX}:{self.name}:{ip_address}:*")
+
+    def clear_all(self) -> None:
+        super().clear_all()
+        self._delete_keys(f"{self.KEY_PREFIX}:{self.name}:*")
+
+    def _delete_keys(self, pattern: str) -> None:
+        redis = self._redis()
+        if redis is None:
+            return
+        try:
+            keys = list(redis.scan_iter(match=pattern, count=500))
+            if keys:
+                redis.delete(*keys)
+        except Exception as exc:  # noqa: BLE001
+            self._redis_failed(exc)
+
+    def get_stats(self) -> Dict[str, int]:
+        redis = self._redis()
+        if redis is None:
+            return super().get_stats()
+        bucket = int(time.time() // self.window_seconds)
+        try:
+            # Ключи текущего окна = IP, от которых сейчас идут запросы.
+            # Обход ограничен: это цифра для админки, не учёт.
+            tracked = 0
+            for _ in redis.scan_iter(
+                match=f"{self.KEY_PREFIX}:{self.name}:*:{bucket}", count=500
+            ):
+                tracked += 1
+                if tracked >= self.MAX_TRACKED_IPS:
+                    break
+        except Exception as exc:  # noqa: BLE001
+            self._redis_failed(exc)
+            return super().get_stats()
+        return {"tracked_ips": tracked, "active_windows": tracked}
 
 
 # Global rate limiter instance for login endpoint

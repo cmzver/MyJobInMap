@@ -31,7 +31,8 @@ from app.models.security import (
     IPSecurityEventModel,
 )
 from app.models.settings import get_setting
-from app.services.rate_limiter import RateLimiter
+from app.services import redis_realtime
+from app.services.rate_limiter import SharedWindowCounter
 
 logger = logging.getLogger("security.ip_guard")
 
@@ -118,7 +119,9 @@ class IPGuard:
         self._cfg: Dict[str, object] = dict(DEFAULTS)
         self._cache_at = 0.0
         self._events_pruned_at = 0.0
-        self._ddos = RateLimiter(
+        # Счётчик общий для процессов API (Redis), иначе порог был бы ×N
+        self._ddos = SharedWindowCounter(
+            "ddos",
             max_attempts=int(DEFAULTS["ddos_max_requests"]),
             window_seconds=int(DEFAULTS["ddos_window_seconds"]),
         )
@@ -223,7 +226,9 @@ class IPGuard:
             self._allow = allow
             self._cache_at = now
             if sig != self._ddos_signature:
-                self._ddos = RateLimiter(max_attempts=sig[0], window_seconds=sig[1])
+                self._ddos = SharedWindowCounter(
+                    "ddos", max_attempts=sig[0], window_seconds=sig[1]
+                )
                 self._ddos_signature = sig
 
     def _flush_hits(self, db) -> None:
@@ -367,6 +372,7 @@ class IPGuard:
 
         with self._lock:
             self._blocked[ip] = None if expires is None else expires.timestamp()
+        self._changed()
         return row
 
     def unblock_ip(self, db, ip: str, by: str = "system") -> bool:
@@ -378,6 +384,7 @@ class IPGuard:
         db.commit()
         with self._lock:
             self._blocked.pop(ip, None)
+        self._changed()
         return True
 
     def add_to_allowlist(
@@ -402,6 +409,7 @@ class IPGuard:
         with self._lock:
             self._allow.add(ip)
             self._blocked.pop(ip, None)
+        self._changed()
         return row
 
     def remove_from_allowlist(self, db, ip: str) -> bool:
@@ -414,7 +422,16 @@ class IPGuard:
         db.commit()
         with self._lock:
             self._allow.discard(ip)
+        self._changed()
         return True
+
+    def _changed(self) -> None:
+        """Бан-лист изменился — остальные процессы перечитают его сразу."""
+        redis_realtime.invalidate(CACHE_NAME)
+
+    def invalidate_cache(self, _key: Optional[str] = None) -> None:
+        """Перечитать бан-лист из БД при следующем запросе."""
+        self._cache_at = 0.0
 
     # ------------------------------------------------------------------ login
     def record_login_failure(self, db, ip: str, username: str) -> None:
@@ -546,4 +563,6 @@ class IPGuard:
 
 
 # Глобальный singleton, используется middleware и эндпоинтами
+CACHE_NAME = "ip_guard"
 ip_guard = IPGuard()
+redis_realtime.register_invalidator(CACHE_NAME, ip_guard.invalidate_cache)
