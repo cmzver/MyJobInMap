@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { mutationToast, showApiError, showApiSuccess } from '@/utils/apiError'
+import { mutationToast, showApiError, showApiSuccess, getApiErrorMessage } from '@/utils/apiError'
 import { logError } from '@/utils/logger'
 import { formatDateTime, getSla } from '@/utils/dateFormat'
 import { 
@@ -91,12 +91,12 @@ function CollapsibleCard({ title, meta, defaultOpen = false, children }: Collaps
   return (
     <details className="group rounded-xl" open={defaultOpen}>
       <summary className="list-none [&::-webkit-details-marker]:hidden">
-        <div className="bg-white dark:bg-gray-800 rounded-xl group-open:rounded-b-none transition-colors border border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between cursor-pointer">
+        <div className="flex min-h-10 cursor-pointer items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-1 transition-colors group-open:rounded-b-none dark:border-gray-700 dark:bg-gray-800">
           <div className="flex items-center gap-2">
             <ChevronDown className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180" />
-            <span className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">{title}</span>
+            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">{title}</span>
           </div>
-          {meta && <div className="text-sm text-gray-500 dark:text-gray-400">{meta}</div>}
+          {meta != null && meta !== '' && <div className="text-xs text-gray-500 dark:text-gray-400">{meta}</div>}
         </div>
       </summary>
       <div className="bg-white dark:bg-gray-800 rounded-b-xl transition-colors border border-t-0 border-gray-200 dark:border-gray-700 p-4">
@@ -340,7 +340,7 @@ export default function TaskDetailPage() {
           <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
           <h3 className="text-lg font-medium text-red-800 dark:text-red-400 mb-1">Ошибка загрузки</h3>
           <p className="text-red-600 dark:text-red-500 text-sm">
-            {error instanceof Error ? error.message : 'Заявка не найдена'}
+            {getApiErrorMessage(error, 'Заявка не найдена')}
           </p>
         </div>
       </div>
@@ -454,7 +454,7 @@ export default function TaskDetailPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 sm:max-w-[55%] sm:justify-end">
               <Button variant="outline" size="sm" onClick={() => navigate(`/chat?task=${taskId}`)}>
                 <MessageSquare className="h-4 w-4 mr-2" />
                 Обсудить
@@ -486,7 +486,7 @@ export default function TaskDetailPage() {
           </div>
 
           {/* Факты: ровная сетка без внутренних линий */}
-          <div className="mt-5 grid gap-x-8 gap-y-5 border-t border-gray-100 pt-5 dark:border-gray-800 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-gray-100 pt-5 dark:border-gray-800 sm:gap-x-8 sm:gap-y-5 lg:grid-cols-5">
             <div className="min-w-0">
               <p className="eyebrow">Исполнитель</p>
               <div className="mt-1.5 text-sm font-medium text-gray-900 dark:text-white">

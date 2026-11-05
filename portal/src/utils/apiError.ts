@@ -36,7 +36,11 @@ export function getApiErrorMessage(
     if (error.response?.status === 413) return 'Файл слишком большой'
     if (error.response?.status === 429) return 'Слишком много запросов, попробуйте позже'
     if (error.response?.status === 500) return 'Внутренняя ошибка сервера'
-    if (error.message) return error.message
+    if (error.response && error.response.status >= 500) return 'Сервер временно недоступен, попробуйте позже'
+    // Нет ответа: сеть, таймаут, сервер не отвечает
+    if (!error.response) return 'Нет связи с сервером. Проверьте подключение'
+    // Остальные коды: английское «Request failed with status code N» не показываем
+    return fallback
   }
 
   if (error instanceof Error) {

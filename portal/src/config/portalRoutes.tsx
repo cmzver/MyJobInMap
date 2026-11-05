@@ -65,6 +65,9 @@ export interface PortalRouteDefinition {
   redirectTo?: string
   roles?: AccessRole[]
   excludeOrgAdmin?: boolean
+  // Данные раздела живут внутри организации (API отвечает 400 без неё):
+  // пользователю без организации (суперадмин) раздел не показываем
+  requiresOrganization?: boolean
   navigation?: RouteNavigation
 }
 
@@ -84,6 +87,7 @@ export const navigationSections: ReadonlyArray<{
 
 export const portalRoutes: PortalRouteDefinition[] = [
   { id: 'maintenance', path: 'maintenance', element: <MaintenancePage />, roles: MANAGER_ROLES,
+    requiresOrganization: true,
     navigation: { section: 'management', label: 'Плановое обслуживание', icon: Calendar } },
   { id: 'materials', path: 'materials', element: <MaterialsPage />, roles: ALL_ROLES,
     navigation: { section: 'management', label: 'Материалы', icon: ClipboardList } },
@@ -174,9 +178,10 @@ export const portalRoutes: PortalRouteDefinition[] = [
     path: 'counterparties',
     element: <CounterpartiesPage />,
     roles: MANAGER_ROLES,
+    requiresOrganization: true,
     navigation: { section: 'management', label: 'Контрагенты', icon: Building2 },
   },
-  { id: 'counterparty-detail', path: 'counterparties/:id', element: <CounterpartyDetailPage />, roles: MANAGER_ROLES },
+  { id: 'counterparty-detail', path: 'counterparties/:id', element: <CounterpartyDetailPage />, roles: MANAGER_ROLES, requiresOrganization: true },
   {
     id: 'organization-settings',
     path: 'organization',

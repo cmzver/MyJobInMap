@@ -35,10 +35,12 @@ function ProtectedRoute({
   children,
   allowedRoles,
   excludeOrgAdmin = false,
+  requiresOrganization = false,
 }: {
   children: React.ReactNode
   allowedRoles?: AccessRole[]
   excludeOrgAdmin?: boolean
+  requiresOrganization?: boolean
 }) {
   const { isAuthenticated, user } = useAuthStore()
   const location = useLocation()
@@ -56,6 +58,10 @@ function ProtectedRoute({
   }
 
   if (excludeOrgAdmin && user?.role && isOrgAdmin(user.role, user.organizationId)) {
+    return <Navigate to={getHomePathForRole(user.role, user.baseAccess)} replace />
+  }
+
+  if (requiresOrganization && user?.role && user.organizationId == null) {
     return <Navigate to={getHomePathForRole(user.role, user.baseAccess)} replace />
   }
 
@@ -174,6 +180,7 @@ function App() {
                             <ProtectedRoute
                               allowedRoles={route.roles}
                               excludeOrgAdmin={route.excludeOrgAdmin}
+                              requiresOrganization={route.requiresOrganization}
                             >
                               {route.redirectTo ? (
                                 <Navigate to={route.redirectTo} replace />

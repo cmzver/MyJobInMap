@@ -14,10 +14,11 @@ import CabinetTaskPage from './CabinetTaskPage'
 import CabinetObjectsPage from './CabinetObjectsPage'
 import CabinetActsPage from './CabinetActsPage'
 import CabinetMaintenancePage from './CabinetMaintenancePage'
+import { shouldRetryQuery } from '@/utils/queryRetry'
 
 // Свой кэш запросов: данные кабинета не смешиваются с кэшем сотрудника
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true, staleTime: 30_000 } },
+  defaultOptions: { queries: { retry: shouldRetryQuery, refetchOnWindowFocus: true, staleTime: 30_000 } },
 })
 
 const NAV = [
