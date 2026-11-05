@@ -73,7 +73,7 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     
     // Счётчик тапов для входа в режим разработчика
-    var versionTapCount by remember { mutableStateOf(0) }
+    var versionTapCount by remember { mutableIntStateOf(0) }
     
     // Получаем версию приложения
     val appVersionInfo = remember {

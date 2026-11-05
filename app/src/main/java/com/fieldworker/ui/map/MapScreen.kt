@@ -181,7 +181,7 @@ fun MapScreen(
     var photoDraft by rememberPhotoDraft()
     var selectedGroup by remember { mutableStateOf<TaskMarkerGroup?>(null) }
     // Счётчик явных запросов "перейти к моему местоположению"
-    var centerOnLocationTick by remember { mutableStateOf(0) }
+    var centerOnLocationTick by remember { mutableIntStateOf(0) }
     val savedMapPosition = remember { viewModel.getSavedMapPosition() }
 
     // Снимок сохранён в очередь — закрываем диалог (при ошибке он остаётся)

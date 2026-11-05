@@ -122,6 +122,8 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.splashscreen)
     implementation(libs.androidx.security.crypto)
+    // Поворот фото по EXIF: системный android.media.ExifInterface ошибается на части устройств
+    implementation(libs.androidx.exifinterface)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     
     // Compose

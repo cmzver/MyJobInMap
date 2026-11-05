@@ -220,18 +220,20 @@ fun ChatScreen(
         }
     }
 
-    // Для sticky date separator
-    val firstVisibleItemIndex = listState.firstVisibleItemIndex
-    val stickyDate = remember(firstVisibleItemIndex, timelineItems) {
-        timelineItems
-            .drop(firstVisibleItemIndex)
-            .firstNotNullOfOrNull { item ->
-                when (item) {
-                    is ChatTimelineItem.DateSeparator -> item.label
-                    is ChatTimelineItem.MessageEntry -> item.message.createdAt.format(systemMessageFormatter)
-                    is ChatTimelineItem.UnreadSeparator -> null
+    // Для sticky date separator. derivedStateOf: прокрутка меняет индекс на
+    // каждом кадре, а перерисовка экрана нужна, только когда сменилась дата.
+    val stickyDate by remember(timelineItems) {
+        derivedStateOf {
+            timelineItems
+                .drop(listState.firstVisibleItemIndex)
+                .firstNotNullOfOrNull { item ->
+                    when (item) {
+                        is ChatTimelineItem.DateSeparator -> item.label
+                        is ChatTimelineItem.MessageEntry -> item.message.createdAt.format(systemMessageFormatter)
+                        is ChatTimelineItem.UnreadSeparator -> null
+                    }
                 }
-            }
+        }
     }
     val imageAttachments = remember(messages) {
         messages
@@ -255,7 +257,7 @@ fun ChatScreen(
     var showManagementDialog by remember { mutableStateOf(false) }
     var showMessageSearch by remember { mutableStateOf(false) }
     var messageSearchQuery by remember { mutableStateOf("") }
-    var searchResultIndex by remember { mutableStateOf(0) }
+    var searchResultIndex by remember { mutableIntStateOf(0) }
     var previewAttachmentId by remember { mutableStateOf<Long?>(null) }
     var highlightedMessageId by remember { mutableStateOf<Long?>(null) }
     val pinnedMessages = remember(messages, pinnedMessageIds) {
@@ -538,7 +540,7 @@ fun ChatScreen(
                 )
             },
             floatingActionButton = {
-                val showFab = listState.firstVisibleItemIndex > 8
+                val showFab by remember { derivedStateOf { listState.firstVisibleItemIndex > 8 } }
                 AnimatedVisibility(
                     visible = showFab,
                     enter = fadeIn() + scaleIn(initialScale = 0.82f),
@@ -1474,7 +1476,7 @@ private fun MessageBubble(
         return
     }
 
-    var swipeProgress by remember(message.id) { mutableStateOf(0f) }
+    var swipeProgress by remember(message.id) { mutableFloatStateOf(0f) }
     val highlightAlpha by animateFloatAsState(
         targetValue = if (isHighlighted) 0.45f else 0f,
         animationSpec = spring(dampingRatio = 0.9f, stiffness = 560f),
@@ -2178,10 +2180,10 @@ private fun ImagePreviewDialog(
         authToken = authToken,
         attachment = attachment,
     )
-    var scale by remember(attachment.id) { mutableStateOf(1f) }
-    var offsetX by remember(attachment.id) { mutableStateOf(0f) }
-    var offsetY by remember(attachment.id) { mutableStateOf(0f) }
-    var horizontalSwipeDistance by remember(attachment.id) { mutableStateOf(0f) }
+    var scale by remember(attachment.id) { mutableFloatStateOf(1f) }
+    var offsetX by remember(attachment.id) { mutableFloatStateOf(0f) }
+    var offsetY by remember(attachment.id) { mutableFloatStateOf(0f) }
+    var horizontalSwipeDistance by remember(attachment.id) { mutableFloatStateOf(0f) }
 
     Dialog(
         onDismissRequest = onDismiss,
