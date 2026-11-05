@@ -81,6 +81,24 @@ code {
   background: #555;
 }
 
+/* Тёмная тема: полосы прокрутки и стандартные контролы (select, date,
+   календарь) тоже тёмные — иначе светлые пятна на тёмном фоне */
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark ::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
 /* Shared design tokens */
 @layer components {
   /* Мелкий приглушённый лейбл-надзаголовок над значением */
