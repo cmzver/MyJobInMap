@@ -24,8 +24,12 @@
 - **Индексы.** EXPLAIN/p95 по tenant/status/assignee/planned_date, составные
   индексы (в т.ч. под `updated_at` — инкрементальная синхронизация уже работает
   через `updated_since` + `/api/tasks/ids`).
-- **Realtime перед масштабированием.** Redis Pub/Sub для WebSocket, общий
-  rate limiter и один владелец scheduler — до увеличения числа API-процессов.
+- **Несколько процессов API.** Шина WebSocket, лимитер входа и лидер фоновых
+  заданий уже в Redis (`REALTIME_REDIS_ENABLED`, включено в compose). Перед
+  `uvicorn --workers N` осталось: метрики Prometheus в multiprocess-режиме
+  (сейчас каждый процесс считает своё), DDoS-лимитер ip_guard по-прежнему в
+  памяти процесса (порог фактически ×N), кэш участников чата в websocket.py —
+  на процесс (TTL, некритично).
 - **Android: domain → data.** Интерфейс `TasksRepository` в domain вместо
   зависимости use case от конкретного репозитория.
 - **Группы пользователей.** Оценить отказ от глобальных dispatcher/worker;

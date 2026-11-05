@@ -185,6 +185,13 @@ class Settings(BaseSettings):
         default="redis://localhost:6379/0",
         description="URL брокера Redis для очереди задач ARQ",
     )
+    # Несколько процессов API: события WebSocket — через Redis Pub/Sub, общий
+    # лимитер входа, фоновые задания — у одного процесса-лидера. Выключено —
+    # всё в памяти процесса (один процесс, разработка, тесты).
+    REALTIME_REDIS_ENABLED: bool = Field(
+        default=False,
+        description="Шина WebSocket, лимитер входа и лидерство через Redis",
+    )
 
     # === Периодические задания (напоминания о сроках, дайджест) ===
     PERIODIC_JOBS_ENABLED: bool = Field(

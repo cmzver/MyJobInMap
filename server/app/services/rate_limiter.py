@@ -9,9 +9,13 @@ Configuration via .env or environment variables:
     RATE_LIMIT_WINDOW_SECONDS=60   # Window duration in seconds
 """
 
+import logging
 import threading
 import time
+import uuid
 from typing import Dict, List, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 class RateLimiter:
@@ -143,19 +147,85 @@ class RateLimiter:
             }
 
 
+class SharedRateLimiter(RateLimiter):
+    """Лимитер, общий для всех процессов API, — окно попыток в Redis.
+
+    Включается REALTIME_REDIS_ENABLED. Без Redis или при его сбое считает в
+    памяти процесса (как RateLimiter): вход не должен падать из-за Redis.
+    """
+
+    KEY_PREFIX = "fieldworker:ratelimit"
+
+    def __init__(self, name: str, max_attempts: int = 5, window_seconds: int = 60):
+        super().__init__(max_attempts=max_attempts, window_seconds=window_seconds)
+        self.name = name
+
+    def _key(self, ip_address: str) -> str:
+        return f"{self.KEY_PREFIX}:{self.name}:{ip_address}"
+
+    @staticmethod
+    def _redis():
+        from app.services import redis_realtime
+
+        return redis_realtime.sync_client() if redis_realtime.enabled() else None
+
+    def is_allowed(self, ip_address: str) -> Tuple[bool, int]:
+        redis = self._redis()
+        if redis is None:
+            return super().is_allowed(ip_address)
+        now = time.time()
+        key = self._key(ip_address)
+        try:
+            pipe = redis.pipeline()
+            pipe.zremrangebyscore(key, "-inf", now - self.window_seconds)
+            pipe.zcard(key)
+            pipe.zadd(key, {f"{now:.6f}:{uuid.uuid4().hex[:8]}": now})
+            pipe.expire(key, self.window_seconds)
+            _, count, _, _ = pipe.execute()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Лимитер %s: Redis недоступен (%s)", self.name, type(exc).__name__
+            )
+            return super().is_allowed(ip_address)
+        allowed = count < self.max_attempts
+        return allowed, (self.max_attempts - count - 1) if allowed else 0
+
+    def get_retry_after(self, ip_address: str) -> int:
+        redis = self._redis()
+        if redis is None:
+            return super().get_retry_after(ip_address)
+        try:
+            oldest = redis.zrange(self._key(ip_address), 0, 0, withscores=True)
+        except Exception:  # noqa: BLE001
+            return super().get_retry_after(ip_address)
+        if not oldest:
+            return 0
+        return int(max(0, oldest[0][1] + self.window_seconds - time.time()))
+
+    def reset(self, ip_address: str) -> None:
+        super().reset(ip_address)
+        redis = self._redis()
+        if redis is not None:
+            try:
+                redis.delete(self._key(ip_address))
+            except Exception:  # noqa: BLE001
+                pass
+
+
 # Global rate limiter instance for login endpoint
 # Configured via RATE_LIMIT_MAX_ATTEMPTS / RATE_LIMIT_WINDOW_SECONDS in .env
 def _create_login_rate_limiter() -> RateLimiter:
     try:
         from app.config import settings
 
-        return RateLimiter(
+        return SharedRateLimiter(
+            "login",
             max_attempts=settings.RATE_LIMIT_MAX_ATTEMPTS,
             window_seconds=settings.RATE_LIMIT_WINDOW_SECONDS,
         )
     except Exception:
         # Fallback defaults if config not available (e.g. isolated tests)
-        return RateLimiter(max_attempts=5, window_seconds=60)
+        return SharedRateLimiter("login", max_attempts=5, window_seconds=60)
 
 
 login_rate_limiter = _create_login_rate_limiter()

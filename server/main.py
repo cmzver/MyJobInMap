@@ -131,6 +131,13 @@ async def lifespan(app: FastAPI):
 
     if settings.OUTBOX_ENABLED:
         start_outbox()
+    # Несколько процессов API: шина WebSocket и лидер фоновых заданий в Redis
+    from app.services import redis_realtime
+    from app.services.websocket_manager import ws_manager
+
+    if redis_realtime.start_subscriber(ws_manager.handle_bus_message):
+        redis_realtime.start_leader_election()
+        logger.info("   🔁 Realtime via Redis: %s", redis_realtime.PROCESS_ID)
 
     logger.info("✅ Server ready!")
     logger.info(f"   📡 API docs: http://localhost:{settings.PORT}/docs")
@@ -143,6 +150,9 @@ async def lifespan(app: FastAPI):
     from app.services.outbox_service import stop_outbox
 
     await stop_outbox()
+    from app.services import redis_realtime
+
+    await redis_realtime.stop()
     await stop_periodic_jobs()
     stop_scheduler()
     engine.dispose()

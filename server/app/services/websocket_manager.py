@@ -115,13 +115,88 @@ class ConnectionManager:
                 self.active_connections_count,
             )
 
+    # --- Публичные методы: при шине Redis событие уходит всем процессам API,
+    # каждый доставляет его своим соединениям (handle_bus_message). Без шины
+    # или при сбое Redis — доставка только своим соединениям, как раньше.
+
     async def send_to_user(self, user_id: int, message: dict) -> int:
-        """
-        Отправить сообщение конкретному пользователю (все его вкладки).
+        """Отправить сообщение пользователю (все его вкладки во всех процессах).
 
         Returns:
-            Количество успешно отправленных сообщений.
+            Число отправок своим соединениям (0 — ушло через шину).
         """
+        if await self._publish({"op": "user", "user_id": user_id, "message": message}):
+            return 0
+        return await self._local_send_to_user(user_id, message)
+
+    async def broadcast(
+        self,
+        message: dict,
+        exclude_user_id: Optional[int] = None,
+        organization_id: Optional[int] = None,
+        global_event: bool = False,
+    ) -> int:
+        """Отправить сообщение подключённым клиентам организации (или всем)."""
+        bus_message = {
+            "op": "broadcast",
+            "message": message,
+            "exclude_user_id": exclude_user_id,
+            "organization_id": organization_id,
+            "global_event": global_event,
+        }
+        if await self._publish(bus_message):
+            return 0
+        return await self._local_broadcast(
+            message, exclude_user_id, organization_id, global_event
+        )
+
+    async def broadcast_to_roles(
+        self, message: dict, user_ids: list[int], exclude_user_id: Optional[int] = None
+    ) -> int:
+        """Отправить сообщение списку пользователей."""
+        bus_message = {
+            "op": "users",
+            "message": message,
+            "user_ids": list(user_ids),
+            "exclude_user_id": exclude_user_id,
+        }
+        if await self._publish(bus_message):
+            return 0
+        return await self._local_broadcast_to_roles(message, user_ids, exclude_user_id)
+
+    async def _publish(self, bus_message: dict) -> bool:
+        from app.services import redis_realtime
+
+        if not redis_realtime.enabled():
+            return False
+        return await redis_realtime.publish(bus_message)
+
+    async def handle_bus_message(self, bus_message: dict) -> None:
+        """Событие из шины Redis — доставить своим соединениям."""
+        op = bus_message.get("op")
+        message = bus_message.get("message") or {}
+        if op == "user":
+            await self._local_send_to_user(int(bus_message["user_id"]), message)
+        elif op == "broadcast":
+            await self._local_broadcast(
+                message,
+                bus_message.get("exclude_user_id"),
+                bus_message.get("organization_id"),
+                bool(bus_message.get("global_event")),
+            )
+        elif op == "users":
+            await self._local_broadcast_to_roles(
+                message,
+                [int(uid) for uid in bus_message.get("user_ids") or []],
+                bus_message.get("exclude_user_id"),
+            )
+        else:
+            logger.warning("Шина WebSocket: неизвестная операция %r", op)
+
+    # --- Доставка своим соединениям
+
+    async def _local_send_to_user(self, user_id: int, message: dict) -> int:
+        """Отправить сообщение пользователю — его соединениям в этом процессе."""
         sent = 0
         connections = self._connections.get(user_id, set()).copy()
         stale: list[WebSocket] = []
@@ -139,7 +214,7 @@ class ConnectionManager:
 
         return sent
 
-    async def broadcast(
+    async def _local_broadcast(
         self,
         message: dict,
         exclude_user_id: Optional[int] = None,
@@ -147,7 +222,7 @@ class ConnectionManager:
         global_event: bool = False,
     ) -> int:
         """
-        Отправить сообщение всем подключённым клиентам.
+        Отправить сообщение подключённым к этому процессу клиентам.
 
         Args:
             message: JSON-сериализуемый dict
@@ -186,11 +261,11 @@ class ConnectionManager:
 
         return sent
 
-    async def broadcast_to_roles(
+    async def _local_broadcast_to_roles(
         self, message: dict, user_ids: list[int], exclude_user_id: Optional[int] = None
     ) -> int:
         """
-        Отправить сообщение списку пользователей.
+        Отправить сообщение списку пользователей (соединения этого процесса).
 
         Args:
             message: JSON-сериализуемый dict
@@ -201,7 +276,7 @@ class ConnectionManager:
         for uid in user_ids:
             if uid == exclude_user_id:
                 continue
-            sent += await self.send_to_user(uid, message)
+            sent += await self._local_send_to_user(uid, message)
         return sent
 
     async def send_to_conversation(
@@ -221,11 +296,14 @@ class ConnectionManager:
         return await self.broadcast_to_roles(message, member_user_ids, exclude_user_id)
 
     def get_status(self) -> dict:
-        """Информация о состоянии менеджера."""
+        """Информация о состоянии менеджера (соединения этого процесса)."""
+        from app.services import redis_realtime
+
         return {
             "active_connections": self.active_connections_count,
             "unique_users": self.active_users_count,
             "connected_user_ids": list(self._connections.keys()),
+            "redis": redis_realtime.status(),
         }
 
 

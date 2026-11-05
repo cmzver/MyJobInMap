@@ -99,7 +99,14 @@ def _run_backup() -> Optional[str]:
     """
     Выполнить бэкап БД + ротацию старых файлов.
     Возвращает имя созданного файла или None при ошибке.
+
+    При нескольких процессах API бэкап делает только лидер.
     """
+    from app.services import redis_realtime
+
+    if not redis_realtime.is_leader():
+        logger.info("Scheduled backup skipped: этот процесс не лидер")
+        return None
     backup_dir = settings.BASE_DIR / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
 
