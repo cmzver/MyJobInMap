@@ -31,6 +31,7 @@ LEADER_KEY = "fieldworker:leader"
 LEADER_TTL_SECONDS = 60
 LEADER_RENEW_SECONDS = 20
 _RECONNECT_DELAY_SECONDS = 2
+_POLL_SECONDS = 1.0
 
 # Уникален для процесса: так в логах и в ключе лидера видно, кто есть кто
 PROCESS_ID = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:6]}"
@@ -54,7 +55,11 @@ def async_client():
         import redis.asyncio as aioredis
 
         _async_client = aioredis.from_url(
-            settings.REDIS_URL, decode_responses=True, socket_timeout=5
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_timeout=5,
+            # PING в простаивающей подписке — мёртвое соединение видно сразу
+            health_check_interval=30,
         )
     return _async_client
 
@@ -101,8 +106,14 @@ async def _subscribe_loop(handler: Handler) -> None:
             pubsub = async_client().pubsub()
             await pubsub.subscribe(CHANNEL)
             logger.info("Шина WebSocket: подписка на %s (%s)", CHANNEL, PROCESS_ID)
-            async for item in pubsub.listen():
-                if item.get("type") != "message":
+            while True:
+                # Ждём с собственным таймаутом: listen() читал бы с таймаутом
+                # сокета клиента (5 с) и при тишине в канале падал бы в
+                # TimeoutError → переподключение, теряя события в паузах.
+                item = await pubsub.get_message(
+                    ignore_subscribe_messages=True, timeout=_POLL_SECONDS
+                )
+                if item is None or item.get("type") != "message":
                     continue
                 try:
                     await handler(json.loads(item["data"]))
