@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from app.models import CommentModel, TaskModel, TaskStatus, UserModel, get_db
 from app.models.address import AddressModel
 from app.schemas import TaskCreate, TaskUpdate
-from app.services import metrics
+from app.services import applicant_notify, metrics
 from app.services.address_parser import (
     ParsedAddress,
     building_key,
@@ -403,6 +403,7 @@ class TaskService:
         # Генерация номера
         task.task_number = task_number if task_number else f"Z-{task.id:05d}"
         stage_task_event(self.db, task, "task_created", user, title=task.title)
+        applicant_notify.notify(self.db, task, "created")
 
         return task
 
@@ -454,6 +455,8 @@ class TaskService:
                 task.completed_at = datetime.now(timezone.utc)
             elif task_data.status != "DONE":
                 task.completed_at = None
+            if old_status != task.status:
+                applicant_notify.notify(self.db, task, task.status)
         if task_data.priority is not None:
             task.priority = task_data.priority
 
@@ -633,6 +636,8 @@ class TaskService:
             old_status=old_status,
             new_status=new_status,
         )
+        if old_status != new_status:
+            applicant_notify.notify(self.db, task, new_status)
         return status_notifications
 
     def resolve_remotely(
@@ -795,9 +800,12 @@ class TaskService:
         Добавляет комментарий об изменении.
         """
         task = self.get_by_id(task_id)
+        changed = task.planned_date != planned_date
         task.planned_date = planned_date
         apply_due_at(self.db, task)
         task.updated_at = datetime.now(timezone.utc)
+        if changed:
+            applicant_notify.notify(self.db, task, "planned")
 
         # Комментарий
         author = user.full_name if user else "Сотрудник"

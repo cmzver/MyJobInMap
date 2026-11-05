@@ -130,6 +130,14 @@ class Settings(BaseSettings):
         ),
     )
 
+    # === Уведомления заявителю в Telegram ===
+    # Тот же бот, что принимает заявки из чатов: заявитель подписывается
+    # ссылкой t.me/<бот>?start=<токен>, сервер шлёт ему смены статуса.
+    TELEGRAM_BOT_TOKEN: Optional[str] = Field(default=None)
+    TELEGRAM_BOT_USERNAME: Optional[str] = Field(
+        default=None, description="Имя бота без @ — для ссылки подписки"
+    )
+
     # === Защита от перебора / DDoS (IP guard) ===
     # За реверс-прокси (Caddy/nginx) реальный IP клиента приходит в заголовке
     # X-Forwarded-For / X-Real-IP, а request.client.host — это адрес прокси.

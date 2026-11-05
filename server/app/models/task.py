@@ -18,6 +18,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -46,6 +47,7 @@ class TaskModel(Base):
         Index("ix_tasks_org_status_due", "organization_id", "status", "due_at"),
         Index("ix_tasks_org_address_key", "organization_id", "address_key"),
         Index("ix_tasks_repeat_of_task_id", "repeat_of_task_id"),
+        UniqueConstraint("public_token", name="uq_tasks_public_token"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -140,6 +142,9 @@ class TaskModel(Base):
         nullable=True,
     )
     repeat_kind: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    # Ссылка заявителю на страницу статуса /portal/t/<токен>. Хранится как
+    # есть: ту же ссылку шлют SMS/Telegram и копирует диспетчер.
+    public_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     # Заявку подал представитель контрагента из кабинета клиента
     client_account_id: Mapped[Optional[int]] = mapped_column(
         Integer,

@@ -1655,6 +1655,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/public/tasks/telegram/subscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Telegram Subscribe */
+        post: operations["telegram_subscribe_api_public_tasks_telegram_subscribe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/tasks/telegram/unsubscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Telegram Unsubscribe
+         * @description Отписать чат от всех заявок (команда /stop в боте).
+         */
+        post: operations["telegram_unsubscribe_api_public_tasks_telegram_unsubscribe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/tasks/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public Task */
+        get: operations["public_task_api_public_tasks__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tasks/{task_id}/status-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Task Status Link
+         * @description Ссылка заявителю на статус заявки: одна и та же при повторных запросах.
+         */
+        post: operations["task_status_link_api_tasks__task_id__status_link_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tasks/{task_id}/photos": {
         parameters: {
             query?: never;
@@ -8145,6 +8219,16 @@ export interface components {
              * @default true
              */
             sla_escalations_enabled: boolean;
+            /**
+             * Notify Telegram Enabled
+             * @default true
+             */
+            notify_telegram_enabled: boolean;
+            /**
+             * Sms Enabled
+             * @default false
+             */
+            sms_enabled: boolean;
             /** Organization Id */
             organization_id: number;
             sla_hours: components["schemas"]["SlaHours"];
@@ -8155,6 +8239,16 @@ export interface components {
              * @default false
              */
             has_act_logo: boolean;
+            /**
+             * Sms Configured
+             * @default false
+             */
+            sms_configured: boolean;
+            /**
+             * Telegram Available
+             * @default false
+             */
+            telegram_available: boolean;
         };
         /** OrganizationSettingsUpdate */
         OrganizationSettingsUpdate: {
@@ -8198,7 +8292,19 @@ export interface components {
              * @default true
              */
             sla_escalations_enabled: boolean;
+            /**
+             * Notify Telegram Enabled
+             * @default true
+             */
+            notify_telegram_enabled: boolean;
+            /**
+             * Sms Enabled
+             * @default false
+             */
+            sms_enabled: boolean;
             sla_hours?: components["schemas"]["SlaHours"] | null;
+            /** Sms Api Id */
+            sms_api_id?: string | null;
         };
         /** OrganizationUpdate */
         OrganizationUpdate: {
@@ -8456,6 +8562,51 @@ export interface components {
             can_sign: boolean;
             /** Expires At */
             expires_at: string;
+        };
+        /** PublicTaskAct */
+        PublicTaskAct: {
+            /** Number */
+            number: string;
+            /** Status */
+            status: string;
+            /** Created At */
+            created_at?: string | null;
+        };
+        /** PublicTaskEvent */
+        PublicTaskEvent: {
+            /** At */
+            at: string;
+            /** Text */
+            text: string;
+        };
+        /** PublicTaskView */
+        PublicTaskView: {
+            /** Number */
+            number: string;
+            /** Title */
+            title: string;
+            /** Address */
+            address: string;
+            /** Status */
+            status: string;
+            /** Status Label */
+            status_label: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Planned Date */
+            planned_date?: string | null;
+            /** Completed At */
+            completed_at?: string | null;
+            /** Events */
+            events: components["schemas"]["PublicTaskEvent"][];
+            /** Acts */
+            acts: components["schemas"]["PublicTaskAct"][];
+            /** Organization */
+            organization?: string | null;
+            /** Organization Phone */
+            organization_phone?: string | null;
+            /** Telegram Url */
+            telegram_url?: string | null;
         };
         /** PushKeys */
         PushKeys: {
@@ -9880,6 +10031,20 @@ export interface components {
              */
             CANCELLED: number;
         };
+        /** TaskStatusLink */
+        TaskStatusLink: {
+            /** Token */
+            token: string;
+            /** Url */
+            url: string;
+            /** Telegram Url */
+            telegram_url?: string | null;
+            /**
+             * Subscribers
+             * @default 0
+             */
+            subscribers: number;
+        };
         /** TaskStatusUpdate */
         TaskStatusUpdate: {
             /** Expected Version */
@@ -10092,6 +10257,27 @@ export interface components {
             title: string;
             /** Last Seen */
             last_seen?: string | null;
+        };
+        /** TelegramSubscribe */
+        TelegramSubscribe: {
+            /** Code */
+            code: string;
+            /** Chat Id */
+            chat_id: string;
+        };
+        /** TelegramSubscribed */
+        TelegramSubscribed: {
+            /** Number */
+            number: string;
+            /** Status Label */
+            status_label: string;
+            /** Url */
+            url?: string | null;
+        };
+        /** TelegramUnsubscribe */
+        TelegramUnsubscribe: {
+            /** Chat Id */
+            chat_id: string;
         };
         /**
          * Token
@@ -13942,6 +14128,136 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicActView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    telegram_subscribe_api_public_tasks_telegram_subscribe_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-bot-secret"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TelegramSubscribe"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TelegramSubscribed"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    telegram_unsubscribe_api_public_tasks_telegram_unsubscribe_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-bot-secret"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TelegramUnsubscribe"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_task_api_public_tasks__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicTaskView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    task_status_link_api_tasks__task_id__status_link_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskStatusLink"];
                 };
             };
             /** @description Validation Error */

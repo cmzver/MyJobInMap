@@ -1,6 +1,6 @@
 import SlaCalendarSection from '@/components/SlaCalendarSection'
 import { useEffect, useState } from 'react'
-import { Clock, Eye, FileText, History, Landmark, RotateCcw, Save } from 'lucide-react'
+import { Clock, Eye, FileText, History, Landmark, MessageSquare, RotateCcw, Save } from 'lucide-react'
 import Button from '@/components/Button'
 import EmptyState from '@/components/EmptyState'
 import Input from '@/components/Input'
@@ -57,6 +57,10 @@ type FormState = {
   repeatWindowDays: string
   escalations: boolean
   template: ActTemplate
+  notifyTelegram: boolean
+  smsEnabled: boolean
+  // Пусто — ключ не меняем (сервер его не показывает)
+  smsApiId: string
 }
 
 const TEMPLATE_TOGGLES = [
@@ -81,6 +85,9 @@ function toForm(settings: OrganizationSettings): FormState {
     escalations: settings.sla_escalations_enabled ?? true,
     // Сервер всегда отдаёт бланк целиком (поля со значениями по умолчанию).
     template: { ...settings.act_template } as ActTemplate,
+    notifyTelegram: settings.notify_telegram_enabled ?? true,
+    smsEnabled: settings.sms_enabled ?? false,
+    smsApiId: '',
   }
 }
 
@@ -133,6 +140,9 @@ function OrganizationSettingsForm({ organizationId }: { organizationId?: number 
       : (Object.fromEntries(PRIORITIES.map((p) => [p, Number(form.hours[p])])) as SlaHours),
     repeat_window_days: Number(form.repeatWindowDays),
     sla_escalations_enabled: form.escalations,
+    notify_telegram_enabled: form.notifyTelegram,
+    sms_enabled: form.smsEnabled,
+    sms_api_id: form.smsApiId.trim() || null,
   })
 
   const openPreview = async () => {
@@ -313,6 +323,57 @@ function OrganizationSettingsForm({ organizationId }: { organizationId?: number 
             checked={form.escalations}
             onChange={(checked) => setForm({ ...form, escalations: checked })}
           />
+        </div>
+      </SettingsCard>
+
+      <SettingsCard
+        title="Уведомления заявителю"
+        icon={MessageSquare}
+        description="Заявитель следит за заявкой по ссылке на статус (кнопка «Ссылка заявителю» в карточке заявки). С неё же — подписка на Telegram."
+      >
+        <div className="space-y-3">
+          <SettingsToggle
+            title="Telegram"
+            description={
+              query.data?.telegram_available
+                ? 'Сообщения подписавшимся: в работе, назначена дата, выполнена, отменена.'
+                : 'Бот не настроен на сервере (TELEGRAM_BOT_TOKEN и TELEGRAM_BOT_USERNAME) — подписка недоступна.'
+            }
+            checked={form.notifyTelegram}
+            onChange={(checked) => setForm({ ...form, notifyTelegram: checked })}
+          />
+          <SettingsToggle
+            title="SMS через SMS.ru"
+            description="На телефон заявки: при приёме — со ссылкой на статус, при выполнении. Платно, по тарифу SMS.ru."
+            checked={form.smsEnabled}
+            onChange={(checked) => setForm({ ...form, smsEnabled: checked })}
+          />
+          {form.smsEnabled && (
+            <div className="max-w-sm">
+              <Input
+                label="API-ключ SMS.ru (api_id)"
+                type="password"
+                autoComplete="off"
+                placeholder={query.data?.sms_configured ? 'Ключ задан — оставьте пустым' : 'Ключ из личного кабинета SMS.ru'}
+                value={form.smsApiId}
+                onChange={(event) => setForm({ ...form, smsApiId: event.target.value })}
+              />
+              {query.data?.sms_configured && (
+                <button
+                  type="button"
+                  className="mt-1 text-xs text-red-600 hover:underline dark:text-red-400"
+                  onClick={() =>
+                    save.mutate(
+                      { ...payload(), sms_api_id: '' },
+                      { onSuccess: () => showApiSuccess('Ключ SMS.ru удалён') },
+                    )
+                  }
+                >
+                  Удалить ключ
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </SettingsCard>
 
