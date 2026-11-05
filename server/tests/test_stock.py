@@ -342,3 +342,23 @@ class TestActReassignment:
         )
         assert _stock(client, ctx.dispatcher.headers, ctx.dispatcher.user.id) == before
         assert _warehouse(db_session, material["id"]) == Decimal("2")
+
+
+def test_low_stock_notifies_managers_once(client: TestClient, db_session):
+    from app.models import NotificationModel
+
+    ctx = _org(client, db_session, "LowOrg")
+    headers = ctx.dispatcher.headers
+    material = _material(client, headers, min_quantity="5")
+    _op(client, headers, "receipt", material["id"], 8, "r1")
+    _op(client, headers, "issue", material["id"], 2, "i1", ctx.worker.user.id)  # 6
+    _op(client, headers, "issue", material["id"], 2, "i2", ctx.worker.user.id)  # 4
+    _op(client, headers, "issue", material["id"], 1, "i3", ctx.worker.user.id)  # 3
+    notes = (
+        db_session.query(NotificationModel)
+        .filter_by(user_id=ctx.dispatcher.user.id)
+        .filter(NotificationModel.title.like("Пора закупать%"))
+        .all()
+    )
+    assert len(notes) == 1
+    assert "На складе 4" in notes[0].message

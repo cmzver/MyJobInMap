@@ -35,7 +35,8 @@ export const useCabinetSession = create<CabinetSession>()(
   ),
 )
 
-const http = axios.create({ baseURL: '/api/client' })
+/** HTTP-клиент кабинета (экспорт — для тестов). */
+export const http = axios.create({ baseURL: '/api/client' })
 
 http.interceptors.request.use((config) => {
   const token = useCabinetSession.getState().token
@@ -74,6 +75,8 @@ export const cabinetApi = {
   tasks: async (filters: TaskFilters) => (await http.get<CabinetTaskPage>('/tasks', { params: filters })).data,
   task: async (id: number) => (await http.get<CabinetTaskDetail>(`/tasks/${id}`)).data,
   createTask: async (body: CabinetTaskCreate) => (await http.post<CabinetTaskDetail>('/tasks', body)).data,
+  /** Ссылка на бота: подписка на смены статуса заявки в Telegram. */
+  telegramLink: async (taskId: number) => (await http.post<{ url: string }>(`/tasks/${taskId}/telegram`)).data.url,
   acts: async (params: { kind?: 'task' | 'summary'; pending?: boolean; limit?: number; offset?: number }) =>
     (await http.get<CabinetActPage>('/acts', { params })).data,
   maintenance: async () => (await http.get<CabinetMaintenance[]>('/maintenance')).data,

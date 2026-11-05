@@ -362,3 +362,20 @@ class TestSignInCabinet:
             ).status_code
             == 404
         )
+
+
+def test_cabinet_telegram_link(client: TestClient, db_session, monkeypatch):
+    from app.config import settings
+
+    env = _setup(client, db_session, "CabTg")
+    headers = _headers(client, "uk-smirnova")
+    url = f"/api/client/tasks/{env.task.id}/telegram"
+    assert client.post(url, headers=headers).status_code == 409  # бот не настроен
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "1:x")
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_USERNAME", "fw_bot")
+    first = client.post(url, headers=headers)
+    assert first.status_code == 200, first.text
+    assert first.json()["url"].startswith("https://t.me/fw_bot?start=")
+    assert client.post(url, headers=headers).json() == first.json()
+    foreign = f"/api/client/tasks/{env.foreign_task.id}/telegram"
+    assert client.post(foreign, headers=headers).status_code == 404
