@@ -62,7 +62,8 @@ def require_task_access(
 ) -> Callable:
     # Сначала вход, потом поиск заявки: иначе без токена по 404/401 видно,
     # какие номера заявок существуют. FastAPI решает зависимости по порядку.
-    async def _dependency(
+    # Обычная def: запросы к БД выполняются в пуле потоков, а не в event loop.
+    def _dependency(
         user: UserModel = Depends(get_current_user_required),
         task: TaskModel = Depends(get_task_or_404),
         db: Session = Depends(get_db),

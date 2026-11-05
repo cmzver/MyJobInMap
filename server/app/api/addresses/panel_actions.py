@@ -13,6 +13,7 @@ API endpoints для «живого» управления домофонным�
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -181,17 +182,26 @@ async def _door(
     user: UserModel,
     task_id: Optional[int] = None,
 ) -> PanelDoorActionResponse:
-    panel = get_panel_or_404(address_id, panel_id, db, user)
-    task = _task_for_action(task_id, address_id, db, user)
+    panel = await run_in_threadpool(get_panel_or_404, address_id, panel_id, db, user)
+    task = await run_in_threadpool(_task_for_action, task_id, address_id, db, user)
     op = beward.open_door if action == "open" else beward.close_door
     try:
         await op(panel.ip, panel.port)
         is_open = await beward.get_lock_status(panel.ip, panel.port)
     except beward.BewardError as exc:
-        _record_action(db, panel, user, action, False, _device_error_text(exc), task)
+        await run_in_threadpool(
+            _record_action,
+            db,
+            panel,
+            user,
+            action,
+            False,
+            _device_error_text(exc),
+            task,
+        )
         _raise_device_error(exc)
 
-    _record_action(db, panel, user, action, True, task=task)
+    await run_in_threadpool(_record_action, db, panel, user, action, True, task=task)
     return PanelDoorActionResponse(ok=True, action=action, is_open=is_open)
 
 
@@ -236,7 +246,7 @@ async def get_panel_lock_status(
     user: UserModel = Depends(get_current_user_required),
 ):
     """Статус замка (открыт/закрыт). Read-only."""
-    panel = get_panel_or_404(address_id, panel_id, db, user)
+    panel = await run_in_threadpool(get_panel_or_404, address_id, panel_id, db, user)
     try:
         is_open = await beward.get_lock_status(panel.ip, panel.port)
     except beward.BewardError as exc:
@@ -257,14 +267,16 @@ async def get_panel_mifare_scan_code(
 ):
     """Код режима записи ключей ('Сканировать по коду') и флаг активности.
     Из карточки заявки запрос отмечается в её истории — без самого кода."""
-    panel = get_panel_or_404(address_id, panel_id, db, user)
-    task = _task_for_action(task_id, address_id, db, user)
+    panel = await run_in_threadpool(get_panel_or_404, address_id, panel_id, db, user)
+    task = await run_in_threadpool(_task_for_action, task_id, address_id, db, user)
     try:
         code, active = await beward.get_mifare_scan_code(panel.ip, panel.port)
     except beward.BewardError as exc:
         _raise_device_error(exc)
     if task is not None:
-        _record_action(db, panel, user, "scan_code", True, task=task)
+        await run_in_threadpool(
+            _record_action, db, panel, user, "scan_code", True, task=task
+        )
     return PanelMifareScanCodeResponse(code=code, active=active)
 
 
@@ -276,7 +288,7 @@ async def get_panel_snapshot(
     user: UserModel = Depends(get_current_user_required),
 ):
     """JPEG-кадр с камеры панели (короткий кэш). Read-only, не аудируется."""
-    panel = get_panel_or_404(address_id, panel_id, db, user)
+    panel = await run_in_threadpool(get_panel_or_404, address_id, panel_id, db, user)
     try:
         data = await beward.get_snapshot(panel.ip, panel.port)
     except beward.BewardError as exc:

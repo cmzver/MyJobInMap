@@ -84,7 +84,9 @@ async def save_panel_snapshot(
 ):
     """Кадр с камеры панели — в фото заявки («после»): доказательство, что
     вопрос решён удалённо."""
-    panel = _panel_of_task(access.task, panel_id, db, access.user)
+    panel = await run_in_threadpool(
+        _panel_of_task, access.task, panel_id, db, access.user
+    )
     try:
         image = await beward.get_snapshot(panel.ip, panel.port)
     except beward.BewardError as exc:

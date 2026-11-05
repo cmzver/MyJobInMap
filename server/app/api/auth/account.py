@@ -100,7 +100,7 @@ def update_profile(
 
 
 @router.post("/avatar", response_model=UserResponse)
-async def upload_avatar(
+def upload_avatar(
     avatar: UploadFile = File(...),
     user: UserModel = Depends(get_current_user_required),
     db: Session = Depends(get_db),
@@ -109,7 +109,7 @@ async def upload_avatar(
     if not avatar.content_type or not avatar.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Разрешены только изображения")
 
-    content = await avatar.read()
+    content = avatar.file.read()
     if len(content) == 0:
         raise HTTPException(status_code=400, detail="Файл пустой")
     if len(content) > 5 * 1024 * 1024:

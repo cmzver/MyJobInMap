@@ -88,7 +88,7 @@ class TestStatusPage:
         assert client.get("/api/public/tasks/" + "x" * 32).status_code == 404
 
     def test_link_expires_after_close_and_renew(self, client: TestClient, db_session):
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
         env = _org(client, db_session, "StatTtl")
         env.task.raw_address = "ул. Невская, д. 9, кв. 45"
@@ -108,7 +108,9 @@ class TestStatusPage:
         assert client.get(f"/api/public/tasks/{first['token']}").status_code == 404
 
         env.task.status = TaskStatus.DONE.value
-        env.task.completed_at = datetime.utcnow() - timedelta(days=31)
+        env.task.completed_at = datetime.now(timezone.utc).replace(
+            tzinfo=None
+        ) - timedelta(days=31)
         db_session.commit()
         assert client.get(f"/api/public/tasks/{renewed['token']}").status_code == 404
 

@@ -111,14 +111,14 @@ def preview_act(
 
 
 @router.put("/logo", response_model=OrganizationSettingsResponse)
-async def upload_logo(
+def upload_logo(
     file: UploadFile = File(...),
     organization_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     user: UserModel = Depends(require_permission("edit_settings")),
 ):
     """Логотип для шапки акта: картинка до 10 МБ (PNG, JPG, WebP…), хранится PNG."""
-    content = await file.read(LOGO_MAX_BYTES + 1)
+    content = file.file.read(LOGO_MAX_BYTES + 1)
     try:
         return save_act_logo(
             db, _target_organization(user, organization_id), content, user

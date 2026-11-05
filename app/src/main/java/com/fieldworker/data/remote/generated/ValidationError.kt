@@ -35,6 +35,8 @@ import kotlinx.serialization.Contextual
  * @param loc 
  * @param msg 
  * @param type 
+ * @param input 
+ * @param ctx 
  */
 @Serializable
 
@@ -47,7 +49,13 @@ data class ValidationError (
     val msg: kotlin.String,
 
     @SerialName(value = "type")
-    val type: kotlin.String
+    val type: kotlin.String,
+
+    @Contextual @SerialName(value = "input")
+    val input: kotlinx.serialization.json.JsonElement? = null,
+
+    @Contextual @SerialName(value = "ctx")
+    val ctx: kotlin.Any? = null
 
 ) {
 

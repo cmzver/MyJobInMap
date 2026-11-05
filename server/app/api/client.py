@@ -5,7 +5,6 @@
 Внутренние комментарии сотрудников наружу не отдаются — только смены статуса.
 """
 
-import asyncio
 import json
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
@@ -14,6 +13,7 @@ from urllib.parse import quote
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     Form,
@@ -506,7 +506,8 @@ def client_act_pdf(
 
 
 @router.post("/acts/{act_id}/sign", response_model=ClientAct)
-async def client_sign_act(
+def client_sign_act(
+    background_tasks: BackgroundTasks,
     act_id: int,
     request: Request,
     signature: UploadFile = File(..., description="Подпись, PNG"),
@@ -520,7 +521,7 @@ async def client_sign_act(
         raise HTTPException(
             status_code=400, detail="Подтвердите, что ознакомились с актом"
         )
-    png = await signature.read(MAX_SIGNATURE_BYTES + 1)
+    png = signature.file.read(MAX_SIGNATURE_BYTES + 1)
     act = cabinet.own_act(db, account, act_id, for_update=True)
     try:
         parsed = json.loads(strokes) if strokes else None
@@ -543,14 +544,13 @@ async def client_sign_act(
     except ActServiceError as exc:
         db.rollback()
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
-    asyncio.ensure_future(
-        broadcast_act_updated(
-            act_id=act.id,
-            task_id=act.task_id,
-            number=act.number,
-            status=act.status,
-            organization_id=act.organization_id,
-        )
+    background_tasks.add_task(
+        broadcast_act_updated,
+        act_id=act.id,
+        task_id=act.task_id,
+        number=act.number,
+        status=act.status,
+        organization_id=act.organization_id,
     )
     numbers = {}
     if act.task_id:

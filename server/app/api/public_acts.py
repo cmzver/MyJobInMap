@@ -9,7 +9,6 @@ PDF и, если акт ждёт подписи, подписывает его �
 наружу не отдаётся.
 """
 
-import asyncio
 import json
 from datetime import timezone
 from typing import Optional
@@ -17,6 +16,7 @@ from urllib.parse import quote
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     Form,
@@ -173,7 +173,8 @@ def get_public_act_pdf(token: str, request: Request, db: Session = Depends(get_d
 
 
 @router.post("/{token}/sign", response_model=PublicActView)
-async def sign_public_act(
+def sign_public_act(
+    background_tasks: BackgroundTasks,
     token: str,
     request: Request,
     signature: UploadFile = File(..., description="Подпись клиента, PNG"),
@@ -187,7 +188,7 @@ async def sign_public_act(
         raise HTTPException(
             status_code=400, detail="Подтвердите, что ознакомились с актом"
         )
-    png = await signature.read(MAX_SIGNATURE_BYTES + 1)
+    png = signature.file.read(MAX_SIGNATURE_BYTES + 1)
     try:
         parsed_strokes = json.loads(strokes) if strokes else None
     except ValueError:
@@ -206,13 +207,12 @@ async def sign_public_act(
     except ActServiceError as exc:
         db.rollback()
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
-    asyncio.ensure_future(
-        broadcast_act_updated(
-            act_id=act.id,
-            task_id=act.task_id,
-            number=act.number,
-            status=act.status,
-            organization_id=act.organization_id,
-        )
+    background_tasks.add_task(
+        broadcast_act_updated,
+        act_id=act.id,
+        task_id=act.task_id,
+        number=act.number,
+        status=act.status,
+        organization_id=act.organization_id,
     )
     return _view(act)

@@ -10,9 +10,10 @@ WebSocket API
 import logging
 import time
 
+import jwt
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
-from jose import JWTError, jwt
+from jwt import PyJWTError as JWTError
 from sqlalchemy.orm import Session
 
 from app.config import settings

@@ -9,8 +9,9 @@
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
+import jwt
 from fastapi import Depends, HTTPException, status
-from jose import JWTError, jwt
+from jwt import PyJWTError as JWTError
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Query, Session
 

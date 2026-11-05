@@ -1,25 +1,31 @@
+# Прямые зависимости сервера. Образ ставит requirements.lock (все транзитивные
+# версии с хешами, под Linux и Python 3.11 — как в Dockerfile). После правки:
+#   uv pip compile requirements.txt --python-version 3.11 \
+#     --python-platform x86_64-manylinux_2_28 --generate-hashes --no-header \
+#     --quiet -o requirements.lock
+# CI проверяет, что lock актуален, и прогоняет pip-audit.
+
 # Core
-fastapi==0.122.0
+fastapi==0.133.0
 uvicorn[standard]==0.38.0
 sqlalchemy==2.0.44
 pydantic==2.12.5
-pydantic-settings==2.12.0
-starlette==0.50.0
+pydantic-settings==2.14.2
+starlette==1.3.1
 
 # Auth
-python-jose[cryptography]==3.5.0
 bcrypt==5.0.0
-PyJWT==2.10.1
+PyJWT==2.15.0
 
 # Templates & uploads
 jinja2==3.1.6
-python-multipart==0.0.20
-Pillow==12.0.0
+python-multipart==0.0.31
+Pillow==13.0.0
 reportlab==4.4.10
 pyaxmlparser==0.3.31
 
 # Geocoding
-geopy==2.4.1
+geopy==2.5.0
 
 # База часовых поясов для zoneinfo: в slim-образе системной может не быть
 tzdata==2025.3
@@ -47,10 +53,12 @@ arq==0.26.3
 redis==5.2.1
 
 # Monitoring (Prometheus metrics)
-prometheus-fastapi-instrumentator==7.0.2
+prometheus-fastapi-instrumentator==8.0.0
 
 # Excel export
 openpyxl==3.1.5
 
 # WebSocket support (already in starlette, explicit for clarity)
 websockets==14.2
+# Прямой импорт: Telegram, SMS.ru, домофоны Beward (раньше приезжал транзитивно)
+httpx==0.28.1

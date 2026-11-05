@@ -24,13 +24,9 @@ def acts_dir(tmp_path, monkeypatch):
 def broadcasts(monkeypatch):
     calls = []
 
-    def fake(**kwargs):
+    # Рассылка идёт фоновой задачей ответа — заглушка тоже корутинная
+    async def fake(**kwargs):
         calls.append(kwargs)
-
-        async def done():
-            return None
-
-        return done()
 
     monkeypatch.setattr("app.api.public_acts.broadcast_act_updated", fake)
     return calls
