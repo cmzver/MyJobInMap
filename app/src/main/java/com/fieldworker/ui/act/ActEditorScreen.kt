@@ -190,6 +190,7 @@ internal fun ActEditorContent(
             ActEditorViewModel.Step.EDIT -> EditStep(
                 draft = state.draft,
                 catalog = state.catalog,
+                stocks = state.stocks,
                 actions = editActions,
                 modifier = Modifier.padding(padding),
             )
@@ -220,6 +221,7 @@ private fun EditStep(
     catalog: List<CatalogItemResponse>,
     actions: ActEditActions,
     modifier: Modifier = Modifier,
+    stocks: Map<Long, BigDecimal> = emptyMap(),
 ) {
     var showCatalog by rememberSaveable { mutableStateOf(false) }
 
@@ -363,6 +365,7 @@ private fun EditStep(
     if (showCatalog) {
         CatalogSheet(
             catalog = catalog,
+            stocks = stocks,
             onPick = { item ->
                 actions.addCatalogItem(item)
                 showCatalog = false
@@ -475,6 +478,7 @@ private fun CatalogSheet(
     catalog: List<CatalogItemResponse>,
     onPick: (CatalogItemResponse) -> Unit,
     onDismiss: () -> Unit,
+    stocks: Map<Long, BigDecimal> = emptyMap(),
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     val visible = remember(catalog, query) {
@@ -500,10 +504,21 @@ private fun CatalogSheet(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(item.name, style = MaterialTheme.typography.bodyLarge)
+                            val isMaterial = item.lineType == CatalogItemResponse.LineType.MATERIAL
+                            // Позиция склада: по акту спишется с ваших остатков
+                            val stock = item.materialId?.let { stocks[it] ?: BigDecimal.ZERO }
                             Text(
-                                text = if (item.lineType == CatalogItemResponse.LineType.MATERIAL) "материал" else "работа",
+                                text = when {
+                                    !isMaterial -> "работа"
+                                    stock == null -> "материал"
+                                    else -> "материал · у вас ${stock.stripTrailingZeros().toPlainString()}"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (stock != null && stock.signum() <= 0) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
                             )
                         }
                         Text(

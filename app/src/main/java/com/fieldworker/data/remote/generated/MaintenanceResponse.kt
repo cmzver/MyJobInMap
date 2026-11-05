@@ -32,12 +32,11 @@ import kotlinx.serialization.Contextual
  * 
  *
  * @param title 
- * @param addressId 
  * @param startDate 
+ * @param addressId 
  * @param id 
  * @param nextDate 
  * @param description 
- * @param equipmentId 
  * @param assignedUserId 
  * @param priority 
  * @param frequency 
@@ -45,6 +44,7 @@ import kotlinx.serialization.Contextual
  * @param endDate 
  * @param excludedDates 
  * @param enabled 
+ * @param equipmentId 
  */
 @Serializable
 
@@ -53,11 +53,11 @@ data class MaintenanceResponse (
     @SerialName(value = "title")
     val title: kotlin.String,
 
-    @SerialName(value = "address_id")
-    val addressId: kotlin.Long,
-
     @SerialName(value = "start_date")
     val startDate: kotlin.String,
+
+    @SerialName(value = "address_id")
+    val addressId: kotlin.Long,
 
     @SerialName(value = "id")
     val id: kotlin.Long,
@@ -67,9 +67,6 @@ data class MaintenanceResponse (
 
     @SerialName(value = "description")
     val description: kotlin.String? = "",
-
-    @SerialName(value = "equipment_id")
-    val equipmentId: kotlin.Long? = null,
 
     @SerialName(value = "assigned_user_id")
     val assignedUserId: kotlin.Long? = null,
@@ -90,7 +87,10 @@ data class MaintenanceResponse (
     val excludedDates: kotlin.collections.List<kotlin.String>? = null,
 
     @SerialName(value = "enabled")
-    val enabled: kotlin.Boolean? = true
+    val enabled: kotlin.Boolean? = true,
+
+    @SerialName(value = "equipment_id")
+    val equipmentId: kotlin.Long? = null
 
 ) {
 

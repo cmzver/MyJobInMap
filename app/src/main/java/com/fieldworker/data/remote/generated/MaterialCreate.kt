@@ -23,6 +23,7 @@
 
 package com.fieldworker.data.remote.generated
 
+import com.fieldworker.data.remote.generated.MinQuantity
 import com.fieldworker.data.remote.generated.UnitCost
 
 import kotlinx.serialization.Serializable
@@ -35,6 +36,7 @@ import kotlinx.serialization.Contextual
  * @param name 
  * @param unit 
  * @param unitCost 
+ * @param minQuantity 
  */
 @Serializable
 
@@ -47,7 +49,10 @@ data class MaterialCreate (
     val unit: kotlin.String? = "шт.",
 
     @SerialName(value = "unit_cost")
-    val unitCost: UnitCost? = null
+    val unitCost: UnitCost? = null,
+
+    @SerialName(value = "min_quantity")
+    val minQuantity: MinQuantity? = null
 
 ) {
 

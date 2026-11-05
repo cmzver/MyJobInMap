@@ -42,6 +42,7 @@ import androidx.navigation.navArgument
 import com.fieldworker.ui.act.ActEditorScreen
 import com.fieldworker.ui.act.ActEditorViewModel
 import com.fieldworker.ui.act.LocalTaskActsSection
+import com.fieldworker.ui.materials.MyMaterialsScreen
 import com.fieldworker.ui.remote.LocalTaskRemoteSection
 import com.fieldworker.ui.remote.TaskRemoteSection
 import com.fieldworker.ui.act.TaskActsSection
@@ -129,6 +130,7 @@ fun MainScreen(
         Screen.ObjectCard.route -> Screen.ObjectCard
         Screen.ActEditor.route -> Screen.ActEditor
         Screen.MyAddresses.route -> Screen.MyAddresses
+        Screen.MyMaterials.route -> Screen.MyMaterials
         // Без этой ветки профиль считался «Картой»: над ним рисовались шапка
         // «Карта выездов» и нижняя панель
         Screen.UserSettings.route -> Screen.UserSettings
@@ -550,6 +552,9 @@ fun MainScreen(
                         onLogout = { showLogoutDialog = true },
                         onOpenMyAddresses = {
                             navController.navigate(Screen.MyAddresses.route) { launchSingleTop = true }
+                        },
+                        onOpenMyMaterials = {
+                            navController.navigate(Screen.MyMaterials.route) { launchSingleTop = true }
                         }
                     )
                 }
@@ -583,6 +588,10 @@ fun MainScreen(
 
                 composable(Screen.MyAddresses.route) {
                     MyAddressesScreen(onBack = { navController.popBackStack() })
+                }
+
+                composable(Screen.MyMaterials.route) {
+                    MyMaterialsScreen(onBack = { navController.popBackStack() })
                 }
 
                 composable(
@@ -708,6 +717,7 @@ private fun mainTitleFor(screen: Screen, canManageTasks: Boolean): String {
         Screen.ActEditor -> "Акт выполненных работ"
         Screen.UserSettings -> "Профиль пользователя"
         Screen.MyAddresses -> "Мои адреса"
+        Screen.MyMaterials -> "Мои материалы"
     }
 }
 

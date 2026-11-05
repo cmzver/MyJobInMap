@@ -56,6 +56,7 @@ fun SettingsScreen(
     authToken: String? = null,
     onLogout: () -> Unit = {},
     onOpenMyAddresses: () -> Unit = {},
+    onOpenMyMaterials: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var serverUrl by remember { mutableStateOf(preferences.getServerUrl()) }
@@ -167,6 +168,12 @@ fun SettingsScreen(
                     icon = Icons.Default.Home,
                     title = "Мои адреса",
                     onClick = onOpenMyAddresses
+                )
+                GroupDivider()
+                NavRow(
+                    icon = Icons.Default.ShoppingCart,
+                    title = "Мои материалы",
+                    onClick = onOpenMyMaterials
                 )
             }
 

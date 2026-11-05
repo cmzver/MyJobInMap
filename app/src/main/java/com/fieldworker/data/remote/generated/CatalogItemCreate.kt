@@ -38,6 +38,7 @@ import kotlinx.serialization.Contextual
  * @param systemType 
  * @param isActive 
  * @param sortOrder 
+ * @param materialId 
  */
 @Serializable
 
@@ -62,7 +63,10 @@ data class CatalogItemCreate (
     val isActive: kotlin.Boolean? = true,
 
     @SerialName(value = "sort_order")
-    val sortOrder: kotlin.Long? = 0
+    val sortOrder: kotlin.Long? = 0,
+
+    @SerialName(value = "material_id")
+    val materialId: kotlin.Long? = null
 
 ) {
 

@@ -172,4 +172,4 @@ sha256(TELEGRAM_BOT_TOKEN), `POST /api/tasks/{id}/status-link`), outbox-виды
 - [x] У1 — страница статуса заявки
 - [x] У2 — Telegram
 - [x] У3 — SMS
-- [ ] Android — материалы мастера, ссылка на статус
+- [x] Android — материалы мастера, ссылка на статус (2.46.0)

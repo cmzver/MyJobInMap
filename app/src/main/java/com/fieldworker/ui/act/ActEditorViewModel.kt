@@ -39,6 +39,8 @@ class ActEditorViewModel @Inject constructor(
         val task: Task? = null,
         val draft: ActDraft = ActDraft(),
         val catalog: List<CatalogItemResponse> = emptyList(),
+        /** Мои остатки по позициям склада (materialId → количество). */
+        val stocks: Map<Long, BigDecimal> = emptyMap(),
         val step: Step = Step.EDIT,
         val hasWorkerSignature: Boolean = false,
         val isSubmitting: Boolean = false,
@@ -72,6 +74,17 @@ class ActEditorViewModel @Inject constructor(
             }
             val catalog = actsRepository.catalog()
             _uiState.update { it.copy(catalog = catalog.filter { item -> item.isActive != false }) }
+            if (catalog.any { it.materialId != null }) {
+                actsRepository.myStocks().onSuccess { (stocks, _) ->
+                    _uiState.update { state ->
+                        state.copy(
+                            stocks = stocks.associate {
+                                it.materialId to (it.quantity.toBigDecimalOrNull() ?: BigDecimal.ZERO)
+                            },
+                        )
+                    }
+                }
+            }
         }
     }
 
