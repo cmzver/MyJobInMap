@@ -30,6 +30,7 @@ from app.services.address_parser import (
     street_key,
     street_name,
 )
+from app.services.business_time import business_tz
 from app.services.geocoding import geocoding_service
 from app.services.notification_service import (
     broadcast_created_notification,
@@ -49,6 +50,15 @@ from app.utils import (
     normalize_priority_value,
 )
 from app.utils.money import to_money
+
+
+def _planned_day(moment: Optional[datetime]):
+    """День в бизнес-поясе: заявителю пишем только дату, наивное время в БД — UTC."""
+    if moment is None:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone(business_tz()).date()
 
 
 class TaskServiceError(Exception):
@@ -463,7 +473,12 @@ class TaskService:
         # dict(exclude_unset=True) чтобы можно было сбросить дату (передать null)
         update_data = task_data.model_dump(exclude_unset=True)
         if "planned_date" in update_data:
+            day_changed = _planned_day(task.planned_date) != _planned_day(
+                update_data["planned_date"]
+            )
             task.planned_date = update_data["planned_date"]
+            if day_changed:
+                applicant_notify.notify(self.db, task, "planned")
         if task_data.priority is not None or "planned_date" in update_data:
             apply_due_at(self.db, task)
 
@@ -800,7 +815,7 @@ class TaskService:
         Добавляет комментарий об изменении.
         """
         task = self.get_by_id(task_id)
-        changed = task.planned_date != planned_date
+        changed = _planned_day(task.planned_date) != _planned_day(planned_date)
         task.planned_date = planned_date
         apply_due_at(self.db, task)
         task.updated_at = datetime.now(timezone.utc)

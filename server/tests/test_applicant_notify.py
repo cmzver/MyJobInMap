@@ -87,6 +87,31 @@ class TestStatusPage:
 
         assert client.get("/api/public/tasks/" + "x" * 32).status_code == 404
 
+    def test_link_expires_after_close_and_renew(self, client: TestClient, db_session):
+        from datetime import datetime, timedelta
+
+        env = _org(client, db_session, "StatTtl")
+        env.task.raw_address = "ул. Невская, д. 9, кв. 45"
+        db_session.commit()
+        first = _link(client, env)
+        page = client.get(f"/api/public/tasks/{first['token']}").json()
+        assert page["address"] == "ул. Невская, д. 9"
+        _subscribe(client, first["token"])
+
+        renewed = client.post(
+            f"/api/tasks/{env.task.id}/status-link",
+            params={"renew": True},
+            headers=env.dispatcher.headers,
+        ).json()
+        assert renewed["token"] != first["token"]
+        assert renewed["subscribers"] == 0
+        assert client.get(f"/api/public/tasks/{first['token']}").status_code == 404
+
+        env.task.status = TaskStatus.DONE.value
+        env.task.completed_at = datetime.utcnow() - timedelta(days=31)
+        db_session.commit()
+        assert client.get(f"/api/public/tasks/{renewed['token']}").status_code == 404
+
     def test_worker_of_other_org_cannot_issue(self, client: TestClient, db_session):
         env = _org(client, db_session, "StatOwn")
         other = _org(client, db_session, "StatOther")
@@ -266,3 +291,17 @@ def test_send_telegram_ignores_blocked_chat(monkeypatch):
     with pytest.raises(applicant_notify.DeliveryError):
         asyncio.run(applicant_notify.send_telegram("1", "hi"))
     assert calls[0][0].endswith(f"bot{BOT_TOKEN}/sendMessage")
+
+
+def test_planned_date_notifies_only_when_day_changes(client, db_session):
+    env = _org(client, db_session, "PlanOrg")
+    token = _link(client, env)["token"]
+    _subscribe(client, token)
+    url = f"/api/tasks/{env.task.id}/planned-date"
+    headers = env.dispatcher.headers
+    for value in ("2026-11-07T09:00:00Z", "2026-11-07T12:00:00+03:00"):
+        response = client.patch(url, json={"planned_date": value}, headers=headers)
+        assert response.status_code == 200, response.text
+    messages = _events(db_session, "telegram_send")
+    assert len(messages) == 1
+    assert "07.11.2026" in messages[0]["text"]

@@ -8,6 +8,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, true
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.acts import act_to_response
@@ -387,7 +388,12 @@ def create_client_account(
     )
     set_password(account, data.password)
     db.add(account)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Тот же логин заняли параллельно — между проверкой и записью
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Такой логин уже занят")
     db.refresh(account)
     return account
 

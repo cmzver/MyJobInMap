@@ -7,7 +7,7 @@
 
 import asyncio
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import List, Literal, Optional
 from urllib.parse import quote
@@ -23,7 +23,7 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.responses import Response
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -65,6 +65,7 @@ from app.services.act_service import (
     ActServiceError,
     sign_by_link,
 )
+from app.services.business_time import business_tz
 from app.services.client_cabinet import get_current_client
 from app.services.ip_guard import ip_guard
 from app.services.notification_service import create_notification
@@ -80,6 +81,7 @@ from app.utils import get_status_display_name
 router = APIRouter(prefix="/api/client", tags=["Client cabinet"])
 
 OPEN_STATUSES = (TaskStatus.NEW.value, TaskStatus.IN_PROGRESS.value)
+MAX_TASKS_PER_HOUR = 20
 MAX_STROKES_CHARS = 512 * 1024
 
 
@@ -192,6 +194,11 @@ def client_objects(
         .filter(
             MaintenancePlanModel.address_id.in_(ids),
             MaintenancePlanModel.enabled.is_(True),
+            # Закончившийся регламент — следующего ТО по нему не будет
+            or_(
+                MaintenancePlanModel.end_date.is_(None),
+                MaintenancePlanModel.next_date <= MaintenancePlanModel.end_date,
+            ),
         )
         .group_by(MaintenancePlanModel.address_id)
         .all()
@@ -220,7 +227,11 @@ def _acts_count(db: Session, task_ids: List[int]) -> dict:
         return {}
     return dict(
         db.query(ActModel.task_id, func.count(ActModel.id))
-        .filter(ActModel.task_id.in_(task_ids), ActModel.status != CANCELLED)
+        .filter(
+            ActModel.task_id.in_(task_ids),
+            ActModel.status != CANCELLED,
+            ActModel.customer_role.in_(cabinet.ORGANIZATION_SIGNER_ROLES),
+        )
         .group_by(ActModel.task_id)
         .all()
     )
@@ -327,7 +338,7 @@ def client_task(
 ):
     task = cabinet.own_task(db, account, task_id)
     acts = (
-        db.query(ActModel)
+        cabinet.acts_query(db, account)
         .filter(ActModel.task_id == task.id)
         .order_by(ActModel.created_at.desc())
         .all()
@@ -338,7 +349,9 @@ def client_task(
     numbers = {task.id: _task_number(task)}
     return ClientTaskDetail(
         **_task_item(task, sum(1 for act in acts if act.status != CANCELLED)),
-        description=task.description or "",
+        # Описание заявки, заведённой по звонку жильца, может содержать его
+        # данные — кабинету показываем только описание своих заявок
+        description=(task.description or "") if task.client_account_id else "",
         executor=(executor.full_name or executor.username) if executor else None,
         events=_events(db, task),
         acts=[_client_act(act, numbers) for act in acts],
@@ -358,6 +371,20 @@ def client_create_task(
     )
     if address is None:
         raise HTTPException(status_code=404, detail="Объект не найден")
+    hour_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1)
+    recent = (
+        db.query(func.count(TaskModel.id))
+        .filter(
+            TaskModel.client_account_id == account.id,
+            TaskModel.created_at >= hour_ago,
+        )
+        .scalar()
+    )
+    if recent >= MAX_TASKS_PER_HOUR:
+        raise HTTPException(
+            status_code=429,
+            detail="Слишком много заявок за час — позвоните в обслуживающую организацию",
+        )
     raw_address = address.address
     if data.apartment and data.apartment.strip():
         raw_address = f"{raw_address}, кв. {data.apartment.strip()}"
@@ -385,7 +412,8 @@ def client_create_task(
     db.flush()
     task.task_number = f"Z-{task.id:05d}"
     stage_task_event(db, task, "task_created", None, title=task.title)
-    applicant_notify.notify(db, task, "created")
+    # Без SMS: телефон и текст задаёт сам кабинет — не рассылка за счёт организации
+    applicant_notify.notify(db, task, "created", sms=False)
     counterparty = db.get(CounterpartyModel, account.counterparty_id)
     for manager in org_managers(db, account.organization_id):
         create_notification(
@@ -472,8 +500,8 @@ async def client_sign_act(
         raise HTTPException(
             status_code=400, detail="Подтвердите, что ознакомились с актом"
         )
-    act = cabinet.own_act(db, account, act_id)
     png = await signature.read(MAX_SIGNATURE_BYTES + 1)
+    act = cabinet.own_act(db, account, act_id, for_update=True)
     try:
         parsed = json.loads(strokes) if strokes else None
     except ValueError:
@@ -539,7 +567,7 @@ def client_maintenance(
         .group_by(MaintenanceOccurrenceModel.plan_id)
         .all()
     )
-    today = date.today()
+    today = datetime.now(business_tz()).date()
     return [
         ClientMaintenance(
             plan_id=plan.id,
