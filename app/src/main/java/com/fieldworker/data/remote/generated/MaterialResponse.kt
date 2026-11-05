@@ -34,8 +34,10 @@ import kotlinx.serialization.Contextual
  * @param name 
  * @param id 
  * @param active 
+ * @param warehouseQuantity 
  * @param unit 
  * @param unitCost 
+ * @param minQuantity 
  */
 @Serializable
 
@@ -50,11 +52,17 @@ data class MaterialResponse (
     @SerialName(value = "active")
     val active: kotlin.Boolean,
 
+    @SerialName(value = "warehouse_quantity")
+    val warehouseQuantity: kotlin.String,
+
     @SerialName(value = "unit")
     val unit: kotlin.String? = "шт.",
 
     @SerialName(value = "unit_cost")
-    val unitCost: kotlin.String? = "0"
+    val unitCost: kotlin.String? = "0",
+
+    @SerialName(value = "min_quantity")
+    val minQuantity: kotlin.String? = null
 
 ) {
 

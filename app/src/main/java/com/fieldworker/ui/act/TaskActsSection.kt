@@ -125,6 +125,22 @@ class TaskActsViewModel @Inject constructor(
         _link.value = null
     }
 
+    private val _statusLinkLoading = MutableStateFlow(false)
+    val statusLinkLoading: StateFlow<Boolean> = _statusLinkLoading.asStateFlow()
+
+    /** Ссылка заявителю на статус заявки (одна и та же при повторных запросах). */
+    fun requestStatusLink(onReady: (String) -> Unit, onError: (String) -> Unit) {
+        val id = taskId.value ?: return
+        if (_statusLinkLoading.value) return
+        _statusLinkLoading.value = true
+        viewModelScope.launch {
+            actsRepository.statusLink(id)
+                .onSuccess { onReady(it.url) }
+                .onFailure { onError(it.message ?: "Ссылка доступна при связи с сервером") }
+            _statusLinkLoading.value = false
+        }
+    }
+
     fun openPdf(act: ActResponse, onReady: (File) -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             actsRepository.downloadPdf(act)
@@ -144,6 +160,7 @@ fun TaskActsSection(
     val serverActs by viewModel.serverActs.collectAsStateWithLifecycle()
     val pendingActs by viewModel.pendingActs.collectAsStateWithLifecycle()
     val link by viewModel.link.collectAsStateWithLifecycle()
+    val statusLinkLoading by viewModel.statusLinkLoading.collectAsStateWithLifecycle()
     val toast = { message: String -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() }
 
     LaunchedEffect(task.id) { viewModel.load(task.id) }
@@ -163,6 +180,13 @@ fun TaskActsSection(
         },
         onLink = { act -> viewModel.requestLink(act, onError = toast) },
         linkLoadingId = (link as? TaskActsViewModel.LinkState.Loading)?.actId,
+        onStatusLink = {
+            viewModel.requestStatusLink(
+                onReady = { url -> shareStatusLink(context, task, url) },
+                onError = toast,
+            )
+        },
+        statusLinkLoading = statusLinkLoading,
     )
 
     (link as? TaskActsViewModel.LinkState.Ready)?.let { ready ->
@@ -214,6 +238,8 @@ internal fun TaskActsContent(
     onOpenPdf: (ActResponse) -> Unit,
     onLink: (ActResponse) -> Unit = {},
     linkLoadingId: Long? = null,
+    onStatusLink: (() -> Unit)? = null,
+    statusLinkLoading: Boolean = false,
 ) {
     TaskSectionCard(
         title = "Акты",
@@ -240,6 +266,11 @@ internal fun TaskActsContent(
                         onOpen = { onOpenPdf(act) },
                         onLink = { onLink(act) },
                     )
+                }
+            }
+            if (onStatusLink != null) {
+                TextButton(onClick = onStatusLink, enabled = !statusLinkLoading) {
+                    Text(if (statusLinkLoading) "Получаем ссылку…" else "Ссылка заявителю на статус")
                 }
             }
         }
@@ -300,6 +331,14 @@ private fun statusLabel(status: ActResponse.Status): String = when (status) {
     ActResponse.Status.SIGNED -> "подписан"
     ActResponse.Status.REFUSED -> "отказ от подписи"
     ActResponse.Status.CANCELLED -> "аннулирован"
+}
+
+private fun shareStatusLink(context: Context, task: Task, url: String) {
+    val number = task.taskNumber.ifBlank { "Z-%05d".format(task.id) }
+    val intent = Intent(Intent.ACTION_SEND)
+        .setType("text/plain")
+        .putExtra(Intent.EXTRA_TEXT, "Статус вашей заявки $number: $url")
+    context.startActivity(Intent.createChooser(intent, "Отправить заявителю").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
 
 private fun shareLink(context: Context, act: ActResponse, url: String) {

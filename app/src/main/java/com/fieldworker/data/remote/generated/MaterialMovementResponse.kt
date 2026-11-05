@@ -34,6 +34,7 @@ import kotlinx.serialization.Contextual
  * @param id 
  * @param materialId 
  * @param materialName 
+ * @param kind 
  * @param userId 
  * @param taskId 
  * @param quantity 
@@ -42,6 +43,9 @@ import kotlinx.serialization.Contextual
  * @param totalCost 
  * @param reason 
  * @param createdAt 
+ * @param holder 
+ * @param taskNumber 
+ * @param createdBy 
  */
 @Serializable
 
@@ -55,6 +59,9 @@ data class MaterialMovementResponse (
 
     @SerialName(value = "material_name")
     val materialName: kotlin.String,
+
+    @SerialName(value = "kind")
+    val kind: kotlin.String,
 
     @SerialName(value = "user_id")
     val userId: kotlin.Long?,
@@ -78,7 +85,16 @@ data class MaterialMovementResponse (
     val reason: kotlin.String,
 
     @SerialName(value = "created_at")
-    val createdAt: kotlin.String
+    val createdAt: kotlin.String,
+
+    @SerialName(value = "holder")
+    val holder: kotlin.String? = null,
+
+    @SerialName(value = "task_number")
+    val taskNumber: kotlin.String? = null,
+
+    @SerialName(value = "created_by")
+    val createdBy: kotlin.String? = null
 
 ) {
 

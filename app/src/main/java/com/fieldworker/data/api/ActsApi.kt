@@ -3,6 +3,8 @@ package com.fieldworker.data.api
 import com.fieldworker.data.remote.generated.ActPublicLink
 import com.fieldworker.data.remote.generated.ActResponse
 import com.fieldworker.data.remote.generated.CatalogItemResponse
+import com.fieldworker.data.remote.generated.StockResponse
+import com.fieldworker.data.remote.generated.TaskStatusLink
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
@@ -50,4 +52,12 @@ interface ActsApi {
     @Streaming
     @GET("api/acts/{id}/pdf")
     suspend fun getActPdf(@Path("id") actId: Long): Response<ResponseBody>
+
+    /** Материалы на руках у мастера — остатки склада; по акту списываются. */
+    @GET("api/materials/stocks")
+    suspend fun getMyStocks(): Response<List<StockResponse>>
+
+    /** Ссылка заявителю на страницу статуса заявки — одна и та же при повторах. */
+    @POST("api/tasks/{id}/status-link")
+    suspend fun createTaskStatusLink(@Path("id") taskId: Long): Response<TaskStatusLink>
 }

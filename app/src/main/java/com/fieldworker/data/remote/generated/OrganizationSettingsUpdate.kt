@@ -49,7 +49,10 @@ import kotlinx.serialization.Contextual
  * @param actTemplate 
  * @param repeatWindowDays 
  * @param slaEscalationsEnabled 
+ * @param notifyTelegramEnabled 
+ * @param smsEnabled 
  * @param slaHours 
+ * @param smsApiId 
  */
 @Serializable
 
@@ -103,8 +106,17 @@ data class OrganizationSettingsUpdate (
     @SerialName(value = "sla_escalations_enabled")
     val slaEscalationsEnabled: kotlin.Boolean? = true,
 
+    @SerialName(value = "notify_telegram_enabled")
+    val notifyTelegramEnabled: kotlin.Boolean? = true,
+
+    @SerialName(value = "sms_enabled")
+    val smsEnabled: kotlin.Boolean? = false,
+
     @SerialName(value = "sla_hours")
-    val slaHours: SlaHours? = null
+    val slaHours: SlaHours? = null,
+
+    @SerialName(value = "sms_api_id")
+    val smsApiId: kotlin.String? = null
 
 ) {
 

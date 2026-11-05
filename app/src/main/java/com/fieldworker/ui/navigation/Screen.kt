@@ -78,6 +78,9 @@ sealed class Screen(
         icon = Icons.Default.Home
     )
 
+    /** Раздел «Мои материалы» — остатки на руках (открывается из «Ещё») */
+    data object MyMaterials : Screen(route = "my_materials", label = "Мои материалы")
+
     companion object {
         /** Tabs для нижней панели навигации */
         val bottomNavItems: List<Screen>
