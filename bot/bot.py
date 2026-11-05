@@ -67,6 +67,9 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
+# httpx на INFO пишет URL каждого запроса — а в URL Bot API токен бота.
+# Плюс getUpdates раз в 10 секунд забивал лог.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 

@@ -25,6 +25,8 @@ from app.services.business_time import business_tz
 from app.services.outbox_service import stage_event
 
 logger = logging.getLogger(__name__)
+# httpx на INFO пишет URL запроса, а в URL Bot API — токен бота
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 TELEGRAM = "telegram"
 # События, о которых сообщаем, и тексты (номер подставляется)
