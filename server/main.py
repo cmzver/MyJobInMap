@@ -164,8 +164,15 @@ async def lifespan(app: FastAPI):
     engine.dispose()
 
     # Ждём завершения фоновых потоков
+    # (кроме текущего: lifespan может идти не в главном потоке — TestClient)
+    current = threading.current_thread()
     for thread in threading.enumerate():
-        if thread.daemon and thread.is_alive() and thread.name != "MainThread":
+        if (
+            thread.daemon
+            and thread.is_alive()
+            and thread is not current
+            and thread.name != "MainThread"
+        ):
             thread.join(timeout=2.0)
 
     logger.info("👋 Server stopped")
