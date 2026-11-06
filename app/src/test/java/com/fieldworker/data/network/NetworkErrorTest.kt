@@ -4,7 +4,10 @@ import org.junit.Assert.*
 import org.junit.Test
 import retrofit2.HttpException
 import retrofit2.Response
+import java.net.ConnectException
 import java.net.SocketTimeoutException
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 import java.net.UnknownHostException
 import javax.net.ssl.SSLException
 
@@ -150,5 +153,38 @@ class NetworkErrorTest {
 
         // Then
         assertEquals("Custom error message", message)
+    }
+
+    private fun httpError(code: Int, body: String) = HttpException(
+        Response.error<Any>(code, body.toResponseBody("application/json".toMediaType()))
+    )
+
+    @Test
+    fun `toUserMessage shows server detail for 4xx`() {
+        val error = httpError(400, """{"detail":"Нельзя назначить пользователя из другой организации"}""")
+        assertEquals("Нельзя назначить пользователя из другой организации", error.toUserMessage())
+    }
+
+    @Test
+    fun `toUserMessage shows validation summary from error field`() {
+        val error = httpError(422, """{"error":"Поле «title»: обязательное поле","details":[]}""")
+        assertEquals("Поле «title»: обязательное поле", error.toUserMessage())
+    }
+
+    @Test
+    fun `toUserMessage ignores non-string detail and falls back to code text`() {
+        val error = httpError(409, """{"detail":{"current_version":3}}""")
+        assertEquals("Данные уже изменились. Обновите и попробуйте снова", error.toUserMessage())
+    }
+
+    @Test
+    fun `toUserMessage hides raw connection errors`() {
+        val error = ConnectException("Failed to connect to /10.0.0.1:8001")
+        assertEquals("Сервер недоступен. Проверьте подключение", error.toUserMessage())
+    }
+
+    @Test
+    fun `toUserMessage uses fallback when message is missing`() {
+        assertEquals("Не удалось открыть дверь", RuntimeException().toUserMessage("Не удалось открыть дверь"))
     }
 }

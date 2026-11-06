@@ -55,6 +55,7 @@ import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 import javax.inject.Inject
+import com.fieldworker.data.network.toUserMessage
 
 /**
  * Какие заявки показывать диспетчеру/админу. Работнику сервер и так отдаёт
@@ -1140,7 +1141,7 @@ class MapViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 _connectionStatus.value = ConnectionStatus.ERROR(
-                    e.message ?: "Ошибка подключения"
+                    e.toUserMessage("Ошибка подключения")
                 )
             }
         }

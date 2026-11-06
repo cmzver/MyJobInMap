@@ -6,6 +6,7 @@ import com.fieldworker.domain.model.User
 import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.fieldworker.data.network.toUserMessage
 
 @Singleton
 class UsersRepository @Inject constructor(
@@ -21,7 +22,7 @@ class UsersRepository @Inject constructor(
                 Result.failure(Exception("Ошибка загрузки пользователей: ${response.code()}"))
             }
         } catch (e: Exception) {
-            Result.failure(Exception("Ошибка подключения: ${e.message}"))
+            Result.failure(Exception(e.toUserMessage(), e))
         }
     }
 
@@ -41,7 +42,7 @@ class UsersRepository @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Result.failure(Exception("Ошибка подключения: ${e.message}"))
+            Result.failure(Exception(e.toUserMessage(), e))
         }
     }
 }

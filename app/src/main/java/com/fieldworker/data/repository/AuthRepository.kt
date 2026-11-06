@@ -19,6 +19,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.fieldworker.data.network.toUserMessage
 
 /**
  * Типизированные ошибки аутентификации.
@@ -74,7 +75,7 @@ class AuthRepository @Inject constructor(
                 Result.failure(Exception(errorMessage))
             }
         } catch (e: Exception) {
-            Result.failure(Exception("Ошибка подключения: ${e.message}"))
+            Result.failure(Exception(e.toUserMessage(), e))
         }
     }
     
@@ -140,7 +141,7 @@ class AuthRepository @Inject constructor(
                 Result.failure(Exception("Ошибка получения настроек: ${response.code()}"))
             }
         } catch (e: Exception) {
-            Result.failure(Exception("Ошибка подключения: ${e.message}"))
+            Result.failure(Exception(e.toUserMessage(), e))
         }
     }
     
@@ -157,7 +158,7 @@ class AuthRepository @Inject constructor(
                 Result.failure(Exception("Ошибка сохранения настроек: ${response.code()}"))
             }
         } catch (e: Exception) {
-            Result.failure(Exception("Ошибка подключения: ${e.message}"))
+            Result.failure(Exception(e.toUserMessage(), e))
         }
     }
     
@@ -202,7 +203,7 @@ class AuthRepository @Inject constructor(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            Result.failure(Exception("Ошибка подключения: ${e.message}"))
+            Result.failure(Exception(e.toUserMessage(), e))
         }
     }
 
@@ -235,7 +236,7 @@ class AuthRepository @Inject constructor(
                 Result.failure(Exception(parseErrorDetail(response.errorBody()?.string()) ?: "Ошибка: ${response.code()}"))
             }
         } catch (e: Exception) {
-            Result.failure(Exception("Ошибка подключения: ${e.message}"))
+            Result.failure(Exception(e.toUserMessage(), e))
         }
     }
 
@@ -285,7 +286,7 @@ class AuthRepository @Inject constructor(
                 Result.failure(Exception(parseErrorDetail(response.errorBody()?.string()) ?: "Ошибка: ${response.code()}"))
             }
         } catch (e: Exception) {
-            Result.failure(Exception("Ошибка загрузки: ${e.message}"))
+            Result.failure(Exception("Ошибка загрузки: ${e.toUserMessage()}"))
         }
     }
 
@@ -303,7 +304,7 @@ class AuthRepository @Inject constructor(
                 Result.failure(Exception(parseErrorDetail(response.errorBody()?.string()) ?: "Ошибка: ${response.code()}"))
             }
         } catch (e: Exception) {
-            Result.failure(Exception("Ошибка подключения: ${e.message}"))
+            Result.failure(Exception(e.toUserMessage(), e))
         }
     }
 

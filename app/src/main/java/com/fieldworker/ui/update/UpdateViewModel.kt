@@ -141,7 +141,7 @@ class UpdateViewModel @Inject constructor(
                 _updateState.value = UpdateState.ReadyToInstall
             }.onFailure { error ->
                 _updateState.value = UpdateState.Error(
-                    error.message ?: "Ошибка загрузки"
+                    error.toUserMessage("Ошибка загрузки")
                 )
             }
         }

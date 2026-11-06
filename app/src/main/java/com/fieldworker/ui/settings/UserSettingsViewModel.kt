@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.fieldworker.data.network.toUserMessage
 
 /**
  * Состояние экрана «Настройки пользователя».
@@ -82,7 +83,7 @@ class UserSettingsViewModel @Inject constructor(
                 }
                 .onFailure { e ->
                     _state.update {
-                        it.copy(isSavingName = false, error = e.message ?: "Не удалось сохранить имя")
+                        it.copy(isSavingName = false, error = e.toUserMessage("Не удалось сохранить имя"))
                     }
                 }
         }
@@ -104,7 +105,7 @@ class UserSettingsViewModel @Inject constructor(
                 }
                 .onFailure { e ->
                     _state.update {
-                        it.copy(isUploadingAvatar = false, error = e.message ?: "Не удалось загрузить аватар")
+                        it.copy(isUploadingAvatar = false, error = e.toUserMessage("Не удалось загрузить аватар"))
                     }
                 }
         }
@@ -136,7 +137,7 @@ class UserSettingsViewModel @Inject constructor(
                 }
                 .onFailure { e ->
                     _state.update {
-                        it.copy(isChangingPassword = false, error = e.message ?: "Не удалось сменить пароль")
+                        it.copy(isChangingPassword = false, error = e.toUserMessage("Не удалось сменить пароль"))
                     }
                 }
         }

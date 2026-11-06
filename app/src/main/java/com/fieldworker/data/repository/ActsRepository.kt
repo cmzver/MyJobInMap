@@ -38,6 +38,7 @@ import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.fieldworker.data.network.toUserMessage
 
 /** Как мастер завершил подпись акта. */
 sealed interface ActSigningResult {
@@ -235,7 +236,7 @@ class ActsRepository @Inject constructor(
             throw e
         } catch (e: Exception) {
             pendingActStore.delete(dir?.absolutePath)
-            Result.failure(Exception("Не удалось сохранить акт: ${e.message}", e))
+            Result.failure(Exception("Не удалось сохранить акт: ${e.toUserMessage()}", e))
         }
     }
 

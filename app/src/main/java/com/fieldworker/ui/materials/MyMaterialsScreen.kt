@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import javax.inject.Inject
+import com.fieldworker.data.network.toUserMessage
 
 data class MyMaterialsUiState(
     val stocks: List<StockResponse> = emptyList(),
@@ -79,7 +80,7 @@ class MyMaterialsViewModel @Inject constructor(
                     }
                 }
                 .onFailure { e ->
-                    _state.update { it.copy(isLoading = false, hasLoaded = true, error = e.message) }
+                    _state.update { it.copy(isLoading = false, hasLoaded = true, error = e.toUserMessage()) }
                 }
         }
     }

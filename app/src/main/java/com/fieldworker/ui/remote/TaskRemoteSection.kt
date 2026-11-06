@@ -79,6 +79,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
 import javax.inject.Inject
+import com.fieldworker.data.network.toUserMessage
 
 /**
  * Пометка «Панели · N» в шапке карточки заявки — подставляется через
@@ -170,7 +171,7 @@ class TaskRemoteViewModel @Inject constructor(
                     onResolved()
                 }
                 .onFailure { error ->
-                    _state.update { it.copy(isResolving = false, message = error.message) }
+                    _state.update { it.copy(isResolving = false, message = error.toUserMessage()) }
                 }
         }
     }
@@ -196,7 +197,7 @@ class TaskRemoteViewModel @Inject constructor(
                 }
                 .onFailure { error ->
                     updatePanel(panelId) { it.copy(isBusy = false) }
-                    _state.update { it.copy(message = error.message) }
+                    _state.update { it.copy(message = error.toUserMessage()) }
                     onTaskChanged?.invoke()
                 }
         }
@@ -446,7 +447,7 @@ private fun PanelVideoDialog(title: String, frames: Flow<Result<ByteArray>>, onD
                 bitmap != null -> VideoFrame.Image(bitmap)
                 // Сбой одного кадра не гасит уже показанную картинку
                 value is VideoFrame.Image -> value
-                else -> VideoFrame.Error(result.exceptionOrNull()?.message ?: "Панель не вернула кадр")
+                else -> VideoFrame.Error(result.exceptionOrNull()?.toUserMessage("Панель не вернула кадр") ?: "Панель не вернула кадр")
             }
         }
     }

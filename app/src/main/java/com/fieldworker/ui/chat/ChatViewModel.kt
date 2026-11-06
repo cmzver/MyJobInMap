@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.fieldworker.data.network.toUserMessage
 
 data class ConversationListState(
     val conversations: List<Conversation> = emptyList(),
@@ -153,7 +154,7 @@ class ChatViewModel @Inject constructor(
                     _listState.update { it.copy(conversations = list, isLoading = false) }
                 },
                 onFailure = { e ->
-                    _listState.update { it.copy(error = e.message, isLoading = false) }
+                    _listState.update { it.copy(error = e.toUserMessage(), isLoading = false) }
                 }
             )
         }
@@ -191,7 +192,7 @@ class ChatViewModel @Inject constructor(
                     }
                 },
                 onFailure = { e ->
-                    _listState.update { it.copy(isLoadingUsers = false, error = e.message) }
+                    _listState.update { it.copy(isLoadingUsers = false, error = e.toUserMessage()) }
                 }
             )
         }
@@ -317,7 +318,7 @@ class ChatViewModel @Inject constructor(
                 maybeResolveInitialUnreadAnchor(conversationId)
             },
             onFailure = { e ->
-                _chatState.update { it.copy(error = e.message, isLoadingMessages = false) }
+                _chatState.update { it.copy(error = e.toUserMessage(), isLoadingMessages = false) }
             }
         )
     }
@@ -594,7 +595,7 @@ class ChatViewModel @Inject constructor(
                     }
                 },
                 onFailure = { e ->
-                    _chatState.update { it.copy(error = e.message) }
+                    _chatState.update { it.copy(error = e.toUserMessage()) }
                 }
             )
         }
@@ -609,7 +610,7 @@ class ChatViewModel @Inject constructor(
                     closeConversation()
                 },
                 onFailure = { e ->
-                    _chatState.update { it.copy(error = e.message) }
+                    _chatState.update { it.copy(error = e.toUserMessage()) }
                 }
             )
         }
@@ -636,7 +637,7 @@ class ChatViewModel @Inject constructor(
                     _notifications.tryEmit("Чат перемещён в архив")
                 },
                 onFailure = { e ->
-                    _listState.update { it.copy(error = e.message) }
+                    _listState.update { it.copy(error = e.toUserMessage()) }
                 }
             )
         }
@@ -657,7 +658,7 @@ class ChatViewModel @Inject constructor(
                     reloadConversationState(conversationId)
                 },
                 onFailure = { e ->
-                    _chatState.update { it.copy(isSavingConversation = false, error = e.message) }
+                    _chatState.update { it.copy(isSavingConversation = false, error = e.toUserMessage()) }
                 }
             )
         }
@@ -674,7 +675,7 @@ class ChatViewModel @Inject constructor(
                     reloadConversationState(conversationId)
                 },
                 onFailure = { e ->
-                    _chatState.update { it.copy(isSavingConversation = false, error = e.message) }
+                    _chatState.update { it.copy(isSavingConversation = false, error = e.toUserMessage()) }
                 }
             )
         }
@@ -695,7 +696,7 @@ class ChatViewModel @Inject constructor(
                     }
                 },
                 onFailure = { e ->
-                    _chatState.update { it.copy(activeManagementUserId = null, error = e.message) }
+                    _chatState.update { it.copy(activeManagementUserId = null, error = e.toUserMessage()) }
                 }
             )
         }
@@ -711,7 +712,7 @@ class ChatViewModel @Inject constructor(
                     reloadConversationState(conversationId, activeManagementUserId = null)
                 },
                 onFailure = { e ->
-                    _chatState.update { it.copy(activeManagementUserId = null, error = e.message) }
+                    _chatState.update { it.copy(activeManagementUserId = null, error = e.toUserMessage()) }
                 }
             )
         }
@@ -727,7 +728,7 @@ class ChatViewModel @Inject constructor(
                     reloadConversationState(conversationId, activeManagementUserId = null)
                 },
                 onFailure = { e ->
-                    _chatState.update { it.copy(activeManagementUserId = null, error = e.message) }
+                    _chatState.update { it.copy(activeManagementUserId = null, error = e.toUserMessage()) }
                 }
             )
         }
@@ -914,7 +915,7 @@ class ChatViewModel @Inject constructor(
                     openConversation(conversationId)
                 },
                 onFailure = { e ->
-                    _listState.update { it.copy(isCreatingConversation = false, error = e.message) }
+                    _listState.update { it.copy(isCreatingConversation = false, error = e.toUserMessage()) }
                 }
             )
         }
@@ -978,7 +979,7 @@ class ChatViewModel @Inject constructor(
                 _chatState.update { state ->
                     state.copy(
                         messageSendStatuses = state.messageSendStatuses + (tempId to ChatSendStatus.FAILED),
-                        messageSendErrors = state.messageSendErrors + (tempId to (e.message ?: "Не удалось отправить")),
+                        messageSendErrors = state.messageSendErrors + (tempId to (e.toUserMessage("Не удалось отправить"))),
                         isSending = false,
                     )
                 }
