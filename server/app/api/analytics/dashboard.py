@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models import TaskModel, UserModel, get_db
 from app.services import get_current_user_required
-from app.services.business_time import to_naive_utc
+from app.services.analytics_periods import business_today_start
+from app.services.business_time import business_tz, to_naive_utc
 from app.services.tenant_filter import TenantFilter
 from app.utils import normalize_priority_value, priority_rank_expr
 
@@ -140,9 +141,8 @@ def get_dashboard_activity(
     """
     Получить активность за последние 7 дней и срочные заявки
     """
-    today = datetime.now(timezone.utc).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
+    # Сутки — по Москве: в UTC «сегодня» начиналось бы в 03:00
+    today = business_today_start()
     week_ago = today - timedelta(days=7)
     tenant = TenantFilter(user)
 
@@ -172,7 +172,7 @@ def get_dashboard_activity(
 
         activity.append(
             DayActivity(
-                date=day_start.strftime("%Y-%m-%d"),
+                date=day_start.astimezone(business_tz()).date().isoformat(),
                 created=created,
                 completed=completed,
             )

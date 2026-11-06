@@ -8,7 +8,7 @@ User Service
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timezone
 from decimal import Decimal
 from typing import List
 
@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.models import TaskModel, UserModel, UserRole, get_db
 from app.schemas import UserCreate, UserStatsResponse, UserUpdate
+from app.services.analytics_periods import resolve_analytics_period
 from app.services.audit_log import (
     audit_user_created,
     audit_user_deleted,
@@ -95,11 +96,9 @@ class UserService:
         paid_tasks_count = len(completed_paid_tasks)
         remote_tasks_count = sum(1 for t in all_tasks if t.is_remote)
 
-        now = datetime.now(timezone.utc)
-        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        start_of_week = (now - timedelta(days=now.weekday())).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
+        # «Этот месяц/неделя» — по календарю бизнеса, как в аналитике
+        start_of_month, _, _ = resolve_analytics_period("month", None, None)
+        start_of_week, _, _ = resolve_analytics_period("week", None, None)
 
         def _as_utc(value):
             if not value:

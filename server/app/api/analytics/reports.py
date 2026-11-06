@@ -259,11 +259,11 @@ def get_reports(
     completed_by_day = defaultdict(int)
 
     for t in tasks:
-        day_key = t.created_at.strftime("%Y-%m-%d")
+        day_key = format_local(t.created_at, "%Y-%m-%d")
         created_by_day[day_key] += 1
 
         if t.status == "DONE" and t.completed_at:
-            completed_day = t.completed_at.strftime("%Y-%m-%d")
+            completed_day = format_local(t.completed_at, "%Y-%m-%d")
             completed_by_day[completed_day] += 1
 
     # Объединяем все дни
