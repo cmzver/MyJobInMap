@@ -39,11 +39,11 @@ import kotlinx.coroutines.delay
 @Composable
 fun OfflineBanner(
     isOffline: Boolean,
+    modifier: Modifier = Modifier,
     pendingActionsCount: Int = 0,
     onSyncClick: () -> Unit = {},
     failedActionsCount: Int = 0,
     onReviewFailed: () -> Unit = {},
-    modifier: Modifier = Modifier
 ) {
     var showReconnected by remember { mutableStateOf(false) }
     var wasOffline by remember { mutableStateOf(false) }
