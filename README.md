@@ -150,7 +150,10 @@ Python-окружение одно — `server/venv`; dev-инструменты
 `scripts/sync-update-server.ps1 -Server <user@host> -SshKeyPath <key> -WireGuard` —
 сборка портала, синхронизация кода, пересборка образов и проверка healthcheck.
 `-Provision` выполняет первичную настройку сервера (Docker, Caddy + SSL, firewall).
-Серверный `.env` не перезаписывается без явного `-IncludeServiceEnvFiles`.
+Серверный `.env` не перезаписывается без явного `-IncludeServiceEnvFiles`, а если
+на сервере он отличается от локального — ещё и без `-OverwriteRemoteEnv` (локальный
+dev-`.env` с другими SECRET_KEY/VAPID иначе затёр бы продовый). Обычный деплой —
+`scripts/sync-update-server-preset.ps1 -Mode all|server|portal`.
 
 ---
 
