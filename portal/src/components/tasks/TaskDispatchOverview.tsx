@@ -2,6 +2,7 @@ import type { Task, TaskPriority, TaskStatus } from '@/types/task'
 import { getStatusLabel } from '@/config/taskConstants'
 import { STATUS_TEXT_CLASSES } from '@/config/taskStatusVisuals'
 import { buildTaskDispatchOverview, dispatchStatuses, type TaskDispatchRow } from './taskDispatchOverviewModel'
+import { countRu } from '@/utils/plural'
 
 interface TaskDispatchOverviewProps {
   tasks?: readonly Task[]
@@ -47,7 +48,7 @@ export default function TaskDispatchOverview({
           Нагрузка по исполнителям
         </h2>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          {isPartial ? `Текущая страница: ${tasks.length} из ${total}` : `${total} заявок`}
+          {isPartial ? `Текущая страница: ${tasks.length} из ${total}` : countRu(total, 'заявка', 'заявки', 'заявок')}
         </p>
       </div>
 

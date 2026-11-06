@@ -1,4 +1,6 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios'
+// Цикл authStore → client безопасен: стор читается только внутри колбэков.
+import { useAuthStore } from '@/store/authStore'
 
 const apiClient = axios.create({ baseURL: '/api', headers: { 'Content-Type': 'application/json' } })
 let refreshPromise: Promise<string> | null = null
@@ -6,7 +8,6 @@ let refreshPromise: Promise<string> | null = null
 export function refreshAccessToken(): Promise<string> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
-      const { useAuthStore } = await import('@/store/authStore')
       const refreshToken = useAuthStore.getState().refreshToken
       if (!refreshToken) throw new Error('Сессия истекла')
       const { data } = await axios.post<{ access_token: string; refresh_token: string }>(
@@ -20,8 +21,7 @@ export function refreshAccessToken(): Promise<string> {
   return refreshPromise
 }
 
-apiClient.interceptors.request.use(async (config) => {
-  const { useAuthStore } = await import('@/store/authStore')
+apiClient.interceptors.request.use((config) => {
   const token = useAuthStore.getState().token
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
@@ -31,7 +31,6 @@ apiClient.interceptors.response.use((response) => response, async (error) => {
   const config = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined
   if (error.response?.status !== 401 || !config ||
       ['/auth/login', '/auth/refresh'].includes(config.url ?? '')) return Promise.reject(error)
-  const { useAuthStore } = await import('@/store/authStore')
   if (config._retried) {
     if (config.headers.Authorization === `Bearer ${useAuthStore.getState().token}`) useAuthStore.getState().logout()
     return Promise.reject(error)

@@ -4,8 +4,6 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
-import android.media.AudioAttributes
-import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.hilt.work.HiltWorkerFactory
@@ -105,7 +103,8 @@ class FieldWorkerApplication : Application(), Configuration.Provider, ImageLoade
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             
-            // Канал для новых задач с кастомным звуком
+            // Канал для новых задач. Звук — системный: у созданного канала
+            // его уже не поменять, свой файл потребовал бы нового ID канала.
             val tasksChannel = NotificationChannel(
                 FCMService.CHANNEL_ID_TASKS,
                 "Новые задачи",
@@ -115,20 +114,6 @@ class FieldWorkerApplication : Application(), Configuration.Provider, ImageLoade
                 enableVibration(true)
                 vibrationPattern = longArrayOf(0, 300, 200, 300) // Двойная вибрация
                 enableLights(true)
-                
-                // Кастомный звук уведомления (если файл существует)
-                val soundResId = resources.getIdentifier("notification_task", "raw", packageName)
-                if (soundResId != 0) {
-                    val soundUri = Uri.parse("android.resource://$packageName/$soundResId")
-                    val audioAttributes = AudioAttributes.Builder()
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                        .build()
-                    setSound(soundUri, audioAttributes)
-                    Log.d(TAG, "Custom notification sound set")
-                } else {
-                    Log.d(TAG, "Custom sound not found, using default")
-                }
             }
             
             // Канал для аварийных заявок (максимальный приоритет)
@@ -142,18 +127,6 @@ class FieldWorkerApplication : Application(), Configuration.Provider, ImageLoade
                 vibrationPattern = longArrayOf(0, 500, 200, 500, 200, 500) // Тройная длинная вибрация
                 enableLights(true)
                 lightColor = android.graphics.Color.RED
-                
-                // Кастомный звук для аварийных
-                val soundResId = resources.getIdentifier("notification_emergency", "raw", packageName)
-                if (soundResId != 0) {
-                    val soundUri = Uri.parse("android.resource://$packageName/$soundResId")
-                    val audioAttributes = AudioAttributes.Builder()
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                        .build()
-                    setSound(soundUri, audioAttributes)
-                    Log.d(TAG, "Emergency notification sound set")
-                }
             }
             
             // Канал для изменения статуса

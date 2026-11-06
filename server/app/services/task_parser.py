@@ -196,6 +196,12 @@ _BOT_REPLY_PREFIXES = ("✅", "📝", "❌", "⚠️", "📊", "📖", "👋")
 
 # Признаки реального адреса/заявки.
 _ADDRESS_MARKERS = ("ул.", "пр.", "д.", "корп.", "подъезд", "кв.", "бульвар", "пер.")
+# Те же признаки полными словами («ул. Пушкина, дом 1»). Границы слов —
+# чтобы «домофон» или «подъездной» не считались адресом.
+_ADDRESS_WORDS = re.compile(
+    r"(?<![а-яё])(?:дом\s*\d|(?:улица|проспект|переулок|шоссе|набережная|"
+    r"корпус|квартира|парадная)(?![а-яё]))"
+)
 _CITY_MARKERS = ("спб", "санкт-петербург", "лен. обл", "лен.обл", "ленинградская обл")
 _REQUEST_LABELS = ("адрес:", "клиент:", "задача:")
 
@@ -229,7 +235,9 @@ def looks_like_request(text: str) -> bool:
     if any(city in low for city in _CITY_MARKERS):
         return True
     # Минимум два адресных маркера (ул., д., подъезд и т.п.).
-    if sum(1 for marker in _ADDRESS_MARKERS if marker in low) >= 2:
+    markers = sum(1 for marker in _ADDRESS_MARKERS if marker in low)
+    markers += len(_ADDRESS_WORDS.findall(low))
+    if markers >= 2:
         return True
     return False
 

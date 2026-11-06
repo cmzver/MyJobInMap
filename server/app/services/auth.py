@@ -271,7 +271,7 @@ def get_current_user_required(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
+            detail="Требуется вход",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
@@ -283,7 +283,7 @@ def get_current_admin(
     """Требует администратора"""
     if not is_admin_user(user):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Нужны права администратора"
         )
     return user
 
@@ -294,7 +294,8 @@ def get_current_superadmin(
     """Требует суперадмина (admin без organization_id)"""
     if not is_superadmin_user(user):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Superadmin access required"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Нужны права суперадминистратора",
         )
     return user
 
@@ -306,7 +307,7 @@ def get_current_dispatcher_or_admin(
     if not is_dispatcher_or_admin_user(user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Dispatcher or admin access required",
+            detail="Нужны права диспетчера или администратора",
         )
     return user
 

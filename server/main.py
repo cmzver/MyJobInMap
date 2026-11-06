@@ -47,6 +47,7 @@ from app.services.backup_scheduler import (
 from app.services.ip_guard import ip_guard
 from app.services.periodic_jobs import start_periodic_jobs, stop_periodic_jobs
 from app.services.websocket_manager import ws_manager
+from app.utils import log_redaction, validation_messages
 
 # ============================================================================
 # Lifespan events
@@ -92,6 +93,8 @@ def setup_logging():
 
 
 setup_logging()
+# uvicorn пишет query целиком — /ws?token=<JWT> оказывался в docker logs
+log_redaction.install()
 logger = logging.getLogger(__name__)
 
 METRICS_ENABLED = False
@@ -313,17 +316,12 @@ except ImportError:
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Унифицированный формат ошибок валидации Pydantic."""
-    errors = []
-    for error in exc.errors():
-        field = " → ".join(str(loc) for loc in error["loc"])
-        errors.append(
-            {
-                "field": field,
-                "message": error["msg"],
-                "type": error["type"],
-            }
-        )
+    """Унифицированный формат ошибок валидации Pydantic.
+
+    ``error`` — готовая для показа строка («Поле «title»: обязательное
+    поле»): клиенты выводят её как есть.
+    """
+    errors = validation_messages.humanize(exc.errors())
 
     request_id = getattr(request.state, "request_id", None)
     logger.warning(
@@ -336,7 +334,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     return JSONResponse(
         status_code=422,
         content={
-            "error": "Ошибка валидации",
+            "error": validation_messages.summary(errors),
             "details": errors,
             "request_id": request_id,
         },

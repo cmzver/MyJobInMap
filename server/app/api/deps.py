@@ -25,7 +25,7 @@ def get_task_or_404(task_id: int, db: Session = Depends(get_db)) -> TaskModel:
         .first()
     )
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
     return task
 
 

@@ -105,13 +105,13 @@ class TestSlaApi:
         assert "overdue_tasks" in overview
         assert "active_overdue" in overview
 
-    @pytest.mark.xfail(
-        reason="Pre-existing SLA scoping failure unrelated to chat feature; needs triage",
-        strict=False,
-    )
     def test_sla_with_tasks(self, client_with_auth, sample_tasks_for_reports):
-        """SLA с данными."""
-        response = client_with_auth.get("/api/sla?period=month")
+        """SLA с данными.
+
+        period=all: «month» — календарный месяц, а фикстура создаёт заявки
+        7–10 дней назад; в начале месяца они оказывались в прошлом.
+        """
+        response = client_with_auth.get("/api/sla?period=all")
         data = response.json()
         assert data["overview"]["total_tasks"] >= 4
 
@@ -147,10 +147,6 @@ class TestSlaApi:
         assert "max_completion_hours" in timing
         assert "median_completion_hours" in timing
 
-    @pytest.mark.xfail(
-        reason="Pre-existing SLA scoping failure unrelated to chat feature; needs triage",
-        strict=False,
-    )
     def test_sla_is_tenant_scoped(self, client, db_session):
         org1 = OrganizationModel(name="SLA Org 1", slug="sla-org-1", is_active=True)
         org2 = OrganizationModel(name="SLA Org 2", slug="sla-org-2", is_active=True)
@@ -212,7 +208,7 @@ class TestSlaApi:
         assert login.status_code == 200
         headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
 
-        response = client.get("/api/sla?period=month", headers=headers)
+        response = client.get("/api/sla?period=all", headers=headers)
 
         assert response.status_code == 200
         data = response.json()

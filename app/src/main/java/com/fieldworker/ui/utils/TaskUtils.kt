@@ -174,7 +174,7 @@ object TaskUtils {
     /**
      * Склонение слов
      */
-    private fun pluralize(count: Int, one: String, few: String, many: String): String {
+    fun pluralize(count: Int, one: String, few: String, many: String): String {
         val n = abs(count) % 100
         return when {
             n in 11..19 -> many

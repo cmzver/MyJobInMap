@@ -29,6 +29,7 @@ import { formatDatePretty } from '@/utils/dateFormat'
 import { buildTaskListUrl } from '@/utils/taskListUrl'
 
 import 'leaflet/dist/leaflet.css'
+import { countRu } from '@/utils/plural'
 
 const lightenColor = (hex: string, factor = 0.25) => {
   if (!hex.startsWith('#') || (hex.length !== 7 && hex.length !== 4)) return hex
@@ -567,6 +568,11 @@ export default function MapPage() {
                 key={group.key}
                 position={[group.lat, group.lon]}
                 icon={icon}
+                title={
+                  isGrouped
+                    ? `${countRu(group.tasks.length, 'заявка', 'заявки', 'заявок')}: ${primaryTask.raw_address || 'адрес не указан'}`
+                    : `№${getTaskNumber(primaryTask)} · ${primaryTask.title}`
+                }
                 eventHandlers={{
                   click: () => setSelectedTask(primaryTask),
                 }}
@@ -577,7 +583,7 @@ export default function MapPage() {
                       <div className="fw-map-card space-y-3">
                         <div className="space-y-1">
                           <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                            {group.tasks.length} заявок по адресу
+                            {countRu(group.tasks.length, 'заявка', 'заявки', 'заявок')} по адресу
                           </p>
                           {primaryTask.raw_address && (
                             <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">

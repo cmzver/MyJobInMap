@@ -36,10 +36,10 @@ fun ChatAvatar(
     name: String?,
     id: Long?,
     type: ConversationType,
+    modifier: Modifier = Modifier,
     avatarUrl: String? = null,
     baseUrl: String? = null,
     authToken: String? = null,
-    modifier: Modifier = Modifier,
     size: Int = 44,
 ) {
     val initials = avatarInitials(name).ifEmpty { "?" }

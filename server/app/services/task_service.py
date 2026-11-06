@@ -515,7 +515,7 @@ class TaskService:
                     raise TaskServiceError("User not found", 404)
                 tenant.enforce_access(
                     assigned_user,
-                    detail="Cannot assign user from another organization",
+                    detail="Нельзя назначить пользователя из другой организации",
                 )
                 task.assigned_user_id = assigned_user.id
                 new_assigned_user_id = assigned_user.id

@@ -15,6 +15,7 @@ import PageHeader from '@/components/PageHeader'
 import apiClient from '@/api/client'
 import { type Notification } from '@/hooks/useNotifications'
 import { formatDateRelative as formatDate } from '@/utils/dateFormat'
+import { countRu } from '@/utils/plural'
 
 export default function NotificationsPage() {
   const queryClient = useQueryClient()
@@ -89,7 +90,7 @@ export default function NotificationsPage() {
       {/* Header */}
       <PageHeader
         title="Уведомления"
-        description={unreadCount > 0 ? `${unreadCount} непрочитанных` : 'Все прочитано'}
+        description={unreadCount > 0 ? countRu(unreadCount, 'непрочитанное', 'непрочитанных', 'непрочитанных') : 'Все прочитано'}
         actions={
           unreadCount > 0 && (
             <Button size="sm"

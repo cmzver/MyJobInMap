@@ -95,6 +95,7 @@ import com.fieldworker.ui.chat.components.BubbleShape
 import com.fieldworker.ui.chat.components.ChatAvatar
 import com.fieldworker.ui.chat.components.swipeToReply
 import com.fieldworker.ui.theme.AppShape
+import com.fieldworker.ui.utils.TaskUtils
 import com.fieldworker.ui.utils.accentTextColor
 import com.fieldworker.ui.utils.isDarkPalette
 import java.time.LocalDateTime
@@ -198,7 +199,8 @@ fun ChatScreen(
     val headerSubtitle = remember(conversationDetail, recipientCount, isMuted, isArchived) {
         when (conversationType) {
             ConversationType.GROUP -> buildString {
-                append("${conversationDetail.members.size} участников")
+                val members = conversationDetail.members.size
+                append("$members ${TaskUtils.pluralize(members, "участник", "участника", "участников")}")
                 if (isMuted) append(" · без звука")
                 if (isArchived) append(" · архив")
             }

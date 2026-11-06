@@ -671,12 +671,12 @@ def get_or_create_task_conversation(
 
     task = db.query(TaskModel).filter(TaskModel.id == task_id).first()
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Заявка не найдена")
 
     # Validate organization_id matches task's organization if provided
     if organization_id is not None and task.organization_id != organization_id:
         raise HTTPException(
-            status_code=400, detail="Organization ID does not match task's organization"
+            status_code=400, detail="Организация не совпадает с организацией заявки"
         )
 
     # Use task's organization_id if not provided
