@@ -2017,8 +2017,7 @@ function ClearDatabaseModal({ setShowClearConfirm }: { setShowClearConfirm: (sho
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
     },
     onError: (error: Error) => {
-      const message = (error as import('axios').AxiosError<{detail?: string}>)?.response?.data?.detail || 'Ошибка при очистке'
-      toast.error(`✗ ${message}`)
+      toast.error(`✗ ${getApiErrorMessage(error, 'Ошибка при очистке')}`)
     },
   })
 
