@@ -188,14 +188,11 @@ class TestTaskRetrieval:
         titles = [item["title"] for item in items[:2]]
         assert titles == ["First task", "Second task"]
 
-    @pytest.mark.xfail(
-        reason="Pre-existing unread-prioritization failure unrelated to chat feature; needs triage",
-        strict=False,
-    )
     def test_get_tasks_prioritizes_unread_notifications_for_admin(
         self, client, admin_token, admin_user, db_session
     ):
-        """Admin sees tasks with unread notifications first in default newest-first mode."""
+        """Без явной сортировки заявки с непрочитанными уведомлениями — наверху;
+        «по дате» (created_at_desc) — строго по дате, без подъёма."""
         from app.models import NotificationModel, TaskModel
 
         now = datetime.now(timezone.utc)
@@ -235,10 +232,8 @@ class TestTaskRetrieval:
         )
         db_session.commit()
 
-        response = client.get(
-            "/api/tasks?sort=created_at_desc",
-            headers={"Authorization": f"Bearer {admin_token}"},
-        )
+        headers = {"Authorization": f"Bearer {admin_token}"}
+        response = client.get("/api/tasks", headers=headers)
 
         assert response.status_code == 200
         items = response.json()["items"]
@@ -247,14 +242,16 @@ class TestTaskRetrieval:
             newer_regular.id,
         ]
 
-    @pytest.mark.xfail(
-        reason="Pre-existing unread-prioritization failure unrelated to chat feature; needs triage",
-        strict=False,
-    )
+        by_date = client.get("/api/tasks?sort=created_at_desc", headers=headers)
+        assert [item["id"] for item in by_date.json()["items"][:2]] == [
+            newer_regular.id,
+            older_notified.id,
+        ]
+
     def test_get_tasks_prioritizes_unread_notifications_for_dispatcher(
         self, client_with_dispatcher, dispatcher_user, db_session
     ):
-        """Dispatcher sees tasks with unread notifications first in default newest-first mode."""
+        """То же для диспетчера: подъём только в сортировке по умолчанию."""
         from app.models import NotificationModel, TaskModel, init_default_settings
 
         init_default_settings(db_session)
@@ -296,13 +293,19 @@ class TestTaskRetrieval:
         )
         db_session.commit()
 
-        response = client_with_dispatcher.get("/api/tasks?sort=created_at_desc")
+        response = client_with_dispatcher.get("/api/tasks")
 
         assert response.status_code == 200
         items = response.json()["items"]
         assert [item["id"] for item in items[:2]] == [
             older_notified.id,
             newer_regular.id,
+        ]
+
+        by_date = client_with_dispatcher.get("/api/tasks?sort=created_at_desc")
+        assert [item["id"] for item in by_date.json()["items"][:2]] == [
+            newer_regular.id,
+            older_notified.id,
         ]
 
     def test_get_tasks_with_multiple_filters(

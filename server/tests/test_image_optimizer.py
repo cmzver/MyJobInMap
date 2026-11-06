@@ -169,10 +169,6 @@ class TestImageProcessing:
         result_img = Image.open(io.BytesIO(result_content))
         assert result_img.mode == "RGB"
 
-    @pytest.mark.xfail(
-        reason="Pre-existing failure unrelated to chat feature; needs triage",
-        strict=False,
-    )
     def test_convert_to_webp_when_enabled(self):
         """Конвертация в WebP когда включено."""
         from PIL import Image
@@ -183,7 +179,8 @@ class TestImageProcessing:
         content = buffer.getvalue()
 
         service = ImageOptimizationService()
-        service.convert_to_webp = True
+        # Без БД действуют значения по умолчанию из конфига
+        service.convert_to_webp_default = True
 
         result_content, result_ext, mime_type = service.optimize(content, ".jpg")
 
@@ -313,3 +310,23 @@ class TestOptimizeEdgeCases:
         # Should stay as WebP or convert to JPEG, but not error out
         assert len(result_content) > 0
         assert mime in ["image/webp", "image/jpeg"]
+
+
+def test_db_string_flags_are_parsed_not_truthy(monkeypatch):
+    """Строка "false" из настроек выключает флаг (bool("false") был True)."""
+    import app.models
+
+    values = {
+        "image_optimization_enabled": "false",
+        "image_convert_to_webp": "False",
+        "image_strip_metadata": "false",
+    }
+    monkeypatch.setattr(
+        app.models,
+        "get_setting",
+        lambda db, key, default=None: values.get(key, default),
+    )
+    result = ImageOptimizationService()._get_settings_from_db(object())
+    assert result["enabled"] is False
+    assert result["convert_to_webp"] is False
+    assert result["strip_metadata"] is False

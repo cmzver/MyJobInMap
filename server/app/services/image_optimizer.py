@@ -90,21 +90,25 @@ class ImageOptimizationService:
                 db, "image_strip_metadata", self.strip_metadata_default
             )
 
-            # Нормализуем типы
-            if isinstance(enabled, str):
-                enabled = enabled.lower() in ("true", "1", "yes")
-            if isinstance(convert_to_webp, str):
-                convert_to_webp = convert_to_webp.lower() in ("true", "1", "yes")
+            # Нормализуем типы: bool("false") — это True
+            def as_bool(value):
+                if isinstance(value, str):
+                    return value.strip().lower() in ("true", "1", "yes")
+                return bool(value)
+
+            enabled = as_bool(enabled)
+            convert_to_webp = as_bool(convert_to_webp)
+            strip_metadata = as_bool(strip_metadata)
 
             quality = max(1, min(100, int(quality or self.quality_default)))
             max_dimension = max(1, int(max_dimension or self.max_dimension_default))
 
             return {
-                "enabled": bool(enabled),
+                "enabled": enabled,
                 "quality": quality,
                 "max_dimension": max_dimension,
-                "convert_to_webp": bool(convert_to_webp),
-                "strip_metadata": bool(strip_metadata),
+                "convert_to_webp": convert_to_webp,
+                "strip_metadata": strip_metadata,
             }
         except Exception as e:
             logger.warning(
