@@ -52,6 +52,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
+import com.fieldworker.data.network.toUserMessage
 
 /**
  * Блок «Акты» в карточке заявки. Подставляется через CompositionLocal: экран
@@ -116,7 +117,7 @@ class TaskActsViewModel @Inject constructor(
                 }
                 .onFailure {
                     _link.value = null
-                    onError(it.message ?: "Ссылка доступна при связи с сервером")
+                    onError(it.toUserMessage("Ссылка доступна при связи с сервером"))
                 }
         }
     }
@@ -136,7 +137,7 @@ class TaskActsViewModel @Inject constructor(
         viewModelScope.launch {
             actsRepository.statusLink(id)
                 .onSuccess { onReady(it.url) }
-                .onFailure { onError(it.message ?: "Ссылка доступна при связи с сервером") }
+                .onFailure { onError(it.toUserMessage("Ссылка доступна при связи с сервером")) }
             _statusLinkLoading.value = false
         }
     }
@@ -145,7 +146,7 @@ class TaskActsViewModel @Inject constructor(
         viewModelScope.launch {
             actsRepository.downloadPdf(act)
                 .onSuccess(onReady)
-                .onFailure { onError(it.message ?: "PDF недоступен") }
+                .onFailure { onError(it.toUserMessage("PDF недоступен")) }
         }
     }
 }

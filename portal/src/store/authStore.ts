@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import apiClient from '@/api/client'
+import { getApiErrorMessage } from '@/utils/apiError'
 import type { AccessRole, UserRole } from '@/types/user'
 import { normalizeRoleForAccess } from '@/types/user'
 
@@ -106,10 +107,8 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
           })
         } catch (error) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const axiosError = error as any
-          const message = axiosError?.response?.data?.detail || axiosError?.message || 'Ошибка входа'
-          throw new Error(message)
+          // «Network Error» axios по-английски — показываем русский текст
+          throw new Error(getApiErrorMessage(error, 'Ошибка входа'))
         }
       },
 

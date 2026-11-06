@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.models import AddressModel, CounterpartyModel, TaskModel, UserModel
 from app.models.operations import MaintenanceOccurrenceModel, MaintenancePlanModel
-from app.services.business_time import business_tz
+from app.services.business_time import business_tz, format_local
 from app.services.maintenance_service import following_date
 from app.services.tenant_filter import TenantFilter
 
@@ -301,7 +301,7 @@ def month_report(
         summary[plan.address_id][status] += 1
         completed = ""
         if task and task.completed_at:
-            completed = task.completed_at.strftime("%d.%m.%Y %H:%M")
+            completed = format_local(task.completed_at)
         ws.append(
             [
                 occurrence.scheduled_date.strftime("%d.%m.%Y"),

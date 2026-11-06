@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.fieldworker.data.network.toUserMessage
 
 /**
  * Состояние раздела «Мои адреса».
@@ -54,7 +55,7 @@ class MyAddressesViewModel @Inject constructor(
                         it.copy(
                             isLoading = false,
                             hasLoaded = true,
-                            error = e.message ?: "Не удалось загрузить адреса",
+                            error = e.toUserMessage("Не удалось загрузить адреса"),
                         )
                     }
                 }
@@ -72,7 +73,7 @@ class MyAddressesViewModel @Inject constructor(
                     _state.update {
                         it.copy(
                             isLoadingDetails = false,
-                            error = e.message ?: "Не удалось открыть карточку",
+                            error = e.toUserMessage("Не удалось открыть карточку"),
                         )
                     }
                 }
@@ -97,7 +98,7 @@ class MyAddressesViewModel @Inject constructor(
                     _state.update {
                         it.copy(
                             openingPanelId = null,
-                            error = e.message ?: "Не удалось открыть дверь",
+                            error = e.toUserMessage("Не удалось открыть дверь"),
                         )
                     }
                 }

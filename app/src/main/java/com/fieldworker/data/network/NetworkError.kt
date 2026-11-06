@@ -1,6 +1,11 @@
 package com.fieldworker.data.network
 
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 import retrofit2.HttpException
+import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import javax.net.ssl.SSLException
@@ -18,6 +23,23 @@ sealed class NetworkError : Exception() {
         override val message: String = "Нет подключения к интернету"
     }
     
+    /**
+     * Сервер не отвечает: соединение отклонено или оборвано
+     * (ConnectException «Failed to connect to …» и прочие SocketException)
+     */
+    data object Unreachable : NetworkError() {
+        private fun readResolve(): Any = Unreachable
+        override val message: String = "Сервер недоступен. Проверьте подключение"
+    }
+
+    /**
+     * Ответ сервера не удалось разобрать
+     */
+    data object BadResponse : NetworkError() {
+        private fun readResolve(): Any = BadResponse
+        override val message: String = "Неожиданный ответ сервера. Попробуйте позже"
+    }
+
     /**
      * Таймаут соединения
      */
@@ -79,6 +101,8 @@ sealed class NetworkError : Exception() {
                 is UnknownHostException -> NoConnection
                 is SocketTimeoutException -> Timeout
                 is SSLException -> SSLError
+                is SocketException -> Unreachable
+                is SerializationException -> BadResponse
                 is HttpException -> fromHttpCode(throwable.code())
                 is NetworkError -> throwable
                 else -> Unknown(throwable.message ?: "Неизвестная ошибка")
@@ -93,8 +117,12 @@ sealed class NetworkError : Exception() {
                 401 -> Unauthorized
                 403 -> Forbidden
                 404 -> NotFound
+                409 -> Unknown("Данные уже изменились. Обновите и попробуйте снова")
+                413 -> Unknown("Файл слишком большой")
+                422 -> Unknown("Проверьте введённые данные")
+                429 -> Unknown("Слишком много запросов. Попробуйте позже")
                 in 500..599 -> ServerError(code)
-                else -> Unknown("HTTP ошибка: $code")
+                else -> Unknown("Не удалось выполнить запрос (код $code)")
             }
         }
     }
@@ -109,15 +137,38 @@ fun <T> Result<T>.mapNetworkError(): Result<T> {
 }
 
 /**
- * Extension для получения понятного сообщения об ошибке
+ * Понятное пользователю сообщение об ошибке.
+ *
+ * Для ответа сервера 4xx берётся его собственный текст (`detail` или `error`:
+ * сервер пишет их по-русски), иначе — текст по коду. Сетевые исключения
+ * («Unable to resolve host…», «Failed to connect…») наружу не показываются.
+ * [fallback] — если у исключения нет ни типа, ни сообщения.
  */
-fun Throwable.toUserMessage(): String {
+fun Throwable.toUserMessage(fallback: String = "Неизвестная ошибка"): String {
     return when (this) {
-        is NetworkError -> this.message ?: "Ошибка сети"
+        is NetworkError -> this.message ?: fallback
         is UnknownHostException -> NetworkError.NoConnection.message
         is SocketTimeoutException -> NetworkError.Timeout.message
         is SSLException -> NetworkError.SSLError.message
-        is HttpException -> NetworkError.fromHttpCode(this.code()).message ?: "Ошибка HTTP"
-        else -> this.message ?: "Неизвестная ошибка"
+        is SocketException -> NetworkError.Unreachable.message
+        is SerializationException -> NetworkError.BadResponse.message
+        is HttpException -> serverMessage(this)
+            ?: NetworkError.fromHttpCode(this.code()).message
+            ?: fallback
+        else -> this.message?.takeIf { it.isNotBlank() } ?: fallback
+    }
+}
+
+private val errorJson = Json { ignoreUnknownKeys = true }
+
+/** Текст сервера из тела ответа: `detail` (строка) или `error`. */
+private fun serverMessage(error: HttpException): String? {
+    if (error.code() == 401 || error.code() >= 500) return null
+    val body = runCatching { error.response()?.errorBody()?.string() }.getOrNull()
+    if (body.isNullOrBlank()) return null
+    val root = runCatching { errorJson.parseToJsonElement(body).jsonObject }.getOrNull()
+        ?: return null
+    return listOf("detail", "error").firstNotNullOfOrNull { key ->
+        (root[key] as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }
     }
 }

@@ -15,6 +15,7 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import TaskModel, UserModel
+from app.services.business_time import format_local
 from app.services.tenant_filter import TenantFilter
 
 logger = logging.getLogger(__name__)
@@ -263,7 +264,7 @@ def _add_cover_sheet(
         ("Период", period_label),
         ("Исполнитель", worker_name),
         ("Организация", organization_name),
-        ("Сформирован", datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M UTC")),
+        ("Сформирован", format_local(datetime.now(timezone.utc))),
         ("Подготовил", generated_by),
         ("Всего заявок", str(len(tasks))),
     ]
@@ -339,9 +340,7 @@ def _add_summary_sheet(
     title.font = Font(name="Calibri", size=16, bold=True, color="0F172A")
     title.alignment = styles["left"]
 
-    ws["A2"] = (
-        f"Дата формирования: {datetime.now(timezone.utc).strftime('%d.%m.%Y %H:%M UTC')}"
-    )
+    ws["A2"] = f"Дата формирования: {format_local(datetime.now(timezone.utc))}"
     ws["A2"].font = styles["muted_font"]
 
     row = 4
@@ -488,9 +487,9 @@ def _add_tasks_sheet(ws, *, tasks: list[TaskModel], styles: dict[str, Any]) -> N
             assignee_name,
             task.customer_name or "",
             task.customer_phone or "",
-            task.created_at.strftime("%d.%m.%Y %H:%M") if task.created_at else "",
+            format_local(task.created_at),
             planned_str,
-            task.completed_at.strftime("%d.%m.%Y %H:%M") if task.completed_at else "",
+            format_local(task.completed_at),
             completion_hours,
             getattr(task, "payment_amount", None) or "",
             task.description or "",

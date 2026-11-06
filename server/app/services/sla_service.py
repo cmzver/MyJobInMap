@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.models import OrganizationSettingsModel, TaskModel, TaskStatus, UserModel
 from app.services.analytics_periods import resolve_analytics_period
-from app.services.business_time import local_day_end_utc, to_naive_utc
+from app.services.business_time import format_local, local_day_end_utc, to_naive_utc
 from app.services.tenant_filter import TenantFilter
 
 logger = logging.getLogger(__name__)
@@ -390,7 +390,8 @@ def _compute_trends(
         # По дням
         current = start
         while current <= end:
-            day_start = current.replace(hour=0, minute=0, second=0, microsecond=0)
+            # start — уже полночь по поясу бизнеса (analytics_periods)
+            day_start = current
             day_end = day_start + timedelta(days=1)
 
             created_query = db.query(TaskModel).filter(
@@ -420,7 +421,7 @@ def _compute_trends(
 
             trends.append(
                 {
-                    "date": day_start.strftime("%Y-%m-%d"),
+                    "date": format_local(day_start, "%Y-%m-%d"),
                     "created": created,
                     "completed": completed_count,
                 }
@@ -460,7 +461,7 @@ def _compute_trends(
 
             trends.append(
                 {
-                    "date": current.strftime("%Y-%m-%d"),
+                    "date": format_local(current, "%Y-%m-%d"),
                     "created": created,
                     "completed": completed_count,
                 }

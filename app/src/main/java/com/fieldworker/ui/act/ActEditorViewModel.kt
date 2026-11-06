@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import javax.inject.Inject
+import com.fieldworker.data.network.toUserMessage
 
 /**
  * Оформление акта на телефоне мастера: строки (прайс работает и без сети),
@@ -140,7 +141,7 @@ class ActEditorViewModel @Inject constructor(
                     _uiState.update { it.copy(isSubmitting = false, isDone = true) }
                 }
                 .onFailure { error ->
-                    _uiState.update { it.copy(isSubmitting = false, error = error.message) }
+                    _uiState.update { it.copy(isSubmitting = false, error = error.toUserMessage()) }
                 }
         }
     }

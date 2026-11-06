@@ -4,7 +4,7 @@ Finance API
 Эндпоинты для финансовой статистики.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
 
@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.models import TaskModel, UserModel, UserRole, get_db
 from app.services import get_current_dispatcher_or_admin
+from app.services.analytics_periods import resolve_analytics_period
 from app.services.tenant_filter import TenantFilter
 
 router = APIRouter(prefix="/api/finance", tags=["Finance"])
@@ -51,15 +52,10 @@ def get_period_start(period: Optional[str]) -> Optional[datetime]:
     if not period or period == "all":
         return None
 
-    now = datetime.now(timezone.utc)
-
-    if period == "week":
-        days_since_monday = now.weekday()
-        return (now - timedelta(days=days_since_monday)).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-    elif period == "month":
-        return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if period in ("week", "month"):
+        # Тот же календарь бизнеса, что у остальной аналитики
+        start, _, _ = resolve_analytics_period(period, None, None)
+        return start
 
     return None
 

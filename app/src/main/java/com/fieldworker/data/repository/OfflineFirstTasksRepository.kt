@@ -435,7 +435,7 @@ class OfflineFirstTasksRepository @Inject constructor(
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Error updating task status: ${e.message}", e)
-            Result.failure(Exception("Ошибка обновления статуса: ${e.message}", e))
+            Result.failure(Exception("Ошибка обновления статуса: ${e.toUserMessage()}", e))
         }
     }
     
@@ -505,7 +505,7 @@ class OfflineFirstTasksRepository @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Result.failure(Exception("Ошибка добавления комментария: ${e.message}", e))
+                Result.failure(Exception("Ошибка добавления комментария: ${e.toUserMessage()}", e))
             }
         }
     
@@ -570,7 +570,7 @@ class OfflineFirstTasksRepository @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Result.failure(Exception("Ошибка обновления даты: ${e.message}", e))
+            Result.failure(Exception("Ошибка обновления даты: ${e.toUserMessage()}", e))
         }
     }
 
@@ -1144,7 +1144,7 @@ class OfflineFirstTasksRepository @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Result.failure(Exception("Ошибка сети: ${e.message}", e))
+                Result.failure(Exception("Ошибка сети: ${e.toUserMessage()}", e))
             }
         }
     
@@ -1178,7 +1178,7 @@ class OfflineFirstTasksRepository @Inject constructor(
             throw e
         } catch (e: Exception) {
             pendingPhotoStore.delete(file.absolutePath)
-            Result.failure(Exception("Не удалось сохранить фото: ${e.message}", e))
+            Result.failure(Exception("Не удалось сохранить фото: ${e.toUserMessage()}", e))
         }
     }
 
@@ -1229,7 +1229,7 @@ class OfflineFirstTasksRepository @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Result.failure(Exception("Ошибка сети: ${e.message}", e))
+            Result.failure(Exception("Ошибка сети: ${e.toUserMessage()}", e))
         }
     }
 }
