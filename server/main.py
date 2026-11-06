@@ -47,6 +47,7 @@ from app.services.backup_scheduler import (
 from app.services.ip_guard import ip_guard
 from app.services.periodic_jobs import start_periodic_jobs, stop_periodic_jobs
 from app.services.websocket_manager import ws_manager
+from app.utils import log_redaction
 
 # ============================================================================
 # Lifespan events
@@ -92,6 +93,8 @@ def setup_logging():
 
 
 setup_logging()
+# uvicorn пишет query целиком — /ws?token=<JWT> оказывался в docker logs
+log_redaction.install()
 logger = logging.getLogger(__name__)
 
 METRICS_ENABLED = False
