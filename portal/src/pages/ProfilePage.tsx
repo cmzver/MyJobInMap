@@ -190,6 +190,8 @@ export default function ProfilePage() {
                 type="button"
                 onClick={() => avatarInputRef.current?.click()}
                 disabled={uploadAvatarMutation.isPending}
+                aria-label="Сменить фото профиля"
+                title="Сменить фото профиля"
                 className="absolute bottom-0 right-0 rounded-full border border-gray-200 bg-white p-1.5 shadow transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
               >
                 <Camera size={14} className="text-gray-600 dark:text-gray-400" />

@@ -59,6 +59,7 @@ import {
   type TaskSavedView,
   type TaskSavedViewSettings,
 } from '@/hooks/useTaskSavedViews'
+import { countRu } from '@/utils/plural'
 
 const PAGE_SIZE = 20
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
@@ -1195,10 +1196,10 @@ export default function TasksPage() {
     try {
       const result = await bulkStatusMutation.mutateAsync({ ids, status, comment })
       if (result.successCount > 0) {
-        toast.success(`Статус обновлён для ${result.successCount} заявок`)
+        toast.success(`Статус обновлён для ${countRu(result.successCount, 'заявки', 'заявок', 'заявок')}`)
       }
       if (result.failedCount > 0) {
-        toast.error(`Не удалось обновить ${result.failedCount} заявок`)
+        toast.error(`Не удалось обновить ${countRu(result.failedCount, 'заявку', 'заявки', 'заявок')}`)
       }
       if (skippedCount > 0) {
         toast('Пропущены заявки с недопустимым переходом статуса')
@@ -1241,7 +1242,7 @@ export default function TasksPage() {
     const ids = Array.from(selectedIds)
     try {
       await bulkAssigneeMutation.mutateAsync({ ids, assignedUserId })
-      toast.success(`Исполнитель обновлён для ${ids.length} заявок`)
+      toast.success(`Исполнитель обновлён для ${countRu(ids.length, 'заявки', 'заявок', 'заявок')}`)
       clearSelection()
     } catch (err) {
       showApiError(err, 'Ошибка массового назначения')
@@ -1261,7 +1262,7 @@ export default function TasksPage() {
     const ids = Array.from(selectedIds)
     try {
       await bulkPriorityMutation.mutateAsync({ ids, priority })
-      toast.success(`Приоритет обновлён для ${ids.length} заявок`)
+      toast.success(`Приоритет обновлён для ${countRu(ids.length, 'заявки', 'заявок', 'заявок')}`)
       clearSelection()
     } catch (err) {
       showApiError(err, 'Ошибка массового обновления приоритета')
@@ -1280,7 +1281,7 @@ export default function TasksPage() {
     const ids = Array.from(selectedIds)
     try {
       await bulkPlannedDateMutation.mutateAsync({ ids, planned_date: bulkPlannedDate })
-      toast.success(`Плановая дата обновлена для ${ids.length} заявок`)
+      toast.success(`Плановая дата обновлена для ${countRu(ids.length, 'заявки', 'заявок', 'заявок')}`)
       clearSelection()
     } catch (err) {
       showApiError(err, 'Ошибка массового обновления даты')
