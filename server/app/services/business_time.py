@@ -31,3 +31,15 @@ def local_day_end_utc(day: date) -> datetime:
     """Конец локального дня (полночь следующего) как наивное UTC."""
     local_end = datetime.combine(day + timedelta(days=1), time.min, business_tz())
     return to_naive_utc(local_end)
+
+
+def format_local(moment, fmt: str = "%d.%m.%Y %H:%M") -> str:
+    """Метка из БД (наивное UTC) или aware-момент — строкой в поясе бизнеса.
+
+    Для выгрузок и документов: люди читают их по местному времени.
+    """
+    if moment is None:
+        return ""
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone(business_tz()).strftime(fmt)

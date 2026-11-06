@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.models import TaskModel, UserModel, UserRole, get_db
 from app.services import get_current_dispatcher_or_admin
 from app.services.analytics_periods import resolve_analytics_period
+from app.services.business_time import format_local
 from app.services.tenant_filter import TenantFilter
 from app.utils import normalize_priority_value
 
@@ -410,8 +411,8 @@ def export_report(
                 normalize_priority_value(t.priority, default="CURRENT") or "",
             ),
             t.assigned_user.full_name if t.assigned_user else "",
-            t.created_at.strftime("%d.%m.%Y %H:%M") if t.created_at else "",
-            t.updated_at.strftime("%d.%m.%Y %H:%M") if t.updated_at else "",
+            format_local(t.created_at),
+            format_local(t.updated_at),
             "Да" if t.is_paid else "Нет",
             str(t.payment_amount or 0),
         ]
