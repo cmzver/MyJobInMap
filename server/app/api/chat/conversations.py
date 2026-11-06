@@ -131,27 +131,27 @@ def get_conversation_avatar(
     conv = db.query(ConversationModel).filter(ConversationModel.id == conv_id).first()
     avatar_url = cast(Optional[str], conv.avatar_url) if conv else None
     if not conv or not avatar_url:
-        raise HTTPException(status_code=404, detail="Avatar not found")
+        raise HTTPException(status_code=404, detail="Аватар не найден")
 
     expected_prefix = f"/api/chat/conversations/{conv_id}/avatar/"
     avatar_url_str = cast(
         str, avatar_url
     )  # narrowed: guaranteed non-None by guard above
     if not avatar_url_str.startswith(expected_prefix):
-        raise HTTPException(status_code=404, detail="Avatar not found")
+        raise HTTPException(status_code=404, detail="Аватар не найден")
 
     avatar_name = Path(avatar_url_str).name
     if avatar_name != file_name:
-        raise HTTPException(status_code=404, detail="Avatar not found")
+        raise HTTPException(status_code=404, detail="Аватар не найден")
 
     full_path = (
         settings.UPLOADS_DIR / "chat_avatars" / str(conv_id) / avatar_name
     ).resolve()
     avatars_root = (settings.UPLOADS_DIR / "chat_avatars").resolve()
     if avatars_root not in full_path.parents:
-        raise HTTPException(status_code=404, detail="Avatar not found")
+        raise HTTPException(status_code=404, detail="Аватар не найден")
     if not full_path.exists() or not full_path.is_file():
-        raise HTTPException(status_code=404, detail="Avatar not found")
+        raise HTTPException(status_code=404, detail="Аватар не найден")
 
     return FileResponse(full_path)
 

@@ -42,7 +42,7 @@ def create_custom_field(
         .first()
     )
     if existing:
-        raise HTTPException(status_code=400, detail="Field name already exists")
+        raise HTTPException(status_code=400, detail="Поле с таким именем уже есть")
 
     field = CustomFieldModel(**field_data.model_dump())
     db.add(field)
@@ -61,7 +61,7 @@ def update_custom_field(
     """Обновить кастомное поле"""
     field = db.query(CustomFieldModel).filter(CustomFieldModel.id == field_id).first()
     if not field:
-        raise HTTPException(status_code=404, detail="Field not found")
+        raise HTTPException(status_code=404, detail="Поле не найдено")
 
     for key, value in field_data.model_dump(exclude_unset=True).items():
         setattr(field, key, value)
@@ -80,7 +80,7 @@ def delete_custom_field(
     """Удалить кастомное поле"""
     field = db.query(CustomFieldModel).filter(CustomFieldModel.id == field_id).first()
     if not field:
-        raise HTTPException(status_code=404, detail="Field not found")
+        raise HTTPException(status_code=404, detail="Поле не найдено")
 
     db.delete(field)
     db.commit()
@@ -96,7 +96,7 @@ def toggle_custom_field(
     """Переключить активность поля"""
     field = db.query(CustomFieldModel).filter(CustomFieldModel.id == field_id).first()
     if not field:
-        raise HTTPException(status_code=404, detail="Field not found")
+        raise HTTPException(status_code=404, detail="Поле не найдено")
 
     field.is_active = not field.is_active
     db.commit()

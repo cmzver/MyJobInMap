@@ -136,7 +136,7 @@ def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired refresh token",
+            detail="Сессия истекла, войдите снова",
         )
 
     user_id = payload.get("user_id")
@@ -145,7 +145,7 @@ def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
     if not user_id or not username:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token payload",
+            detail="Сессия недействительна, войдите снова",
         )
 
     # Проверяем, что пользователь существует и активен
@@ -153,7 +153,7 @@ def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
     if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or deactivated",
+            detail="Пользователь не найден или отключён",
         )
 
     # Проверяем, что организация активна
@@ -168,19 +168,21 @@ def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
     # Проверяем что username совпадает (защита от переиспользования ID)
     if user.username != username:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token mismatch"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Сессия недействительна, войдите снова",
         )
 
     if payload.get("auth_version", 0) != user.auth_version:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Сессия завершена, войдите снова",
         )
 
     new_refresh_token = rotate_refresh_token(db, data.refresh_token, payload, user)
     if new_refresh_token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or reused refresh token",
+            detail="Сессия недействительна, войдите снова",
         )
 
     return _build_token_response(user, db, refresh_token=new_refresh_token)

@@ -76,9 +76,9 @@ def delete_device(
     tenant = TenantFilter(admin)
     device = db.query(DeviceModel).filter(DeviceModel.id == device_id).first()
     if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
+        raise HTTPException(status_code=404, detail="Устройство не найдено")
     if device.user:
-        tenant.enforce_access(device.user, detail="Device not found")
+        tenant.enforce_access(device.user, detail="Устройство не найдено")
 
     db.delete(device)
     db.commit()

@@ -73,7 +73,9 @@ class TenantService:
             .first()
         )
         if existing_user:
-            raise HTTPException(status_code=400, detail="Username already exists")
+            raise HTTPException(
+                status_code=400, detail="Пользователь с таким логином уже существует"
+            )
 
         org = OrganizationModel(name=name, slug=slug, **kwargs)
         self.db.add(org)

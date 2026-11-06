@@ -57,18 +57,18 @@ def get_user_avatar(user_id: int, file_name: str, db: Session = Depends(get_db))
     """Получить аватар пользователя по публичному URL."""
     user = db.query(UserModel).filter(UserModel.id == user_id).first()
     if not user or not user.avatar_path:
-        raise HTTPException(status_code=404, detail="Avatar not found")
+        raise HTTPException(status_code=404, detail="Аватар не найден")
 
     avatar_path = Path(user.avatar_path)
     if avatar_path.name != file_name:
-        raise HTTPException(status_code=404, detail="Avatar not found")
+        raise HTTPException(status_code=404, detail="Аватар не найден")
 
     full_path = (settings.UPLOADS_DIR / avatar_path).resolve()
     avatars_root = (settings.UPLOADS_DIR / "avatars").resolve()
     if avatars_root not in full_path.parents:
-        raise HTTPException(status_code=404, detail="Avatar not found")
+        raise HTTPException(status_code=404, detail="Аватар не найден")
     if not full_path.exists() or not full_path.is_file():
-        raise HTTPException(status_code=404, detail="Avatar not found")
+        raise HTTPException(status_code=404, detail="Аватар не найден")
 
     return FileResponse(full_path)
 
@@ -225,11 +225,13 @@ def update_report_settings(
 ):
     """Обновить настройки отправки отчётов"""
     if settings.report_target not in ("group", "contact", "none"):
-        raise HTTPException(status_code=400, detail="Invalid report_target")
+        raise HTTPException(
+            status_code=400, detail="Неизвестный способ отправки отчёта"
+        )
 
     if settings.report_target == "contact" and not settings.report_contact_phone:
         raise HTTPException(
-            status_code=400, detail="Phone required for 'contact' target"
+            status_code=400, detail="Укажите телефон для отправки отчёта контакту"
         )
 
     user.report_target = settings.report_target

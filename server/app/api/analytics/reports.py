@@ -128,7 +128,7 @@ def _require_export_format(requested: str, expected: str) -> None:
     if requested.lower() != expected:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported export format '{requested}'. Use '{expected}'.",
+            detail=f"Формат выгрузки «{requested}» не поддерживается, нужен «{expected}»",
         )
 
 
