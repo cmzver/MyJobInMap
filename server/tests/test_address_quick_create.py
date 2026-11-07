@@ -49,3 +49,36 @@ def test_intercom_code_implies_intercom(client: TestClient, db_session):
 
     assert data["has_intercom"] is True
     assert data["intercom_code"] == "12#345"
+
+
+def test_update_keeps_coordinates_from_suggestion(
+    client: TestClient, db_session, monkeypatch
+):
+    from app.api.addresses import core
+
+    env = _org(client, db_session, "QuickPatch")
+    headers = env.dispatcher.headers
+    created = client.post(
+        "/api/addresses", json={"address": "ул. Невская, д. 9"}, headers=headers
+    ).json()
+    geocoded = []
+    monkeypatch.setattr(
+        core.geocoding_service,
+        "geocode",
+        lambda address: geocoded.append(address) or (1.0, 2.0),
+    )
+
+    with_point = client.patch(
+        f"/api/addresses/{created['id']}",
+        json={"address": "пр-кт Ветеранов, д. 46, СПб", "lat": 59.84, "lon": 30.24},
+        headers=headers,
+    ).json()
+    without_point = client.patch(
+        f"/api/addresses/{created['id']}",
+        json={"address": "ул. Садовая, д. 1, СПб"},
+        headers=headers,
+    ).json()
+
+    assert (with_point["lat"], with_point["lon"]) == (59.84, 30.24)
+    assert (without_point["lat"], without_point["lon"]) == (1.0, 2.0)
+    assert geocoded == ["ул. Садовая, д. 1, СПб"]

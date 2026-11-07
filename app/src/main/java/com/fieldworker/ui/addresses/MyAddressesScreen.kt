@@ -433,10 +433,12 @@ private fun HeaderCard(details: AddressDetails) {
             details.floorCount?.let { add("Этажи" to it.toString()) }
             details.apartmentCount?.let { add("Квартиры" to it.toString()) }
             details.entrance?.takeIf { it.isNotBlank() }?.let { add("Подъезд" to it) }
-            if (details.hasElevator != null) add("Лифт" to if (details.hasElevator) "есть" else "нет")
+            // «false» у флажков на деле значит «не отметили», а не «нет» —
+            // показываем только отмеченное
+            if (details.hasElevator == true) add("Лифт" to "есть")
             // Код домофона выделен ниже отдельной плашкой — «Домофон: есть» над ним лишнее
-            if (details.hasIntercom != null && details.intercomCode.isNullOrBlank()) {
-                add("Домофон" to if (details.hasIntercom) "есть" else "нет")
+            if (details.hasIntercom == true && details.intercomCode.isNullOrBlank()) {
+                add("Домофон" to "есть")
             }
         }
         if (facts.isNotEmpty()) {

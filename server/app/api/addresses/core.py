@@ -349,10 +349,12 @@ def update_address(
         if existing:
             raise HTTPException(status_code=400, detail="Такой адрес уже существует")
 
-        # Перегеокодируем при смене адреса
-        lat, lon = geocoding_service.geocode(update_data["address"])
-        update_data["lat"] = lat
-        update_data["lon"] = lon
+        # Перегеокодируем при смене адреса — если точку не прислали (её даёт
+        # подсказка справочника, она точнее геокодера)
+        if update_data.get("lat") is None or update_data.get("lon") is None:
+            lat, lon = geocoding_service.geocode(update_data["address"])
+            update_data["lat"] = lat
+            update_data["lon"] = lon
 
     if update_data.get("counterparty_id") is not None:
         counterparty = (
