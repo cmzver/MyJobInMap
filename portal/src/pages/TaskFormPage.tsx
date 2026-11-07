@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { showApiError, showApiSuccess, mutationToast } from '@/utils/apiError'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import toast from 'react-hot-toast'
+import { getApiErrorMessage, showApiError, showApiSuccess, mutationToast } from '@/utils/apiError'
 import { ArrowLeft, Save } from 'lucide-react'
 import { useTask, useCreateTask, useUpdateTask, useAssignTask } from '@/hooks/useTasks'
 import { usePortalInterfaceSettings } from '@/hooks/useSettings'
@@ -18,7 +19,8 @@ import Select from '@/components/Select'
 import Spinner from '@/components/Spinner'
 import Card from '@/components/Card'
 import AddressForm from '@/components/AddressForm'
-import type { AddressSystem, AddressSearchResult } from '@/types/address'
+import AddressCreateModal from '@/components/addresses/AddressCreateModal'
+import type { Address, AddressSystem, AddressSearchResult, CreateAddressData } from '@/types/address'
 import SystemSelector from '@/components/SystemSelector'
 import DefectTypeSelector from '@/components/DefectTypeSelector'
 import RelatedTasksHint from '@/components/tasks/RelatedTasksHint'
@@ -153,12 +155,6 @@ interface TaskFormData {
   photos: File[]
 }
 
-interface TaskFormDraft {
-  route: string
-  formData: Omit<TaskFormData, 'photos'>
-  selectedSystemType: string
-}
-
 const initialAddressData: AddressFormData = {
   city: '',
   street: '',
@@ -220,10 +216,8 @@ interface TaskFormPageProps {
 
 export default function TaskFormPage({ mode }: TaskFormPageProps) {
   const navigate = useNavigate()
-  const location = useLocation()
   const { id } = useParams<{ id: string }>()
   const taskId = id ? Number(id) : undefined
-  const restoredDraftRef = useRef(false)
   // Пользователь правил дату вручную — больше не подставляем её по приоритету.
   const plannedDateManuallySet = useRef(false)
 
@@ -231,10 +225,14 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
   const [addressErrors, setAddressErrors] = useState<Partial<Record<keyof AddressFormData, string>>>({})
   // Объект базы по частям адреса — для подсказки «объект в базе» и подъездов
   const [matchedAddress, setMatchedAddress] = useState<AddressSearchResult | null>(null)
+  // Пока ищем дом в базе, не предлагаем «добавить» — иначе подсказка мигает на каждой цифре
+  const [addressLookupPending, setAddressLookupPending] = useState(false)
   // Заявитель прошлой заявки с той же квартиры — повторный звонок
   const [lastApplicant, setLastApplicant] = useState<LastApplicant | null>(null)
   const [otherErrors, setOtherErrors] = useState<Record<string, string>>({})
   const [selectedSystemType, setSelectedSystemType] = useState<string>('')  // Тип выбранной системы для фильтрации неисправностей)
+  // Дом не в базе — заводим его тут же, не уходя со страницы
+  const [addressPrefill, setAddressPrefill] = useState<Partial<CreateAddressData> | null>(null)
 
   // Fetch task data for edit mode
   const { data: task, isLoading: taskLoading } = useTask(taskId || 0)
@@ -252,34 +250,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
   const assignMutation = useAssignTask()
 
   useEffect(() => {
-    const rawDraft = sessionStorage.getItem('task-form-draft')
-    if (!rawDraft) return
-
-    try {
-      const draft = JSON.parse(rawDraft) as TaskFormDraft
-      if (draft.route !== location.pathname) {
-        return
-      }
-
-      restoredDraftRef.current = true
-      setFormData({
-        ...draft.formData,
-        photos: [],
-      })
-      if (draft.formData.planned_date) {
-        plannedDateManuallySet.current = true
-      }
-      setSelectedSystemType(draft.selectedSystemType || draft.formData.system_type || '')
-    } catch {
-      // ignore invalid session draft
-    } finally {
-      sessionStorage.removeItem('task-form-draft')
-      sessionStorage.removeItem('task-form-return')
-    }
-  }, [location.pathname])
-
-  useEffect(() => {
-    if (restoredDraftRef.current || mode !== 'create') {
+    if (mode !== 'create') {
       return
     }
 
@@ -308,10 +279,6 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
 
   // Populate form when editing
   useEffect(() => {
-    if (restoredDraftRef.current) {
-      return
-    }
-
     if (mode === 'edit' && task) {
       // Парсим адрес из строки raw_address
       const parsedAddress = parseAddress(task.raw_address || '')
@@ -353,10 +320,12 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
     if (!city || !street || !building) {
       setFormData((prev) => (prev.addressId === null ? prev : { ...prev, addressId: null }))
       setMatchedAddress(null)
+      setAddressLookupPending(false)
       return
     }
 
     let isCancelled = false
+    setAddressLookupPending(true)
 
     addressesApi.findByComponents(
       city,
@@ -370,6 +339,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         }
 
         setMatchedAddress(result ?? null)
+        setAddressLookupPending(false)
         setFormData((prev) => {
           const nextAddressId = result?.id ?? null
           return prev.addressId === nextAddressId ? prev : { ...prev, addressId: nextAddressId }
@@ -381,6 +351,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         }
 
         setMatchedAddress(null)
+        setAddressLookupPending(false)
         setFormData((prev) => (prev.addressId === null ? prev : { ...prev, addressId: null }))
       })
 
@@ -567,29 +538,37 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
     return Object.keys(addrErrors).length === 0 && Object.keys(errors).length === 0
   }
 
-  const openAddressCreateFlow = () => {
-    const draftFormData: Omit<TaskFormData, 'photos'> = { ...formData }
+  // В базу — дом: подъезд и квартира остаются только в заявке
+  const openAddressCreate = () => {
+    const { city, street, building, corpus } = formData.address
+    setAddressPrefill({ city, street, building, corpus: corpus === 'none' ? '' : corpus })
+  }
 
-    const prefill = {
-      address: fullAddress,
-      city: formData.address.city,
-      street: formData.address.street,
-      building: formData.address.building,
-      corpus: formData.address.corpus,
-      entrance: formData.address.entrance,
-      apartment: formData.address.apartment,
-    }
-
-    const draft: TaskFormDraft = {
-      route: location.pathname,
-      formData: draftFormData,
-      selectedSystemType,
-    }
-
-    sessionStorage.setItem('address-prefill', JSON.stringify(prefill))
-    sessionStorage.setItem('task-form-draft', JSON.stringify(draft))
-    sessionStorage.setItem('task-form-return', location.pathname)
-    navigate('/addresses')
+  const handleAddressCreated = (created: Address) => {
+    setFormData((prev) => ({
+      ...prev,
+      // Части — как их сохранила база (в окне могли поправить написание)
+      address: created.street
+        ? {
+            ...prev.address,
+            city: created.city || prev.address.city,
+            street: created.street,
+            building: created.building || prev.address.building,
+            corpus: created.corpus || '',
+          }
+        : prev.address,
+      addressId: created.id,
+    }))
+    setMatchedAddress({
+      id: created.id,
+      address: created.address,
+      lat: created.lat,
+      lon: created.lon,
+      entrance_count: created.entrance_count,
+      floor_count: created.floor_count,
+      has_intercom: created.has_intercom,
+      intercom_code: created.intercom_code,
+    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -656,8 +635,12 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
                     showApiSuccess('Заявка обновлена')
                     navigate(`/tasks/${taskId}`)
                   },
-                  onError: () => {
-                    showApiSuccess('Заявка обновлена')
+                  onError: (err) => {
+                    // Заявка сохранена, а исполнитель остался прежним — сказать как есть
+                    toast.error(
+                      `Заявка обновлена, но исполнитель не назначен: ${getApiErrorMessage(err, 'ошибка назначения')}`,
+                      { duration: 6000 },
+                    )
                     navigate(`/tasks/${taskId}`)
                   },
                 }
@@ -678,6 +661,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
   const isSubmitting = createMutation.isPending || updateMutation.isPending || assignMutation.isPending
   const showMissingAddressPrompt =
     !formData.addressId &&
+    !addressLookupPending &&
     Boolean(formData.address.city.trim()) &&
     Boolean(formData.address.street.trim()) &&
     Boolean(formData.address.building.trim())
@@ -729,14 +713,14 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         {showMissingAddressPrompt && (
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2 dark:border-gray-700 dark:bg-gray-800/60">
             <p className="text-sm text-gray-600 dark:text-gray-300">
-              Адрес не найден в базе адресов. Заявку можно создать и на сторонний адрес, а если хотите вести его в базе, добавьте адрес сейчас.
+              Этого дома нет в базе. Заявку можно создать и так, а если дом обслуживаете — добавьте его: заявка привяжется к объекту, появятся системы и история.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={openAddressCreateFlow}
+                onClick={openAddressCreate}
               >
                 Добавить адрес в базу
               </Button>
@@ -891,6 +875,15 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
           </Button>
         </div>
       </form>
+
+      {/* Вне <form>: submit окна не должен всплыть до формы заявки */}
+      <AddressCreateModal
+        isOpen={addressPrefill !== null}
+        onClose={() => setAddressPrefill(null)}
+        initial={addressPrefill}
+        onCreated={handleAddressCreated}
+        allowBatch={false}
+      />
     </div>
   )
 }

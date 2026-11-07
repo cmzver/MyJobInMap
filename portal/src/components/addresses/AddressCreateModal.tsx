@@ -39,9 +39,17 @@ interface AddressCreateModalProps {
   initial?: Partial<CreateAddressData> | null
   /** После «Добавить» (не «и следующий»). */
   onCreated?: (address: Address) => void
+  /** «Добавить и следующий» — для пакетного ввода; из формы заявки нужен один дом. */
+  allowBatch?: boolean
 }
 
-export default function AddressCreateModal({ isOpen, onClose, initial, onCreated }: AddressCreateModalProps) {
+export default function AddressCreateModal({
+  isOpen,
+  onClose,
+  initial,
+  onCreated,
+  allowBatch = true,
+}: AddressCreateModalProps) {
   const createMutation = useCreateAddress()
   const { data: counterparties = [] } = useCounterparties()
   const addressRef = useRef<HTMLInputElement>(null)
@@ -89,6 +97,28 @@ export default function AddressCreateModal({ isOpen, onClose, initial, onCreated
     setCoords(null)
     setAddedCount(0)
     skipParseRef.current = Boolean(initial?.street)
+
+    // Пришли только части (из формы заявки) — строку соберём в стиле базы
+    if (initial?.address || !initial?.street) return
+    let cancelled = false
+    addressesApi
+      .composeAddress({
+        city: initial.city ?? '',
+        street: initial.street,
+        building: initial.building ?? '',
+        corpus: initial.corpus ?? '',
+      })
+      .then((result) => {
+        if (cancelled || !result.address) return
+        skipParseRef.current = true
+        setAddress((current) => current || result.address)
+      })
+      .catch(() => {
+        // части заполнены — строку можно набрать руками
+      })
+    return () => {
+      cancelled = true
+    }
   }, [isOpen, initial])
 
   // Запомненный контрагент мог исчезнуть из списка
@@ -315,7 +345,7 @@ export default function AddressCreateModal({ isOpen, onClose, initial, onCreated
           submit(false)
         }}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && e.shiftKey && !(e.target instanceof HTMLTextAreaElement)) {
+          if (allowBatch && e.key === 'Enter' && e.shiftKey && !(e.target instanceof HTMLTextAreaElement)) {
             e.preventDefault()
             submit(true)
           }
@@ -506,21 +536,25 @@ export default function AddressCreateModal({ isOpen, onClose, initial, onCreated
             <Button type="button" variant="secondary" onClick={onClose}>
               {addedCount > 0 ? 'Готово' : 'Отмена'}
             </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => submit(true)}
-              disabled={createMutation.isPending}
-            >
-              Добавить и следующий
-            </Button>
+            {allowBatch && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => submit(true)}
+                disabled={createMutation.isPending}
+              >
+                Добавить и следующий
+              </Button>
+            )}
             <Button type="submit" isLoading={createMutation.isPending}>
               Добавить
             </Button>
           </div>
-          <p className="mt-2 hidden text-right text-xs text-gray-400 dark:text-gray-500 sm:block">
-            Shift+Enter — добавить и сразу ввести следующий
-          </p>
+          {allowBatch && (
+            <p className="mt-2 hidden text-right text-xs text-gray-400 dark:text-gray-500 sm:block">
+              Shift+Enter — добавить и сразу ввести следующий
+            </p>
+          )}
         </div>
       </form>
     </Modal>

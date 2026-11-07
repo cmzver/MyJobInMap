@@ -25,7 +25,6 @@ import Spinner from '@/components/Spinner'
 import Pagination from '@/components/Pagination'
 import EmptyState from '@/components/EmptyState'
 import AddressCreateModal from '@/components/addresses/AddressCreateModal'
-import type { CreateAddressData } from '@/types/address'
 
 export default function AddressesPage() {
   const navigate = useNavigate()
@@ -33,7 +32,6 @@ export default function AddressesPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
-  const [prefill, setPrefill] = useState<Partial<CreateAddressData> | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
 
   // Debounced search
@@ -41,20 +39,6 @@ export default function AddressesPage() {
     const timer = setTimeout(() => setDebouncedSearch(search), 300)
     return () => clearTimeout(timer)
   }, [search])
-
-  // Prefill from Task edit quick-add
-  useEffect(() => {
-    const raw = sessionStorage.getItem('address-prefill')
-    if (!raw) return
-    try {
-      setPrefill(JSON.parse(raw) as Partial<CreateAddressData>)
-      setShowModal(true)
-    } catch {
-      // ignore parse errors
-    } finally {
-      sessionStorage.removeItem('address-prefill')
-    }
-  }, [])
 
   // Reset page on search
   useEffect(() => {
@@ -71,24 +55,8 @@ export default function AddressesPage() {
   // Mutations
   const deleteMutation = useDeleteAddress()
 
-  const handleOpenCreate = () => {
-    setPrefill(null)
-    setShowModal(true)
-  }
-
-  const handleCloseModal = () => {
-    setShowModal(false)
-    setPrefill(null)
-  }
-
-  // Адрес заводили из формы заявки — вернуться туда
-  const handleCreated = () => {
-    const returnTo = sessionStorage.getItem('task-form-return')
-    if (returnTo) {
-      sessionStorage.removeItem('task-form-return')
-      navigate(returnTo)
-    }
-  }
+  const handleOpenCreate = () => setShowModal(true)
+  const handleCloseModal = () => setShowModal(false)
 
   const handleDelete = (id: number) => {
     deleteMutation.mutate(id, mutationToast({
@@ -301,8 +269,6 @@ export default function AddressesPage() {
       <AddressCreateModal
         isOpen={showModal}
         onClose={handleCloseModal}
-        initial={prefill}
-        onCreated={handleCreated}
       />
     </div>
   )
