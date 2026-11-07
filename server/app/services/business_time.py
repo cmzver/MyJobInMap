@@ -27,6 +27,22 @@ def to_naive_utc(moment: datetime) -> datetime:
     return moment
 
 
+def to_naive_local(moment: datetime) -> datetime:
+    """Плановая дата как наивное местное время.
+
+    Клиенты присылают её без пояса (как ввёл человек). Если пришёл момент
+    с поясом — переводим в пояс бизнеса, чтобы в БД не смешались UTC и местное.
+    """
+    if moment.tzinfo is not None:
+        moment = moment.astimezone(business_tz()).replace(tzinfo=None)
+    return moment
+
+
+def business_now_naive() -> datetime:
+    """«Сейчас» по местному времени — для сравнения с плановой датой."""
+    return datetime.now(business_tz()).replace(tzinfo=None)
+
+
 def local_day_end_utc(day: date) -> datetime:
     """Конец локального дня (полночь следующего) как наивное UTC."""
     local_end = datetime.combine(day + timedelta(days=1), time.min, business_tz())

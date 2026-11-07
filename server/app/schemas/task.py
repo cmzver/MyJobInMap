@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.models.enums import TaskPriority, TaskStatus
 from app.schemas.comment import CommentResponse
 from app.schemas.datetime_utc import UtcDateTime
+from app.services.business_time import to_naive_local
 
 
 def _parse_planned_date_value(value):
@@ -28,9 +29,13 @@ def _parse_planned_date_value(value):
                 return datetime.strptime(value, "%Y-%m-%d")
             if value.endswith("Z"):
                 value = value.replace("Z", "+00:00")
-            return datetime.fromisoformat(value)
+            return to_naive_local(datetime.fromisoformat(value))
         except ValueError as exc:
-            raise ValueError("planned_date must be ISO date or datetime") from exc
+            raise ValueError(
+                "неверная дата: нужен формат ГГГГ-ММ-ДД или дата со временем"
+            ) from exc
+    if isinstance(value, datetime):
+        return to_naive_local(value)
     return value
 
 

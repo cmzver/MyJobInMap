@@ -1,6 +1,6 @@
 """Контракты кабинета клиента (представители контрагента) и управления входами."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -105,7 +105,8 @@ class ClientTaskItem(BaseModel):
     status_label: str
     priority: str
     created_at: Optional[UtcDateTime] = None
-    planned_date: Optional[UtcDateTime] = None
+    # Плановая дата — местное время без пояса, как в TaskResponse
+    planned_date: Optional[datetime] = None
     completed_at: Optional[UtcDateTime] = None
     # Подана из кабинета — представителем контрагента
     from_cabinet: bool = False

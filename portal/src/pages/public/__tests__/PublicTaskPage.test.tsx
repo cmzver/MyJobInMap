@@ -15,7 +15,7 @@ const task = {
   status: 'IN_PROGRESS',
   status_label: 'В работе',
   created_at: '2026-11-03T10:00:00Z',
-  planned_date: '2026-11-07T09:00:00Z',
+  planned_date: '2026-11-07T09:00:00',
   completed_at: null,
   events: [
     { at: '2026-11-03T10:00:00Z', text: 'Заявка принята' },

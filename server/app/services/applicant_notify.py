@@ -13,7 +13,6 @@ import hmac
 import logging
 import re
 import secrets
-from datetime import timezone
 from typing import Optional
 
 import httpx
@@ -21,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import OrganizationSettingsModel, TaskModel, TaskSubscriberModel
-from app.services.business_time import business_tz
+from app.services.business_time import to_naive_local
 from app.services.outbox_service import stage_event
 
 logger = logging.getLogger(__name__)
@@ -116,10 +115,8 @@ def _text(task: TaskModel, event: str) -> Optional[str]:
         return None
     date = ""
     if task.planned_date is not None:
-        moment = task.planned_date
-        if moment.tzinfo is None:
-            moment = moment.replace(tzinfo=timezone.utc)
-        date = moment.astimezone(business_tz()).strftime("%d.%m.%Y")
+        # Плановая дата — наивное местное время, сдвигать её не нужно
+        date = to_naive_local(task.planned_date).strftime("%d.%m.%Y")
     return template.format(
         number=task.task_number or f"Z-{task.id:05d}",
         date=date,

@@ -34,9 +34,7 @@ class TestPlannedDateValidator:
 
     def test_planned_date_invalid_format(self):
         """Test invalid format raises error."""
-        with pytest.raises(
-            ValueError, match="planned_date must be ISO date or datetime"
-        ):
+        with pytest.raises(ValueError, match="неверная дата"):
             TaskCreate(title="Test", address="Test St", planned_date="invalid-date")
 
     def test_task_update_with_planned_date(self):
