@@ -16,6 +16,7 @@ import {
 } from '@/hooks/useSettings'
 import type { DefectType } from '@/hooks/useSettings'
 import { SettingsCard, SettingsIconButton } from '@/components/settings/SettingsSection'
+import { useConfirm } from '@/hooks/useConfirm'
 
 // Соответствует enum SystemType на бэкенде (api.generated SystemType) и
 // лейблам систем обслуживания на остальных экранах.
@@ -32,14 +33,15 @@ const systemTypeLabel = (value: string) =>
   SYSTEM_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? value
 
 export default function DefectTypesTab() {
+  const confirmAction = useConfirm()
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<DefectType | null>(null)
 
   const { data: defectTypes, isLoading } = useDefectTypes()
   const deleteDefectType = useDeleteDefectType()
 
-  const handleDelete = (defectType: DefectType) => {
-    if (!confirm(`Удалить тип «${defectType.name}»?`)) return
+  const handleDelete = async (defectType: DefectType) => {
+    if (!(await confirmAction({ title: `Удалить тип «${defectType.name}»?`, danger: true }))) return
     deleteDefectType.mutate(defectType.id, {
       onSuccess: () => showApiSuccess('Тип неисправности удалён'),
       onError: (error) => showApiError(error, 'Не удалось удалить тип'),

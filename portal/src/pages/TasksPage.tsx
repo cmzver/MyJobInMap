@@ -60,6 +60,7 @@ import {
   type TaskSavedViewSettings,
 } from '@/hooks/useTaskSavedViews'
 import { countRu } from '@/utils/plural'
+import { useConfirm } from '@/hooks/useConfirm'
 
 const PAGE_SIZE = 20
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
@@ -308,6 +309,7 @@ const areStringArraysEqual = (left: readonly string[], right: readonly string[])
   left.length === right.length && left.every((value, index) => value === right[index])
 
 export default function TasksPage() {
+  const confirmAction = useConfirm()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
@@ -599,7 +601,7 @@ export default function TasksPage() {
   }
 
   const deleteSavedView = async (view: TaskSavedView) => {
-    if (!window.confirm(`Удалить сохранённый вид «${view.name}»?`)) return
+    if (!(await confirmAction({ title: `Удалить сохранённый вид «${view.name}»?`, danger: true }))) return
     try {
       await deleteView(view.id)
       toast.success(`Вид «${view.name}» удалён`)
@@ -1293,9 +1295,12 @@ export default function TasksPage() {
       toast.error('Выберите заявки')
       return
     }
-    if (!confirm(`Удалить выбранные заявки (${selectedIds.size})?`)) {
-      return
-    }
+    const ok = await confirmAction({
+      title: `Удалить выбранные заявки (${selectedIds.size})?`,
+      message: 'Заявки удалятся вместе с фото и комментариями. Это действие нельзя отменить.',
+      danger: true,
+    })
+    if (!ok) return
     const ids = Array.from(selectedIds)
     try {
       await bulkDeleteMutation.mutateAsync({ ids })

@@ -11,6 +11,7 @@ import Card from '@/components/Card'
 import Input from '@/components/Input'
 import Modal from '@/components/Modal'
 import Spinner from '@/components/Spinner'
+import { useConfirm } from '@/hooks/useConfirm'
 
 /** Пароль без похожих символов (0/O, 1/l) — его диктуют по телефону. */
 function generatePassword(): string {
@@ -23,6 +24,7 @@ const cabinetUrl = () => `${window.location.origin}${APP_BASENAME}/client/login`
 
 /** Вход в кабинет клиента: представители контрагента видят свои объекты, заявки и акты. */
 export default function ClientAccountsCard({ counterparty }: { counterparty: Counterparty }) {
+  const confirmAction = useConfirm()
   const accounts = useClientAccounts(counterparty.id)
   const { update, remove } = useClientAccountMutations(counterparty.id)
   const [creating, setCreating] = useState(false)
@@ -98,8 +100,13 @@ export default function ClientAccountsCard({ counterparty }: { counterparty: Cou
                 title="Удалить вход"
                 aria-label={`Удалить вход: ${account.full_name}`}
                 className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-                onClick={() => {
-                  if (window.confirm(`Удалить вход «${account.login}»?`)) {
+                onClick={async () => {
+                  const ok = await confirmAction({
+                    title: `Удалить вход «${account.login}»?`,
+                    message: 'Представитель больше не сможет войти в кабинет по этому логину.',
+                    danger: true,
+                  })
+                  if (ok) {
                     remove.mutate(account.id, { onError: (error) => showApiError(error, 'Не удалось удалить вход') })
                   }
                 }}
