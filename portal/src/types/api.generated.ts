@@ -686,6 +686,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tasks/last-applicant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Last Applicant
+         * @description Заявитель последней заявки с того же места — чтобы при повторном
+         *     звонке не вводить имя и телефон заново.
+         *
+         *     Место — улица и дом (как у поиска повторов), квартира должна совпасть
+         *     (нет квартиры — тоже совпадение), город и корпус — не противоречить.
+         *     Только диспетчер и администратор: мастеру чужие заявители не положены.
+         */
+        get: operations["get_last_applicant_api_tasks_last_applicant_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tasks/{task_id}": {
         parameters: {
             query?: never;
@@ -7587,6 +7612,22 @@ export interface components {
             default_task_priority: string;
         };
         /**
+         * LastApplicant
+         * @description Заявитель прошлой заявки с той же квартиры — подсказка в форме.
+         */
+        LastApplicant: {
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Customer Phone */
+            customer_phone?: string | null;
+            /** Task Id */
+            task_id: number;
+            /** Task Number */
+            task_number: string;
+            /** Created At */
+            created_at?: string | null;
+        };
+        /**
          * LastMessagePreview
          * @description Превью последнего сообщения для списка чатов
          */
@@ -12183,6 +12224,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RelatedTasksResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_last_applicant_api_tasks_last_applicant_get: {
+        parameters: {
+            query: {
+                /** @description Адрес новой заявки */
+                address: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LastApplicant"] | null;
                 };
             };
             /** @description Validation Error */
