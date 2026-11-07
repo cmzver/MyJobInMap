@@ -18,6 +18,10 @@ const sizeClasses = {
   xl: 'max-w-4xl',
 }
 
+// Открытые окна по порядку: Escape и Tab — только для верхнего
+// (подтверждение поверх окна не должно закрывать оба)
+const openModals: symbol[] = []
+
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
@@ -34,6 +38,7 @@ export default function Modal({
   const previousFocusRef = useRef<HTMLElement | null>(null)
   const onCloseRef = useRef(onClose)
   const titleId = useId()
+  const tokenRef = useRef(Symbol('modal'))
 
   // Keep onClose ref up-to-date without re-triggering effects
   useEffect(() => {
@@ -43,6 +48,7 @@ export default function Modal({
   // Закрытие по Escape + Focus trap (stable — не зависит от onClose)
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      if (openModals[openModals.length - 1] !== tokenRef.current) return
       if (e.key === 'Escape') {
         onCloseRef.current()
         return
@@ -76,6 +82,8 @@ export default function Modal({
     if (!isOpen) return
 
     previousFocusRef.current = document.activeElement as HTMLElement | null
+    const token = tokenRef.current
+    openModals.push(token)
     // Немного задержки, чтобы DOM отрисовался
     const raf = requestAnimationFrame(() => {
       modalRef.current?.focus()
@@ -86,19 +94,18 @@ export default function Modal({
     return () => {
       cancelAnimationFrame(raf)
       document.removeEventListener('keydown', handleKeyDown)
+      openModals.splice(openModals.indexOf(token), 1)
       previousFocusRef.current?.focus()
     }
   }, [isOpen, handleKeyDown])
 
   // Блокировка скролла body
+  // (снимает последнее закрытое окно: стек уже обновлён эффектом выше)
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
+    if (!isOpen) return
+    document.body.style.overflow = 'hidden'
     return () => {
-      document.body.style.overflow = ''
+      if (openModals.length === 0) document.body.style.overflow = ''
     }
   }, [isOpen])
 

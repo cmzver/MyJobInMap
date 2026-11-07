@@ -6,6 +6,7 @@ import type { components } from '@/types/api.generated'
 import { showApiError, showApiSuccess } from '@/utils/apiError'
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
+import { useConfirm } from '@/hooks/useConfirm'
 
 type StatusLink = components['schemas']['TaskStatusLink']
 
@@ -20,6 +21,7 @@ async function copy(text: string) {
 
 /** Ссылка заявителю на страницу статуса заявки (и подписка на Telegram с неё). */
 export default function StatusLinkButton({ taskId, phone }: { taskId: number; phone?: string | null }) {
+  const confirmAction = useConfirm()
   const [link, setLink] = useState<StatusLink | null>(null)
   const issue = useMutation({
     mutationFn: async (renew: boolean = false) =>
@@ -53,10 +55,14 @@ export default function StatusLinkButton({ taskId, phone }: { taskId: number; ph
             <button
               type="button"
               className="text-red-600 hover:underline dark:text-red-400"
-              onClick={() => {
-                if (window.confirm('Выпустить новую ссылку? Старая перестанет открываться, подписки Telegram отключатся.')) {
-                  issue.mutate(true)
-                }
+              onClick={async () => {
+                const ok = await confirmAction({
+                  title: 'Выпустить новую ссылку?',
+                  message: 'Старая перестанет открываться, подписки Telegram отключатся.',
+                  confirmText: 'Выпустить',
+                  danger: true,
+                })
+                if (ok) issue.mutate(true)
               }}
             >
               Выпустить новую

@@ -56,6 +56,7 @@ import type { Task, TaskStatus } from '@/types/task'
 import { isAssignableRole, normalizeRoleForAccess } from '@/types/user'
 import { cn } from '@/utils/cn'
 import { getAvailableStatusTransitions, getStatusCommentCopy, requiresStatusComment } from '@/config/taskConstants'
+import { useConfirm } from '@/hooks/useConfirm'
 
 const statusLabels: Record<TaskStatus, string> = {
   NEW: 'Новая',
@@ -107,6 +108,7 @@ function CollapsibleCard({ title, meta, defaultOpen = false, children }: Collaps
 }
 
 export default function TaskDetailPage() {
+  const confirmAction = useConfirm()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const taskId = Number(id)
@@ -320,8 +322,8 @@ export default function TaskDetailPage() {
     )
   }
 
-  const handleDeletePhoto = (photoId: number) => {
-    if (!confirm('Удалить фото?')) return
+  const handleDeletePhoto = async (photoId: number) => {
+    if (!(await confirmAction({ title: 'Удалить фото?', message: 'Фото удалится из заявки без возможности восстановления.', danger: true }))) return
     
     deletePhotoMutation.mutate(
       { photoId, taskId },

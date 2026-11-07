@@ -79,6 +79,7 @@ import {
   useRegisterSettingsSave,
 } from '@/components/settings/SettingsSaveContext'
 import type { SettingsSaveState } from '@/components/settings/SettingsSaveContext'
+import { useConfirm } from '@/hooks/useConfirm'
 
 // Types
 
@@ -799,6 +800,7 @@ interface BackupSettings {
 }
 
 function BackupSettingsTab() {
+  const confirmAction = useConfirm()
   const [autoBackup, setAutoBackup] = useState(true)
   const [schedule, setSchedule] = useState('daily')
   const [retentionDays, setRetentionDays] = useState(30)
@@ -891,14 +893,20 @@ function BackupSettingsTab() {
     }
   }
 
-  const handleDelete = (filename: string) => {
-    if (confirm(`Удалить бэкап ${filename}?`)) {
+  const handleDelete = async (filename: string) => {
+    if (await confirmAction({ title: 'Удалить бэкап?', message: filename, danger: true })) {
       deleteBackupMutation.mutate(filename)
     }
   }
 
-  const handleRestore = (filename: string) => {
-    if (confirm(`⚠️ ВНИМАНИЕ!\n\nВосстановить базу данных из бэкапа "${filename}"?\n\nТекущая база будет заменена. Перед восстановлением автоматически создастся бэкап текущего состояния.\n\nПосле восстановления рекомендуется перезапустить сервер.`)) {
+  const handleRestore = async (filename: string) => {
+    const ok = await confirmAction({
+      title: 'Восстановить базу из бэкапа?',
+      message: `«${filename}»\n\nТекущая база будет заменена. Перед восстановлением автоматически создастся бэкап текущего состояния.\n\nПосле восстановления рекомендуется перезапустить сервер.`,
+      confirmText: 'Восстановить',
+      danger: true,
+    })
+    if (ok) {
       restoreBackupMutation.mutate(filename)
     }
   }
@@ -1258,6 +1266,7 @@ const FIELD_TYPE_LABELS: Record<string, string> = {
 }
 
 function CustomFieldsTab() {
+  const confirmAction = useConfirm()
   const [showModal, setShowModal] = useState(false)
   const [editingField, setEditingField] = useState<CustomField | null>(null)
 
@@ -1265,8 +1274,8 @@ function CustomFieldsTab() {
   const deleteField = useDeleteCustomField()
   const toggleField = useToggleCustomField()
 
-  const handleDelete = (field: CustomField) => {
-    if (!confirm(`Удалить поле «${field.label}»?`)) return
+  const handleDelete = async (field: CustomField) => {
+    if (!(await confirmAction({ title: `Удалить поле «${field.label}»?`, danger: true }))) return
     deleteField.mutate(field.id, {
       onSuccess: () => showApiSuccess('Поле удалено'),
       onError: (error) => showApiError(error, 'Не удалось удалить поле'),
