@@ -5374,7 +5374,7 @@ export interface components {
         };
         /**
          * AddressCreate
-         * @description �������� ������ ������
+         * @description Создание нового адреса
          */
         AddressCreate: {
             /**
@@ -5471,6 +5471,8 @@ export interface components {
              * @example ���. ���������� �� �������
              */
             extra_info?: string | null;
+            /** Counterparty Id */
+            counterparty_id?: number | null;
         };
         /**
          * AddressDocumentResponse

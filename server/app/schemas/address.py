@@ -122,9 +122,11 @@ class AddressBase(BaseModel):
 
 
 class AddressCreate(AddressBase):
-    """�������� ������ ������"""
+    """Создание нового адреса"""
 
-    pass
+    # Контрагент (УК-заказчик) выбирается сразу при создании — раньше его
+    # приходилось назначать отдельно, в карточке.
+    counterparty_id: Optional[int] = None
 
 
 class AddressUpdate(BaseModel):

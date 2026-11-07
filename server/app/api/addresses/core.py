@@ -267,6 +267,20 @@ def create_address(
     if existing:
         raise HTTPException(status_code=400, detail="Адрес уже существует в базе")
 
+    counterparty = None
+    if data.counterparty_id is not None:
+        counterparty = (
+            db.query(CounterpartyModel)
+            .filter(
+                CounterpartyModel.id == data.counterparty_id,
+                # тот же тенант, что получит адрес (tenant.set_org_id ниже)
+                CounterpartyModel.organization_id == tenant.org_id,
+            )
+            .first()
+        )
+        if counterparty is None:
+            raise HTTPException(status_code=400, detail="Контрагент не найден")
+
     # Геокодирование если координаты не указаны
     lat, lon = data.lat, data.lon
     if lat is None or lon is None:
@@ -285,9 +299,13 @@ def create_address(
         floor_count=data.floor_count or 1,
         apartment_count=data.apartment_count,
         has_elevator=data.has_elevator or False,
-        has_intercom=data.has_intercom or False,
+        # Код домофона сам говорит, что домофон есть — отдельный флажок не нужен
+        has_intercom=bool(data.has_intercom or data.intercom_code),
         intercom_code=data.intercom_code or "",
-        management_company=data.management_company or "",
+        counterparty_id=counterparty.id if counterparty else None,
+        # Строка «УК» в карточке — по контрагенту, если её не ввели
+        management_company=data.management_company
+        or (counterparty.name if counterparty else ""),
         management_phone=data.management_phone or "",
         notes=data.notes or "",
         is_active=True,
