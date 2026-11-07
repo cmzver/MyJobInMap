@@ -752,6 +752,7 @@ function ImageSettingsTab() {
         >
           <div className="flex items-center gap-3">
             <input
+              aria-label="Качество изображения"
               type="range"
               min={10}
               max={100}
@@ -1496,6 +1497,7 @@ function CustomFieldModal({
                 Варианты (каждый с новой строки)
               </label>
               <textarea
+                aria-label="Варианты (каждый с новой строки)"
                 value={formData.options}
                 onChange={(e) => setFormData({ ...formData, options: e.target.value })}
                 rows={3}
@@ -2011,14 +2013,14 @@ function ClearDatabaseModal({ setShowClearConfirm }: { setShowClearConfirm: (sho
   const clearMutation = useMutation({
     mutationFn: () => apiClient.delete('/admin/tasks'),
     onSuccess: () => {
-      toast.success('✓ Все заявки и комментарии удалены')
+      toast.success('Все заявки и комментарии удалены')
       setShowClearConfirm(false)
       // Обновить данные без перезагрузки страницы
       queryClient.invalidateQueries({ queryKey: ['server-info'] })
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
     },
     onError: (error: Error) => {
-      toast.error(`✗ ${getApiErrorMessage(error, 'Ошибка при очистке')}`)
+      toast.error(getApiErrorMessage(error, 'Не удалось очистить базу'))
     },
   })
 

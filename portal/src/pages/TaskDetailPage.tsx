@@ -504,6 +504,7 @@ export default function TaskDetailPage() {
               <div className="mt-1.5 text-sm font-medium text-gray-900 dark:text-white">
                 {isEditingAssignee ? (
                   <select
+                    aria-label="Исполнитель"
                     value={task.assigned_user_id || ''}
                     onChange={(e) => {
                       const newAssigneeId = e.target.value ? Number(e.target.value) : null
@@ -679,6 +680,7 @@ export default function TaskDetailPage() {
           >
             <div className="flex flex-wrap items-center gap-2 mb-4">
               <select
+                aria-label="Тип фото"
                 value={photoType}
                 onChange={(e) => setPhotoType(e.target.value as 'before' | 'after' | 'completion')}
                 className="text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded px-2 py-1"
@@ -893,6 +895,7 @@ export default function TaskDetailPage() {
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                 <div className="flex gap-2">
                   <input
+                    aria-label="Комментарий"
                     type="text"
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}

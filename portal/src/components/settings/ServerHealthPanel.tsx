@@ -129,6 +129,7 @@ function LogsModal({ name, onClose }: { name: string; onClose: () => void }) {
           </h3>
           <div className="flex items-center gap-2">
             <select
+              aria-label="Сколько строк показать"
               value={tail}
               onChange={(e) => setTail(Number(e.target.value))}
               className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
