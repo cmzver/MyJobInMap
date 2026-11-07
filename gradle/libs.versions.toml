@@ -47,6 +47,9 @@ workManager = "2.9.0"
 
 # Firebase
 firebaseBom = "32.7.0"
+# Плагин 3.x вшивает только mapping_file_id; SDK читает его с 18.6.0 (BOM ≥ 32.7.0),
+# более старый SDK без build_id падает при запуске приложения
+firebaseCrashlyticsPlugin = "3.0.2"
 
 # Google Play Services
 playServicesBase = "18.3.0"
@@ -61,7 +64,7 @@ osmdroid = "6.1.18"
 zxing = "3.5.3"
 
 # Google Services Plugin
-googleServices = "4.4.0"
+googleServices = "4.4.2"
 desugarJdkLibs = "2.1.4"
 
 # Testing
@@ -126,6 +129,7 @@ coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
 # Firebase
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-messaging-ktx = { module = "com.google.firebase:firebase-messaging-ktx" }
+firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
 
 # WorkManager
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workManager" }
@@ -164,3 +168,4 @@ hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 kotlin-allopen = { id = "org.jetbrains.kotlin.plugin.allopen", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
+firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebaseCrashlyticsPlugin" }

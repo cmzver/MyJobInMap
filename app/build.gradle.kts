@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.allopen)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.google.services)
+    alias(libs.plugins.firebase.crashlytics)
 }
 
 // all-open: делает @Singleton классы open для MockK subclass-мокинга
@@ -25,8 +26,8 @@ android {
         applicationId = "com.fieldworker"
         minSdk = 24
         targetSdk = 34
-        versionCode = 24603
-        versionName = "2.46.3"
+        versionCode = 24604
+        versionName = "2.46.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -168,6 +169,8 @@ dependencies {
     // Firebase
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging.ktx)
+    // Отчёты о падениях: у монтажников стоят debug-сборки, без них падения не видно
+    implementation(libs.firebase.crashlytics)
     
     // WorkManager for background polling (fallback for devices without GMS)
     implementation(libs.androidx.work.runtime.ktx)
