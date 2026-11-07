@@ -90,7 +90,8 @@ class ConnectionManager:
             }
 
         metrics.set_websocket_connections(self.active_connections_count)
-        logger.info(
+        # Телефоны переподключаются постоянно; число соединений — в метриках
+        logger.debug(
             "WebSocket connected: user_id=%d, total_connections=%d, unique_users=%d",
             user_id,
             self.active_connections_count,
@@ -109,7 +110,7 @@ class ConnectionManager:
 
         metrics.set_websocket_connections(self.active_connections_count)
         if user_id is not None:
-            logger.info(
+            logger.debug(
                 "WebSocket disconnected: user_id=%d, total_connections=%d",
                 user_id,
                 self.active_connections_count,

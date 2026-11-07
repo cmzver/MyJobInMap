@@ -92,11 +92,8 @@ def register_device(
     user: UserModel = Depends(get_current_user_required),
 ):
     """Регистрация устройства"""
-    logger.info(
-        "Device registration: token=%s... name=%s",
-        device.token[:30],
-        device.device_name,
-    )
+    # Приложение регистрируется при каждом запуске — это не событие для журнала
+    logger.debug("Device registration: user=%d name=%s", user.id, device.device_name)
 
     existing = (
         db.query(DeviceModel).filter(DeviceModel.fcm_token == device.token).first()
@@ -108,7 +105,7 @@ def register_device(
         if device.device_name:
             existing.device_name = device.device_name
         db.commit()
-        logger.info("Device updated: ID=%d", existing.id)
+        logger.debug("Device updated: ID=%d", existing.id)
         return {"message": "Device updated", "device_id": existing.id}
 
     new_device = DeviceModel(

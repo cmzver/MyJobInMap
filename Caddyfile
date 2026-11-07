@@ -88,9 +88,12 @@
     # Сжатие
     encode gzip zstd
 
-    # Логи. WebSocket подключается как /ws?token=<JWT> — токен маскируем,
-    # иначе действующий JWT оседает в docker logs. Authorization и Cookie
-    # Caddy и так пишет как REDACTED.
+    # Журнал доступа — только полезное: без статики портала и проверок
+    # здоровья, без заголовков (они раздували каждую строку). WebSocket
+    # подключается как /ws?token=<JWT> — токен маскируем.
+    log_skip /portal/assets/*
+    log_skip /favicon.ico
+    log_skip /health
     log {
         output stdout
         format filter {
@@ -101,6 +104,8 @@
                     replace access_token REDACTED
                     replace refresh_token REDACTED
                 }
+                request>headers delete
+                resp_headers delete
             }
         }
     }

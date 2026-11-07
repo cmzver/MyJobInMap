@@ -90,12 +90,6 @@ def _send_push_sync(
             metrics.record_push_result("no_devices")
             return {"success": False, "message": "No devices"}
 
-        logger.info(f"Push: Sending to {len(devices)} device(s):")
-        for d in devices:
-            logger.info(
-                f"   - ID:{d.id} User:{d.user_id} Device:{d.device_name} Token:{d.fcm_token[:20]}..."
-            )
-
         tokens = [d.fcm_token for d in devices]
 
         android_channel_id = ANDROID_CHANNEL_MAP.get(
@@ -130,8 +124,13 @@ def _send_push_sync(
 
         response = messaging.send_each_for_multicast(message)
 
+        # Одна строка на рассылку; токены устройств в журнал не пишем
         logger.info(
-            f"Push: Sent={response.success_count}, Failed={response.failure_count}"
+            "Push %s: устройств=%d, доставлено=%d, ошибок=%d",
+            notification_type,
+            len(devices),
+            response.success_count,
+            response.failure_count,
         )
 
         # Удаляем невалидные токены
@@ -207,7 +206,7 @@ def send_push_background(
         organization_id=organization_id,
         extra_data=extra_data,
     )
-    logger.info(f"Push queued in background: {title}")
+    logger.debug("Push queued: type=%s", notification_type)
 
 
 def send_push_notification(

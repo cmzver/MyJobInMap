@@ -58,3 +58,28 @@ def test_install_is_idempotent_and_applies_to_uvicorn_loggers(caplog):
         error_logger.info('%s - "WebSocket %s" [accepted]', "ip", f"/ws?token={JWT}")
     assert JWT not in caplog.text
     assert "/ws?token=***" in caplog.text
+
+
+def _access_record(path, status):
+    import logging
+
+    return logging.LogRecord(
+        "uvicorn.access",
+        logging.INFO,
+        __file__,
+        1,
+        '%s - "%s %s HTTP/%s" %d',
+        ("127.0.0.1:5000", "GET", path, "1.1", status),
+        None,
+    )
+
+
+def test_successful_healthchecks_are_not_logged():
+    from app.utils.log_redaction import QuietPathsFilter
+
+    quiet = QuietPathsFilter()
+    assert quiet.filter(_access_record("/health", 200)) is False
+    assert quiet.filter(_access_record("/metrics?x=1", 200)) is False
+    # Сбой проверки здоровья и обычные запросы — остаются
+    assert quiet.filter(_access_record("/health", 503)) is True
+    assert quiet.filter(_access_record("/api/tasks", 200)) is True

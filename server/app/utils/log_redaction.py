@@ -44,9 +44,32 @@ class SecretRedactingFilter(logging.Filter):
         return True
 
 
+# Служебные запросы: healthcheck Docker раз в 30 с и сбор метрик — шум
+QUIET_PATHS = ("/health", "/metrics")
+
+
+class QuietPathsFilter(logging.Filter):
+    """Убирает из журнала доступа успешные служебные запросы.
+
+    AccessFormatter uvicorn получает args (адрес, метод, путь, версия, код).
+    Ошибочные ответы (не 2xx/3xx) остаются — они как раз интересны.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if isinstance(args, tuple) and len(args) >= 5:
+            path, status = str(args[2]).split("?", 1)[0], args[4]
+            if path in QUIET_PATHS and isinstance(status, int) and status < 400:
+                return False
+        return True
+
+
 def install(logger_names=UVICORN_LOGGERS) -> None:
     """Повторный вызов не добавляет второй экземпляр фильтра."""
     for name in logger_names:
         target = logging.getLogger(name)
         if not any(isinstance(f, SecretRedactingFilter) for f in target.filters):
             target.addFilter(SecretRedactingFilter())
+    access = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, QuietPathsFilter) for f in access.filters):
+        access.addFilter(QuietPathsFilter())

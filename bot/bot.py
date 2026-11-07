@@ -21,7 +21,7 @@ import time
 import requests
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.error import Conflict
+from telegram.error import Conflict, NetworkError
 from telegram.ext import (
     ApplicationBuilder,
     ContextTypes,
@@ -71,6 +71,23 @@ logging.basicConfig(
 # Плюс getUpdates раз в 10 секунд забивал лог.
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
+
+
+class _BootstrapNoiseFilter(logging.Filter):
+    """PTB при недоступном Telegram пишет ERROR с полной трассировкой на
+    каждую попытку старта; эту ошибку main() ловит и пишет одной строкой."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not (
+            record.name.startswith("telegram")
+            and "Network Retry Loop (Bootstrap" in record.getMessage()
+        )
+
+
+# На обработчике корня: запись приходит от дочернего логгера PTB, а фильтр
+# логгера дочерние записи не видит
+for _handler in logging.getLogger().handlers:
+    _handler.addFilter(_BootstrapNoiseFilter())
 
 
 def _login_for_token() -> str:
@@ -546,35 +563,62 @@ def main() -> None:
     
     logger.info("🚀 Запуск бота...")
     logger.info(f"📡 API сервер: {API_BASE_URL}")
-    
-    # Создаём приложение
-    application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-    
-    # Регистрируем обработчики команд
+
+    # Telegram недоступен (сеть, блокировка) — не падать с трассировкой и не
+    # крутиться в рестартах контейнера, а ждать с нарастающей паузой.
+    delay = RETRY_START_SECONDS
+    while True:
+        try:
+            _build_application().run_polling(
+                allowed_updates=Update.ALL_TYPES,
+                close_loop=False,
+            )
+            return
+        except NetworkError as exc:  # TimedOut — его подкласс
+            logger.warning(
+                "Telegram недоступен (%s), повтор через %d с",
+                type(exc).__name__,
+                delay,
+            )
+            time.sleep(delay)
+            delay = min(delay * 2, RETRY_MAX_SECONDS)
+
+
+RETRY_START_SECONDS = 30
+RETRY_MAX_SECONDS = 600
+
+
+def _build_application():
+    """Приложение с обработчиками — заново на каждую попытку подключения."""
+    async def _connected(app) -> None:
+        logger.info("✅ Бот подключён к Telegram и готов к работе")
+
+    application = (
+        ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).post_init(_connected).build()
+    )
+
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("status", status_command))
     application.add_handler(CommandHandler("stop", stop_command))
-    
-    # Регистрируем обработчик сообщений (текстовые, не команды)
+
+    # Текстовые сообщения (не команды)
     application.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
     )
-    
-    # Обработчик ошибок
+
     async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
         if isinstance(context.error, Conflict):
             logger.warning("Conflict: другой экземпляр бота уже работает, пропускаю")
             return
+        if isinstance(context.error, NetworkError):
+            # Сетевые сбои во время работы библиотека повторяет сама
+            logger.warning("Telegram: сетевой сбой (%s)", type(context.error).__name__)
+            return
         logger.error(f"Ошибка: {context.error}")
-    
+
     application.add_error_handler(error_handler)
-    
-    # Запускаем бота (обрабатываем накопившиеся сообщения чтобы не потерять заявки)
-    logger.info("✅ Бот запущен и готов к работе!")
-    application.run_polling(
-        allowed_updates=Update.ALL_TYPES,
-    )
+    return application
 
 
 if __name__ == "__main__":

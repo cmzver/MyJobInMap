@@ -105,7 +105,7 @@ def _run_backup() -> Optional[str]:
     from app.services import redis_realtime
 
     if not redis_realtime.is_leader():
-        logger.info("Scheduled backup skipped: этот процесс не лидер")
+        logger.debug("Scheduled backup skipped: этот процесс не лидер")
         return None
     backup_dir = settings.BASE_DIR / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
