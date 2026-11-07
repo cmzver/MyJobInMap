@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.*
@@ -627,12 +628,19 @@ class MapViewModelTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
+        // Все промежуточные статусы: IO-поток может бросить ошибку ещё внутри
+        // runCurrent(), и тогда значение уже ERROR — TESTING ловим по истории
+        val seen = mutableListOf<ConnectionStatus>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.connectionStatus.collect { seen += it }
+        }
+
         // Без схемы URL падает сразу (MalformedURLException), в сеть не ходит
         viewModel.testConnection("not-a-url")
         // Продвигаем scheduler чтобы выполнился первый шаг корутины
         testDispatcher.scheduler.runCurrent()
 
-        assertEquals(ConnectionStatus.TESTING, viewModel.connectionStatus.value)
+        assertTrue("статус TESTING не выставлялся: $seen", ConnectionStatus.TESTING in seen)
 
         // Проверка идёт на Dispatchers.IO: дожидаемся её конца, иначе продолжение
         // вернётся на Main уже после resetMain и уронит следующий тест.
