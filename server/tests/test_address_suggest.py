@@ -258,3 +258,88 @@ def test_full_address_stops_at_house_and_cities_stay_in_regions(
     assert calls[0]["to_bound"] == {"value": "house"}
     assert calls[1]["locations"] == [{"kladr_id": "78"}, {"kladr_id": "47"}]
     assert cities == ["Санкт-Петербург"]
+
+
+def test_find_by_components_matches_directory_style_street(
+    client: TestClient, db_session
+):
+    env = _org(client, db_session, "FindParts")
+    db_session.add_all(
+        [
+            AddressModel(
+                address="Ветеранов пр., д. 46, СПб",
+                city="Санкт-Петербург",
+                street="Ветеранов пр.",
+                building="46",
+                organization_id=env.org.id,
+            ),
+            AddressModel(
+                address="Ветеранов пр., д. 46, к. 2, СПб",
+                city="Санкт-Петербург",
+                street="Ветеранов пр.",
+                building="46",
+                corpus="2",
+                organization_id=env.org.id,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    def find(**params):
+        return client.get(
+            "/api/addresses/find-by-components",
+            params={"city": "Санкт-Петербург", **params},
+            headers=env.dispatcher.headers,
+        ).json()
+
+    assert find(street="пр-кт Ветеранов", building="46")["address"] == (
+        "Ветеранов пр., д. 46, СПб"
+    )
+    assert find(street="пр-кт Ветеранов", building="46", corpus="2")["address"] == (
+        "Ветеранов пр., д. 46, к. 2, СПб"
+    )
+    assert find(street="пр-кт Ветеранов", building="48") is None
+
+
+def test_full_address_lists_own_objects_first_without_duplicates(
+    client: TestClient, db_session, monkeypatch
+):
+    env = _org(client, db_session, "SuggestMixed")
+    db_session.add(
+        AddressModel(
+            address="Ветеранов пр., д. 46, СПб",
+            city="Санкт-Петербург",
+            street="Ветеранов пр.",
+            building="46",
+            organization_id=env.org.id,
+        )
+    )
+    db_session.commit()
+    _fake_dadata(
+        monkeypatch,
+        [
+            _suggestion(
+                "г Санкт-Петербург, пр-кт Ветеранов, д 46",
+                city="Санкт-Петербург",
+                street_with_type="пр-кт Ветеранов",
+                house="46",
+            ),
+            _suggestion(
+                "г Санкт-Петербург, пр-кт Ветеранов, д 48",
+                city="Санкт-Петербург",
+                street_with_type="пр-кт Ветеранов",
+                house="48",
+            ),
+        ],
+    )
+
+    items = client.get(
+        "/api/addresses/autocomplete/address",
+        params={"q": "ветеранов 4"},
+        headers=env.dispatcher.headers,
+    ).json()
+
+    assert [(i["source"], i["value"]) for i in items] == [
+        ("base", "Ветеранов пр., д. 46, СПб"),
+        ("dadata", "г Санкт-Петербург, пр-кт Ветеранов, д 48"),
+    ]

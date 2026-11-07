@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { houseFromAddress, isSameHouse, streetKey } from '../addressMatch'
+import { houseFromAddress, isSameHouse, splitUnitParts, streetKey } from '../addressMatch'
 
 describe('streetKey', () => {
   it('drops the street type wherever it stands', () => {
@@ -31,5 +31,28 @@ describe('isSameHouse', () => {
   it('does not match another house or corpus on the same street', () => {
     expect(isSameHouse({ address: 'ул. Ленина, 12' }, target)).toBe(false)
     expect(isSameHouse({ address: 'ул. Ленина, д. 10, корп. 2' }, target)).toBe(false)
+  })
+})
+
+describe('splitUnitParts', () => {
+  it('takes entrance and apartment out of a dictated address', () => {
+    expect(splitUnitParts('ветеранов 46 под 2 кв 15')).toEqual({
+      query: 'ветеранов 46',
+      entrance: '2',
+      apartment: '15',
+    })
+    expect(splitUnitParts('СПб, Невский пр., д. 1, парадная 3, кв. 7а')).toEqual({
+      query: 'СПб, Невский пр., д. 1',
+      entrance: '3',
+      apartment: '7а',
+    })
+  })
+
+  it('leaves a plain address and street names like «Подъездной» alone', () => {
+    expect(splitUnitParts('Подъездной пер., 5')).toEqual({
+      query: 'Подъездной пер., 5',
+      entrance: '',
+      apartment: '',
+    })
   })
 })

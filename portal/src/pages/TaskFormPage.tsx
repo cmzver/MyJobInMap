@@ -14,7 +14,7 @@ import Select from '@/components/Select'
 import Spinner from '@/components/Spinner'
 import Card from '@/components/Card'
 import AddressForm from '@/components/AddressForm'
-import type { AddressSystem } from '@/types/address'
+import type { AddressSystem, AddressSearchResult } from '@/types/address'
 import SystemSelector from '@/components/SystemSelector'
 import DefectTypeSelector from '@/components/DefectTypeSelector'
 import RelatedTasksHint from '@/components/tasks/RelatedTasksHint'
@@ -225,6 +225,8 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
 
   const [formData, setFormData] = useState<TaskFormData>(initialFormData)
   const [addressErrors, setAddressErrors] = useState<Partial<Record<keyof AddressFormData, string>>>({})
+  // Объект базы по частям адреса — для подсказки «объект в базе» и подъездов
+  const [matchedAddress, setMatchedAddress] = useState<AddressSearchResult | null>(null)
   const [otherErrors, setOtherErrors] = useState<Record<string, string>>({})
   const [selectedSystemType, setSelectedSystemType] = useState<string>('')  // Тип выбранной системы для фильтрации неисправностей)
 
@@ -344,6 +346,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
 
     if (!city || !street || !building) {
       setFormData((prev) => (prev.addressId === null ? prev : { ...prev, addressId: null }))
+      setMatchedAddress(null)
       return
     }
 
@@ -360,6 +363,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
           return
         }
 
+        setMatchedAddress(result ?? null)
         setFormData((prev) => {
           const nextAddressId = result?.id ?? null
           return prev.addressId === nextAddressId ? prev : { ...prev, addressId: nextAddressId }
@@ -370,6 +374,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
           return
         }
 
+        setMatchedAddress(null)
         setFormData((prev) => (prev.addressId === null ? prev : { ...prev, addressId: null }))
       })
 
@@ -664,6 +669,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
           onChange={handleAddressChange}
           onAddressFound={handleAddressFound}
           errors={addressErrors}
+          matched={matchedAddress}
         />
 
         {/* Подсказка, если адрес не найден в базе */}

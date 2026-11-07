@@ -54,3 +54,25 @@ export function isSameHouse(
   if (!targetStreet || !street.includes(targetStreet)) return false
   return numberKey(building) === numberKey(target.building) && numberKey(corpus) === numberKey(target.corpus)
 }
+
+/**
+ * Подъезд и квартира из адреса «как диктуют по телефону»:
+ * «ветеранов 46 под 2 кв 15» → поиск «ветеранов 46», подъезд 2, квартира 15.
+ * Справочник ищет только до дома — квартира в запросе ему мешает.
+ */
+export function splitUnitParts(text: string): { query: string; entrance: string; apartment: string } {
+  let rest = ` ${text} `
+  const take = (pattern: RegExp): string => {
+    const match = rest.match(pattern)
+    if (!match || match.index === undefined) return ''
+    rest = `${rest.slice(0, match.index)} ${rest.slice(match.index + match[0].length)}`
+    return match[1] ?? ''
+  }
+  const apartment = take(/[\s,](?:кв|квартира)\.?\s*(\d+[а-яa-z]?)(?=[\s,]|$)/i)
+  const entrance = take(/[\s,](?:под|подъезд|пд|парадная|пар)\.?\s*(\d+)(?=[\s,]|$)/i)
+  const query = rest
+    .replace(/\s*,\s*(,\s*)+/g, ', ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s,]+|[\s,]+$/g, '')
+  return { query, entrance, apartment }
+}
