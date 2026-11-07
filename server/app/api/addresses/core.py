@@ -26,9 +26,17 @@ from app.schemas.address import (
     AddressUpdate,
 )
 from app.services import address_suggest
-from app.services.address_parser import compose_address, parse_address
+from app.services.address_parser import (
+    ParsedAddress,
+    building_key,
+    compose_address,
+    parse_address,
+    street_key,
+    street_name,
+)
 from app.services.auth import get_current_dispatcher_or_admin, get_current_user_required
 from app.services.geocoding import geocoding_service
+from app.services.task_service import _address_match_score
 from app.services.tenant_filter import TenantFilter
 
 router = APIRouter(prefix="/api/addresses", tags=["Addresses"])
@@ -234,11 +242,56 @@ def find_by_components(
         )
 
     address = query.first()
-
+    if address is None:
+        # Подсказка справочника пишет «пр-кт Ветеранов», в базе — «Ветеранов
+        # пр.»: точное сравнение не находит дом. Тогда — так же, как сервер
+        # сам привязывает заявку к адресу книги при создании.
+        address = _match_by_parts(db, tenant, city, street, building, corpus)
     if not address:
         return None
 
     return AddressSearchResponse.model_validate(address)
+
+
+def _word_like(word: str):
+    """Отбор по слову без учёта регистра и в SQLite (там ILIKE — только ASCII)."""
+    variants = {word.lower(), word.capitalize()}
+    return or_(
+        *[AddressModel.address.ilike(f"%{v}%") for v in variants],
+        *[AddressModel.street.ilike(f"%{v}%") for v in variants],
+    )
+
+
+def _match_by_parts(db, tenant, city, street, building, corpus):
+    parsed = ParsedAddress(
+        city=city or None,
+        street=street or None,
+        building=building or None,
+        corpus=corpus if corpus and corpus != "none" else None,
+    )
+    words = re.findall(r"[^\W\d_]{3,}", street_name(street or ""))
+    if not words or not building:
+        return None
+    word = max(words, key=len)
+    candidates = (
+        tenant.apply(db.query(AddressModel), AddressModel)
+        .filter(
+            AddressModel.is_active == True,  # noqa: E712
+            _word_like(word),
+        )
+        .order_by(AddressModel.updated_at.desc())
+        .limit(50)
+        .all()
+    )
+    best, best_score = None, 0
+    for candidate in candidates:
+        score = _address_match_score(parsed, "", candidate)
+        # Без корпуса в запросе дом с корпусом — другой дом
+        if not parsed.corpus and (candidate.corpus or "").strip():
+            continue
+        if score > best_score:
+            best, best_score = candidate, score
+    return best
 
 
 @router.get("/{address_id}", response_model=AddressResponse)
@@ -349,10 +402,12 @@ def update_address(
         if existing:
             raise HTTPException(status_code=400, detail="Такой адрес уже существует")
 
-        # Перегеокодируем при смене адреса
-        lat, lon = geocoding_service.geocode(update_data["address"])
-        update_data["lat"] = lat
-        update_data["lon"] = lon
+        # Перегеокодируем при смене адреса — если точку не прислали (её даёт
+        # подсказка справочника, она точнее геокодера)
+        if update_data.get("lat") is None or update_data.get("lon") is None:
+            lat, lon = geocoding_service.geocode(update_data["address"])
+            update_data["lat"] = lat
+            update_data["lon"] = lon
 
     if update_data.get("counterparty_id") is not None:
         counterparty = (
@@ -526,47 +581,86 @@ def autocomplete_address(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user_required),
 ):
-    """Подсказки полного адреса для формы «Новый адрес».
+    """Подсказки полного адреса: сначала свои объекты, затем справочник.
 
-    Справочник DaData, если настроен ключ; иначе — уже заведённые адреса.
-    При limit=1 и полном адресе DaData возвращает и координаты дома.
+    Свои — первыми: к ним привязаны системы, панели и история заявок.
+    Справочник DaData — если настроен ключ; дома, которые уже есть в базе,
+    из него не дублируются. При limit=1 DaData возвращает и координаты.
     """
-    if address_suggest.is_enabled():
-        return [
-            AddressSuggestion(**item)
-            for item in address_suggest.suggest_addresses(q, count=limit)
-        ]
-    if len(q.strip()) < 3:
+    query = q.strip()
+    if len(query) < 3:
         return []
+    own = _base_suggestions(db, user, query, limit=min(limit, 3))
+    if not address_suggest.is_enabled():
+        return own[:limit]
+    external = [
+        AddressSuggestion(**item)
+        for item in address_suggest.suggest_addresses(query, count=limit)
+    ]
+    # Дом из своей базы справочник не дублирует. Город сверяем, если он
+    # известен: «Ленина, 10» есть и в Петербурге, и в Кронштадте. У старых
+    # записей без города убираем только самое верхнее совпадение.
+    for item in own:
+        if not (item.street and item.building):
+            continue
+        key = (frozenset(street_key(item.street)), building_key(item.building))
+        city = _fold(item.city or "")
+        for index, candidate in enumerate(external):
+            same_house = (
+                frozenset(street_key(candidate.street)),
+                building_key(candidate.building),
+            ) == key
+            if same_house and (not city or _fold(candidate.city or "") == city):
+                del external[index]
+                break
+    return (own + external)[:limit]
+
+
+def _base_suggestions(db, user, query: str, limit: int) -> List[AddressSuggestion]:
+    """Свои адреса, где каждое слово запроса — начало какого-то слова адреса."""
+    tokens = re.findall(r"[^\W_]+", _fold(query))
+    words = [token for token in tokens if len(token) >= 3 and not token.isdigit()]
+    if not words:
+        return []
+    word = max(words, key=len)
     tenant = TenantFilter(user)
-    pattern = f"%{q.strip()}%"
     rows = (
         tenant.apply(db.query(AddressModel), AddressModel)
         .filter(
             AddressModel.is_active == True,  # noqa: E712
-            or_(
-                AddressModel.address.ilike(pattern),
-                AddressModel.street.ilike(pattern),
-            ),
+            _word_like(word),
         )
         .order_by(AddressModel.address)
-        .limit(limit)
+        .limit(100)
         .all()
     )
-    return [
-        AddressSuggestion(
-            value=row.address,
-            city=row.city or "",
-            street=row.street or "",
-            building=row.building or "",
-            corpus=row.corpus or "",
-            lat=row.lat,
-            lon=row.lon,
-            source="base",
-            address_id=row.id,
-        )
-        for row in rows
-    ]
+    result = []
+    for row in rows:
+        haystack = re.findall(r"[^\W_]+", _fold(f"{row.address} {row.city or ''}"))
+        if all(any(w.startswith(t) for w in haystack) for t in tokens):
+            # У старых записей части не разобраны — разбираем строку, иначе
+            # справочник продублирует этот дом, а форма не получит частей
+            parsed = (
+                parse_address(row.address)
+                if not (row.street and row.building)
+                else None
+            )
+            result.append(
+                AddressSuggestion(
+                    value=row.address,
+                    city=row.city or (parsed.city if parsed else "") or "",
+                    street=row.street or (parsed.street if parsed else "") or "",
+                    building=row.building or (parsed.building if parsed else "") or "",
+                    corpus=row.corpus or (parsed.corpus if parsed else "") or "",
+                    lat=row.lat,
+                    lon=row.lon,
+                    source="base",
+                    address_id=row.id,
+                )
+            )
+        if len(result) >= limit:
+            break
+    return result
 
 
 @router.get("/autocomplete/buildings", response_model=List[str])

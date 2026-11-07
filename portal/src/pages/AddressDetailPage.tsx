@@ -390,6 +390,9 @@ export default function AddressDetailPage() {
         floor_count: data.floor_count ? parseInt(data.floor_count) : undefined,
         apartment_count: data.apartment_count ? parseInt(data.apartment_count) : undefined,
         counterparty_id: data.counterparty_id ? Number(data.counterparty_id) : null,
+        // Точка из справочника — только если выбрали подсказку
+        lat: data.lat,
+        lon: data.lon,
       }
       
       await updateAddress.mutateAsync({ id: addressId, data: payload })

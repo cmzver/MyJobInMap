@@ -9,8 +9,10 @@ import Input from '@/components/Input'
 import Select from '@/components/Select'
 import Textarea from '@/components/Textarea'
 import { useCounterparties } from '@/hooks/useCounterparties'
+import { Autocomplete } from '@/components/Autocomplete'
+import { addressesApi } from '@/api/addresses'
 import type { AddressSystem, AddressEquipment, AddressContact } from '@/types/address'
-import type { Address } from '@/types/address'
+import type { Address, AddressSuggestion } from '@/types/address'
 
 // ============================================
 // Опции для селектов
@@ -662,6 +664,9 @@ export interface AddressFormData {
   /** '' — без контрагента */
   counterparty_id: string
   notes: string
+  /** Точка из справочника при выборе подсказки; нет — сервер найдёт сам */
+  lat?: number
+  lon?: number
 }
 
 interface AddressFormProps {
@@ -727,6 +732,43 @@ export function AddressForm({ address, onSubmit, onCancel, isLoading }: AddressF
     }))
   }
 
+  // Адрес правят руками — точка прошлой подсказки к нему не относится
+  const handleAddressTyped = (value: string) => {
+    setFormData((prev) => ({ ...prev, address: value, lat: undefined, lon: undefined }))
+  }
+
+  const handlePickSuggestion = async (item: AddressSuggestion) => {
+    const parts = {
+      city: item.city || '',
+      street: item.street || '',
+      building: item.building || '',
+      corpus: item.corpus || '',
+    }
+    let lat = item.lat ?? undefined
+    let lon = item.lon ?? undefined
+    setFormData((prev) => ({ ...prev, ...parts, address: item.value, lat, lon }))
+    if (!parts.street) return
+    try {
+      // Строка — в стиле базы, как при создании адреса
+      const composed = await addressesApi.composeAddress({ ...parts, entrance: formData.entrance })
+      if (composed.address) setFormData((prev) => ({ ...prev, address: composed.address }))
+    } catch {
+      // остаётся строка из справочника
+    }
+    if (item.source === 'dadata' && lat == null && item.unrestricted_value && parts.building) {
+      try {
+        const [exact] = await addressesApi.suggestAddress(item.unrestricted_value, 1)
+        if (exact?.lat != null && exact.lon != null) {
+          lat = exact.lat
+          lon = exact.lon
+          setFormData((prev) => ({ ...prev, lat, lon }))
+        }
+      } catch {
+        // без точки: сервер найдёт её своим геокодером
+      }
+    }
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     onSubmit(formData)
@@ -738,26 +780,37 @@ export function AddressForm({ address, onSubmit, onCancel, isLoading }: AddressF
       <div className="space-y-4">
         <h4 className="font-medium text-gray-900 dark:text-white border-b pb-2">Адрес</h4>
         
-        <Input
+        <Autocomplete<AddressSuggestion>
+          id="edit-address"
           label="Полный адрес"
           value={formData.address}
-          onChange={(e) => handleChange('address', e.target.value)}
-          placeholder="ул. Примерная, д. 1"
+          onChange={handleAddressTyped}
+          fetchSuggestions={(q) => addressesApi.suggestAddress(q)}
+          getLabel={(item) => item.value}
+          getHint={(item) => (item.source === 'base' ? 'уже есть в базе' : undefined)}
+          onSelect={handlePickSuggestion}
+          placeholder="Начните вводить: спб ветеранов 46"
+          minChars={3}
+          debounceMs={350}
           required
         />
-        
+
         <div className="grid grid-cols-2 gap-4">
-          <Input
+          <Autocomplete
+            id="edit-city"
             label="Город"
             value={formData.city}
-            onChange={(e) => handleChange('city', e.target.value)}
+            onChange={(value) => handleChange('city', value)}
+            fetchSuggestions={(q) => addressesApi.autocompleteCities(q)}
             placeholder="Санкт-Петербург"
           />
-          <Input
+          <Autocomplete
+            id="edit-street"
             label="Улица"
             value={formData.street}
-            onChange={(e) => handleChange('street', e.target.value)}
-            placeholder="Примерная"
+            onChange={(value) => handleChange('street', value)}
+            fetchSuggestions={(q) => addressesApi.autocompleteStreets(q, formData.city || undefined)}
+            placeholder="Невский пр-кт"
           />
         </div>
         

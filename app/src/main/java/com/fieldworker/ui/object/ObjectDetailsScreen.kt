@@ -349,7 +349,8 @@ private fun ObjectOverviewCard(addressDetails: AddressDetails) {
         addressDetails.floorCount?.let { add(ObjectFact("Этажи", it.toString())) }
         addressDetails.apartmentCount?.let { add(ObjectFact("Квартиры", it.toString())) }
         addressDetails.entrance?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Подъезд", it)) }
-        addressDetails.hasElevator?.let { add(ObjectFact("Лифт", if (it) "есть" else "нет")) }
+        // «false» на деле значит «не отметили» — показываем только «есть»
+        if (addressDetails.hasElevator == true) add(ObjectFact("Лифт", "есть"))
         if (addressDetails.hasIntercom == true) {
             val code = addressDetails.intercomCode?.takeIf { it.isNotBlank() }
             add(if (code != null) ObjectFact("Код домофона", code) else ObjectFact("Домофон", "есть"))
