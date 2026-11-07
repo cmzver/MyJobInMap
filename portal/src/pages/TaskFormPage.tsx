@@ -8,6 +8,7 @@ import { useUsers } from '@/hooks/useUsers'
 import { addressesApi } from '@/api/addresses'
 import Button from '@/components/Button'
 import { formatDateOnly } from '@/utils/dateFormat'
+import { normalizePhone } from '@/utils/phone'
 import { tasksApi, type LastApplicant } from '@/api/tasks'
 import { useAuthStore } from '@/store/authStore'
 import PageHeader from '@/components/PageHeader'
@@ -417,17 +418,21 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
     }
   }, [applicantAddress])
 
+  // Телефон сравниваем по цифрам: «+79210000003» и «+7 921 000-00-03» — один
+  const digitsOf = (phone: string | null | undefined) => (phone ?? '').replace(/\D/g, '')
   const applicantDiffers = Boolean(
     lastApplicant &&
       ((lastApplicant.customer_name ?? '') !== formData.customer_name.trim() ||
-        (lastApplicant.customer_phone ?? '') !== formData.customer_phone.trim()),
+        digitsOf(lastApplicant.customer_phone) !== digitsOf(formData.customer_phone)),
   )
   const fillLastApplicant = () => {
     if (!lastApplicant) return
     setFormData((prev) => ({
       ...prev,
       customer_name: lastApplicant.customer_name ?? prev.customer_name,
-      customer_phone: lastApplicant.customer_phone ?? prev.customer_phone,
+      customer_phone: lastApplicant.customer_phone
+        ? normalizePhone(lastApplicant.customer_phone)
+        : prev.customer_phone,
     }))
   }
 
@@ -762,22 +767,27 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
           </div>
         )}
 
-        {/* Шаг 2: Система */}
-        <SystemSelector 
-          buildingId={formData.addressId || undefined}
-          buildingAddress={fullAddress || 'Не выбрано'}
-          value={formData.system_id}
-          onChange={handleSystemSelect}
-          error={otherErrors.system_id}
-        />
+        {/* Шаг 2: Система — только для объекта из базы (или уже выбранная).
+            Для адреса вне базы карточка была пустой подсказкой на пол-экрана. */}
+        {(formData.addressId || formData.system_id) && (
+          <SystemSelector
+            buildingId={formData.addressId || undefined}
+            buildingAddress={fullAddress || 'Не выбрано'}
+            value={formData.system_id}
+            onChange={handleSystemSelect}
+            error={otherErrors.system_id}
+          />
+        )}
 
-        {/* Шаг 3: Тип неисправности */}
-        <DefectTypeSelector 
-          value={formData.defect_type_id}
-          onChange={handleDefectTypeChange}
-          systemType={selectedSystemType || formData.system_type}
-          error={otherErrors.defect_type_id}
-        />
+        {/* Шаг 3: Тип неисправности — после выбора системы */}
+        {(selectedSystemType || formData.system_type) && (
+          <DefectTypeSelector
+            value={formData.defect_type_id}
+            onChange={handleDefectTypeChange}
+            systemType={selectedSystemType || formData.system_type}
+            error={otherErrors.defect_type_id}
+          />
+        )}
 
         {/* Остальные поля */}
         <Card title="Информация о заявке">
@@ -824,6 +834,8 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
                 placeholder="+7 (900) 123-45-67"
                 value={formData.customer_phone}
                 onChange={(e) => handleFormChange('customer_phone', e.target.value)}
+                onBlur={(e) => handleFormChange('customer_phone', normalizePhone(e.target.value))}
+                inputMode="tel"
               />
             </div>
 
