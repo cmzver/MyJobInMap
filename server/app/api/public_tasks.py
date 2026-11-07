@@ -57,7 +57,8 @@ class PublicTaskView(BaseModel):
     status: str
     status_label: str
     created_at: Optional[UtcDateTime] = None
-    planned_date: Optional[UtcDateTime] = None
+    # Плановая дата — местное время без пояса, как в TaskResponse
+    planned_date: Optional[datetime] = None
     completed_at: Optional[UtcDateTime] = None
     events: List[PublicTaskEvent]
     acts: List[PublicTaskAct]

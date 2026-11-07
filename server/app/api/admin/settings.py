@@ -7,7 +7,6 @@ System Settings API
 Custom Fields, Permissions и Backups — см. соседние модули admin-пакета.
 """
 
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,6 +14,7 @@ from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
 from app.models import UserModel, get_db, get_setting, init_default_settings
+from app.schemas.datetime_utc import UtcDateTime
 from app.services import get_current_superadmin, require_permission
 from app.services.settings_service import (
     SettingsService,
@@ -71,7 +71,7 @@ class SettingResponse(BaseModel):
     description: Optional[str]
     options: Optional[List[dict]]
     is_readonly: bool
-    updated_at: Optional[datetime]
+    updated_at: Optional[UtcDateTime]
 
 
 class SettingsGroupResponse(BaseModel):

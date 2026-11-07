@@ -12,7 +12,7 @@ Settings Service
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import Depends
@@ -26,6 +26,7 @@ from app.models import (
     init_default_settings,
     set_setting,
 )
+from app.schemas.datetime_utc import iso_utc
 
 logger = logging.getLogger(__name__)
 
@@ -433,7 +434,7 @@ class SettingsService:
     def report_bot_group(self, chat_id: int, title: str) -> None:
         """Бот сообщает о группе: обновить last_seen или добавить."""
         groups = self._get_known_groups()
-        now = datetime.utcnow().isoformat()
+        now = iso_utc(datetime.now(timezone.utc))
         found = False
         for g in groups:
             if g.get("chat_id") == chat_id:

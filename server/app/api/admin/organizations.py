@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.models import OrganizationModel, TaskModel, UserModel, get_db
 from app.models.address import AddressModel
+from app.schemas.datetime_utc import iso_utc
 from app.services import require_permission
 from app.services.tenant_service import TenantService, get_tenant_service
 
@@ -122,8 +123,8 @@ def _org_to_response(org: OrganizationModel, db: Session) -> OrganizationRespons
         user_count=user_count,
         task_count=task_count,
         address_count=address_count,
-        created_at=org.created_at.isoformat() if org.created_at is not None else None,
-        updated_at=org.updated_at.isoformat() if org.updated_at is not None else None,
+        created_at=iso_utc(org.created_at),
+        updated_at=iso_utc(org.updated_at),
     )
 
 

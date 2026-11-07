@@ -17,10 +17,11 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
+import java.time.ZoneId
 
-private val ISO: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
-private fun LocalDateTime.toIso(): String = format(ISO)
+/** В кэш — со смещением устройства, чтобы при чтении не гадать о поясе. */
+private fun LocalDateTime.toIso(): String =
+    atZone(ZoneId.systemDefault()).toOffsetDateTime().toString()
 
 private val cacheJson = Json {
     ignoreUnknownKeys = true

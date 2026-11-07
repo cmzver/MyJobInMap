@@ -7,6 +7,7 @@ import android.net.Uri
 import com.fieldworker.domain.model.Task
 import java.time.Duration
 import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
@@ -63,13 +64,24 @@ object TaskUtils {
     }
     
     /**
-     * Парсит дату из строки
+     * Парсит дату из строки во время устройства.
+     *
+     * Метки сервера (created_at и т.п.) приходят в UTC с «Z» — их переводим
+     * в пояс устройства; раньше «Z» просто отрезался, и комментарий в 12:00
+     * по Москве показывался как 09:00. Значения без пояса (плановая дата)
+     * — уже местное время, их берём как есть.
      */
     private fun parseDateTime(dateString: String): LocalDateTime? {
-        val normalized = dateString.substringBefore("+").substringBefore("Z")
+        try {
+            return OffsetDateTime.parse(dateString)
+                .atZoneSameInstant(ZoneId.systemDefault())
+                .toLocalDateTime()
+        } catch (e: DateTimeParseException) {
+            // без пояса — разбираем ниже
+        }
         for (formatter in DATE_FORMATTERS) {
             try {
-                return LocalDateTime.parse(normalized, formatter)
+                return LocalDateTime.parse(dateString, formatter)
             } catch (e: DateTimeParseException) {
                 continue
             }
@@ -103,6 +115,11 @@ object TaskUtils {
         return dateTime.format(DateTimeFormatter.ofPattern(pattern))
     }
 
+    /** «07.11.2026 12:00» во времени устройства; нераспознанное — как есть. */
+    fun formatDateTime(dateString: String): String =
+        parseDateTime(dateString)?.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
+            ?: dateString
+
     fun formatShortTime(dateString: String): String {
         return try {
             val dateTime = parseDateTime(dateString) ?: return ""
@@ -115,13 +132,7 @@ object TaskUtils {
     /** Момент с сервера (UTC с «Z» или со смещением) во времени устройства. */
     fun parseMoment(value: String?): LocalDateTime? {
         if (value.isNullOrBlank()) return null
-        return try {
-            java.time.OffsetDateTime.parse(value)
-                .atZoneSameInstant(java.time.ZoneId.systemDefault())
-                .toLocalDateTime()
-        } catch (e: DateTimeParseException) {
-            parseDateTime(value)
-        }
+        return parseDateTime(value)
     }
 
     fun isMomentPast(value: String?, now: LocalDateTime = LocalDateTime.now()): Boolean =

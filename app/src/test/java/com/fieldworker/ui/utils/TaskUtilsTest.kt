@@ -67,4 +67,23 @@ class TaskUtilsTest {
 
         assertEquals(listOf(3L, 2L, 1L), tasks.sortedBy(TaskSortOrder.BY_DUE).map { it.id })
     }
+
+    @Test
+    fun `utc server timestamps are shown in device time`() {
+        val local = LocalDateTime.of(2026, 11, 7, 12, 5)
+        val utc = local.atZone(ZoneId.systemDefault())
+            .withZoneSameInstant(java.time.ZoneOffset.UTC)
+            .toLocalDateTime()
+        val serverValue = "${utc}Z"
+
+        assertEquals("12:05", TaskUtils.formatShortTime(serverValue))
+        assertEquals("07.11.2026 12:05", TaskUtils.formatDateTime(serverValue))
+    }
+
+    @Test
+    fun `values without zone are taken as local wall time`() {
+        assertEquals("22:00", TaskUtils.formatShortTime("2026-11-07T22:00:00"))
+        assertEquals("07.11.2026", TaskUtils.formatShortDate("2026-11-07T22:00:00"))
+        assertEquals("не дата", TaskUtils.formatDateTime("не дата"))
+    }
 }

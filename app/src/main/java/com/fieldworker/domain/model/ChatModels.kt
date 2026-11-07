@@ -2,7 +2,10 @@ package com.fieldworker.domain.model
 
 import kotlinx.serialization.Serializable
 import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 
 // ============================================================================
 // Enums
@@ -147,14 +150,27 @@ data class ChatReaction(
 internal val chatDateTimeFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
 
+/**
+ * Время сообщения во времени устройства, с точностью до секунды.
+ *
+ * Сервер шлёт метки в UTC с «Z»: их переводим в пояс устройства. Раньше пояс
+ * отрезался, и сообщения показывались на три часа раньше, а своё только что
+ * отправленное (время устройства) «переезжало» после ответа сервера.
+ * Строки без пояса (старый кэш) берём как местное время.
+ */
 internal fun parseDateTime(value: String?): LocalDateTime? {
-    if (value == null) return null
+    if (value.isNullOrBlank()) return null
     return try {
-        // Trim microseconds and timezone info for consistency
-        val cleaned = value.substringBefore("+").substringBefore("Z").take(19)
-        LocalDateTime.parse(cleaned, chatDateTimeFormatter)
-    } catch (_: Exception) {
-        null
+        OffsetDateTime.parse(value)
+            .atZoneSameInstant(ZoneId.systemDefault())
+            .toLocalDateTime()
+            .withNano(0)
+    } catch (_: DateTimeParseException) {
+        try {
+            LocalDateTime.parse(value.take(19), chatDateTimeFormatter)
+        } catch (_: Exception) {
+            null
+        }
     }
 }
 

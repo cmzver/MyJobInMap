@@ -30,7 +30,7 @@ from app.services.address_parser import (
     street_key,
     street_name,
 )
-from app.services.business_time import business_tz
+from app.services.business_time import business_now_naive, to_naive_local
 from app.services.geocoding import geocoding_service
 from app.services.notification_service import (
     broadcast_created_notification,
@@ -53,12 +53,10 @@ from app.utils.money import to_money
 
 
 def _planned_day(moment: Optional[datetime]):
-    """День в бизнес-поясе: заявителю пишем только дату, наивное время в БД — UTC."""
+    """День плановой даты: она хранится наивным местным временем."""
     if moment is None:
         return None
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=timezone.utc)
-    return moment.astimezone(business_tz()).date()
+    return to_naive_local(moment).date()
 
 
 class TaskServiceError(Exception):
@@ -298,9 +296,9 @@ class TaskService:
 
         total = query.count()
         unassigned = query.filter(TaskModel.assigned_user_id.is_(None)).count()
-        now = datetime.now(timezone.utc)
+        # planned_date — местное время, сравниваем с местным «сейчас»
         overdue = query.filter(
-            TaskModel.planned_date < now,
+            TaskModel.planned_date < business_now_naive(),
             TaskModel.status.notin_(
                 [TaskStatus.DONE.value, TaskStatus.CANCELLED.value]
             ),
@@ -825,7 +823,9 @@ class TaskService:
         # Комментарий
         author = user.full_name if user else "Сотрудник"
         formatted_date = (
-            planned_date.strftime("%d.%m.%Y") if planned_date else "не указана"
+            _planned_day(planned_date).strftime("%d.%m.%Y")
+            if planned_date
+            else "не указана"
         )
 
         comment = CommentModel(

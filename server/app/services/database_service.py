@@ -28,6 +28,7 @@ from app.models import (
 )
 from app.models.address import AddressModel
 from app.models.notification import NotificationModel
+from app.schemas.datetime_utc import iso_utc
 from app.services.auth import get_password_hash
 from app.services.backup_service import BACKUP_DIR
 
@@ -241,7 +242,7 @@ class DatabaseService:
             last_task = (
                 self.db.query(TaskModel).order_by(TaskModel.updated_at.desc()).first()
             )
-            last_activity = last_task.updated_at.isoformat() if last_task else None
+            last_activity = iso_utc(last_task.updated_at) if last_task else None
 
             backup_count = 0
             if os.path.exists(BACKUP_DIR):
