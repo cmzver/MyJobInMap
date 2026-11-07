@@ -2,6 +2,7 @@
 API endpoints для управления базой адресов.
 """
 
+import re
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -21,8 +22,10 @@ from app.schemas.address import (
     AddressParseResponse,
     AddressResponse,
     AddressSearchResponse,
+    AddressSuggestion,
     AddressUpdate,
 )
+from app.services import address_suggest
 from app.services.address_parser import compose_address, parse_address
 from app.services.auth import get_current_dispatcher_or_admin, get_current_user_required
 from app.services.geocoding import geocoding_service
@@ -423,6 +426,48 @@ def deactivate_address(
 # ============================================
 
 
+def _fold(text: str) -> str:
+    return text.casefold().replace("ё", "е")
+
+
+def _rank_matches(values: List[str], q: str, limit: int) -> List[str]:
+    """Совпадения с начала названия, затем с начала слова, затем внутри.
+
+    Фильтрация в Python: lower() в SQLite не понимает кириллицу. Раньше
+    сначала брались первые по алфавиту N значений и только потом
+    фильтровались — на большой базе нужная улица могла не попасть в выборку.
+    """
+    query = _fold(q.strip())
+    if not query:
+        return values[:limit]
+    scored = []
+    for value in values:
+        folded = _fold(value)
+        if folded.startswith(query):
+            rank = 0
+        elif any(word.startswith(query) for word in re.split(r"[\s.,-]+", folded)):
+            rank = 1
+        elif query in folded:
+            rank = 2
+        else:
+            continue
+        scored.append((rank, folded, value))
+    scored.sort()
+    return [value for _, _, value in scored][:limit]
+
+
+def _merge(local: List[str], external: List[str], limit: int) -> List[str]:
+    """Свои значения первыми, справочник — следом, без повторов."""
+    seen = set()
+    result = []
+    for value in [*local, *external]:
+        key = _fold(value)
+        if key not in seen:
+            seen.add(key)
+            result.append(value)
+    return result[:limit]
+
+
 @router.get("/autocomplete/cities", response_model=List[str])
 def autocomplete_cities(
     q: str = Query("", description="Поисковый запрос"),
@@ -430,24 +475,18 @@ def autocomplete_cities(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user_required),
 ):
-    """Получить список уникальных городов для автоподставления"""
+    """Города для автоподставления: свои, затем справочник DaData"""
     tenant = TenantFilter(user)
-    all_cities = (
+    rows = (
         tenant.apply(db.query(distinct(AddressModel.city)), AddressModel)
         .filter(AddressModel.city.isnot(None), AddressModel.city != "")
         .order_by(AddressModel.city)
-        .limit(limit * 5)
         .all()
-    )  # Get more to filter in Python
-
-    results = [r[0] for r in all_cities if r[0]]
-
-    # Фильтрация на Python-уровне (поддерживает Unicode/Cyrillic)
-    if q:
-        q_lower = q.lower()
-        results = [city for city in results if q_lower in city.lower()]
-
-    return results[:limit]
+    )
+    local = _rank_matches([r[0] for r in rows if r[0]], q, limit)
+    if len(local) >= limit or not q.strip():
+        return local
+    return _merge(local, address_suggest.suggest_cities(q, count=limit), limit)
 
 
 @router.get("/autocomplete/streets", response_model=List[str])
@@ -458,39 +497,70 @@ def autocomplete_streets(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user_required),
 ):
-    """Получить список уникальных улиц для автоподставления"""
+    """Улицы для автоподставления: свои, затем справочник DaData"""
     tenant = TenantFilter(user)
-
-    # Сначала фильтруем по городу на уровне БД (точное совпадение)
+    query = tenant.apply(db.query(distinct(AddressModel.street)), AddressModel).filter(
+        AddressModel.street.isnot(None), AddressModel.street != ""
+    )
     if city:
-        all_streets = (
-            tenant.apply(db.query(distinct(AddressModel.street)), AddressModel)
-            .filter(
-                AddressModel.street.isnot(None),
-                AddressModel.street != "",
-                AddressModel.city == city,  # Точное совпадение города
-            )
-            .order_by(AddressModel.street)
-            .limit(limit * 5)
-            .all()
+        query = query.filter(AddressModel.city == city)
+    rows = query.order_by(AddressModel.street).all()
+    local = _rank_matches([r[0] for r in rows if r[0]], q, limit)
+    if len(local) >= limit or not q.strip():
+        return local
+    return _merge(
+        local, address_suggest.suggest_streets(q, city=city, count=limit), limit
+    )
+
+
+@router.get("/autocomplete/address", response_model=List[AddressSuggestion])
+def autocomplete_address(
+    q: str = Query("", description="Адрес как его набирают: «спб ветеранов 46»"),
+    limit: int = Query(7, ge=1, le=20),
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(get_current_user_required),
+):
+    """Подсказки полного адреса для формы «Новый адрес».
+
+    Справочник DaData, если настроен ключ; иначе — уже заведённые адреса.
+    При limit=1 и полном адресе DaData возвращает и координаты дома.
+    """
+    if address_suggest.is_enabled():
+        return [
+            AddressSuggestion(**item)
+            for item in address_suggest.suggest_addresses(q, count=limit)
+        ]
+    if len(q.strip()) < 3:
+        return []
+    tenant = TenantFilter(user)
+    pattern = f"%{q.strip()}%"
+    rows = (
+        tenant.apply(db.query(AddressModel), AddressModel)
+        .filter(
+            AddressModel.is_active == True,  # noqa: E712
+            or_(
+                AddressModel.address.ilike(pattern),
+                AddressModel.street.ilike(pattern),
+            ),
         )
-    else:
-        all_streets = (
-            tenant.apply(db.query(distinct(AddressModel.street)), AddressModel)
-            .filter(AddressModel.street.isnot(None), AddressModel.street != "")
-            .order_by(AddressModel.street)
-            .limit(limit * 5)
-            .all()
+        .order_by(AddressModel.address)
+        .limit(limit)
+        .all()
+    )
+    return [
+        AddressSuggestion(
+            value=row.address,
+            city=row.city or "",
+            street=row.street or "",
+            building=row.building or "",
+            corpus=row.corpus or "",
+            lat=row.lat,
+            lon=row.lon,
+            source="base",
+            address_id=row.id,
         )
-
-    results = [r[0] for r in all_streets if r[0]]
-
-    # Фильтрация на Python-уровне (поддерживает Unicode/Cyrillic)
-    if q:
-        q_lower = q.lower()
-        results = [street for street in results if q_lower in street.lower()]
-
-    return results[:limit]
+        for row in rows
+    ]
 
 
 @router.get("/autocomplete/buildings", response_model=List[str])

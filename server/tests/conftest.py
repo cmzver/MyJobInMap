@@ -87,6 +87,18 @@ def disable_web_push(monkeypatch):
     monkeypatch.setattr(web_push, "_vapid_failed", False)
 
 
+@pytest.fixture(scope="function", autouse=True)
+def disable_address_suggest(monkeypatch):
+    """Не ходить в DaData из тестов: ключ мог прийти из локального .env."""
+    from app.config import settings
+    from app.services import address_suggest
+
+    monkeypatch.setattr(settings, "DADATA_API_KEY", "")
+    address_suggest.clear_cache()
+    yield
+    address_suggest.clear_cache()
+
+
 @pytest.fixture(scope="session")
 def _shared_db_engine():
     """Сессионный engine для не-SQLite БД (схема создаётся один раз).

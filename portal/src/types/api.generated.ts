@@ -3382,7 +3382,7 @@ export interface paths {
         };
         /**
          * Autocomplete Cities
-         * @description Получить список уникальных городов для автоподставления
+         * @description Города для автоподставления: свои, затем справочник DaData
          */
         get: operations["autocomplete_cities_api_addresses_autocomplete_cities_get"];
         put?: never;
@@ -3402,9 +3402,32 @@ export interface paths {
         };
         /**
          * Autocomplete Streets
-         * @description Получить список уникальных улиц для автоподставления
+         * @description Улицы для автоподставления: свои, затем справочник DaData
          */
         get: operations["autocomplete_streets_api_addresses_autocomplete_streets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/addresses/autocomplete/address": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Autocomplete Address
+         * @description Подсказки полного адреса для формы «Новый адрес».
+         *
+         *     Справочник DaData, если настроен ключ; иначе — уже заведённые адреса.
+         *     При limit=1 и полном адресе DaData возвращает и координаты дома.
+         */
+        get: operations["autocomplete_address_api_addresses_autocomplete_address_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5846,6 +5869,50 @@ export interface components {
             has_intercom?: boolean | null;
             /** Intercom Code */
             intercom_code?: string | null;
+        };
+        /**
+         * AddressSuggestion
+         * @description Подсказка полного адреса: из справочника DaData или из своей базы.
+         */
+        AddressSuggestion: {
+            /** Value */
+            value: string;
+            /**
+             * Unrestricted Value
+             * @default
+             */
+            unrestricted_value: string;
+            /**
+             * City
+             * @default
+             */
+            city: string;
+            /**
+             * Street
+             * @default
+             */
+            street: string;
+            /**
+             * Building
+             * @default
+             */
+            building: string;
+            /**
+             * Corpus
+             * @default
+             */
+            corpus: string;
+            /** Lat */
+            lat?: number | null;
+            /** Lon */
+            lon?: number | null;
+            /**
+             * Source
+             * @default dadata
+             */
+            source: string;
+            /** Address Id */
+            address_id?: number | null;
         };
         /**
          * AddressSystemCreate
@@ -17374,6 +17441,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": string[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    autocomplete_address_api_addresses_autocomplete_address_get: {
+        parameters: {
+            query?: {
+                /** @description Адрес как его набирают: «спб ветеранов 46» */
+                q?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddressSuggestion"][];
                 };
             };
             /** @description Validation Error */

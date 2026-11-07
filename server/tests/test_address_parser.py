@@ -103,3 +103,12 @@ def test_keys_ignore_how_the_address_is_written():
     assert city_key("Лен. обл. гп. Новоселье") == city_key("Новоселье")
     assert city_key("СПб") == city_key("г. Санкт-Петербург")
     assert city_key("Ленинградская обл.") == ""
+
+
+def test_dadata_style_prospect_is_parsed():
+    """Так проспект пишет справочник DaData — и так его часто вставляют."""
+    from app.services.address_parser import parse_address
+
+    parsed = parse_address("г Санкт-Петербург, пр-кт Ветеранов, д 46")
+    assert parsed.street == "Ветеранов пр."
+    assert parsed.building == "46"

@@ -204,6 +204,22 @@ class AddressListResponse(BaseModel):
     pages: int
 
 
+class AddressSuggestion(BaseModel):
+    """Подсказка полного адреса: из справочника DaData или из своей базы."""
+
+    value: str
+    unrestricted_value: str = ""
+    city: str = ""
+    street: str = ""
+    building: str = ""
+    corpus: str = ""
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    # dadata — справочник; base — уже заведённый адрес (id — его карточка)
+    source: str = "dadata"
+    address_id: Optional[int] = None
+
+
 class AddressSearchResponse(BaseModel):
     """���������� ����� ��� ������������"""
 
