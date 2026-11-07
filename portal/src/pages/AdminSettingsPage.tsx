@@ -2013,14 +2013,14 @@ function ClearDatabaseModal({ setShowClearConfirm }: { setShowClearConfirm: (sho
   const clearMutation = useMutation({
     mutationFn: () => apiClient.delete('/admin/tasks'),
     onSuccess: () => {
-      toast.success('✓ Все заявки и комментарии удалены')
+      toast.success('Все заявки и комментарии удалены')
       setShowClearConfirm(false)
       // Обновить данные без перезагрузки страницы
       queryClient.invalidateQueries({ queryKey: ['server-info'] })
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
     },
     onError: (error: Error) => {
-      toast.error(`✗ ${getApiErrorMessage(error, 'Ошибка при очистке')}`)
+      toast.error(getApiErrorMessage(error, 'Не удалось очистить базу'))
     },
   })
 

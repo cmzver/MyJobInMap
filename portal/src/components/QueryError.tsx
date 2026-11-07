@@ -1,5 +1,6 @@
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import Button from './Button'
+import { getApiErrorMessage } from '@/utils/apiError'
 
 interface QueryErrorProps {
   error: Error | null
@@ -25,7 +26,8 @@ export default function QueryError({
       </h3>
       
       <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4 max-w-md">
-        {error?.message || 'Произошла ошибка при загрузке. Проверьте соединение и попробуйте снова.'}
+        {/* Не error.message: у axios это «Network Error» / «Request failed with status code 500» */}
+        {getApiErrorMessage(error, 'Произошла ошибка при загрузке. Проверьте соединение и попробуйте снова.')}
       </p>
 
       {onRetry && (
