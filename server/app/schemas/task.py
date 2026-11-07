@@ -59,7 +59,9 @@ def _normalize_priority_value(value):
         mapped = PRIORITY_NUMBER_TO_VALUE.get(value)
         if mapped:
             return mapped
-        raise ValueError("priority must be PLANNED, CURRENT, URGENT, EMERGENCY")
+        raise ValueError(
+            "неверный приоритет: допустимы PLANNED, CURRENT, URGENT, EMERGENCY"
+        )
     if isinstance(value, str):
         raw_value = value.strip()
         if not raw_value:
@@ -71,7 +73,9 @@ def _normalize_priority_value(value):
         upper_value = raw_value.upper()
         if upper_value in VALID_PRIORITY_VALUES:
             return upper_value
-    raise ValueError("priority must be PLANNED, CURRENT, URGENT, EMERGENCY")
+    raise ValueError(
+        "неверный приоритет: допустимы PLANNED, CURRENT, URGENT, EMERGENCY"
+    )
 
 
 # ============================================================================

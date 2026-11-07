@@ -730,8 +730,8 @@ export default function ChatPage() {
     transferChatOwnership.mutate(
       { conversationId: activeConversationId, userId },
       {
-        onSuccess: () => toast.success('Ownership передан'),
-        onError: () => toast.error('Не удалось передать ownership'),
+        onSuccess: () => toast.success('Права владельца переданы'),
+        onError: () => toast.error('Не удалось передать права владельца'),
       },
     )
   }, [activeConversationId, transferChatOwnership])

@@ -1256,7 +1256,7 @@ export default function TasksPage() {
     }
     const priority = getPriorityKey(bulkPriority) as TaskPriority
     if (!priority) {
-      toast.error('Invalid priority')
+      toast.error('Неизвестный приоритет')
       return
     }
     const ids = Array.from(selectedIds)

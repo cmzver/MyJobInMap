@@ -35,7 +35,7 @@ class SupportTicketCreate(BaseModel):
     def strip_required_text(cls, value: str) -> str:
         normalized = value.strip()
         if not normalized:
-            raise ValueError("Field cannot be empty")
+            raise ValueError("Поле не может быть пустым")
         return normalized
 
 
@@ -60,7 +60,7 @@ class SupportTicketCommentCreate(BaseModel):
     def normalize_body(cls, value: str) -> str:
         normalized = value.strip()
         if not normalized:
-            raise ValueError("Field cannot be empty")
+            raise ValueError("Поле не может быть пустым")
         return normalized
 
 

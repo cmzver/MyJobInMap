@@ -208,7 +208,7 @@ export default function ChatSettingsModal({
         ? 'Выйти из группы'
         : 'Удалить участника'
       : pendingAction.type === 'transfer'
-        ? 'Передать ownership'
+        ? 'Передать права владельца'
         : 'Изменить роль'
     : ''
 
@@ -218,7 +218,7 @@ export default function ChatSettingsModal({
         ? 'Вы выйдете из этой группы и потеряете доступ к её истории, если вас не добавят повторно.'
         : `Пользователь ${pendingAction.member.full_name} будет удалён из группы.`
       : pendingAction.type === 'transfer'
-        ? `После подтверждения ${pendingAction.member.full_name} станет owner, а вы получите роль admin.`
+        ? `После подтверждения ${pendingAction.member.full_name} станет владельцем, а вы — администратором.`
         : `Пользователь ${pendingAction.member.full_name} получит роль ${getRoleLabel(pendingAction.nextRole)}.`
     : ''
 
@@ -242,7 +242,7 @@ export default function ChatSettingsModal({
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {canRenameConversation
                 ? 'Название и фото можно менять без пересоздания чата.'
-                : 'Изменение названия и фото доступно только owner и admin.'}
+                : 'Название и фото могут менять только владелец и администраторы.'}
             </p>
           </div>
           <div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/60 sm:flex-row sm:items-center sm:justify-between">
@@ -298,7 +298,7 @@ export default function ChatSettingsModal({
         <section className="space-y-3">
           <div>
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Текущие участники</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Owner/admin может удалять участников, любой пользователь может выйти сам.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Владелец и администраторы могут удалять участников; выйти может любой.</p>
           </div>
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/60">
@@ -444,7 +444,7 @@ export default function ChatSettingsModal({
                                 disabled={transferringOwnershipUserId === member.user_id}
                                 className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-700"
                               >
-                                <span>Передать ownership</span>
+                                <span>Сделать владельцем</span>
                                 {transferringOwnershipUserId === member.user_id && <span className="text-xs text-gray-400 dark:text-gray-500">...</span>}
                               </button>
                             )}
@@ -483,9 +483,9 @@ export default function ChatSettingsModal({
         {canTransferOwnership && (
           <section className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/70 dark:bg-amber-950/20">
             <div>
-              <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200">Передача ownership</h3>
+              <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200">Передача прав владельца</h3>
               <p className="text-xs text-amber-800/80 dark:text-amber-300/80">
-                После передачи новый owner получит полный контроль над группой, а вы станете admin.
+                Новый владелец получит полный контроль над группой, а вы станете администратором.
               </p>
             </div>
           </section>
@@ -602,7 +602,7 @@ export default function ChatSettingsModal({
 function getRoleLabel(role: ConversationMemberRole): string {
   switch (role) {
     case 'owner':
-      return 'Owner'
+      return 'Владелец'
     case 'admin':
       return 'Администратор'
     default:

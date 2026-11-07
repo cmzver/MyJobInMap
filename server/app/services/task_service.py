@@ -510,7 +510,7 @@ class TaskService:
                     .first()
                 )
                 if not assigned_user:
-                    raise TaskServiceError("User not found", 404)
+                    raise TaskServiceError("Исполнитель не найден", 404)
                 tenant.enforce_access(
                     assigned_user,
                     detail="Нельзя назначить пользователя из другой организации",

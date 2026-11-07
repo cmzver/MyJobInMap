@@ -24,11 +24,12 @@ internal fun resolveChatSystemEventMeta(text: String?): ChatSystemEventMeta {
         Regex("^вышел\\(а\\) из чата$", RegexOption.IGNORE_CASE).containsMatchIn(value) -> {
             ChatSystemEventMeta("Участник вышел") { it.secondary }
         }
-        Regex("изменил\\(а\\) роль .+ на (admin|member)", RegexOption.IGNORE_CASE).containsMatchIn(value) -> {
+        // Старый вид сообщений сервера (admin/member, ownership) — тоже узнаём
+        Regex("изменил\\(а\\) роль .+ на (admin|member|«администратор»|«участник»)", RegexOption.IGNORE_CASE).containsMatchIn(value) -> {
             ChatSystemEventMeta("Роль участника изменена") { it.primary }
         }
-        Regex("передал\\(а\\) ownership пользователю", RegexOption.IGNORE_CASE).containsMatchIn(value) -> {
-            ChatSystemEventMeta("Ownership передан") { it.tertiary }
+        Regex("передал\\(а\\) (ownership|права владельца) пользователю", RegexOption.IGNORE_CASE).containsMatchIn(value) -> {
+            ChatSystemEventMeta("Владелец сменился") { it.tertiary }
         }
         else -> ChatSystemEventMeta("Системное событие") { it.onSurfaceVariant }
     }

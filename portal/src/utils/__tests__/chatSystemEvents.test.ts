@@ -44,6 +44,13 @@ describe('getChatSystemEventMeta', () => {
     expect(meta.kind).toBe('ownership_transferred')
   })
 
+  it('classifies new wording of ownership and role events', () => {
+    expect(getChatSystemEventMeta(createSystemMessage('передал(а) права владельца пользователю Иван Иванов')).kind)
+      .toBe('ownership_transferred')
+    expect(getChatSystemEventMeta(createSystemMessage('изменил(а) роль Иван Иванов на «администратор»')).kind)
+      .toBe('role_changed')
+  })
+
   it('falls back to generic for unknown text', () => {
     const meta = getChatSystemEventMeta(createSystemMessage('что-то произошло'))
     expect(meta.kind).toBe('generic')
