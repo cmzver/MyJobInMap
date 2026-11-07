@@ -663,7 +663,7 @@ export default function MapPage() {
                             <Calendar size={16} className="text-gray-400 dark:text-gray-500" />
                             <span>
                               {primaryTask.planned_date
-                                ? `Срок: ${formatDateTime(primaryTask.planned_date)}`
+                                ? `План: ${formatDateTime(primaryTask.planned_date)}`
                                 : `Создана: ${formatDateTime(primaryTask.created_at)}`}
                             </span>
                           </div>
@@ -718,6 +718,7 @@ export default function MapPage() {
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
         >
           <button
+            aria-label="Закрыть"
             onClick={() => setSelectedTask(null)}
             className="absolute right-4 top-4 p-1 text-gray-500 transition-colors hover:text-gray-700 dark:hover:text-gray-300"
           >

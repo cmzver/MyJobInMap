@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { mutationToast, showApiError, showApiSuccess, getApiErrorMessage } from '@/utils/apiError'
 import { logError } from '@/utils/logger'
-import { formatDateTime, getSla } from '@/utils/dateFormat'
+import { formatDateTime, formatDeadline, getSla } from '@/utils/dateFormat'
 import { 
   ArrowLeft, 
   MapPin,
@@ -125,6 +125,16 @@ export default function TaskDetailPage() {
   const [isEditingAssignee, setIsEditingAssignee] = useState(false)
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({})
   const [isLoadingPhotoUrls, setIsLoadingPhotoUrls] = useState(false)
+
+  // Просмотр фото закрывается и по Escape, как обычные окна
+  useEffect(() => {
+    if (!selectedPhoto) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedPhoto(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedPhoto])
 
   // Data fetching
   const { data: task, isLoading, isError, error } = useTask(taskId)
@@ -540,13 +550,18 @@ export default function TaskDetailPage() {
 
             <div className="min-w-0">
               <p className="eyebrow">Срок</p>
-              {task.planned_date ? (
+              {task.due_at || task.planned_date ? (
                 <>
                   <p className="mt-1.5 text-sm font-medium text-gray-900 dark:text-white">
-                    {formatDateTime(task.planned_date)}
+                    {formatDeadline(task.due_at ?? task.planned_date)}
                   </p>
                   {sla.label && (
                     <p className={cn('mt-0.5 text-sm font-medium', sla.tone)}>{sla.label}</p>
+                  )}
+                  {task.planned_date && (
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      План: {formatDateTime(task.planned_date)}
+                    </p>
                   )}
                 </>
               ) : (
@@ -947,31 +962,26 @@ export default function TaskDetailPage() {
       />
 
       {/* Delete confirmation modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              Удалить заявку?
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Вы уверены, что хотите удалить заявку {task.task_number || `#${task.id}`}? 
-              Это действие нельзя отменить.
-            </p>
-            <div className="flex justify-end gap-3">
-              <Button variant="secondary" onClick={() => setShowDeleteConfirm(false)}>
-                Отмена
-              </Button>
-              <Button 
-                variant="danger" 
-                onClick={handleDelete}
-                isLoading={deleteMutation.isPending}
-              >
-                Удалить
-              </Button>
-            </div>
-          </div>
+      <Modal
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          if (!deleteMutation.isPending) setShowDeleteConfirm(false)
+        }}
+        title="Удалить заявку?"
+        size="sm"
+      >
+        <p className="mb-5 text-sm text-gray-600 dark:text-gray-400">
+          Заявка {task.task_number || `#${task.id}`} будет удалена. Это действие нельзя отменить.
+        </p>
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={() => setShowDeleteConfirm(false)} disabled={deleteMutation.isPending}>
+            Отмена
+          </Button>
+          <Button variant="danger" onClick={handleDelete} isLoading={deleteMutation.isPending}>
+            Удалить
+          </Button>
         </div>
-      )}
+      </Modal>
 
       {/* Photo lightbox */}
       {selectedPhoto && (
@@ -980,6 +990,7 @@ export default function TaskDetailPage() {
           onClick={() => setSelectedPhoto(null)}
         >
           <button
+            aria-label="Закрыть фото"
             className="absolute top-4 right-4 text-white hover:text-gray-300"
             onClick={() => setSelectedPhoto(null)}
           >
