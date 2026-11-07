@@ -113,6 +113,19 @@ class Settings(BaseSettings):
         default="fieldworker_app", description="User-Agent для геокодера"
     )
 
+    # === Подсказки адресов (DaData, справочник ФИАС) ===
+    DADATA_API_KEY: str = Field(
+        default="",
+        description="API-ключ DaData для подсказок адресов; пусто — подсказки из своей базы",
+    )
+    DADATA_TIMEOUT: float = Field(
+        default=3.0, gt=0, description="Таймаут запроса к DaData, секунды"
+    )
+    ADDRESS_SUGGEST_BOOST_KLADR: str = Field(
+        default="78,47",
+        description="КЛАДР регионов, которые подсказки ставят выше (78 — СПб, 47 — ЛО)",
+    )
+
     # === Rate Limiting ===
     RATE_LIMIT_MAX_ATTEMPTS: int = Field(
         default=5, ge=1, description="Макс. попыток логина на IP"

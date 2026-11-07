@@ -29,7 +29,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Contextual
 
 /**
- * �������� ������ ������
+ * Создание нового адреса
  *
  * @param address 
  * @param city 
@@ -49,6 +49,7 @@ import kotlinx.serialization.Contextual
  * @param managementPhone 
  * @param notes 
  * @param extraInfo 
+ * @param counterpartyId 
  */
 @Serializable
 
@@ -106,7 +107,10 @@ data class AddressCreate (
     val notes: kotlin.String? = null,
 
     @SerialName(value = "extra_info")
-    val extraInfo: kotlin.String? = null
+    val extraInfo: kotlin.String? = null,
+
+    @SerialName(value = "counterparty_id")
+    val counterpartyId: kotlin.Long? = null
 
 ) {
 

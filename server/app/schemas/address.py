@@ -122,9 +122,11 @@ class AddressBase(BaseModel):
 
 
 class AddressCreate(AddressBase):
-    """�������� ������ ������"""
+    """Создание нового адреса"""
 
-    pass
+    # Контрагент (УК-заказчик) выбирается сразу при создании — раньше его
+    # приходилось назначать отдельно, в карточке.
+    counterparty_id: Optional[int] = None
 
 
 class AddressUpdate(BaseModel):
@@ -200,6 +202,22 @@ class AddressListResponse(BaseModel):
     page: int
     size: int
     pages: int
+
+
+class AddressSuggestion(BaseModel):
+    """Подсказка полного адреса: из справочника DaData или из своей базы."""
+
+    value: str
+    unrestricted_value: str = ""
+    city: str = ""
+    street: str = ""
+    building: str = ""
+    corpus: str = ""
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    # dadata — справочник; base — уже заведённый адрес (id — его карточка)
+    source: str = "dadata"
+    address_id: Optional[int] = None
 
 
 class AddressSearchResponse(BaseModel):

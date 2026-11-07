@@ -2,6 +2,7 @@ import apiClient from './client'
 import type { 
   Address, 
   AddressSearchResult, 
+  AddressSuggestion,
   AddressListResponse, 
   AddressFilters,
   CreateAddressData,
@@ -372,6 +373,14 @@ export const addressesApi = {
     params.append('limit', String(limit))
     
     const { data } = await apiClient.get<AddressSearchResult[]>(`/addresses/autocomplete/full?${params.toString()}`)
+    return data
+  },
+
+  // Подсказки полного адреса: справочник DaData или свои адреса.
+  // limit=1 по выбранному адресу — DaData отдаёт и координаты дома.
+  async suggestAddress(query: string, limit = 7): Promise<AddressSuggestion[]> {
+    const params = new URLSearchParams({ q: query, limit: String(limit) })
+    const { data } = await apiClient.get<AddressSuggestion[]>(`/addresses/autocomplete/address?${params.toString()}`)
     return data
   },
 }
