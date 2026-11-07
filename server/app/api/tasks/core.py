@@ -6,6 +6,7 @@ CRUD заявок, список с фильтрами/сортировкой, с
 """
 
 import logging
+import re
 from datetime import date, datetime, time, timedelta, timezone
 from types import SimpleNamespace
 from typing import List, Literal, Optional
@@ -39,6 +40,7 @@ from app.schemas import (
     TaskSummaryResponse,
 )
 from app.schemas.dispatch import DispatchOverview, DispatchRow
+from app.schemas.task import LastApplicant
 from app.services import (
     TaskService,
     TaskServiceError,
@@ -61,6 +63,8 @@ from app.services.notification_service import (
 from app.services.repeat_detector import (
     DUPLICATE,
     RepeatMarkError,
+    _conflict,
+    _place_parts,
     address_key,
     find_related,
     mark_repeat,
@@ -546,6 +550,66 @@ def _related_item(task: TaskModel) -> dict:
             else None
         ),
     }
+
+
+_APARTMENT_RE = re.compile(
+    r"(?:^|[\s,])(?:кв|квартира)\.?\s*(\d+[а-яa-z]?)", re.IGNORECASE
+)
+
+
+def _apartment(raw_address: Optional[str]) -> str:
+    match = _APARTMENT_RE.search(raw_address or "")
+    return match.group(1).lower() if match else ""
+
+
+@router.get("/last-applicant", response_model=Optional[LastApplicant])
+def get_last_applicant(
+    address: str = Query(..., max_length=500, description="Адрес новой заявки"),
+    db: Session = Depends(get_db),
+    user: UserModel = Depends(require_permission("view_tasks")),
+):
+    """Заявитель последней заявки с того же места — чтобы при повторном
+    звонке не вводить имя и телефон заново.
+
+    Место — улица и дом (как у поиска повторов), квартира должна совпасть
+    (нет квартиры — тоже совпадение), город и корпус — не противоречить.
+    Только диспетчер и администратор: мастеру чужие заявители не положены.
+    """
+    if not is_dispatcher_or_admin_user(user):
+        raise HTTPException(status_code=403, detail="Недостаточно прав")
+    key = address_key(address)
+    if key is None:
+        return None
+    apartment = _apartment(address)
+    city, corpus = _place_parts(address)
+    candidates = (
+        TenantFilter(user)
+        .apply(db.query(TaskModel), TaskModel)
+        .filter(
+            TaskModel.address_key == key,
+            or_(
+                func.coalesce(TaskModel.customer_phone, "") != "",
+                func.coalesce(TaskModel.customer_name, "") != "",
+            ),
+        )
+        .order_by(TaskModel.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    for task in candidates:
+        if _apartment(task.raw_address) != apartment:
+            continue
+        other_city, other_corpus = _place_parts(task.raw_address or "")
+        if _conflict(city, other_city) or _conflict(corpus, other_corpus):
+            continue
+        return LastApplicant(
+            customer_name=task.customer_name,
+            customer_phone=task.customer_phone,
+            task_id=task.id,
+            task_number=task.task_number or f"Z-{task.id:05d}",
+            created_at=task.created_at,
+        )
+    return None
 
 
 @router.get("/{task_id}", response_model=TaskResponse)

@@ -331,6 +331,16 @@ class RelatedTasksResponse(BaseModel):
     window_days: int
 
 
+class LastApplicant(BaseModel):
+    """Заявитель прошлой заявки с той же квартиры — подсказка в форме."""
+
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    task_id: int
+    task_number: str
+    created_at: Optional[UtcDateTime] = None
+
+
 class _TaskReadBase(BaseModel):
     """Общие поля ответа заявки.
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { showApiError, showApiSuccess, mutationToast } from '@/utils/apiError'
 import { ArrowLeft, Save } from 'lucide-react'
 import { useTask, useCreateTask, useUpdateTask, useAssignTask } from '@/hooks/useTasks'
@@ -7,6 +7,9 @@ import { usePortalInterfaceSettings } from '@/hooks/useSettings'
 import { useUsers } from '@/hooks/useUsers'
 import { addressesApi } from '@/api/addresses'
 import Button from '@/components/Button'
+import { formatDateOnly } from '@/utils/dateFormat'
+import { tasksApi, type LastApplicant } from '@/api/tasks'
+import { useAuthStore } from '@/store/authStore'
 import PageHeader from '@/components/PageHeader'
 import Input from '@/components/Input'
 import Textarea from '@/components/Textarea'
@@ -227,6 +230,8 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
   const [addressErrors, setAddressErrors] = useState<Partial<Record<keyof AddressFormData, string>>>({})
   // Объект базы по частям адреса — для подсказки «объект в базе» и подъездов
   const [matchedAddress, setMatchedAddress] = useState<AddressSearchResult | null>(null)
+  // Заявитель прошлой заявки с той же квартиры — повторный звонок
+  const [lastApplicant, setLastApplicant] = useState<LastApplicant | null>(null)
   const [otherErrors, setOtherErrors] = useState<Record<string, string>>({})
   const [selectedSystemType, setSelectedSystemType] = useState<string>('')  // Тип выбранной системы для фильтрации неисправностей)
 
@@ -382,6 +387,49 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
       isCancelled = true
     }
   }, [formData.address.city, formData.address.street, formData.address.building, formData.address.corpus])
+
+  // Заявители прошлых заявок — только диспетчеру и администратору (как на сервере)
+  const canSeeApplicants = useAuthStore((state) => state.user?.baseAccess !== 'worker')
+  // Повторный звонок из той же квартиры — предложить заявителя прошлой заявки
+  const applicantAddress =
+    mode === 'create' && canSeeApplicants && formData.address.street.trim() && formData.address.building.trim()
+      ? formatAddress(formData.address)
+      : ''
+  useEffect(() => {
+    if (!applicantAddress) {
+      setLastApplicant(null)
+      return
+    }
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      tasksApi
+        .getLastApplicant(applicantAddress)
+        .then((result) => {
+          if (!cancelled) setLastApplicant(result)
+        })
+        .catch(() => {
+          if (!cancelled) setLastApplicant(null)
+        })
+    }, 600)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [applicantAddress])
+
+  const applicantDiffers = Boolean(
+    lastApplicant &&
+      ((lastApplicant.customer_name ?? '') !== formData.customer_name.trim() ||
+        (lastApplicant.customer_phone ?? '') !== formData.customer_phone.trim()),
+  )
+  const fillLastApplicant = () => {
+    if (!lastApplicant) return
+    setFormData((prev) => ({
+      ...prev,
+      customer_name: lastApplicant.customer_name ?? prev.customer_name,
+      customer_phone: lastApplicant.customer_phone ?? prev.customer_phone,
+    }))
+  }
 
   const handleAddressChange = (data: AddressFormData) => {
     setFormData((prev) => {
@@ -745,6 +793,25 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
             />
 
             {/* Контакты клиента */}
+            {applicantDiffers && lastApplicant && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800/60">
+                <span className="min-w-0 text-gray-700 dark:text-gray-200">
+                  С прошлой заявки{' '}
+                  <Link
+                    to={`/tasks/${lastApplicant.task_id}`}
+                    target="_blank"
+                    className="font-medium text-primary-600 hover:underline dark:text-primary-400"
+                  >
+                    {lastApplicant.task_number}
+                  </Link>
+                  {lastApplicant.created_at ? ` от ${formatDateOnly(lastApplicant.created_at)}` : ''}:{' '}
+                  {[lastApplicant.customer_name, lastApplicant.customer_phone].filter(Boolean).join(', ')}
+                </span>
+                <Button type="button" size="sm" variant="secondary" onClick={fillLastApplicant}>
+                  Подставить
+                </Button>
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
                 label="Имя клиента"

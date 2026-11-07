@@ -8,6 +8,7 @@ import type { components } from '@/types/api.generated'
 export type CreateTaskData = components['schemas']['TaskCreate']
 export type UpdateTaskData = components['schemas']['TaskUpdate']
 export type RelatedTasks = components['schemas']['RelatedTasksResponse']
+export type LastApplicant = components['schemas']['LastApplicant']
 export type RelatedTask = components['schemas']['RelatedTask']
 
 /** История места заявки (task_id) либо подсказка для ещё не созданной (address). */
@@ -78,6 +79,14 @@ export const tasksApi = {
     const { data } = await apiClient.get<PaginatedResponse<Task>>(
       `/tasks?${params.toString()}`
     )
+    return data
+  },
+
+  /** Заявитель прошлой заявки с той же квартиры (только диспетчер/админ). */
+  async getLastApplicant(address: string): Promise<LastApplicant | null> {
+    const { data } = await apiClient.get<LastApplicant | null>('/tasks/last-applicant', {
+      params: { address },
+    })
     return data
   },
 
