@@ -29,6 +29,17 @@ _CACHE_MAX_ITEMS = 5000
 
 _cache: "OrderedDict[tuple, tuple[float, list]]" = OrderedDict()
 
+# Одно соединение на процесс: без keep-alive каждая подсказка заново
+# открывала TLS к DaData и иногда упиралась в тайм-аут подключения.
+_client: Optional[httpx.Client] = None
+
+
+def _http_post(url: str, json: Dict[str, Any], headers: Dict[str, str], timeout: float):
+    global _client
+    if _client is None:
+        _client = httpx.Client()
+    return _client.post(url, json=json, headers=headers, timeout=timeout)
+
 
 def is_enabled() -> bool:
     return bool(settings.DADATA_API_KEY)
@@ -74,7 +85,7 @@ def _request(body: Dict[str, Any]) -> List[Dict[str, Any]]:
     if cached is not None:
         return cached
     try:
-        response = httpx.post(
+        response = _http_post(
             DADATA_SUGGEST_URL,
             json=body,
             headers={
@@ -131,20 +142,53 @@ def _to_item(suggestion: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+# Так город часто пишут в своей базе — справочник знает его полное имя
+_CITY_ALIASES = {"спб": "Санкт-Петербург", "питер": "Санкт-Петербург"}
+
+# «Улицы», которые улицами не являются: станции метро, «территории»
+_NOT_STREET_TYPES = {"м", "метро", "тер", "тер."}
+
+
+def _is_territory(data: Dict[str, Any]) -> bool:
+    """СНТ, «тер» и элементы планировочной структуры — не дома и не города."""
+    settlement_type = (data.get("settlement_type") or "").casefold()
+    city_type = (data.get("city_type") or "").casefold()
+    return (
+        str(data.get("fias_level") or "") == "65"
+        or settlement_type.startswith("тер")
+        or city_type.startswith("тер")
+    )
+
+
+def city_alias(query: str) -> Optional[str]:
+    """«спб» → «Санкт-Петербург»; None, если это не известное сокращение."""
+    return _CITY_ALIASES.get(query.strip().casefold())
+
+
+def _regions() -> List[Dict[str, str]]:
+    """Регионы работы (те же КЛАДР, что и для приоритета)."""
+    return _boost()
+
+
 def suggest_addresses(query: str, count: int = 7) -> List[Dict[str, Any]]:
-    """Полные адреса (до дома) для поля «Полный адрес»."""
+    """Полные адреса — до дома, без квартир — для поля «Полный адрес»."""
     query = query.strip()[:MAX_QUERY_LENGTH]
     if len(query) < 3:
         return []
-    body: Dict[str, Any] = {"query": query, "count": min(max(count, 1), 20)}
+    body: Dict[str, Any] = {
+        "query": query,
+        "count": min(max(count, 1), 20),
+        "to_bound": {"value": "house"},
+    }
     boost = _boost()
     if boost:
+        # Только приоритет: адрес в другом регионе тоже должен находиться
         body["locations_boost"] = boost
     return [_to_item(s) for s in _request(body)]
 
 
 def suggest_cities(query: str, count: int = 10) -> List[str]:
-    """Города и посёлки — без типа («Санкт-Петербург», «Новоселье»)."""
+    """Города и посёлки регионов работы — без типа («Санкт-Петербург»)."""
     query = query.strip()[:MAX_QUERY_LENGTH]
     if not query:
         return []
@@ -154,17 +198,21 @@ def suggest_cities(query: str, count: int = 10) -> List[str]:
         "from_bound": {"value": "city"},
         "to_bound": {"value": "settlement"},
     }
-    boost = _boost()
-    if boost:
-        body["locations_boost"] = boost
-    names = [_locality(s.get("data") or {}) for s in _request(body)]
+    regions = _regions()
+    if regions:
+        body["locations"] = regions
+    names = [
+        _locality(s.get("data") or {})
+        for s in _request(body)
+        if not _is_territory(s.get("data") or {})
+    ]
     return _unique([name for name in names if name])
 
 
 def suggest_streets(
     query: str, city: Optional[str] = None, count: int = 10
 ) -> List[str]:
-    """Улицы с типом («пр-кт Ветеранов»), в городе или посёлке, если он задан."""
+    """Улицы с типом («пр-кт Ветеранов») — в городе/посёлке, если он задан."""
     query = query.strip()[:MAX_QUERY_LENGTH]
     if not query:
         return []
@@ -175,14 +223,19 @@ def suggest_streets(
         "to_bound": {"value": "street"},
     }
     if city:
+        name = _CITY_ALIASES.get(city.strip().casefold(), city.strip())
         # Условия в locations объединяются через «или»
-        body["locations"] = [{"city": city}, {"settlement": city}]
+        body["locations"] = [{"city": name}, {"settlement": name}]
     else:
-        boost = _boost()
-        if boost:
-            body["locations_boost"] = boost
+        regions = _regions()
+        if regions:
+            body["locations"] = regions
     names = [
-        (s.get("data") or {}).get("street_with_type") or "" for s in _request(body)
+        (s.get("data") or {}).get("street_with_type") or ""
+        for s in _request(body)
+        if ((s.get("data") or {}).get("street_type") or "").casefold()
+        not in _NOT_STREET_TYPES
+        and not _is_territory(s.get("data") or {})
     ]
     return _unique([name for name in names if name])
 

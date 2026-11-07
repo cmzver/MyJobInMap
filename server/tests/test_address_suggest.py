@@ -20,7 +20,7 @@ def _fake_dadata(monkeypatch, suggestions, calls=None):
         request = httpx.Request("POST", url)
         return httpx.Response(200, json={"suggestions": suggestions}, request=request)
 
-    monkeypatch.setattr(address_suggest.httpx, "post", fake_post)
+    monkeypatch.setattr(address_suggest, "_http_post", fake_post)
 
 
 def _suggestion(value, **data):
@@ -185,7 +185,7 @@ def test_dadata_failure_falls_back_quietly(
     def broken_post(*args, **kwargs):
         raise httpx.ConnectTimeout("timeout")
 
-    monkeypatch.setattr(address_suggest.httpx, "post", broken_post)
+    monkeypatch.setattr(address_suggest, "_http_post", broken_post)
 
     response = client.get(
         "/api/addresses/autocomplete/streets",
@@ -196,3 +196,65 @@ def test_dadata_failure_falls_back_quietly(
     assert response.status_code == 200
     assert response.json() == []
     assert "secret-key-123" not in caplog.text
+
+
+def test_streets_drop_metro_and_unrelated_and_respect_city(
+    client: TestClient, db_session, monkeypatch
+):
+    env = _org(client, db_session, "SuggestStreets")
+    calls = []
+    _fake_dadata(
+        monkeypatch,
+        [
+            _suggestion("пр-кт Ветеранов", street_with_type="пр-кт Ветеранов"),
+            _suggestion(
+                "метро Проспект Ветеранов",
+                street_with_type="метро Проспект Ветеранов",
+                street_type="м",
+            ),
+            _suggestion(
+                "тер. СНТ Ветеран, пр-д 1-й",
+                street_with_type="пр-д 1-й",
+                street_type="пр-д",
+                settlement_type="тер. СНТ",
+            ),
+        ],
+        calls,
+    )
+
+    streets = client.get(
+        "/api/addresses/autocomplete/streets",
+        params={"q": "ветер", "city": "СПб"},
+        headers=env.dispatcher.headers,
+    ).json()
+
+    assert streets == ["пр-кт Ветеранов"]
+    assert calls[0]["locations"] == [
+        {"city": "Санкт-Петербург"},
+        {"settlement": "Санкт-Петербург"},
+    ]
+
+
+def test_full_address_stops_at_house_and_cities_stay_in_regions(
+    client: TestClient, db_session, monkeypatch
+):
+    env = _org(client, db_session, "SuggestBounds")
+    calls = []
+    _fake_dadata(
+        monkeypatch, [_suggestion("г Санкт-Петербург", city="Санкт-Петербург")], calls
+    )
+
+    client.get(
+        "/api/addresses/autocomplete/address",
+        params={"q": "ветеранов 46"},
+        headers=env.dispatcher.headers,
+    )
+    cities = client.get(
+        "/api/addresses/autocomplete/cities",
+        params={"q": "спб"},
+        headers=env.dispatcher.headers,
+    ).json()
+
+    assert calls[0]["to_bound"] == {"value": "house"}
+    assert calls[1]["locations"] == [{"kladr_id": "78"}, {"kladr_id": "47"}]
+    assert cities == ["Санкт-Петербург"]

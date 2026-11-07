@@ -486,7 +486,12 @@ def autocomplete_cities(
     local = _rank_matches([r[0] for r in rows if r[0]], q, limit)
     if len(local) >= limit or not q.strip():
         return local
-    return _merge(local, address_suggest.suggest_cities(q, count=limit), limit)
+    # Справочник ищет нечётко — оставляем только то, где есть введённое
+    external = _rank_matches(address_suggest.suggest_cities(q, count=limit), q, limit)
+    alias = address_suggest.city_alias(q)
+    if alias:
+        external = [alias, *external]
+    return _merge(local, external, limit)
 
 
 @router.get("/autocomplete/streets", response_model=List[str])
@@ -508,9 +513,10 @@ def autocomplete_streets(
     local = _rank_matches([r[0] for r in rows if r[0]], q, limit)
     if len(local) >= limit or not q.strip():
         return local
-    return _merge(
-        local, address_suggest.suggest_streets(q, city=city, count=limit), limit
+    external = _rank_matches(
+        address_suggest.suggest_streets(q, city=city, count=limit), q, limit
     )
+    return _merge(local, external, limit)
 
 
 @router.get("/autocomplete/address", response_model=List[AddressSuggestion])
