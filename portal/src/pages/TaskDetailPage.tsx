@@ -887,6 +887,7 @@ export default function TaskDetailPage() {
                     disabled={addCommentMutation.isPending}
                   />
                   <Button 
+                    aria-label="Отправить комментарий"
                     onClick={handleAddComment} 
                     disabled={!comment.trim()}
                     isLoading={addCommentMutation.isPending}

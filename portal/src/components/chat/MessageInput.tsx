@@ -197,6 +197,7 @@ function MessageInput({
             </p>
           </div>
           <button
+            aria-label={editingMessage ? 'Отменить редактирование' : 'Отменить ответ'}
             onClick={editingMessage ? onCancelEdit : onCancelReply}
             className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
           >
@@ -334,6 +335,7 @@ function MessageInput({
         </div>
 
         <button
+          aria-label="Отправить"
           onClick={handleSubmit}
           disabled={disabled || (!text.trim() && !attachedTask)}
           className={cn(
