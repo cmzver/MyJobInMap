@@ -128,6 +128,7 @@ export default function FinancePage() {
               className="w-48"
             />
             <Button
+              aria-label="Обновить"
               variant="secondary"
               onClick={handleRefresh}
               disabled={isFetching}

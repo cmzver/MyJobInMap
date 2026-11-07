@@ -39,7 +39,7 @@ class DeviceRepository @Inject constructor(
                 return@withContext Result.failure(e)
             }
             
-            Log.d(TAG, "FCM token received: ${token.take(30)}...")
+            Log.d(TAG, "FCM token received")
             
             // Сохраняем локально
             preferences.setFcmToken(token)

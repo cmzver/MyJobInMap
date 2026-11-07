@@ -569,6 +569,7 @@ export default function UsersPage() {
                 {editingUser ? 'Редактировать пользователя' : 'Новый пользователь'}
               </h3>
               <button
+                aria-label="Закрыть"
                 onClick={handleCloseModal}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >

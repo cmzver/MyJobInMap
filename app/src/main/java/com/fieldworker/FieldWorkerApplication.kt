@@ -203,7 +203,7 @@ class FieldWorkerApplication : Application(), Configuration.Provider, ImageLoade
             }
             
             val token = task.result
-            Log.d(TAG, "✅ FCM Token received: ${token.take(30)}...")
+            Log.d(TAG, "✅ FCM Token received")
             
             // Сохраняем локально
             preferences.setFcmToken(token)

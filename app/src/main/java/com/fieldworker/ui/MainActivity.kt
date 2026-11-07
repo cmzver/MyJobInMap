@@ -143,7 +143,7 @@ class MainActivity : ComponentActivity() {
 
                         // Проверяем наличие токена
                         val token = appPreferences.getAuthToken()
-                        Log.d(TAG, "Token present: ${token != null}, token prefix: ${token?.take(30)}...")
+                        Log.d(TAG, "Token present: ${token != null}")
                         Log.d(TAG, "Server URL: ${appPreferences.getFullServerUrl()}")
                         Log.d(TAG, "Username in prefs: ${appPreferences.getUsername()}")
 
