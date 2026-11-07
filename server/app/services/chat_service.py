@@ -53,6 +53,10 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
+# Роли в системных сообщениях — словами; клиенты распознают и старый вид (admin/member).
+_ROLE_LABELS = {"admin": "администратор", "member": "участник", "owner": "владелец"}
+
+
 def create_conversation(
     db: Session,
     conv_type: str,
@@ -423,7 +427,7 @@ def update_conversation(
     member = _ensure_membership(db, conv_id, user_id)
 
     if conv.type == ConversationType.DIRECT.value:
-        raise HTTPException(400, "Нельзя менять настройки direct-чата")
+        raise HTTPException(400, "Нельзя менять настройки личного чата")
 
     if name is not None and name != conv.name:
         conv.name = name
@@ -452,7 +456,7 @@ def add_members(
     _ensure_membership(db, conv_id, added_by)
 
     if conv.type == ConversationType.DIRECT.value:
-        raise HTTPException(400, "Нельзя добавлять участников в direct-чат")
+        raise HTTPException(400, "Нельзя добавлять участников в личный чат")
 
     for uid in user_ids:
         existing = (
@@ -501,7 +505,7 @@ def remove_member(
     conv = _get_conversation_or_404(db, conv_id)
 
     if conv.type == ConversationType.DIRECT.value:
-        raise HTTPException(400, "Нельзя удалять участников из direct-чата")
+        raise HTTPException(400, "Нельзя удалять участников из личного чата")
 
     remover = _ensure_membership(db, conv_id, removed_by)
     target = (
@@ -515,7 +519,7 @@ def remove_member(
     if not target:
         raise HTTPException(404, "Участник не найден в чате")
     if target.role == ConversationMemberRole.OWNER.value:
-        raise HTTPException(400, "Сначала передайте ownership другому участнику")
+        raise HTTPException(400, "Сначала передайте права владельца другому участнику")
 
     # Только owner/admin может удалять, или пользователь сам выходит
     if target_user_id != removed_by and remover.role not in (
@@ -547,17 +551,17 @@ def update_member_role(
     """Изменить роль участника. Только owner может переключать admin/member."""
     conv = _get_conversation_or_404(db, conv_id)
     if conv.type == ConversationType.DIRECT.value:
-        raise HTTPException(400, "Нельзя менять роли в direct-чате")
+        raise HTTPException(400, "Нельзя менять роли в личном чате")
 
     actor = _ensure_membership(db, conv_id, changed_by)
     if actor.role != ConversationMemberRole.OWNER.value:
-        raise HTTPException(403, "Только owner может менять роли участников")
+        raise HTTPException(403, "Менять роли участников может только владелец")
 
     if new_role not in (
         ConversationMemberRole.ADMIN.value,
         ConversationMemberRole.MEMBER.value,
     ):
-        raise HTTPException(400, "Допустимы только роли admin и member")
+        raise HTTPException(400, "Допустимы только роли «администратор» и «участник»")
 
     if target_user_id == changed_by:
         raise HTTPException(400, "Нельзя менять собственную роль")
@@ -584,7 +588,8 @@ def update_member_role(
         db,
         conv_id,
         changed_by,
-        f"изменил(а) роль {user.full_name or user.username if user else target_user_id} на {new_role}",
+        f"изменил(а) роль {user.full_name or user.username if user else target_user_id}"
+        f" на «{_ROLE_LABELS.get(new_role, new_role)}»",
     )
     db.commit()
     return _get_members_info(db, conv_id)
@@ -599,14 +604,14 @@ def transfer_ownership(
     """Передать ownership другому участнику чата."""
     conv = _get_conversation_or_404(db, conv_id)
     if conv.type == ConversationType.DIRECT.value:
-        raise HTTPException(400, "Нельзя передавать ownership в direct-чате")
+        raise HTTPException(400, "В личном чате нет владельца")
 
     actor = _ensure_membership(db, conv_id, changed_by)
     if actor.role != ConversationMemberRole.OWNER.value:
-        raise HTTPException(403, "Только owner может передавать ownership")
+        raise HTTPException(403, "Передать права может только владелец")
 
     if target_user_id == changed_by:
-        raise HTTPException(400, "Нельзя передать ownership самому себе")
+        raise HTTPException(400, "Вы уже владелец этой группы")
 
     target = (
         db.query(ConversationMemberModel)
@@ -629,7 +634,8 @@ def transfer_ownership(
         db,
         conv_id,
         changed_by,
-        f"передал(а) ownership пользователю {user.full_name or user.username if user else target_user_id}",
+        "передал(а) права владельца пользователю "
+        f"{user.full_name or user.username if user else target_user_id}",
     )
     db.commit()
     return _get_members_info(db, conv_id)

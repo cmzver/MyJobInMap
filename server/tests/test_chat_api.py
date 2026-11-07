@@ -329,6 +329,38 @@ class TestConversationManagement:
             for item in items
         )
 
+    def test_role_and_owner_system_messages_are_in_russian(
+        self, client, auth_headers, second_user
+    ):
+        """В ленте — «администратор»/«права владельца», а не admin/ownership."""
+        conv_id = client.post(
+            "/api/chat/conversations",
+            json={"type": "group", "name": "G", "member_user_ids": [second_user.id]},
+            headers=auth_headers,
+        ).json()["id"]
+        client.patch(
+            f"/api/chat/conversations/{conv_id}/members/{second_user.id}",
+            json={"role": "admin"},
+            headers=auth_headers,
+        )
+        client.post(
+            f"/api/chat/conversations/{conv_id}/transfer-ownership",
+            json={"user_id": second_user.id},
+            headers=auth_headers,
+        )
+        texts = [
+            item["text"]
+            for item in client.get(
+                f"/api/chat/conversations/{conv_id}/messages", headers=auth_headers
+            ).json()["items"]
+            if item["message_type"] == "system"
+        ]
+        assert any(t.endswith("на «администратор»") for t in texts)
+        assert any(
+            t.startswith("передал(а) права владельца пользователю") for t in texts
+        )
+        assert not any("ownership" in t or t.endswith(" admin") for t in texts)
+
     def test_cannot_rename_direct(self, client, auth_headers, second_user):
         """Нельзя переименовать direct-чат."""
         create_resp = client.post(

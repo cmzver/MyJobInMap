@@ -855,7 +855,7 @@ class ChatViewModel @Inject constructor(
             "member_role_updated" -> _notifications.tryEmit("Роль участника изменена")
             "ownership_transferred" -> {
                 if (event.userId == currentUserId) {
-                    _notifications.tryEmit("Вам передан ownership")
+                    _notifications.tryEmit("Вы стали владельцем группы")
                 } else {
                     _notifications.tryEmit("Ownership чата изменён")
                 }

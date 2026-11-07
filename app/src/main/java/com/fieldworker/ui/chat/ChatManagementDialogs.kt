@@ -527,10 +527,10 @@ fun GroupManagementDialog(
     pendingOwnershipMember?.let { member ->
         AlertDialog(
             onDismissRequest = { pendingOwnershipMember = null },
-            title = { Text("Передать ownership") },
+            title = { Text("Передать права владельца") },
             text = {
                 Text(
-                    "После подтверждения ${member.fullName.ifBlank { member.username }} станет owner, а вы получите роль admin."
+                    "После подтверждения ${member.fullName.ifBlank { member.username }} станет владельцем, а вы — администратором."
                 )
             },
             confirmButton = {
@@ -840,7 +840,7 @@ private fun RolePill(role: String) {
 }
 
 private fun memberRoleLabel(role: String): String = when (role) {
-    "owner" -> "Owner"
+    "owner" -> "Владелец"
     "admin" -> "Администратор"
     else -> "Участник"
 }

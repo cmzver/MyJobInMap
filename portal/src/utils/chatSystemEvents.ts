@@ -43,7 +43,7 @@ export function getChatSystemEventMeta(message: MessageResponse): ChatSystemEven
     }
   }
 
-  if (/изменил\(а\) роль .+ на (admin|member)/i.test(text)) {
+  if (/изменил\(а\) роль .+ на (admin|member|«администратор»|«участник»)/i.test(text)) {
     return {
       kind: 'role_changed',
       title: 'Роль участника изменена',
@@ -51,10 +51,10 @@ export function getChatSystemEventMeta(message: MessageResponse): ChatSystemEven
     }
   }
 
-  if (/передал\(а\) ownership пользователю/i.test(text)) {
+  if (/передал\(а\) (ownership|права владельца) пользователю/i.test(text)) {
     return {
       kind: 'ownership_transferred',
-      title: 'Ownership передан',
+      title: 'Владелец сменился',
       accentClassName: 'text-fuchsia-700 dark:text-fuchsia-300',
     }
   }
