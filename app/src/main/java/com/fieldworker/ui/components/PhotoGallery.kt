@@ -56,8 +56,6 @@ import okhttp3.Headers
 import java.io.File
 import java.io.InputStream
 import java.net.URL
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 /**
  * Галерея фотографий заявки: плитки «Снять» и «Галерея», затем снимки,
@@ -514,14 +512,7 @@ private fun PhotoViewDialog(
     
     // Форматирование даты
     val formattedDate = remember(photo.createdAt) {
-        try {
-            val inputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-            val outputFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
-            val date = inputFormat.parse(photo.createdAt.substringBefore("."))
-            date?.let { outputFormat.format(it) } ?: photo.createdAt
-        } catch (e: Exception) {
-            photo.createdAt
-        }
+        com.fieldworker.ui.utils.TaskUtils.formatDateTime(photo.createdAt)
     }
     
     // Тип фото на русском
