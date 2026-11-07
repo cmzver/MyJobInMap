@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import toast from 'react-hot-toast'
 import { mutationToast } from '@/utils/apiError'
 import { 
   MapPin, 
@@ -13,45 +12,20 @@ import {
   Home,
   Layers,
   DoorOpen,
-  KeyRound,
-  Wand2,
   Eye
 } from 'lucide-react'
 import { 
   useAddresses, 
-  useCreateAddress, 
   useDeleteAddress 
 } from '@/hooks/useAddresses'
-import { addressesApi } from '@/api/addresses'
 import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
-import Input from '@/components/Input'
-import Textarea from '@/components/Textarea'
 import Card from '@/components/Card'
-import Modal from '@/components/Modal'
 import Spinner from '@/components/Spinner'
 import Pagination from '@/components/Pagination'
 import EmptyState from '@/components/EmptyState'
-import { Autocomplete } from '@/components/Autocomplete'
+import AddressCreateModal from '@/components/addresses/AddressCreateModal'
 import type { CreateAddressData } from '@/types/address'
-
-const initialFormData: CreateAddressData = {
-  address: '',
-  city: '',
-  street: '',
-  building: '',
-  corpus: '',
-  entrance: '',
-  entrance_count: 1,
-  floor_count: 1,
-  apartment_count: undefined,
-  has_elevator: false,
-  has_intercom: false,
-  intercom_code: '',
-  management_company: '',
-  management_phone: '',
-  notes: '',
-}
 
 export default function AddressesPage() {
   const navigate = useNavigate()
@@ -59,102 +33,8 @@ export default function AddressesPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
-  const [formData, setFormData] = useState<CreateAddressData>(initialFormData)
+  const [prefill, setPrefill] = useState<Partial<CreateAddressData> | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
-  const [isParsing, setIsParsing] = useState(false)
-  const [isComposing, setIsComposing] = useState(false)
-  
-  // Refs для debounce
-  const parseTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
-  const composeTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
-  const lastFullAddress = useRef<string>('')
-  const lastParts = useRef<string>('')
-
-  // Парсинг полного адреса -> заполнение полей
-  const handleParseAddress = useCallback(async (fullAddress: string) => {
-    if (!fullAddress.trim() || fullAddress === lastFullAddress.current) return
-    
-    // Не парсим если адрес собран из частей
-    const currentParts = `${formData.city}|${formData.street}|${formData.building}|${formData.corpus}|${formData.entrance}`
-    if (currentParts === lastParts.current && lastParts.current) return
-    
-    lastFullAddress.current = fullAddress
-    setIsParsing(true)
-    
-    try {
-      const parsed = await addressesApi.parseAddress(fullAddress)
-      setFormData(prev => ({
-        ...prev,
-        city: parsed.city || prev.city || '',
-        street: parsed.street || prev.street || '',
-        building: parsed.building || prev.building || '',
-        corpus: parsed.corpus || prev.corpus || '',
-        entrance: parsed.entrance || prev.entrance || '',
-      }))
-      lastParts.current = `${parsed.city || ''}|${parsed.street || ''}|${parsed.building || ''}|${parsed.corpus || ''}|${parsed.entrance || ''}`
-    } catch (err) {
-      if (import.meta.env.DEV) console.error('Parse error:', err)
-    } finally {
-      setIsParsing(false)
-    }
-  }, [formData.city, formData.street, formData.building, formData.corpus, formData.entrance])
-
-  // Сборка частей -> полный адрес
-  const handleComposeAddress = useCallback(async (city: string, street: string, building: string, corpus: string, entrance: string) => {
-    const parts = `${city}|${street}|${building}|${corpus}|${entrance}`
-    if (parts === lastParts.current || (!city && !street && !building && !corpus && !entrance)) return
-    
-    lastParts.current = parts
-    setIsComposing(true)
-    
-    try {
-      const result = await addressesApi.composeAddress({ city, street, building, corpus, entrance })
-      if (result.address) {
-        setFormData(prev => ({
-          ...prev,
-          address: result.address,
-        }))
-        lastFullAddress.current = result.address
-      }
-    } catch (err) {
-      if (import.meta.env.DEV) console.error('Compose error:', err)
-    } finally {
-      setIsComposing(false)
-    }
-  }, [])
-
-  // Обработчик изменения полного адреса с debounce
-  const handleFullAddressChange = (value: string) => {
-    setFormData(prev => ({ ...prev, address: value }))
-    
-    if (parseTimeoutRef.current) clearTimeout(parseTimeoutRef.current)
-    parseTimeoutRef.current = setTimeout(() => {
-      handleParseAddress(value)
-    }, 800)
-  }
-
-  // Обработчик изменения отдельных полей с debounce
-  const handlePartChange = (field: 'city' | 'street' | 'building' | 'corpus' | 'entrance', value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-    
-    if (composeTimeoutRef.current) clearTimeout(composeTimeoutRef.current)
-    composeTimeoutRef.current = setTimeout(() => {
-      const newCity = field === 'city' ? value : formData.city
-      const newStreet = field === 'street' ? value : formData.street
-      const newBuilding = field === 'building' ? value : formData.building
-      const newCorpus = field === 'corpus' ? value : formData.corpus
-      const newEntrance = field === 'entrance' ? value : formData.entrance
-      handleComposeAddress(newCity || '', newStreet || '', newBuilding || '', newCorpus || '', newEntrance || '')
-    }, 800)
-  }
-
-  // Очистка таймеров при размонтировании
-  useEffect(() => {
-    return () => {
-      if (parseTimeoutRef.current) clearTimeout(parseTimeoutRef.current)
-      if (composeTimeoutRef.current) clearTimeout(composeTimeoutRef.current)
-    }
-  }, [])
 
   // Debounced search
   useEffect(() => {
@@ -167,11 +47,7 @@ export default function AddressesPage() {
     const raw = sessionStorage.getItem('address-prefill')
     if (!raw) return
     try {
-      const parsed = JSON.parse(raw) as Partial<CreateAddressData>
-      setFormData((prev) => ({
-        ...prev,
-        ...parsed,
-      }))
+      setPrefill(JSON.parse(raw) as Partial<CreateAddressData>)
       setShowModal(true)
     } catch {
       // ignore parse errors
@@ -193,41 +69,25 @@ export default function AddressesPage() {
   })
 
   // Mutations
-  const createMutation = useCreateAddress()
   const deleteMutation = useDeleteAddress()
 
   const handleOpenCreate = () => {
-    setFormData(initialFormData)
-    lastFullAddress.current = ''
-    lastParts.current = ''
+    setPrefill(null)
     setShowModal(true)
   }
 
   const handleCloseModal = () => {
     setShowModal(false)
-    setFormData(initialFormData)
+    setPrefill(null)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!formData.address.trim()) {
-      toast.error('Введите адрес')
-      return
+  // Адрес заводили из формы заявки — вернуться туда
+  const handleCreated = () => {
+    const returnTo = sessionStorage.getItem('task-form-return')
+    if (returnTo) {
+      sessionStorage.removeItem('task-form-return')
+      navigate(returnTo)
     }
-
-    createMutation.mutate(formData, mutationToast({
-      success: 'Адрес добавлен',
-      error: 'Ошибка создания',
-      onSuccess: () => {
-        const returnTo = sessionStorage.getItem('task-form-return')
-        handleCloseModal()
-        if (returnTo) {
-          sessionStorage.removeItem('task-form-return')
-          navigate(returnTo)
-        }
-      },
-    }))
   }
 
   const handleDelete = (id: number) => {
@@ -237,8 +97,6 @@ export default function AddressesPage() {
       onSuccess: () => setDeleteConfirm(null),
     }))
   }
-
-  const isSubmitting = createMutation.isPending
 
   return (
     <div>
@@ -305,7 +163,6 @@ export default function AddressesPage() {
                   <th>Адрес</th>
                   <th>Координаты</th>
                   <th>Подъезды / Этажи</th>
-                  <th>Домофон</th>
                   <th>УК</th>
                   <th className="text-right">Действия</th>
                 </tr>
@@ -363,18 +220,6 @@ export default function AddressesPage() {
                           </span>
                         ) : null}
                       </div>
-                    </td>
-
-                    {/* Домофон */}
-                    <td>
-                      {address.has_intercom ? (
-                        <span className="inline-flex items-center gap-1">
-                          <KeyRound className="h-4 w-4 text-gray-500" />
-                          {address.intercom_code || 'Домофон'}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
                     </td>
 
                     {/* УК */}
@@ -453,195 +298,12 @@ export default function AddressesPage() {
         </div>
       )}
 
-      {/* Create/Edit Modal */}
-      <Modal isOpen={showModal} onClose={handleCloseModal} title="Новый адрес" size="lg">
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-6">
-                {/* Основная информация */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Основная информация
-                    </h4>
-                    {(isParsing || isComposing) && (
-                      <span className="flex items-center gap-1 text-xs text-primary-500">
-                        <Wand2 className="h-3 w-3 animate-pulse" />
-                        {isParsing ? 'Парсинг...' : 'Сборка...'}
-                      </span>
-                    )}
-                  </div>
-                  <div className="space-y-4">
-                    <div className="relative">
-                      <Input
-                        label="Полный адрес *"
-                        value={formData.address}
-                        onChange={(e) => handleFullAddressChange(e.target.value)}
-                        placeholder="Ленинский пр., д. 82, корп. 3, СПб"
-                      />
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Вставьте адрес — поля ниже заполнятся автоматически
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-5 gap-4">
-                      <div>
-                        <Autocomplete
-                          id="city"
-                          label="Город"
-                          value={formData.city || ''}
-                          onChange={(value) => handlePartChange('city', value)}
-                          fetchSuggestions={(q) => addressesApi.autocompleteCities(q)}
-                          placeholder="СПб"
-                          minChars={1}
-                        />
-                      </div>
-                      <div>
-                        <Autocomplete
-                          id="street"
-                          label="Улица"
-                          value={formData.street || ''}
-                          onChange={(value) => handlePartChange('street', value)}
-                          fetchSuggestions={(q) => addressesApi.autocompleteStreets(q, formData.city || undefined)}
-                          placeholder="Невский пр."
-                          minChars={1}
-                        />
-                      </div>
-                      <div>
-                        <Autocomplete
-                          id="building"
-                          label="Дом"
-                          value={formData.building || ''}
-                          onChange={(value) => handlePartChange('building', value)}
-                          fetchSuggestions={(q) => addressesApi.autocompleteBuildings(q, formData.city || undefined, formData.street || undefined)}
-                          placeholder="1"
-                          minChars={1}
-                        />
-                      </div>
-                      <div>
-                        <Input
-                          label="Корпус"
-                          value={formData.corpus || ''}
-                          onChange={(e) => handlePartChange('corpus', e.target.value)}
-                          placeholder="2"
-                        />
-                      </div>
-                      <div>
-                        <Input
-                          label="Подъезд"
-                          value={formData.entrance || ''}
-                          onChange={(e) => handlePartChange('entrance', e.target.value)}
-                          placeholder="1"
-                        />
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      💡 Или заполните поля — при вводе появятся подсказки из базы адресов
-                    </p>
-                  </div>
-                </div>
-
-                {/* Информация о здании */}
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                    Информация о здании
-                  </h4>
-                  <div className="grid grid-cols-3 gap-4">
-                    <Input
-                      type="number"
-                      label="Подъездов"
-                      value={formData.entrance_count || ''}
-                      onChange={(e) => setFormData({ ...formData, entrance_count: e.target.value ? Number(e.target.value) : null })}
-                      min={1}
-                    />
-                    <Input
-                      type="number"
-                      label="Этажей"
-                      value={formData.floor_count || ''}
-                      onChange={(e) => setFormData({ ...formData, floor_count: e.target.value ? Number(e.target.value) : null })}
-                      min={1}
-                    />
-                    <Input
-                      type="number"
-                      label="Квартир"
-                      value={formData.apartment_count || ''}
-                      onChange={(e) => setFormData({ ...formData, apartment_count: e.target.value ? Number(e.target.value) : undefined })}
-                      min={1}
-                    />
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.has_elevator || false}
-                        onChange={(e) => setFormData({ ...formData, has_elevator: e.target.checked })}
-                        className="w-4 h-4 text-primary-500 border-gray-300 dark:border-gray-600 rounded focus:ring-primary-500"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Есть лифт</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.has_intercom || false}
-                        onChange={(e) => setFormData({ ...formData, has_intercom: e.target.checked })}
-                        className="w-4 h-4 text-primary-500 border-gray-300 dark:border-gray-600 rounded focus:ring-primary-500"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Есть домофон</span>
-                    </label>
-                  </div>
-                  {formData.has_intercom && (
-                    <div className="mt-4">
-                      <Input
-                        label="Код домофона"
-                        value={formData.intercom_code || ''}
-                        onChange={(e) => setFormData({ ...formData, intercom_code: e.target.value })}
-                        placeholder="123#4567"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* УК */}
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                    Управляющая компания
-                  </h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Input
-                      label="Название УК"
-                      value={formData.management_company || ''}
-                      onChange={(e) => setFormData({ ...formData, management_company: e.target.value })}
-                      placeholder="ООО УК Дом"
-                    />
-                    <Input
-                      label="Телефон УК"
-                      value={formData.management_phone || ''}
-                      onChange={(e) => setFormData({ ...formData, management_phone: e.target.value })}
-                      placeholder="+7 (812) 123-45-67"
-                    />
-                  </div>
-                </div>
-
-                {/* Заметки */}
-                <div>
-                  <Textarea
-                    label="Заметки"
-                    value={formData.notes || ''}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder="Вход со двора, ключ у консьержа..."
-                    rows={3}
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-4">
-                <Button type="button" variant="secondary" onClick={handleCloseModal}>
-                  Отмена
-                </Button>
-                <Button type="submit" isLoading={isSubmitting}>
-                  Добавить
-                </Button>
-              </div>
-            </form>
-      </Modal>
+      <AddressCreateModal
+        isOpen={showModal}
+        onClose={handleCloseModal}
+        initial={prefill}
+        onCreated={handleCreated}
+      />
     </div>
   )
 }
