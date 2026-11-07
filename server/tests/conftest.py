@@ -70,6 +70,23 @@ def reset_security_state(monkeypatch):
     login_rate_limiter.clear_all()
 
 
+@pytest.fixture(scope="function", autouse=True)
+def disable_web_push(monkeypatch):
+    """Не слать настоящие web push из тестов.
+
+    VAPID-ключи берутся из локального .env, а отправка открывает свою сессию
+    (next(get_db())) в обход тестовой БД — то есть читает подписки из
+    настоящей базы. Тесты push сами задают ключи и подменяют отправку.
+    """
+    from app.config import settings
+    from app.services import web_push
+
+    monkeypatch.setattr(settings, "VAPID_PUBLIC_KEY", "")
+    monkeypatch.setattr(settings, "VAPID_PRIVATE_KEY", "")
+    monkeypatch.setattr(web_push, "_vapid", None)
+    monkeypatch.setattr(web_push, "_vapid_failed", False)
+
+
 @pytest.fixture(scope="session")
 def _shared_db_engine():
     """Сессионный engine для не-SQLite БД (схема создаётся один раз).
