@@ -110,7 +110,7 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
           description="Управление версиями Android-приложения"
           actions={
             <>
-              <Button size="sm" variant="ghost" onClick={() => refetch()} disabled={isFetching}>
+              <Button aria-label="Обновить" size="sm" variant="ghost" onClick={() => refetch()} disabled={isFetching}>
                 <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
               </Button>
               <Button size="sm" onClick={() => setShowUploadModal(true)}>
@@ -124,7 +124,7 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
 
       {embedded && (
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button variant="secondary" size="sm" onClick={() => refetch()} disabled={isFetching}>
+          <Button aria-label="Обновить" variant="secondary" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
           </Button>
           <Button size="sm" onClick={() => setShowUploadModal(true)}>

@@ -10,6 +10,7 @@ import {
   formatDateRelative,
   formatWeekday,
   formatDateShort,
+  formatDeadline,
   getSla,
 } from '../dateFormat'
 
@@ -197,5 +198,23 @@ describe('getSla', () => {
     const result = getSla('2026-01-02T00:00:00', 'NEW')
     // 6 hours left
     expect(result.label).toMatch(/Осталось\s+6ч/)
+  })
+})
+
+// ========================================================================
+// formatDeadline
+// ========================================================================
+describe('formatDeadline', () => {
+  it('shows end-of-day deadline as the planned day, not next midnight', () => {
+    expect(formatDeadline('2026-11-08T00:00:00')).toBe('до конца 07.11.2026')
+  })
+
+  it('shows a regular deadline with time', () => {
+    expect(formatDeadline('2026-11-07T18:30:00')).toBe('07.11.2026 18:30')
+  })
+
+  it('handles empty and invalid values', () => {
+    expect(formatDeadline(null)).toBe('—')
+    expect(formatDeadline('скоро')).toBe('скоро')
   })
 })

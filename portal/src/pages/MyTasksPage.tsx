@@ -336,7 +336,7 @@ export default function MyTasksPage() {
                       <StatusBadge status={task.status} />
                       {task.planned_date && (
                         <span
-                          title={`Срок: ${formatDate(task.planned_date)}`}
+                          title={`План: ${formatDate(task.planned_date)}`}
                           className="inline-flex items-center gap-1"
                         >
                           <Clock size={11} className="shrink-0" />

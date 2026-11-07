@@ -422,6 +422,7 @@ export default function OrganizationsPage() {
               {showInactive ? 'Скрыть неактивные' : 'Показать неактивные'}
             </Button>
             <Button
+              aria-label="Обновить"
               variant="ghost"
               size="sm"
               onClick={() => refetch()}

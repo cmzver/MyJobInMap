@@ -264,7 +264,7 @@ export default function OrganizationDetailPage() {
         description={org.slug}
         actions={
           <>
-            <Button variant="ghost" size="sm" onClick={() => { refetchOrg(); refetchUsers() }}>
+            <Button aria-label="Обновить" variant="ghost" size="sm" onClick={() => { refetchOrg(); refetchUsers() }}>
               <RefreshCw className="w-4 h-4" />
             </Button>
             <Button variant="ghost" size="sm" onClick={handleToggleActive}>

@@ -17,6 +17,21 @@ export function formatDateTime(dateStr: string | null | undefined): string {
   }
 }
 
+/**
+ * Срок заявки. Плановая дата даёт срок «до конца дня» — это полночь
+ * следующего дня; показываем её как «до конца 07.11.2026», а не «08.11 00:00».
+ */
+export function formatDeadline(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—'
+  const moment = new Date(dateStr)
+  if (Number.isNaN(moment.getTime())) return dateStr
+  if (moment.getHours() === 0 && moment.getMinutes() === 0) {
+    const previousDay = new Date(moment.getTime() - 60 * 1000)
+    return `до конца ${format(previousDay, 'dd.MM.yyyy')}`
+  }
+  return format(moment, 'dd.MM.yyyy HH:mm', { locale: ru })
+}
+
 /** Только дата: «25.01.2026» */
 export function formatDateOnly(dateStr: string | null | undefined): string {
   if (!dateStr) return '—'

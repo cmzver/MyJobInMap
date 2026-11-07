@@ -948,6 +948,7 @@ export default function ChatPage() {
           <>
             <div className="relative z-30 flex items-center gap-2.5 border-b border-gray-200 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-gray-800">
               <button
+                aria-label="Назад к списку чатов"
                 onClick={() => setActiveConversationId(null)}
                 className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
               >
@@ -1022,6 +1023,7 @@ export default function ChatPage() {
 
               <div className="relative z-40">
                 <button
+                  aria-label="Меню чата"
                   onClick={() => setShowConvMenu(!showConvMenu)}
                   className="rounded-lg p-2 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
                 >

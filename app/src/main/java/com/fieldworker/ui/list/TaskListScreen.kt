@@ -1422,8 +1422,8 @@ private fun TaskFactsCard(
         add(TaskFact("Создана", formattedDate))
         add(
             TaskFact(
-                label = "Срок",
-                value = formattedPlannedDate ?: if (onPlannedDateClick != null) "Установить" else "Не задан",
+                label = "План",
+                value = formattedPlannedDate ?: if (onPlannedDateClick != null) "Назначить" else "Не назначен",
                 onClick = onPlannedDateClick,
                 isPlaceholder = formattedPlannedDate == null
             )

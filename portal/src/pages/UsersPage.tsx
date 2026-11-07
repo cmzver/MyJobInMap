@@ -31,6 +31,7 @@ import { mutationToast } from '@/utils/apiError'
 import { formatDateOnly as formatDate } from '@/utils/dateFormat'
 import Badge from '@/components/Badge'
 import UserAvatar from '@/components/UserAvatar'
+import Modal from '@/components/Modal'
 import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
@@ -513,6 +514,7 @@ export default function UsersPage() {
                               <td>
                                 <div className="flex justify-end gap-1">
                                   <Button
+                                    aria-label="Редактировать"
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => handleOpenEdit(user)}
@@ -522,6 +524,7 @@ export default function UsersPage() {
                                   {deleteConfirm === user.id ? (
                                     <>
                                       <Button
+                                        aria-label="Подтвердить удаление"
                                         variant="danger"
                                         size="sm"
                                         onClick={() => handleDelete(user.id)}
@@ -530,6 +533,7 @@ export default function UsersPage() {
                                         <Check className="h-4 w-4" />
                                       </Button>
                                       <Button
+                                        aria-label="Отменить удаление"
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => setDeleteConfirm(null)}
@@ -539,6 +543,7 @@ export default function UsersPage() {
                                     </>
                                   ) : (
                                     <Button
+                                      aria-label="Удалить"
                                       variant="ghost"
                                       size="sm"
                                       onClick={() => setDeleteConfirm(user.id)}
@@ -561,76 +566,61 @@ export default function UsersPage() {
         </div>
       )}
 
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white shadow-xl dark:bg-gray-800">
-            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {editingUser ? 'Редактировать пользователя' : 'Новый пользователь'}
-              </h3>
-              <button
-                aria-label="Закрыть"
-                onClick={handleCloseModal}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-4 px-6 py-4">
-                <Input
-                  label="Имя пользователя *"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  placeholder="username"
-                />
-                <Input
-                  type="password"
-                  label={editingUser ? 'Новый пароль' : 'Пароль *'}
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder={editingUser ? 'Оставьте пустым, чтобы не менять' : '••••••••'}
-                />
-                <Input
-                  label="Полное имя"
-                  value={formData.full_name}
-                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  placeholder="Иван Иванов"
-                />
-                <Input
-                  type="email"
-                  label="Email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="email@example.com"
-                />
-                <Input
-                  label="Телефон"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+7 (999) 123-45-67"
-                />
-                <Select
-                  label="Роль"
-                  options={availableRoleOptions}
-                  value={formData.role}
-                  onChange={(value) => setFormData({ ...formData, role: value as UserRole })}
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-900/50">
-                <Button type="button" variant="secondary" onClick={handleCloseModal}>
-                  Отмена
-                </Button>
-                <Button type="submit" isLoading={isSubmitting}>
-                  {editingUser ? 'Сохранить' : 'Создать'}
-                </Button>
-              </div>
-            </form>
+      <Modal
+        isOpen={showModal}
+        onClose={handleCloseModal}
+        title={editingUser ? 'Редактировать пользователя' : 'Новый пользователь'}
+        size="sm"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input
+            label="Имя пользователя *"
+            value={formData.username}
+            onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+            placeholder="username"
+          />
+          <Input
+            type="password"
+            label={editingUser ? 'Новый пароль' : 'Пароль *'}
+            value={formData.password}
+            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            placeholder={editingUser ? 'Оставьте пустым, чтобы не менять' : '••••••••'}
+          />
+          <Input
+            label="Полное имя"
+            value={formData.full_name}
+            onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+            placeholder="Иван Иванов"
+          />
+          <Input
+            type="email"
+            label="Email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            placeholder="email@example.com"
+          />
+          <Input
+            label="Телефон"
+            value={formData.phone}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            placeholder="+7 (999) 123-45-67"
+          />
+          <Select
+            label="Роль"
+            options={availableRoleOptions}
+            value={formData.role}
+            onChange={(value) => setFormData({ ...formData, role: value as UserRole })}
+          />
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={handleCloseModal}>
+              Отмена
+            </Button>
+            <Button type="submit" isLoading={isSubmitting}>
+              {editingUser ? 'Сохранить' : 'Создать'}
+            </Button>
           </div>
-        </div>
-      )}
+        </form>
+      </Modal>
     </div>
   )
 }

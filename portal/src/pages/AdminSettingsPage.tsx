@@ -1605,6 +1605,7 @@ function DevicesTab() {
             Тест всем
           </Button>
           <Button
+            aria-label="Обновить"
             variant="secondary"
             size="sm"
             onClick={() => refetch()}
@@ -2021,55 +2022,25 @@ function ClearDatabaseModal({ setShowClearConfirm }: { setShowClearConfirm: (sho
     },
   })
 
+  const close = () => {
+    if (!clearMutation.isPending) setShowClearConfirm(false)
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-red-50 dark:bg-red-900/20">
-          <div className="flex items-center gap-3">
-            <div className="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/40">
-              <Trash2 className="h-6 w-6 text-red-600 dark:text-red-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Очистить базу данных?
-            </h3>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="px-6 py-4 space-y-3">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            Это действие <span className="font-semibold">безвозвратно удалит</span> все заявки и комментарии из базы данных.
-          </p>
-          <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/40">
-            <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
-              ⚠️ Это действие нельзя отменить!
-            </p>
-          </div>
-        </div>
-
-        {/* Buttons */}
-        <div className="flex gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800/50">
-          <Button
-            variant="secondary"
-            className="flex-1"
-            onClick={() => setShowClearConfirm(false)}
-            disabled={clearMutation.isPending}
-          >
-            Отмена
-          </Button>
-          <Button
-            variant="danger"
-            className="flex-1"
-            onClick={() => clearMutation.mutate()}
-            isLoading={clearMutation.isPending}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            {clearMutation.isPending ? 'Удаление...' : 'Удалить все'}
-          </Button>
-        </div>
+    <Modal isOpen onClose={close} title="Очистить базу данных?" size="sm">
+      <p className="mb-5 text-sm text-gray-600 dark:text-gray-300">
+        Все заявки и комментарии будут <span className="font-semibold">удалены безвозвратно</span>. Это действие нельзя отменить.
+      </p>
+      <div className="flex justify-end gap-3">
+        <Button variant="secondary" onClick={close} disabled={clearMutation.isPending}>
+          Отмена
+        </Button>
+        <Button variant="danger" onClick={() => clearMutation.mutate()} isLoading={clearMutation.isPending}>
+          <Trash2 className="mr-2 h-4 w-4" />
+          Удалить все
+        </Button>
       </div>
-    </div>
+    </Modal>
   )
 }
 
