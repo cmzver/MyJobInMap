@@ -45,7 +45,7 @@ def resolve_sqlite_db_path() -> str:
     """Определить абсолютный путь к файлу SQLite БД."""
     db_url = settings.DATABASE_URL
     if not db_url.startswith("sqlite"):
-        raise BackupServiceError("Only supported for SQLite", 400)
+        raise BackupServiceError("Доступно только для базы SQLite", 400)
 
     db_path = db_url.replace("sqlite:///", "")
     if db_path.startswith("./"):
@@ -56,16 +56,16 @@ def resolve_sqlite_db_path() -> str:
     if not os.path.exists(db_path):
         if os.path.exists("tasks.db"):
             return os.path.abspath("tasks.db")
-        raise BackupServiceError(f"Database file not found at {db_path}", 500)
+        raise BackupServiceError("Файл базы данных не найден", 500)
     return db_path
 
 
 def validate_backup_filename(filename: str) -> None:
     """Валидация имени файла бэкапа (защита от path traversal)."""
     if ".." in filename or "/" in filename or "\\" in filename:
-        raise BackupServiceError("Invalid filename", 400)
+        raise BackupServiceError("Недопустимое имя файла", 400)
     if not db_backup.is_valid_backup_name(filename):
-        raise BackupServiceError("Invalid backup file", 400)
+        raise BackupServiceError("Файл не похож на резервную копию", 400)
 
 
 class BackupService:
@@ -106,7 +106,7 @@ class BackupService:
         validate_backup_filename(filename)
         file_path = os.path.join(BACKUP_DIR, filename)
         if not os.path.exists(file_path):
-            raise BackupServiceError("Backup not found", 404)
+            raise BackupServiceError("Резервная копия не найдена", 404)
         return file_path
 
     def delete_backup(self, filename: str, actor: UserModel) -> None:
@@ -133,7 +133,7 @@ class BackupService:
         except db_backup.DBBackupError as e:
             raise BackupServiceError(e.message, e.status_code)
         except Exception as e:
-            raise BackupServiceError(f"Restore failed: {str(e)}", 500)
+            raise BackupServiceError(f"Не удалось восстановить базу: {e}", 500)
 
         audit_backup_restored(actor.id, actor.username, filename)
         return {

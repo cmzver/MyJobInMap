@@ -59,7 +59,7 @@ def resolve_sqlite_db_path() -> str:
     """Абсолютный путь к файлу SQLite БД из DATABASE_URL."""
     db_url = settings.DATABASE_URL
     if not db_url.startswith("sqlite"):
-        raise DBBackupError("Only supported for SQLite", 400)
+        raise DBBackupError("Доступно только для базы SQLite", 400)
 
     db_path = db_url.replace("sqlite:///", "")
     if db_path.startswith("./"):
@@ -70,7 +70,7 @@ def resolve_sqlite_db_path() -> str:
     if not os.path.exists(db_path):
         if os.path.exists("tasks.db"):
             return os.path.abspath("tasks.db")
-        raise DBBackupError(f"Database file not found at {db_path}", 500)
+        raise DBBackupError("Файл базы данных не найден", 500)
     return db_path
 
 
@@ -96,7 +96,7 @@ def _sqlite_restore(backup_path: str) -> None:
             conn.close()
     except sqlite3.Error as e:
         os.remove(temp_db_path)
-        raise DBBackupError(f"Invalid SQLite file: {e}", 400)
+        raise DBBackupError(f"Файл не является базой SQLite: {e}", 400)
     # Атомарная замена
     old_db_path = db_path + ".old"
     if os.path.exists(old_db_path):
@@ -199,7 +199,9 @@ def create_dump(dest_dir: str, prefix: str = "tasks_db") -> str:
     elif settings.is_sqlite:
         _sqlite_dump(dest_path)
     else:
-        raise DBBackupError("Unsupported database backend for backup", 400)
+        raise DBBackupError(
+            "Резервное копирование для этой СУБД не поддерживается", 400
+        )
     return filename
 
 
@@ -210,4 +212,4 @@ def restore_dump(backup_path: str) -> None:
     elif settings.is_sqlite:
         _sqlite_restore(backup_path)
     else:
-        raise DBBackupError("Unsupported database backend for restore", 400)
+        raise DBBackupError("Восстановление для этой СУБД не поддерживается", 400)

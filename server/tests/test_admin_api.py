@@ -78,7 +78,7 @@ class TestAdminUsers:
         response = client.post("/api/admin/users", json=new_user, headers=auth_headers)
 
         assert response.status_code == 400
-        assert "already exists" in response.json()["detail"].lower()
+        assert "уже есть" in response.json()["detail"]
 
     def test_create_user_rejects_cyrillic_username(
         self, client: TestClient, auth_headers: dict

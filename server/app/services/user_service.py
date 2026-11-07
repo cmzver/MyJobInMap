@@ -71,7 +71,7 @@ class UserService:
         """Статистика пользователя по заявкам (счётчики, заработок, периоды)."""
         user = self.db.query(UserModel).filter(UserModel.id == user_id).first()
         if not user:
-            raise UserServiceError("User not found", 404)
+            raise UserServiceError("Пользователь не найден", 404)
 
         tenant = TenantFilter(actor)
         tenant.enforce_access(user)
@@ -150,7 +150,7 @@ class UserService:
     def _get_or_404(self, user_id: int) -> UserModel:
         user = self.db.query(UserModel).filter(UserModel.id == user_id).first()
         if not user:
-            raise UserServiceError("User not found", 404)
+            raise UserServiceError("Пользователь не найден", 404)
         return user
 
     def create(self, actor: UserModel, data: UserCreate) -> UserModel:
@@ -163,7 +163,7 @@ class UserService:
             self.db.query(UserModel).filter(UserModel.username == data.username).first()
         )
         if existing:
-            raise UserServiceError("Username already exists", 400)
+            raise UserServiceError("Пользователь с таким логином уже есть", 400)
 
         tenant = TenantFilter(actor)
         # Целевая организация пользователя (для валидации кастомной роли в скоупе).
@@ -179,7 +179,10 @@ class UserService:
 
         if not tenant.is_superadmin:
             if requested_role == UserRole.ADMIN.value:
-                raise UserServiceError("Org-admin cannot create admin users", 403)
+                raise UserServiceError(
+                    "Администратор организации не может создавать системных администраторов",
+                    403,
+                )
             if actor.organization and actor.organization.max_users:
                 current_count = (
                     self.db.query(UserModel)
@@ -233,12 +236,15 @@ class UserService:
         if not tenant.is_superadmin:
             tenant.enforce_access(user)
             if requested_role == UserRole.ADMIN.value:
-                raise UserServiceError("Org-admin cannot assign admin role", 403)
+                raise UserServiceError(
+                    "Администратор организации не может назначать роль системного администратора",
+                    403,
+                )
 
         if data.username is not None:
             new_username = data.username.strip()
             if not new_username:
-                raise UserServiceError("Username cannot be empty", 400)
+                raise UserServiceError("Логин не может быть пустым", 400)
             existing_user = (
                 self.db.query(UserModel)
                 .filter(
@@ -248,12 +254,12 @@ class UserService:
                 .first()
             )
             if existing_user:
-                raise UserServiceError("Username already exists", 400)
+                raise UserServiceError("Пользователь с таким логином уже есть", 400)
             user.username = new_username
 
         if data.password is not None:
             if not data.password:
-                raise UserServiceError("Password cannot be empty", 400)
+                raise UserServiceError("Пароль не может быть пустым", 400)
             user.password_hash = get_password_hash(data.password)
             user.auth_version += 1
             # Import локальный, чтобы не создавать цикл services.auth ↔ user_service.
@@ -288,7 +294,7 @@ class UserService:
     def delete(self, actor: UserModel, user_id: int) -> None:
         """Удалить пользователя. Org-admin ограничен своей организацией."""
         if user_id == actor.id:
-            raise UserServiceError("Cannot delete yourself", 400)
+            raise UserServiceError("Нельзя удалить самого себя", 400)
 
         user = self._get_or_404(user_id)
 

@@ -94,7 +94,7 @@ def normalize_priority_value(
 
         if strict:
 
-            raise ValueError("Invalid priority")
+            raise ValueError("Неверный приоритет")
 
         return default or TaskPriority.CURRENT.value
 
@@ -122,13 +122,13 @@ def normalize_priority_value(
 
         if strict:
 
-            raise ValueError("Invalid priority")
+            raise ValueError("Неверный приоритет")
 
         return default or TaskPriority.CURRENT.value
 
     if strict:
 
-        raise ValueError("Invalid priority")
+        raise ValueError("Неверный приоритет")
 
     return default or TaskPriority.CURRENT.value
 
