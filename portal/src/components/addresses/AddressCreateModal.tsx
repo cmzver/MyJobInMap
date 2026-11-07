@@ -13,7 +13,7 @@ import { useCreateAddress } from '@/hooks/useAddresses'
 import { useCounterparties } from '@/hooks/useCounterparties'
 import { getApiErrorMessage } from '@/utils/apiError'
 import { isSameHouse, streetKey } from '@/utils/addressMatch'
-import type { Address, CreateAddressData } from '@/types/address'
+import type { Address, AddressSuggestion, CreateAddressData } from '@/types/address'
 
 /**
  * Добавление адреса — прежняя раскладка формы (полный адрес ↔ части,
@@ -58,6 +58,8 @@ export default function AddressCreateModal({ isOpen, onClose, initial, onCreated
   const [managementPhone, setManagementPhone] = useState('')
   const [notes, setNotes] = useState('')
   const [duplicates, setDuplicates] = useState<Address[]>([])
+  // Точка дома из справочника; без неё сервер геокодирует адрес сам
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null)
   const [addedCount, setAddedCount] = useState(0)
 
   // Адрес собран из частей — не разбирать его обратно
@@ -84,6 +86,7 @@ export default function AddressCreateModal({ isOpen, onClose, initial, onCreated
     setManagementPhone(initial?.management_phone ?? '')
     setNotes(initial?.notes ?? '')
     setDuplicates([])
+    setCoords(null)
     setAddedCount(0)
     skipParseRef.current = Boolean(initial?.street)
   }, [isOpen, initial])
@@ -155,12 +158,60 @@ export default function AddressCreateModal({ isOpen, onClose, initial, onCreated
     }
   }, [isOpen, parts.street, parts.building, parts.corpus])
 
+  // Адрес набирают руками — координаты прошлой подсказки к нему не относятся
+  const handleAddressTyped = (value: string) => {
+    setAddress(value)
+    setCoords(null)
+  }
+
+  // Выбор подсказки: части и точка — из справочника, строка — в стиле базы
+  const handlePickSuggestion = async (item: AddressSuggestion) => {
+    const picked: Parts = {
+      city: item.city ?? '',
+      street: item.street ?? '',
+      building: item.building ?? '',
+      corpus: item.corpus ?? '',
+      entrance: '',
+    }
+    clearTimeout(composeTimerRef.current)
+    setCoords(item.lat != null && item.lon != null ? { lat: item.lat, lon: item.lon } : null)
+    if (!picked.street) {
+      // Старая запись без разобранных частей — пусть адрес разберётся, как при вставке
+      setAddress(item.value)
+      return
+    }
+    skipParseRef.current = true
+    setParts(picked)
+    setAddress(item.value)
+
+    try {
+      const composed = await addressesApi.composeAddress(picked)
+      if (composed.address && composed.address !== item.value) {
+        skipParseRef.current = true
+        setAddress(composed.address)
+      }
+    } catch {
+      // остаётся строка из справочника
+    }
+
+    // Точку дома DaData отдаёт на точный запрос по выбранному адресу
+    if (item.source === 'dadata' && item.lat == null && item.unrestricted_value && picked.building) {
+      try {
+        const [exact] = await addressesApi.suggestAddress(item.unrestricted_value, 1)
+        if (exact?.lat != null && exact.lon != null) setCoords({ lat: exact.lat, lon: exact.lon })
+      } catch {
+        // без точки: сервер найдёт её своим геокодером
+      }
+    }
+  }
+
   // Части → полный адрес
   const composeTimerRef = useRef<ReturnType<typeof setTimeout>>()
   useEffect(() => () => clearTimeout(composeTimerRef.current), [])
   const handlePartChange = (field: keyof Parts, value: string) => {
     const next = { ...parts, [field]: value }
     setParts(next)
+    setCoords(null)
     clearTimeout(composeTimerRef.current)
     composeTimerRef.current = setTimeout(async () => {
       try {
@@ -186,6 +237,7 @@ export default function AddressCreateModal({ isOpen, onClose, initial, onCreated
     setIntercomCode('')
     setNotes('')
     setDuplicates([])
+    setCoords(null)
     requestAnimationFrame(() => addressRef.current?.focus())
   }
 
@@ -206,6 +258,8 @@ export default function AddressCreateModal({ isOpen, onClose, initial, onCreated
       building: parts.building || undefined,
       corpus: parts.corpus || undefined,
       entrance: parts.entrance || undefined,
+      lat: coords?.lat,
+      lon: coords?.lon,
       entrance_count: toNumber(entranceCount) ?? null,
       floor_count: toNumber(floorCount) ?? null,
       apartment_count: toNumber(apartmentCount),
@@ -281,17 +335,24 @@ export default function AddressCreateModal({ isOpen, onClose, initial, onCreated
             </div>
             <div className="space-y-4">
               <div>
-                <Input
-                  ref={addressRef}
+                <Autocomplete<AddressSuggestion>
+                  id="create-address"
+                  inputRef={addressRef}
                   label="Полный адрес *"
                   value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Ленинский пр., д. 82, корп. 3, СПб"
+                  onChange={handleAddressTyped}
+                  fetchSuggestions={(q) => addressesApi.suggestAddress(q)}
+                  getLabel={(item) => item.value}
+                  getHint={(item) => (item.source === 'base' ? 'уже есть в базе' : undefined)}
+                  onSelect={handlePickSuggestion}
+                  placeholder="Начните вводить: спб ветеранов 46"
+                  minChars={3}
+                  debounceMs={350}
                   autoFocus
-                  autoComplete="off"
                 />
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Вставьте адрес — поля ниже заполнятся сами. Или заполните поля — адрес соберётся.
+                  Выберите адрес из подсказок — город, улица, дом и точка на карте заполнятся сами.
+                  Можно и вставить адрес целиком или заполнить поля ниже.
                 </p>
               </div>
 

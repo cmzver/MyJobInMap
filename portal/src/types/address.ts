@@ -6,6 +6,7 @@ import type { components } from './api.generated'
 
 export type Address = components['schemas']['AddressResponse']
 export type AddressSearchResult = components['schemas']['AddressSearchResponse']
+export type AddressSuggestion = components['schemas']['AddressSuggestion']
 export type AddressListResponse = components['schemas']['AddressListResponse']
 export type CreateAddressData = components['schemas']['AddressCreate']
 export type UpdateAddressData = components['schemas']['AddressUpdate']
