@@ -47,6 +47,7 @@ export default function SendTaskToChatModal({ isOpen, onClose, taskId, taskTitle
         )}
 
         <textarea
+          aria-label="Комментарий"
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
           placeholder="Подпись (необязательно)…"

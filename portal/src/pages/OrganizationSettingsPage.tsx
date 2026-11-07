@@ -423,6 +423,7 @@ export default function OrganizationSettingsPage() {
             Организация
           </label>
           <select
+            aria-label="Организация"
             value={selectedOrgId ?? ''}
             onChange={(e) => setSelectedOrgId(e.target.value ? Number(e.target.value) : undefined)}
             className="field max-w-sm"

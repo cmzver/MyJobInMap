@@ -505,7 +505,7 @@ function BulkModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => v
           <div className="space-y-2">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input className="field pl-9" placeholder="Поиск по адресу" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <input aria-label="Поиск по адресу" className="field pl-9" placeholder="Поиск по адресу" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <ul className="max-h-48 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200 dark:divide-gray-700 dark:border-gray-700">
               {(addresses.data?.items ?? []).map((address) => (

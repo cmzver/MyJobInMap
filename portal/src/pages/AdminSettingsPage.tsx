@@ -752,6 +752,7 @@ function ImageSettingsTab() {
         >
           <div className="flex items-center gap-3">
             <input
+              aria-label="Качество изображения"
               type="range"
               min={10}
               max={100}
@@ -1496,6 +1497,7 @@ function CustomFieldModal({
                 Варианты (каждый с новой строки)
               </label>
               <textarea
+                aria-label="Варианты (каждый с новой строки)"
                 value={formData.options}
                 onChange={(e) => setFormData({ ...formData, options: e.target.value })}
                 rows={3}

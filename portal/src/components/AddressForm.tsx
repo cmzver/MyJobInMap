@@ -326,6 +326,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
           </label>
           <div className="relative">
             <input
+              aria-label="Город"
               type="text"
               placeholder="Начните вводить название города..."
               value={citiesQuery || value.city}
@@ -365,6 +366,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
           </label>
           <div className="relative">
             <input
+              aria-label="Улица"
               type="text"
               placeholder={value.city ? 'Начните вводить название улицы...' : 'Сначала выберите город'}
               value={streetsQuery || value.street}
@@ -405,6 +407,7 @@ export default function AddressForm({ value, onChange, onAddressFound, errors = 
           </label>
           <div className="relative">
             <input
+              aria-label="Дом"
               type="text"
               placeholder={value.street ? 'Номер дома...' : 'Сначала выберите улицу'}
               value={buildingsQuery || value.building}

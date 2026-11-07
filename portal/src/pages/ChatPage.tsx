@@ -852,6 +852,7 @@ export default function ChatPage() {
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
+              aria-label="Поиск чатов и сообщений"
               type="text"
               placeholder="Поиск чатов и сообщений..."
               value={conversationSearchQuery}
@@ -1067,6 +1068,7 @@ export default function ChatPage() {
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                   <input
+                    aria-label="Поиск по сообщениям"
                     type="text"
                     placeholder="Поиск по сообщениям..."
                     value={messageSearchQuery}
