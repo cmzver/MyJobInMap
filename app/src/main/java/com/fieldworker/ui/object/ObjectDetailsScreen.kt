@@ -325,7 +325,7 @@ private fun TaskDetailsSection(task: Task) {
             add(ObjectFact("Телефон", formatPhoneForDisplay(phone)) { dialPhone(context, phone) })
         }
         task.assignedUserName?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Исполнитель", it)) }
-        task.plannedDate?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Срок", TaskUtils.formatShortDate(it))) }
+        task.plannedDate?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("План", TaskUtils.formatShortDate(it))) }
         task.systemType?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Система", it)) }
         task.defectType?.takeIf { it.isNotBlank() }?.let { add(ObjectFact("Неисправность", it)) }
     }
