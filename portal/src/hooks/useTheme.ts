@@ -49,7 +49,9 @@ export function useTheme() {
       }
 
       if (newTheme === 'aurora') {
-        root.classList.add('theme-aurora')
+        // Тёмная тема: без класса dark компоненты рисуют светлый фон
+        // (кнопка «Отмена», заблокированные поля) под светлым текстом аврора-темы
+        root.classList.add('theme-aurora', 'dark')
         setResolvedTheme('dark')
         return
       }
