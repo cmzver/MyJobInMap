@@ -4,11 +4,9 @@ API endpoints для расширенной карточки объекта.
 Управление системами, оборудованием, документами, контактами.
 """
 
-import gzip
 import os
-import shutil
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
@@ -52,6 +50,7 @@ from app.schemas.address import (
     IntercomPanelUpdate,
     TaskStats,
 )
+from app.schemas.datetime_utc import iso_utc
 from app.services.auth import (
     get_current_dispatcher_or_admin,
     get_current_user_required,
@@ -1197,7 +1196,7 @@ def get_address_tasks(
             "title": t.title,
             "status": t.status,
             "priority": normalize_priority_value(t.priority, default="CURRENT"),
-            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "created_at": iso_utc(t.created_at),
             "assigned_user": t.assigned_user.full_name if t.assigned_user else None,
         }
         for t in tasks

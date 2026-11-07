@@ -23,6 +23,7 @@ from app.models.operations import (
     MaterialMovementModel,
     MaterialStockModel,
 )
+from app.schemas.datetime_utc import iso_utc
 from app.schemas.operations import (
     HolderBalance,
     MaterialAdjustment,
@@ -223,7 +224,7 @@ def movement_response(
             Decimal("0.01"), rounding=ROUND_HALF_UP
         ),
         reason=row.reason,
-        created_at=row.created_at.isoformat() + "Z",
+        created_at=iso_utc(row.created_at),
     )
 
 

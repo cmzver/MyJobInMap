@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.models import DeviceModel, UserModel, get_db
 from app.schemas import DeviceRegister
+from app.schemas.datetime_utc import iso_utc
 from app.services import get_current_admin, get_current_user_required
 from app.services.push import firebase_app
 from app.services.tenant_filter import TenantFilter
@@ -57,9 +58,7 @@ def list_devices(
                 user_name=user.full_name or user.username if user else None,
                 device_name=device.device_name,
                 fcm_token=device.fcm_token,
-                last_active=(
-                    device.last_active.isoformat() if device.last_active else ""
-                ),
+                last_active=iso_utc(device.last_active) or "",
             )
         )
 

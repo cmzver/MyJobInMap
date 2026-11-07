@@ -13,7 +13,7 @@ UTC, чтобы клиент корректно конвертировал в л
 """
 
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Optional
 
 from pydantic import PlainSerializer
 
@@ -23,6 +23,11 @@ def _serialize_utc(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def iso_utc(value: Optional[datetime]) -> Optional[str]:
+    """То же для ответов, собранных вручную (dict/str-поля): ISO с «Z»."""
+    return _serialize_utc(value) if value is not None else None
 
 
 UtcDateTime = Annotated[

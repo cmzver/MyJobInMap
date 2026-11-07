@@ -28,6 +28,7 @@ from app.models import (
     get_db,
 )
 from app.models.base import utcnow
+from app.schemas.datetime_utc import iso_utc
 from app.services import get_current_admin
 from app.services.ip_guard import ip_guard
 
@@ -78,7 +79,7 @@ class AllowlistRequest(BaseModel):
 
 
 def _iso(dt) -> Optional[str]:
-    return dt.isoformat() if dt else None
+    return iso_utc(dt)
 
 
 def _ban_to_dict(row: BlockedIPModel) -> dict:

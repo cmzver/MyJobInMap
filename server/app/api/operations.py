@@ -23,6 +23,7 @@ from app.models.operations import (
 )
 from app.models.outbox import OutboxEventModel
 from app.schemas.address import AddressEquipmentResponse
+from app.schemas.datetime_utc import iso_utc
 from app.schemas.operations import (
     DayResponse,
     EquipmentPassportResponse,
@@ -308,8 +309,8 @@ def outbox_status(
             "attempts": row.attempts,
             "failed": row.attempts >= MAX_ATTEMPTS,
             "last_error": row.last_error,
-            "created_at": row.created_at,
-            "available_at": row.available_at,
+            "created_at": iso_utc(row.created_at),
+            "available_at": iso_utc(row.available_at),
         }
         for row in rows
     ]
