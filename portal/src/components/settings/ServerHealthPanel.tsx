@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Activity,
   Cpu,
@@ -107,9 +107,21 @@ const TAIL_OPTIONS = [200, 500, 1000]
 function LogsModal({ name, onClose }: { name: string; onClose: () => void }) {
   const [tail, setTail] = useState(200)
   const { data, isLoading, isFetching, refetch } = useContainerLogs(name, tail)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex h-[80vh] w-full max-w-4xl flex-col rounded-xl bg-white shadow-2xl dark:bg-gray-800">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Логи: ${name}`}
+        className="flex h-[80vh] w-full max-w-4xl flex-col rounded-xl bg-white shadow-2xl dark:bg-gray-800"
+      >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
             <ScrollText className="h-4 w-4" />
@@ -132,6 +144,7 @@ function LogsModal({ name, onClose }: { name: string; onClose: () => void }) {
               onClick={() => refetch()}
               className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
               title="Обновить"
+              aria-label="Обновить"
             >
               <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
             </button>
@@ -139,6 +152,7 @@ function LogsModal({ name, onClose }: { name: string; onClose: () => void }) {
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               title="Закрыть"
+              aria-label="Закрыть"
             >
               <X className="h-5 w-5" />
             </button>

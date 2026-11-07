@@ -394,6 +394,7 @@ export default function AddressesPage() {
                         {deleteConfirm === address.id ? (
                           <>
                             <Button
+                              aria-label="Подтвердить удаление"
                               variant="danger"
                               size="sm"
                               onClick={() => handleDelete(address.id)}
@@ -402,6 +403,7 @@ export default function AddressesPage() {
                               <Check className="h-4 w-4" />
                             </Button>
                             <Button
+                              aria-label="Отменить удаление"
                               variant="ghost"
                               size="sm"
                               onClick={() => setDeleteConfirm(null)}

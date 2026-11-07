@@ -372,7 +372,7 @@ function AllowlistSection() {
             <li key={a.id} className="flex items-center justify-between py-2 text-sm">
               <span className="font-mono">{a.ip_address}</span>
               <span className="flex-1 truncate px-3 text-gray-500">{a.note}</span>
-              <Button size="sm" variant="ghost" onClick={() => removeAllow.mutate(a.ip_address)}>
+              <Button aria-label="Убрать из белого списка" size="sm" variant="ghost" onClick={() => removeAllow.mutate(a.ip_address)}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </li>
