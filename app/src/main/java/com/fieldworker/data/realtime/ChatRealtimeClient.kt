@@ -88,7 +88,7 @@ class ChatRealtimeClient @Inject constructor(
 
         manualDisconnect = false
         reconnectJob?.cancel()
-        Log.d(TAG, "Connecting to $url")
+        Log.d(TAG, "Connecting to ${url.substringBefore('?')}")
         webSocket = webSocketClient.newWebSocket(
             Request.Builder().url(url).build(),
             socketListener,

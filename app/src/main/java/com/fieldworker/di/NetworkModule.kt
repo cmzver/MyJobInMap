@@ -17,6 +17,7 @@ import com.fieldworker.data.network.AuthHeaderInterceptor
 import com.fieldworker.data.network.AuthInterceptor
 import com.fieldworker.data.network.RetryInterceptor
 import com.fieldworker.data.network.TokenAuthenticator
+import com.fieldworker.data.network.redactSecrets
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.remote.serialization.BigDecimalSerializer
 import dagger.Module
@@ -87,12 +88,17 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideLoggingInterceptor(): HttpLoggingInterceptor {
-        return HttpLoggingInterceptor().apply {
+        // APK для пользователей сейчас собирается debug-сборкой, поэтому BODY попадал
+        // в logcat у пользователей: пароль при входе и выданные токены.
+        // Достаточно строки запроса и кода ответа; Authorization — скрыт.
+        return HttpLoggingInterceptor { message -> Log.d("OkHttp", redactSecrets(message)) }.apply {
             level = if (BuildConfig.DEBUG) {
-                HttpLoggingInterceptor.Level.BODY
+                HttpLoggingInterceptor.Level.BASIC
             } else {
                 HttpLoggingInterceptor.Level.NONE
             }
+            redactHeader("Authorization")
+            redactHeader("Cookie")
         }
     }
 

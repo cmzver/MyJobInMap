@@ -89,7 +89,7 @@ class AuthRepository @Inject constructor(
             return Result.failure(AuthException.NotAuthenticated())
         }
         
-        android.util.Log.d("AuthRepository", "getCurrentUser: Making request with token ${token.take(20)}...")
+        android.util.Log.d("AuthRepository", "getCurrentUser: requesting profile")
         
         return try {
             val response = authApi.getCurrentUser("Bearer $token")
