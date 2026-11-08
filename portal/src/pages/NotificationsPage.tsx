@@ -186,7 +186,7 @@ export default function NotificationsPage() {
                           to={`/tasks/${notification.task_id}`}
                           className="mt-2 inline-flex text-xs font-medium text-primary-600 hover:text-primary-700"
                         >
-                          Открыть заявку #{notification.task_id}
+                          {notification.task_number ? `Открыть заявку №${notification.task_number}` : 'Открыть заявку'}
                         </Link>
                       )}
                       {notification.type === 'support' && notification.support_ticket_id && (
