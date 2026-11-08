@@ -57,7 +57,12 @@ interface ActsApi {
     @GET("api/materials/stocks")
     suspend fun getMyStocks(): Response<List<StockResponse>>
 
-    /** Ссылка заявителю на страницу статуса заявки — одна и та же при повторах. */
+    /**
+     * Ссылка заявителю на страницу статуса заявки — одна и та же при повторах.
+     * Параметр сервера `renew` (выпустить новую, старая и подписки перестают
+     * действовать) мастеру недоступен — это право диспетчера/администратора
+     * в портале; приложение только показывает и отправляет текущую ссылку.
+     */
     @POST("api/tasks/{id}/status-link")
     suspend fun createTaskStatusLink(@Path("id") taskId: Long): Response<TaskStatusLink>
 }
