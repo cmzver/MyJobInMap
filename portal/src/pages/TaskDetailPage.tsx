@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { mutationToast, showApiError, showApiSuccess, getApiErrorMessage } from '@/utils/apiError'
 import { logError } from '@/utils/logger'
 import { formatDateTime, formatDeadline, getSla } from '@/utils/dateFormat'
+import { statusChangeNote } from '@/utils/taskComments'
 import { 
   ArrowLeft, 
   MapPin,
@@ -306,6 +307,9 @@ export default function TaskDetailPage() {
 
   const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
+    // Сбрасываем сразу: после ошибки тот же файл иначе не выбрать повторно —
+    // change не сработает на неизменённом значении
+    event.target.value = ''
     if (!file) return
 
     uploadPhotoMutation.mutate(
@@ -313,11 +317,6 @@ export default function TaskDetailPage() {
       mutationToast({
         success: 'Фото загружено',
         error: 'Ошибка загрузки фото',
-        onSuccess: () => {
-          if (fileInputRef.current) {
-            fileInputRef.current.value = ''
-          }
-        },
       })
     )
   }
@@ -387,19 +386,22 @@ export default function TaskDetailPage() {
 
         if (isStatusChange) {
           details.push(
-            `Статус: ${formatStatusLabel(c.old_status)} -> ${formatStatusLabel(c.new_status)}`
+            `Статус: ${formatStatusLabel(c.old_status)} → ${formatStatusLabel(c.new_status)}`
           )
         }
 
         if (isAssigneeChange) {
           details.push(
-            `Исполнитель: ${formatAssigneeLabel(c.old_assignee)} -> ${formatAssigneeLabel(c.new_assignee)}`
+            `Исполнитель: ${formatAssigneeLabel(c.old_assignee)} → ${formatAssigneeLabel(c.new_assignee)}`
           )
         }
 
+        const note = statusChangeNote(c)
+        if (note) details.push(`Комментарий: ${note}`)
+
         let title = 'Изменение заявки'
-        if (isStatusChange && !isAssigneeChange) title = 'Статус изменен'
-        if (!isStatusChange && isAssigneeChange) title = 'Исполнитель изменен'
+        if (isStatusChange && !isAssigneeChange) title = 'Статус изменён'
+        if (!isStatusChange && isAssigneeChange) title = 'Исполнитель изменён'
         if (isStatusChange && isAssigneeChange) title = 'Изменение статуса и исполнителя'
 
         return {
@@ -587,7 +589,7 @@ export default function TaskDetailPage() {
             <div className="min-w-0">
               <p className="eyebrow">Оплата</p>
               <p className="mt-1.5 text-sm font-medium text-gray-900 dark:text-white break-words">
-                {task.is_paid ? (task.payment_amount ? `${task.payment_amount} ₽` : 'Платная') : 'Не указана'}
+                {task.is_paid ? (task.payment_amount ? `${Number(task.payment_amount).toLocaleString('ru-RU')} ₽` : 'Платная') : 'Не указана'}
               </p>
             </div>
           </div>
@@ -748,7 +750,7 @@ export default function TaskDetailPage() {
                         e.stopPropagation()
                         handleDeletePhoto(photo.id)
                       }}
-                      className="absolute right-1 top-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-red-500 text-white shadow opacity-90 transition-opacity lg:opacity-0 lg:group-hover:opacity-100"
+                      className="absolute right-1 top-1 inline-flex h-8 w-8 items-center justify-center rounded-full bg-red-500 text-white shadow opacity-90 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100"
                       aria-label="Удалить фото"
                     >
                       <X className="h-4 w-4" />
@@ -784,7 +786,7 @@ export default function TaskDetailPage() {
                         <div className="w-px flex-1 bg-gray-200 dark:bg-gray-700" />
                       )}
                     </div>
-                    <div className="flex-1 pb-3">
+                    <div className="min-w-0 flex-1 pb-3">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium text-gray-900 dark:text-white">
                           {event.title}
@@ -801,7 +803,7 @@ export default function TaskDetailPage() {
                           {event.details.map((detail, detailIndex) => (
                             <p
                               key={`${event.id}-${detailIndex}`}
-                              className="text-sm text-gray-700 dark:text-gray-300"
+                              className="whitespace-pre-wrap break-words text-sm text-gray-700 [overflow-wrap:anywhere] dark:text-gray-300"
                             >
                               {detail}
                             </p>
@@ -841,6 +843,8 @@ export default function TaskDetailPage() {
                     const isStatusChange = c.old_status && c.new_status
                     const isAssigneeChange = c.old_assignee || c.new_assignee
                     const isSystemComment = isStatusChange || isAssigneeChange
+                    // Что сделано / причина отмены — пишется в text смены статуса
+                    const note = statusChangeNote(c)
                     
                     return (
                       <div
@@ -862,11 +866,11 @@ export default function TaskDetailPage() {
                         {isStatusChange && (
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-xs px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300">
-                              {c.old_status}
+                              {formatStatusLabel(c.old_status)}
                             </span>
                             <span className="text-gray-400">→</span>
                             <span className="text-xs px-2 py-0.5 rounded bg-primary-100 dark:bg-primary-900/50 text-primary-700 dark:text-primary-300">
-                              {c.new_status}
+                              {formatStatusLabel(c.new_status)}
                             </span>
                           </div>
                         )}
@@ -882,9 +886,9 @@ export default function TaskDetailPage() {
                             </span>
                           </div>
                         )}
-                        {!isSystemComment && (
+                        {(!isSystemComment || note) && (
                           <p className="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-                            {c.text}
+                            {isSystemComment ? note : c.text}
                           </p>
                         )}
                       </div>
