@@ -108,6 +108,9 @@ _ENTRANCE_RES = [
         rf"{_WORD_START}(\d+)\s*(?:-?[йя])?\s*(?:подъезд|парадная){_WORD_END}",
         re.IGNORECASE,
     ),
+    # «117 к1 п3» — «п» без точки только сразу после номера дома и в конце:
+    # иначе это посёлок («п Новоселье»)
+    re.compile(r"(?<=\d)\s*п\s*(\d{1,2})\s*$", re.IGNORECASE),
 ]
 _APARTMENT_RE = re.compile(
     rf"{_WORD_START}(?:квартира|кв|офис|оф|помещение|пом)\.?\s*№?\s*\d+[{_LETTERS}]?",
@@ -271,8 +274,10 @@ def parse_address(full_address: str) -> ParsedAddress:
             continue
         untyped.append((index, part))
 
-    # Улица идёт до номера дома: «Невская, д. 9, Новоселье».
+    # Улица идёт до номера дома: «Невская, д. 9, Новоселье»; если номер
+    # в той же части — это она: «Новоселье, Невская 9».
     if result.street is None:
+        untyped.sort(key=lambda item: item[0] != building_index)
         for position, (index, text) in enumerate(untyped):
             if building_index is None or index <= building_index:
                 result.street = text
