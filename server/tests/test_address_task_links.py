@@ -27,6 +27,8 @@ def test_new_house_takes_its_earlier_tasks_and_their_point(
 ):
     env = _org(client, db_session, "LinkNew")  # заявка «ул. Невская, д. 9»
     other_house = _task(db_session, env.org.id, "ул. Невская, д. 19", "L-2")
+    # Корпус — отдельное здание, не дом 9
+    corpus = _task(db_session, env.org.id, "Невская 9 к2", "L-3")
     stranger = _org(client, db_session, "LinkStranger").task  # тот же адрес, чужая орг.
 
     created = client.post(
@@ -35,11 +37,12 @@ def test_new_house_takes_its_earlier_tasks_and_their_point(
         headers=env.dispatcher.headers,
     ).json()
 
-    for task in (env.task, other_house, stranger):
+    for task in (env.task, other_house, corpus, stranger):
         db_session.refresh(task)
     assert env.task.address_id == created["id"]
     assert (env.task.lat, env.task.lon) == (59.85, 30.6)
     assert other_house.address_id is None
+    assert corpus.address_id is None
     assert stranger.address_id is None
 
     card = client.get(
