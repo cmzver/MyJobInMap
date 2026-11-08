@@ -68,6 +68,7 @@ import com.fieldworker.domain.model.ActSignerRole
 import com.fieldworker.ui.components.Eyebrow
 import com.fieldworker.ui.components.SignaturePad
 import com.fieldworker.ui.components.SignatureState
+import com.fieldworker.ui.theme.AppShape
 import java.math.BigDecimal
 import java.text.NumberFormat
 import java.util.Locale
@@ -550,7 +551,7 @@ private fun SignStep(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Surface(
-            shape = MaterialTheme.shapes.large,
+            shape = AppShape.lg,
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {

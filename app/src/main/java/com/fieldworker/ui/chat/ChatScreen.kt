@@ -60,6 +60,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -97,6 +98,7 @@ import com.fieldworker.ui.chat.components.ChatAvatar
 import com.fieldworker.ui.chat.components.swipeToReply
 import com.fieldworker.ui.components.EmptyState
 import com.fieldworker.ui.theme.AppShape
+import com.fieldworker.ui.theme.Radius
 import com.fieldworker.ui.utils.TaskUtils
 import com.fieldworker.ui.utils.accentTextColor
 import com.fieldworker.ui.utils.isDarkPalette
@@ -902,7 +904,7 @@ private fun PinnedMessagesBar(
                         .height(34.dp)
                         .background(
                             MaterialTheme.colorScheme.primary,
-                            RoundedCornerShape(2.dp),
+                            AppShape.hairline,
                         ),
                 )
                 Spacer(Modifier.width(10.dp))
@@ -1667,7 +1669,7 @@ private fun MessageBubble(
                                 modifier = Modifier
                                     .width(4.dp)
                                     .height(32.dp)
-                                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
+                                    .background(MaterialTheme.colorScheme.primary, AppShape.hairline)
                             )
                             Spacer(Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
@@ -1891,9 +1893,9 @@ private fun PhotoMessageAttachment(
         attachment = attachment,
     )
     val imageShape = if (hasRoundedBottom) {
-        RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp)
+        RoundedCornerShape(bottomStart = Radius.lg, bottomEnd = Radius.lg)
     } else {
-        RoundedCornerShape(0.dp)
+        RectangleShape
     }
 
     Box(
@@ -2710,7 +2712,7 @@ private fun ChatInputBar(
                                     modifier = Modifier
                                         .width(3.dp)
                                         .height(30.dp)
-                                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
+                                        .background(MaterialTheme.colorScheme.primary, AppShape.hairline)
                                 )
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(

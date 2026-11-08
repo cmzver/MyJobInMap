@@ -236,7 +236,7 @@ fun ObjectDetailsScreen(
 private fun ObjectHeaderCard(task: Task?, addressDetails: AddressDetails?) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = MaterialTheme.shapes.large
+        shape = AppShape.lg
     ) {
         Column(
             modifier = Modifier
@@ -450,7 +450,7 @@ private fun ObjectStatCard(
 ) {
     Surface(
         modifier = modifier,
-        shape = MaterialTheme.shapes.medium,
+        shape = AppShape.md,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
     ) {
         Column(
@@ -545,7 +545,7 @@ private fun ObjectSectionCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        shape = MaterialTheme.shapes.large
+        shape = AppShape.lg
     ) {
         Column(
             modifier = Modifier

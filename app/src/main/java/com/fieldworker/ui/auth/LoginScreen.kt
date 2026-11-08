@@ -68,6 +68,7 @@ import com.fieldworker.BuildConfig
 import com.fieldworker.R
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.preferences.ServerUrl
+import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.accentTextColor
 import kotlinx.coroutines.launch
 
@@ -156,7 +157,7 @@ internal fun LoginContent(
                 .align(Alignment.Center)
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp, vertical = 20.dp),
-            shape = MaterialTheme.shapes.large,
+            shape = AppShape.lg,
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface
             ),
@@ -218,7 +219,7 @@ internal fun LoginContent(
                         onNext = { passwordFocusRequester.requestFocus() }
                     ),
                     enabled = !state.isLoading,
-                    shape = MaterialTheme.shapes.large,
+                    shape = AppShape.lg,
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surface,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -266,7 +267,7 @@ internal fun LoginContent(
                         }
                     ),
                     enabled = !state.isLoading,
-                    shape = MaterialTheme.shapes.large,
+                    shape = AppShape.lg,
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surface,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -295,7 +296,7 @@ internal fun LoginContent(
                         .fillMaxWidth()
                         .height(52.dp),
                     enabled = !state.isLoading,
-                    shape = MaterialTheme.shapes.large
+                    shape = AppShape.lg
                 ) {
                     if (state.isLoading) {
                         CircularProgressIndicator(
@@ -352,7 +353,7 @@ private fun ServerSettingsDialog(
                     placeholder = { Text("http://192.168.1.100") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large,
+                    shape = AppShape.lg,
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surface,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -371,7 +372,7 @@ private fun ServerSettingsDialog(
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large,
+                        shape = AppShape.lg,
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = MaterialTheme.colorScheme.surface,
                             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -394,7 +395,7 @@ private fun ServerSettingsDialog(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isTestingConnection && serverUrl.isNotBlank(),
-                    shape = MaterialTheme.shapes.large
+                    shape = AppShape.lg
                 ) {
                     if (isTestingConnection) {
                         CircularProgressIndicator(

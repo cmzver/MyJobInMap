@@ -36,7 +36,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
@@ -1274,7 +1273,7 @@ internal fun TaskSectionCard(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = MaterialTheme.shapes.large,
+        shape = AppShape.lg,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
     ) {
         Column(
@@ -1380,7 +1379,7 @@ private fun TaskFactsCard(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        shape = AppShape.lg,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
     ) {
@@ -1564,7 +1563,7 @@ private fun TaskPhotosSection(
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = MaterialTheme.shapes.large,
+        shape = AppShape.lg,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -1834,7 +1833,7 @@ private fun DetailInfoRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
+            .clip(AppShape.md)
             .clickable(enabled = onClick != null) { onClick?.invoke() }
             .padding(horizontal = 4.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -2021,21 +2020,21 @@ fun TaskListItemSkeleton() {
                     modifier = Modifier
                         .fillMaxWidth(0.55f)
                         .height(12.dp)
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(AppShape.pill)
                         .background(shimmerBrush)
                 )
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(0.85f)
                         .height(14.dp)
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(AppShape.pill)
                         .background(shimmerBrush)
                 )
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(0.7f)
                         .height(12.dp)
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(AppShape.pill)
                         .background(shimmerBrush)
                 )
             }

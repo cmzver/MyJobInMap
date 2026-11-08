@@ -195,7 +195,7 @@ private fun AddressRowCard(address: AddressSummary, onClick: () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        shape = MaterialTheme.shapes.large,
+        shape = AppShape.lg,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -726,7 +726,7 @@ private fun SectionCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        shape = MaterialTheme.shapes.large,
+        shape = AppShape.lg,
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),

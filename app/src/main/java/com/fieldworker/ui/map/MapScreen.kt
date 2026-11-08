@@ -637,7 +637,7 @@ fun TasksStatsBar(
 
     Surface(
         modifier = modifier,
-        shape = MaterialTheme.shapes.large,
+        shape = AppShape.lg,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
         shadowElevation = 6.dp,
@@ -660,7 +660,7 @@ fun TasksStatsBar(
 private fun MapHintChip(text: String) {
     Surface(
         modifier = Modifier.padding(top = 8.dp),
-        shape = MaterialTheme.shapes.medium,
+        shape = AppShape.md,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
         shadowElevation = 3.dp,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -1394,7 +1394,7 @@ private fun RoutePanel(
     val length = remember(located, myLat, myLon) { routeLengthMeters(located, myLat, myLon) }
     Surface(
         modifier = modifier,
-        shape = MaterialTheme.shapes.large,
+        shape = AppShape.lg,
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 6.dp,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),

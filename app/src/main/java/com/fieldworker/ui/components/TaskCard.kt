@@ -425,7 +425,7 @@ fun CompactTaskCard(
         elevation = CardDefaults.cardElevation(
             defaultElevation = if (isSelected) 2.dp else 0.dp
         ),
-        shape = MaterialTheme.shapes.large,
+        shape = AppShape.lg,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
@@ -445,7 +445,7 @@ fun CompactTaskCard(
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .clip(MaterialTheme.shapes.medium)
+                        .clip(AppShape.md)
                         .background(statusColor.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
