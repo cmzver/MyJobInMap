@@ -726,8 +726,18 @@ export default function TaskDetailPage() {
                   return (
                   <div
                     key={photo.id}
-                    className="relative group cursor-pointer"
+                    role="button"
+                    tabIndex={photoUrl ? 0 : -1}
+                    aria-label={`Открыть фото: ${photoTypeLabels[photo.photo_type] || photo.photo_type}`}
+                    className="relative group cursor-pointer rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                     onClick={() => photoUrl && setSelectedPhoto(photoUrl)}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget || !photoUrl) return
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setSelectedPhoto(photoUrl)
+                      }
+                    }}
                   >
                     {photoUrl ? (
                       <img
@@ -746,6 +756,7 @@ export default function TaskDetailPage() {
                       {photoTypeLabels[photo.photo_type] || photo.photo_type}
                     </span>
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation()
                         handleDeletePhoto(photo.id)
@@ -995,10 +1006,16 @@ export default function TaskDetailPage() {
       {/* Photo lightbox */}
       {selectedPhoto && (
         <div 
+          role="dialog"
+          aria-modal="true"
+          aria-label="Просмотр фото"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90"
           onClick={() => setSelectedPhoto(null)}
         >
+          {/* Фокус — на «Закрыть»: Escape и Enter работают сразу, без мыши */}
           <button
+            type="button"
+            autoFocus
             aria-label="Закрыть фото"
             className="absolute top-4 right-4 text-white hover:text-gray-300"
             onClick={() => setSelectedPhoto(null)}
