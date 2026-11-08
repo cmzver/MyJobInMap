@@ -360,6 +360,50 @@ class MapViewModelTest {
     }
 
     @Test
+    fun `status change without an open card does not open it`() = runTest {
+        // «Взять в работу» из «Моего дня»: карточки нет — и после смены её быть не должно,
+        // иначе она сама всплывает на карте/в ленте.
+        serverReachable = true
+        val task = sampleTask(status = TaskStatus.NEW)
+        val updatedTask = task.copy(status = TaskStatus.IN_PROGRESS)
+        coEvery { updateTaskStatusUseCase.invoke(1L, TaskStatus.IN_PROGRESS, "") } returns Result.success(updatedTask)
+        coEvery { getTasksUseCase.getTaskDetail(1L) } returns Result.success(Pair(updatedTask, emptyList()))
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        tasksFlow.value = listOf(task)
+        advanceUntilIdle()
+
+        viewModel.updateTaskStatus(1L, TaskStatus.IN_PROGRESS)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertNull(state.selectedTask)
+        assertFalse(state.isLoadingComments)
+        assertTrue(state.statusUpdateSuccess)
+    }
+
+    @Test
+    fun `status change of the open card refreshes it`() = runTest {
+        serverReachable = true
+        coEvery { taskPhotosUseCase.getPhotos(1L) } returns Result.success(emptyList())
+        val task = sampleTask(status = TaskStatus.NEW)
+        val updatedTask = task.copy(status = TaskStatus.IN_PROGRESS)
+        coEvery { updateTaskStatusUseCase.invoke(1L, TaskStatus.IN_PROGRESS, "") } returns Result.success(updatedTask)
+        coEvery { getTasksUseCase.getTaskDetail(1L) } returns Result.success(Pair(updatedTask, emptyList()))
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        viewModel.selectTask(task)
+        advanceUntilIdle()
+
+        viewModel.updateTaskStatus(1L, TaskStatus.IN_PROGRESS)
+        advanceUntilIdle()
+
+        assertEquals(TaskStatus.IN_PROGRESS, viewModel.uiState.value.selectedTask?.status)
+    }
+
+    @Test
     fun `updateTaskStatus failure sets error`() = runTest {
         coEvery { updateTaskStatusUseCase.invoke(1L, TaskStatus.DONE, "") } returns Result.failure(
             Exception("Невозможный переход статуса")
