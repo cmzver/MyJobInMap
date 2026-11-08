@@ -366,7 +366,9 @@ fun MainScreen(
                         userLat = uiState.myLocationLat,
                         userLon = uiState.myLocationLon,
                         // Paging 3
-                        pagingItems = pagingItems,
+                        // Постраничная выдача идёт из базы мимо фильтров ленты и
+                        // не скрывает завершённые — только когда скрывать нечего
+                        pagingItems = pagingItems.takeIf { !uiState.hideTerminalTasks },
                         // Фотографии
                         photos = uiState.photos,
                         isLoadingPhotos = uiState.isLoadingPhotos,
