@@ -29,7 +29,7 @@ import {
 import { useCreateUser } from '@/hooks/useUsers'
 import type { UpdateOrganizationData } from '@/types/organization'
 import type { OrgUser } from '@/api/organizations'
-import { getRoleLabel, isSuperadminRole, type UserRole } from '@/types/user'
+import { getRoleBadgeVariant, getRoleLabel, isSuperadminRole, type UserRole } from '@/types/user'
 import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
@@ -430,7 +430,7 @@ export default function OrganizationDetailPage() {
                         </div>
                       </td>
                       <td>
-                        <Badge variant={u.role === 'manager' || u.role === 'dispatcher' ? 'warning' : u.role === 'worker' ? 'gray' : 'info'}>
+                        <Badge variant={getRoleBadgeVariant(u.role)}>
                           {u.role_label || getRoleLabel(u.role)}
                         </Badge>
                       </td>

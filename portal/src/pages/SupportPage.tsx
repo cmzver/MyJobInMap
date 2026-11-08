@@ -42,7 +42,7 @@ const categoryOptions = [
 const statusOptions = [
   { value: 'new', label: 'Новый' },
   { value: 'in_progress', label: 'В работе' },
-  { value: 'resolved', label: 'Решен' },
+  { value: 'resolved', label: 'Решён' },
   { value: 'closed', label: 'Закрыт' },
 ] as const
 
@@ -50,20 +50,20 @@ const statusFilterOptions = [{ value: 'all', label: 'Все статусы' }, .
 
 const categoryMeta: Record<
   SupportTicketCategory,
-  { label: string; badge: 'danger' | 'info' | 'primary'; icon: typeof Bug }
+  { label: string; badge: 'gray'; icon: typeof Bug }
 > = {
-  bug: { label: 'Ошибка', badge: 'danger', icon: Bug },
-  improvement: { label: 'Улучшение', badge: 'info', icon: Lightbulb },
-  feedback: { label: 'Обратная связь', badge: 'primary', icon: MessageSquare },
+  bug: { label: 'Ошибка', badge: 'gray', icon: Bug },
+  improvement: { label: 'Улучшение', badge: 'gray', icon: Lightbulb },
+  feedback: { label: 'Обратная связь', badge: 'gray', icon: MessageSquare },
 }
 
 const statusMeta: Record<
   SupportTicketStatus,
   { label: string; badge: 'warning' | 'info' | 'success' | 'gray' }
 > = {
-  new: { label: 'Новый', badge: 'warning' },
-  in_progress: { label: 'В работе', badge: 'info' },
-  resolved: { label: 'Решен', badge: 'success' },
+  new: { label: 'Новый', badge: 'info' },
+  in_progress: { label: 'В работе', badge: 'warning' },
+  resolved: { label: 'Решён', badge: 'success' },
   closed: { label: 'Закрыт', badge: 'gray' },
 }
 

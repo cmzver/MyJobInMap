@@ -51,6 +51,20 @@ export function isAssignableRole(role?: string | null): boolean {
   return normalizedRole === 'worker' || normalizedRole === 'dispatcher'
 }
 
+/**
+ * Цвет бейджа роли — один на весь портал: акцентом выделен только
+ * администратор, остальные роли (в т. ч. кастомные группы) нейтральные.
+ */
+export function getRoleBadgeVariant(role?: string | null, baseAccess?: string | null): 'primary' | 'gray' {
+  return normalizeRoleForAccess(role, baseAccess) === 'admin' ? 'primary' : 'gray'
+}
+
+/** Может ли пользователь менять справочные данные объекта (только диспетчер и админ). */
+export function canManageObjectData(role?: string | null, baseAccess?: string | null): boolean {
+  if (!role && !baseAccess) return false
+  return normalizeRoleForAccess(role, baseAccess) !== 'worker'
+}
+
 export function getRoleLabel(role?: string | null): string {
   switch (role) {
     case 'superadmin':

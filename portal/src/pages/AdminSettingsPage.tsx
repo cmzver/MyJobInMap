@@ -1335,8 +1335,8 @@ function CustomFieldsTab() {
                 <div className="flex items-center gap-4">
                   <div className="flex gap-1.5">
                     {!field.is_active && <Badge variant="gray">Выключено</Badge>}
-                    {field.show_in_list && <Badge variant="info">В списке</Badge>}
-                    {field.show_in_card && <Badge variant="success">В карточке</Badge>}
+                    {field.show_in_list && <Badge variant="gray">В списке</Badge>}
+                    {field.show_in_card && <Badge variant="gray">В карточке</Badge>}
                   </div>
                   <div className="flex items-center">
                     <SettingsIconButton

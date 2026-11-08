@@ -86,7 +86,7 @@ export default function DefectTypesTab() {
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {defectType.system_types && defectType.system_types.length > 0 ? (
                       defectType.system_types.map((systemType) => (
-                        <Badge key={systemType} variant="info">{systemTypeLabel(systemType)}</Badge>
+                        <Badge key={systemType} variant="gray">{systemTypeLabel(systemType)}</Badge>
                       ))
                     ) : (
                       <Badge variant="gray">Все системы</Badge>

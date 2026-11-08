@@ -203,7 +203,7 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
                       <div className="flex items-center gap-2">
                         <span>v{update.version_name}</span>
                         {latestUpdate?.version_code === update.version_code && (
-                          <Badge variant="info">Последняя</Badge>
+                          <Badge variant="gray">Последняя</Badge>
                         )}
                       </div>
                     </td>
