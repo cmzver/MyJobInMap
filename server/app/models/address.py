@@ -150,6 +150,13 @@ class AddressModel(Base):
     lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
+    # Из справочника DaData по дому: район («Невский р-н») — для поиска и
+    # отчётов; код дома ФИАС — точная сверка дома без разбора строки
+    district: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    fias_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True, index=True
+    )
+
     # ���������� � ������
     entrance_count: Mapped[int] = mapped_column(
         Integer, nullable=True, default=1

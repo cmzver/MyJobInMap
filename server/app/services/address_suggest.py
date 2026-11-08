@@ -142,6 +142,39 @@ def _to_item(suggestion: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _district(data: Dict[str, Any]) -> str:
+    """Район города («Невский р-н»), а для посёлков области — район области."""
+    return data.get("city_district_with_type") or data.get("area_with_type") or ""
+
+
+def house_details(address: str) -> Optional[Dict[str, Any]]:
+    """
+    Район и код дома ФИАС по строке адреса — только если справочник узнал
+    именно дом (не улицу). None — справочник выключен, недоступен или дом
+    не найден: адрес сохраняется и без этих полей.
+    """
+    query = address.strip()[:MAX_QUERY_LENGTH]
+    if len(query) < 3:
+        return None
+    body: Dict[str, Any] = {"query": query, "count": 1, "to_bound": {"value": "house"}}
+    boost = _boost()
+    if boost:
+        body["locations_boost"] = boost
+    found = _request(body)
+    if not found:
+        return None
+    data = found[0].get("data") or {}
+    # Справочник нашёл улицу, а не дом — район по ней не надёжен
+    if not data.get("house"):
+        return None
+    district = _district(data) or None
+    # Код дома ФИАС бесплатные подсказки отдают не для всех домов
+    fias_id = data.get("house_fias_id") or None
+    if not district and not fias_id:
+        return None
+    return {"district": district, "fias_id": fias_id}
+
+
 # Так город часто пишут в своей базе — справочник знает его полное имя
 _CITY_ALIASES = {"спб": "Санкт-Петербург", "питер": "Санкт-Петербург"}
 

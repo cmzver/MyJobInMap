@@ -36,7 +36,7 @@ from app.services.address_parser import (
 )
 from app.services.auth import get_current_dispatcher_or_admin, get_current_user_required
 from app.services.geocoding import geocoding_service
-from app.services.task_service import _address_match_score
+from app.services.task_service import TaskService, _address_match_score
 from app.services.tenant_filter import TenantFilter
 
 router = APIRouter(prefix="/api/addresses", tags=["Addresses"])
@@ -94,7 +94,7 @@ def get_addresses(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user_required),
 ):
-    """Получить список адресов с пагинацией и поиском"""
+    """Получить список адресов с пагинацией и поиском (и по району)"""
     query = db.query(AddressModel)
 
     # Multi-tenant: фильтрация по организации
@@ -109,6 +109,7 @@ def get_addresses(
                 AddressModel.address.ilike(search_pattern),
                 AddressModel.street.ilike(search_pattern),
                 AddressModel.building.ilike(search_pattern),
+                AddressModel.district.ilike(search_pattern),
             )
         )
 
@@ -341,6 +342,7 @@ def create_address(
     lat, lon = data.lat, data.lon
     if lat is None or lon is None:
         lat, lon = geocoding_service.geocode(data.address)
+    house = address_suggest.house_details(data.address) or {}
 
     address = AddressModel(
         address=data.address,
@@ -351,6 +353,8 @@ def create_address(
         entrance=data.entrance or "",
         lat=lat,
         lon=lon,
+        district=house.get("district"),
+        fias_id=house.get("fias_id"),
         entrance_count=data.entrance_count or 1,
         floor_count=data.floor_count or 1,
         apartment_count=data.apartment_count,
@@ -369,6 +373,9 @@ def create_address(
     tenant.set_org_id(address)
 
     db.add(address)
+    db.flush()
+    # Заявки, заведённые до дома в базе, — к нему: история и точка дома
+    TaskService(db).link_tasks_to_address(address)
     db.commit()
     db.refresh(address)
 
@@ -409,6 +416,11 @@ def update_address(
             update_data["lat"] = lat
             update_data["lon"] = lon
 
+        # Другой дом — другой район; не узнали дом — старые значения неверны
+        house = address_suggest.house_details(update_data["address"]) or {}
+        update_data["district"] = house.get("district")
+        update_data["fias_id"] = house.get("fias_id")
+
     if update_data.get("counterparty_id") is not None:
         counterparty = (
             db.query(CounterpartyModel)
@@ -437,6 +449,8 @@ def update_address(
             {TaskModel.lat: address.lat, TaskModel.lon: address.lon},
             synchronize_session=False,
         )
+    if "address" in update_data:
+        TaskService(db).link_tasks_to_address(address)
 
     db.commit()
     db.refresh(address)

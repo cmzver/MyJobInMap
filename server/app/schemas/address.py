@@ -174,6 +174,9 @@ class AddressResponse(BaseModel):
 
     lat: Optional[float] = None
     lon: Optional[float] = None
+    # Район и код дома ФИАС — сервер берёт их из справочника сам
+    district: Optional[str] = None
+    fias_id: Optional[str] = None
 
     entrance_count: Optional[int] = None
     floor_count: Optional[int] = None
@@ -603,6 +606,8 @@ class AddressFullResponse(BaseModel):
     entrance: Optional[str] = None
     lat: Optional[float] = None
     lon: Optional[float] = None
+    district: Optional[str] = None
+    fias_id: Optional[str] = None
     entrance_count: Optional[int] = None
     floor_count: Optional[int] = None
     apartment_count: Optional[int] = None

@@ -3271,7 +3271,7 @@ export interface paths {
         };
         /**
          * Get Addresses
-         * @description Получить список адресов с пагинацией и поиском
+         * @description Получить список адресов с пагинацией и поиском (и по району)
          */
         get: operations["get_addresses_api_addresses_get"];
         put?: never;
@@ -5687,6 +5687,10 @@ export interface components {
             lat?: number | null;
             /** Lon */
             lon?: number | null;
+            /** District */
+            district?: string | null;
+            /** Fias Id */
+            fias_id?: string | null;
             /** Entrance Count */
             entrance_count?: number | null;
             /** Floor Count */
@@ -5842,6 +5846,10 @@ export interface components {
             lat?: number | null;
             /** Lon */
             lon?: number | null;
+            /** District */
+            district?: string | null;
+            /** Fias Id */
+            fias_id?: string | null;
             /** Entrance Count */
             entrance_count?: number | null;
             /** Floor Count */

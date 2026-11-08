@@ -11,7 +11,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
-from sqlalchemy import Integer, and_, cast, func, or_
+from sqlalchemy import Integer, cast, func, or_
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -96,41 +96,14 @@ def add_history_event(
 
 
 def build_task_filters_for_address(address: AddressModel):
-    # Привязанные заявки — всегда, даже если адрес в них записан иначе.
-    filters = [TaskModel.address_id == address.id]
-    if address.address:
-        filters.append(TaskModel.raw_address.ilike(f"%{address.address}%"))
+    """Заявки дома — привязанные к нему (tasks.address_id).
 
-    city_clause = (
-        TaskModel.raw_address.ilike(f"%{address.city}%") if address.city else None
-    )
-    street_clause = (
-        TaskModel.raw_address.ilike(f"%{address.street}%") if address.street else None
-    )
-    building_clause = (
-        TaskModel.raw_address.ilike(f"%{address.building}%")
-        if address.building
-        else None
-    )
-    corpus_clause = (
-        TaskModel.raw_address.ilike(f"%{address.corpus}%") if address.corpus else None
-    )
-
-    street_building_filters = [
-        cl for cl in [street_clause, building_clause, corpus_clause] if cl is not None
-    ]
-    if street_building_filters:
-        filters.append(and_(*street_building_filters))
-
-    component_filters = [
-        cl
-        for cl in [city_clause, street_clause, building_clause, corpus_clause]
-        if cl is not None
-    ]
-    if component_filters:
-        filters.append(and_(*component_filters))
-
-    return filters
+    Раньше сюда подмешивались совпадения по подстрокам адреса, и к дому «1»
+    цеплялись заявки «11/1». Привязку делает TaskService: при создании
+    заявки, при заведении дома и его правке (link_tasks_to_address), для
+    старых данных — scripts/link_tasks_to_addresses.py.
+    """
+    return [TaskModel.address_id == address.id]
 
 
 # ============================================
@@ -212,6 +185,8 @@ def get_address_full(
         entrance=address.entrance,
         lat=address.lat,
         lon=address.lon,
+        district=address.district,
+        fias_id=address.fias_id,
         entrance_count=address.entrance_count,
         floor_count=address.floor_count,
         apartment_count=address.apartment_count,
