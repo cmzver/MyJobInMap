@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
@@ -94,6 +95,7 @@ import com.fieldworker.domain.model.User
 import com.fieldworker.ui.chat.components.BubbleShape
 import com.fieldworker.ui.chat.components.ChatAvatar
 import com.fieldworker.ui.chat.components.swipeToReply
+import com.fieldworker.ui.components.EmptyState
 import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.TaskUtils
 import com.fieldworker.ui.utils.accentTextColor
@@ -406,7 +408,6 @@ fun ChatScreen(
                             ) {
                                 ChatAvatar(
                                     name = title,
-                                    id = conversationDetail?.id,
                                     type = conversationType ?: ConversationType.DIRECT,
                                     avatarUrl = conversationDetail?.avatarUrl,
                                     baseUrl = baseUrl,
@@ -985,7 +986,6 @@ private fun ConversationMemberStrip(
                 members.forEach { member ->
                     ChatAvatar(
                         name = member.fullName,
-                        id = member.userId,
                         type = ConversationType.DIRECT,
                         avatarUrl = member.avatarUrl,
                         baseUrl = baseUrl,
@@ -1036,87 +1036,24 @@ private fun EmptyChatState(
     modifier: Modifier = Modifier,
 ) {
     val title = when (conversationType) {
-        ConversationType.GROUP -> "Группа готова к обсуждению"
-        ConversationType.TASK -> "Переписка по заявке пуста"
-        ConversationType.ORG_GENERAL -> "Оргчат ждет первое сообщение"
+        ConversationType.GROUP -> "Группа ждёт первого сообщения"
+        ConversationType.TASK -> "По заявке пока не писали"
+        ConversationType.ORG_GENERAL -> "Общий чат ждёт первого сообщения"
         else -> "Начните диалог"
     }
     val description = when (conversationType) {
-        ConversationType.GROUP -> "Поделитесь контекстом, закрепите договоренности и держите команду в одном потоке."
-        ConversationType.TASK -> "Оставьте первое сообщение, чтобы зафиксировать детали работ и договоренности."
-        ConversationType.ORG_GENERAL -> "Здесь можно быстро синхронизировать коллег по общим вопросам организации."
-        else -> "Отправьте первое сообщение, чтобы разговор начался."
+        ConversationType.GROUP -> "Обсуждайте детали и закрепляйте договорённости"
+        ConversationType.TASK -> "Зафиксируйте детали работ и договорённости"
+        ConversationType.ORG_GENERAL -> "Общие вопросы организации — здесь"
+        else -> "Напишите первое сообщение"
     }
 
-    Box(
-        modifier = modifier.padding(horizontal = 24.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Surface(
-            shape = AppShape.xl,
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
-            border = androidx.compose.foundation.BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-            ),
-        ) {
-            Box(
-                modifier = Modifier.background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.06f),
-                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.06f),
-                        )
-                    )
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 22.dp, vertical = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Surface(
-                        shape = AppShape.lg,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-                    ) {
-                        Text(
-                            text = "Новый старт",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = accentTextColor(),
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        )
-                    }
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-    }
-}
-
-private fun senderAccentColor(senderId: Long): Color {
-    val palette = listOf(
-        Color(0xFFCC4E92),
-        Color(0xFF1E93D4),
-        Color(0xFF49A95B),
-        Color(0xFF7A68EE),
-        Color(0xFFE0802E),
-        Color(0xFF0F9AA9),
+    EmptyState(
+        title = title,
+        message = description,
+        icon = Icons.Default.Email,
+        modifier = modifier,
     )
-    // Защита от отрицательного или нулевого senderId
-    if (senderId <= 0) {
-        return palette[0]
-    }
-    val index = (senderId % palette.size).toInt()
-    return palette[index]
 }
 
 private suspend fun scrollToMessage(
@@ -1177,8 +1114,9 @@ private fun MessageMetaRow(
                 )
                 return@Row
             }
+            // «Прочитано» отличается второй галочкой, не цветом
             val isRead = readCount > 0
-            val checkColor = if (isRead) Color(0xFF4A90E2) else bubbleMetaColor
+            val checkColor = bubbleMetaColor
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.Done,
@@ -1441,7 +1379,8 @@ private fun MessageBubble(
                     Text(
                         text = eventMeta.title,
                         style = MaterialTheme.typography.labelSmall,
-                        color = eventMeta.accentColor(MaterialTheme.colorScheme),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         text = message.text ?: "",
@@ -1491,7 +1430,6 @@ private fun MessageBubble(
     val colorScheme = MaterialTheme.colorScheme
     val reserveAvatarSlot = !isOwn && conversationType != ConversationType.DIRECT
     val showAvatar = reserveAvatarSlot && !groupedWithNext
-    val senderAccent = senderAccentColor(message.senderId)
     val bubbleShape = BubbleShape(isOwn = isOwn, groupedWithNext = groupedWithNext)
     val bubbleStartPadding = if (!isOwn && !groupedWithPrevious) 14.dp else 12.dp
     val bubbleEndPadding = if (isOwn && !groupedWithNext) 14.dp else 12.dp
@@ -1582,7 +1520,6 @@ private fun MessageBubble(
                 if (showAvatar) {
                     ChatAvatar(
                         name = message.senderName,
-                        id = message.senderId,
                         type = ConversationType.DIRECT,
                         avatarUrl = senderAvatarUrl,
                         baseUrl = baseUrl,
@@ -1696,7 +1633,7 @@ private fun MessageBubble(
                     Text(
                         text = message.senderName ?: "???",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = senderAccent,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -1737,7 +1674,7 @@ private fun MessageBubble(
                                 Text(
                                     text = reply.senderName ?: "",
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = senderAccent,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                                 Text(
                                     text = reply.text ?: "",

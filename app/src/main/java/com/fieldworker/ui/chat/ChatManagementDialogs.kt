@@ -615,7 +615,6 @@ private fun SelectableUserRow(
     ) {
         ChatAvatar(
             name = user.getDisplayName(),
-            id = user.id,
             type = ConversationType.DIRECT,
             size = 42,
         )
@@ -736,7 +735,6 @@ private fun MemberManagementRow(
     ) {
         ChatAvatar(
             name = member.fullName.ifBlank { member.username },
-            id = member.userId,
             type = ConversationType.DIRECT,
             size = 42,
         )

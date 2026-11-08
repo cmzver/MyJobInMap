@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -37,7 +38,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -57,6 +57,7 @@ import com.fieldworker.domain.model.ConversationType
 import com.fieldworker.domain.model.User
 import com.fieldworker.ui.chat.components.ChatAvatar
 import com.fieldworker.ui.components.AppSearchField
+import com.fieldworker.ui.components.EmptyState
 import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.accentTextColor
 import java.time.LocalDateTime
@@ -341,7 +342,6 @@ private fun ConversationItem(
         Box {
             ChatAvatar(
                 name = title,
-                id = conversation.id,
                 type = conversation.type,
                 avatarUrl = conversation.avatarUrl,
                 baseUrl = baseUrl,
@@ -489,50 +489,22 @@ private fun EmptyConversationState(
         else -> "Создайте первый диалог с коллегой"
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(40.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(72.dp)
-                .background(
-                    MaterialTheme.colorScheme.primaryContainer,
-                    CircleShape,
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Default.Email,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(32.dp),
-            )
-        }
-        Spacer(Modifier.height(20.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = description,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(24.dp))
-        if (isUnavailable) {
-            TextButton(onClick = onRetry) { Text("Повторить") }
-        } else if (isSearching) {
-            TextButton(onClick = onClearSearch) { Text("Очистить поиск") }
-        } else if (!isArchive) {
-            TextButton(onClick = onCreateClick) { Text("Новый чат") }
-        }
+    val (actionLabel, onAction) = when {
+        isUnavailable -> "Повторить" to onRetry
+        isSearching -> "Очистить поиск" to onClearSearch
+        !isArchive -> "Новый чат" to onCreateClick
+        else -> null to null
     }
+
+    EmptyState(
+        title = title,
+        message = description,
+        icon = if (isSearching) Icons.Default.Search else Icons.Default.Email,
+        actionLabel = actionLabel,
+        onAction = onAction,
+        // Внутри pull-to-refresh: жест «вниз» работает и на пустом экране
+        scrollable = true,
+    )
 }
 
 private val timeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")

@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -27,14 +26,11 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.fieldworker.domain.model.ConversationType
 import com.fieldworker.ui.utils.avatarInitials
-import com.fieldworker.ui.utils.isDarkPalette
 import com.fieldworker.ui.utils.resolveAvatarUrl
-import kotlin.math.abs
 
 @Composable
 fun ChatAvatar(
     name: String?,
-    id: Long?,
     type: ConversationType,
     modifier: Modifier = Modifier,
     avatarUrl: String? = null,
@@ -43,13 +39,12 @@ fun ChatAvatar(
     size: Int = 44,
 ) {
     val initials = avatarInitials(name).ifEmpty { "?" }
-    val bgColor = getAvatarColor(id ?: 0L, type)
+    // Один спокойный тон для всех — как аватар в настройках: цвет в
+    // интерфейсе несёт статус, «радуга» по id его размывала.
+    val bgColor = MaterialTheme.colorScheme.primaryContainer
+    val contentColor = MaterialTheme.colorScheme.onPrimaryContainer
     val context = LocalContext.current
-    val borderColor = if (size <= 30) {
-        Color.White.copy(alpha = 0.78f)
-    } else {
-        MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
-    }
+    val borderColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
     val resolvedAvatarUrl = remember(avatarUrl, baseUrl) {
         resolveAvatarUrl(
             avatarUrl = avatarUrl,
@@ -89,37 +84,18 @@ fun ChatAvatar(
             Icon(
                 imageVector = Icons.Default.Build,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = contentColor,
                 modifier = Modifier.size((size * 0.45f).dp),
             )
         } else {
             Text(
                 text = initials,
-                color = Color.White,
+                color = contentColor,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = (size * 0.40f).sp,
                 textAlign = TextAlign.Center,
                 maxLines = 1
             )
         }
-    }
-}
-
-@Composable
-private fun getAvatarColor(id: Long, type: ConversationType): Color {
-    // Telegram-style: цвет по id, fallback по типу
-    val palette = listOf(
-        Color(0xFF8F6CE3), Color(0xFF53A7EE), Color(0xFFEE74A6), Color(0xFF57C06D),
-        Color(0xFFF39A45), Color(0xFF08A6B5), Color(0xFF6B7EF6), Color(0xFF66B962),
-        Color(0xFFCA5D97), Color(0xFF3D8FD2), Color(0xFF7B63E7), Color(0xFF4FB89E)
-    )
-    return when (type) {
-        ConversationType.DIRECT, ConversationType.GROUP -> palette[(abs(id) % palette.size).toInt()]
-        ConversationType.TASK -> if (isDarkPalette()) {
-            MaterialTheme.colorScheme.surfaceVariant
-        } else {
-            MaterialTheme.colorScheme.primaryContainer
-        }
-        ConversationType.ORG_GENERAL -> MaterialTheme.colorScheme.surfaceVariant
     }
 }
