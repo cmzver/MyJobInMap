@@ -347,7 +347,7 @@ private fun ServerSettingsDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = serverUrl,
-                    onValueChange = { serverUrl = it },
+                    onValueChange = { serverUrl = it; connectionResult = null },
                     label = { Text(stringResource(id = R.string.login_server_url_label)) },
                     placeholder = { Text("http://192.168.1.100") },
                     singleLine = true,
@@ -361,22 +361,25 @@ private fun ServerSettingsDialog(
                     )
                 )
 
-                OutlinedTextField(
-                    value = serverPort,
-                    onValueChange = { serverPort = it.filter { c -> c.isDigit() } },
-                    label = { Text(stringResource(id = R.string.login_server_port_label)) },
-                    placeholder = { Text("8001") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                        unfocusedIndicatorColor = MaterialTheme.colorScheme.outlineVariant
+                // https — стандартный порт (Caddy), поле не нужно — как в настройках
+                if (!serverUrl.trimStart().startsWith("https://", ignoreCase = true)) {
+                    OutlinedTextField(
+                        value = serverPort,
+                        onValueChange = { serverPort = it.filter { c -> c.isDigit() }; connectionResult = null },
+                        label = { Text(stringResource(id = R.string.login_server_port_label)) },
+                        placeholder = { Text("8001") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                            unfocusedIndicatorColor = MaterialTheme.colorScheme.outlineVariant
+                        )
                     )
-                )
+                }
 
                 OutlinedButton(
                     onClick = {
