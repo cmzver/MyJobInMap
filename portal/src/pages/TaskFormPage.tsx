@@ -610,8 +610,8 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         customer_name: formData.customer_name.trim() || null,
         customer_phone: formData.customer_phone.trim() || null,
         priority: formData.priority,
-        is_paid: false,
-        payment_amount: 0,
+        // Оплату форма не показывает — не отправляем, иначе правка заявки
+        // обнуляла бы is_paid/payment_amount (сервер не трогает пропущенные поля)
         planned_date: formData.planned_date || null,
         // Система и тип неисправности
         system_id: formData.system_id ? Number(formData.system_id) : null,
