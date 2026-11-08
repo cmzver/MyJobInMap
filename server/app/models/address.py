@@ -1,8 +1,8 @@
 """
-������ ������ � ��������� ���������.
+Модели адреса и связанных сущностей.
 
-��������: ������� ������ ������, ������� �� ������������,
-������������, ���������, ��������, �������.
+Включает: базовая модель адреса, системы на обслуживании,
+оборудование, документы, контакты, история.
 """
 
 from datetime import datetime
@@ -33,71 +33,76 @@ if TYPE_CHECKING:
 # ============================================
 # Enums
 # ============================================
+# Докстринги enum-классов ниже уходят в описания OpenAPI (и в типы портала),
+# поэтому их испорченная кодировка исправляется вместе с регенерацией
+# api.generated.ts. Смысл: типы систем на обслуживании, статусы систем, типы
+# оборудования, статусы оборудования, типы документов, типы контактов, типы
+# событий в истории объекта.
 
 
 class SystemType(str, Enum):
     """���� ������ �� ������������"""
 
-    VIDEO_SURVEILLANCE = "video_surveillance"  # ���������������
-    INTERCOM = "intercom"  # ���������
-    FIRE_PROTECTION = "fire_protection"  # ����
-    ACCESS_CONTROL = "access_control"  # ���
-    FIRE_ALARM = "fire_alarm"  # ���
-    OTHER = "other"  # ������
+    VIDEO_SURVEILLANCE = "video_surveillance"  # Видеонаблюдение
+    INTERCOM = "intercom"  # Домофония
+    FIRE_PROTECTION = "fire_protection"  # АППЗ
+    ACCESS_CONTROL = "access_control"  # СКД
+    FIRE_ALARM = "fire_alarm"  # ОПС
+    OTHER = "other"  # Другое
 
 
 class SystemStatus(str, Enum):
     """������� ������"""
 
-    ACTIVE = "active"  # �������
-    MAINTENANCE = "maintenance"  # �� �������/������������
-    DISABLED = "disabled"  # ���������
+    ACTIVE = "active"  # Активна
+    MAINTENANCE = "maintenance"  # На ремонте/профилактике
+    DISABLED = "disabled"  # Отключена
 
 
 class EquipmentType(str, Enum):
     """���� ������������"""
 
-    CAMERA = "camera"  # ������
-    DVR = "dvr"  # ����������������
-    INTERCOM_PANEL = "intercom_panel"  # ���������� ������
-    INTERCOM_HANDSET = "intercom_handset"  # ������ ��������
-    SENSOR = "sensor"  # ������
-    CONTROLLER = "controller"  # ����������
-    READER = "reader"  # �����������
-    LOCK = "lock"  # �����
-    SWITCH = "switch"  # ����������
-    ROUTER = "router"  # ������
-    UPS = "ups"  # ���
-    OTHER = "other"  # ������
+    CAMERA = "camera"  # Камера
+    DVR = "dvr"  # Видеорегистратор
+    INTERCOM_PANEL = "intercom_panel"  # Домофонная панель
+    INTERCOM_HANDSET = "intercom_handset"  # Трубка домофона
+    SENSOR = "sensor"  # Датчик
+    CONTROLLER = "controller"  # Контроллер
+    READER = "reader"  # Считыватель
+    LOCK = "lock"  # Замок
+    SWITCH = "switch"  # Коммутатор
+    ROUTER = "router"  # Роутер
+    UPS = "ups"  # ИБП
+    OTHER = "other"  # Другое
 
 
 class EquipmentStatus(str, Enum):
     """������� ������������"""
 
-    WORKING = "working"  # ��������
-    FAULTY = "faulty"  # ����������
-    DISMANTLED = "dismantled"  # �������������
+    WORKING = "working"  # Работает
+    FAULTY = "faulty"  # Неисправно
+    DISMANTLED = "dismantled"  # Демонтировано
 
 
 class DocumentType(str, Enum):
     """���� ����������"""
 
-    CONTRACT = "contract"  # �������
-    ESTIMATE = "estimate"  # �����
-    ACT = "act"  # ���
-    SCHEME = "scheme"  # �����
-    PASSPORT = "passport"  # ������� ������������
-    OTHER = "other"  # ������
+    CONTRACT = "contract"  # Договор
+    ESTIMATE = "estimate"  # Смета
+    ACT = "act"  # Акт
+    SCHEME = "scheme"  # Схема
+    PASSPORT = "passport"  # Паспорт оборудования
+    OTHER = "other"  # Другое
 
 
 class ContactType(str, Enum):
     """���� ���������"""
 
-    CHAIRMAN = "chairman"  # ������������
-    ELDER = "elder"  # ������� �� ����
-    MANAGEMENT = "management"  # ��
-    CONCIERGE = "concierge"  # ��������
-    OTHER = "other"  # ������
+    CHAIRMAN = "chairman"  # Председатель
+    ELDER = "elder"  # Старший по дому
+    MANAGEMENT = "management"  # УК
+    CONCIERGE = "concierge"  # Консьерж
+    OTHER = "other"  # Другое
 
 
 class AddressHistoryEventType(str, Enum):
@@ -125,7 +130,7 @@ class AddressHistoryEventType(str, Enum):
 
 
 class AddressModel(Base):
-    """������ ������ � ���� ������"""
+    """Модель адреса в базе данных"""
 
     __tablename__ = "addresses"
     __table_args__ = (
@@ -144,21 +149,21 @@ class AddressModel(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
 
-    # �������� ����������
+    # Основная информация
     address: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
-    city: Mapped[str] = mapped_column(String(100), nullable=True, default="")  # �����
-    street: Mapped[str] = mapped_column(String(200), nullable=True, default="")  # �����
+    city: Mapped[str] = mapped_column(String(100), nullable=True, default="")  # Город
+    street: Mapped[str] = mapped_column(String(200), nullable=True, default="")  # Улица
     building: Mapped[str] = mapped_column(
         String(50), nullable=True, default=""
-    )  # ����� ����
+    )  # Номер дома
     corpus: Mapped[str] = mapped_column(
         String(20), nullable=True, default=""
-    )  # ������/��������
+    )  # Корпус/строение
     entrance: Mapped[str] = mapped_column(
         String(10), nullable=True, default=""
-    )  # �������
+    )  # Подъезд
 
-    # ����������
+    # Координаты
     lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
@@ -169,33 +174,33 @@ class AddressModel(Base):
         String(36), nullable=True, index=True
     )
 
-    # ���������� � ������
+    # Информация о здании
     entrance_count: Mapped[int] = mapped_column(
         Integer, nullable=True, default=1
-    )  # ���������� ���������
+    )  # Количество подъездов
     floor_count: Mapped[int] = mapped_column(
         Integer, nullable=True, default=1
-    )  # ���������� ������
+    )  # Количество этажей
     apartment_count: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True
-    )  # ���������� �������
+    )  # Количество квартир
     has_elevator: Mapped[bool] = mapped_column(
         Boolean, nullable=True, default=False
-    )  # ���� ����
+    )  # Есть лифт
     has_intercom: Mapped[bool] = mapped_column(
         Boolean, nullable=True, default=False
-    )  # ���� �������
+    )  # Есть домофон
     intercom_code: Mapped[str] = mapped_column(
         String(50), nullable=True, default=""
-    )  # ��� ��������
+    )  # Код домофона
 
-    # ���������� ����������
+    # Контактная информация
     management_company: Mapped[str] = mapped_column(
         String(200), nullable=True, default=""
-    )  # ��
+    )  # УК
     management_phone: Mapped[str] = mapped_column(
         String(50), nullable=True, default=""
-    )  # ������� ��
+    )  # Телефон УК
     # Контрагент (УК/ТСЖ): по нему выпускается сводный акт за месяц
     counterparty_id: Mapped[Optional[int]] = mapped_column(
         Integer,
@@ -208,16 +213,16 @@ class AddressModel(Base):
         index=True,
     )
 
-    # �������������
-    notes: Mapped[str] = mapped_column(Text, nullable=True, default="")  # �������
+    # Дополнительно
+    notes: Mapped[str] = mapped_column(Text, nullable=True, default="")  # Заметки
     extra_info: Mapped[str] = mapped_column(
         Text, nullable=True, default=""
-    )  # �������������� ����������
+    )  # Дополнительная информация
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True
-    )  # ������� �� �����
+    )  # Активен ли адрес
 
-    # ����������
+    # Метаданные
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=utcnow, nullable=True
     )
@@ -261,7 +266,7 @@ class AddressModel(Base):
 
 
 class AddressSystemModel(Base):
-    """������� �� ������������ �������"""
+    """Система на обслуживании объекта"""
 
     __tablename__ = "address_systems"
     __table_args__ = (
@@ -284,16 +289,16 @@ class AddressSystemModel(Base):
 
     contract_number: Mapped[Optional[str]] = mapped_column(
         String(100), nullable=True
-    )  # ����� ��������
+    )  # Номер договора
     service_start_date: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True
-    )  # ������ ������������
+    )  # Начало обслуживания
     service_end_date: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True
-    )  # ����� ������������
+    )  # Конец обслуживания
     monthly_cost: Mapped[Optional[Decimal]] = mapped_column(
         Numeric(12, 2), nullable=True, default=0
-    )  # ����������� �����
+    )  # Абонентская плата
 
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
@@ -317,7 +322,7 @@ class AddressSystemModel(Base):
 
 
 class AddressEquipmentModel(Base):
-    """������������ �� �������"""
+    """Оборудование на объекте"""
 
     __tablename__ = "address_equipment"
     __table_args__ = (
@@ -342,17 +347,17 @@ class AddressEquipmentModel(Base):
     serial_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     quantity: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1
-    )  # ����������
+    )  # Количество
     location: Mapped[Optional[str]] = mapped_column(
         String(200), nullable=True
-    )  # ������������
+    )  # Расположение
 
     install_date: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True
-    )  # ���� ���������
+    )  # Дата установки
     warranty_until: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True
-    )  # �������� ��
+    )  # Гарантия до
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default=EquipmentStatus.WORKING.value
     )
@@ -381,7 +386,7 @@ class AddressEquipmentModel(Base):
 
 
 class AddressDocumentModel(Base):
-    """�������� �������"""
+    """Документ объекта"""
 
     __tablename__ = "address_documents"
     __table_args__ = (
@@ -406,10 +411,10 @@ class AddressDocumentModel(Base):
 
     valid_from: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True
-    )  # ��������� �
+    )  # Действует с
     valid_until: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True
-    )  # ��������� ��
+    )  # Действует до
 
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
@@ -431,7 +436,7 @@ class AddressDocumentModel(Base):
 
 
 class AddressContactModel(Base):
-    """������� �������"""
+    """Контакт объекта"""
 
     __tablename__ = "address_contacts"
     __table_args__ = (Index("ix_address_contacts_address_id", "address_id"),)
@@ -447,13 +452,13 @@ class AddressContactModel(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     position: Mapped[Optional[str]] = mapped_column(
         String(200), nullable=True
-    )  # ���������
+    )  # Должность
     phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_primary: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False
-    )  # �������� �������
+    )  # Основной контакт
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=utcnow, nullable=True
@@ -521,7 +526,7 @@ class AddressAssigneeModel(Base):
 
 
 class AddressHistoryModel(Base):
-    """������� ��������� �������"""
+    """История изменений объекта"""
 
     __tablename__ = "address_history"
     __table_args__ = (
