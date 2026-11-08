@@ -40,6 +40,7 @@ import MetricCard from '@/components/MetricCard'
 import Badge from '@/components/Badge'
 import { SkeletonTable } from '@/components/Skeleton'
 import EmptyState from '@/components/EmptyState'
+import QueryStatePanel from '@/components/QueryStatePanel'
 import Modal from '@/components/Modal'
 
 interface OrgFormData {
@@ -115,7 +116,7 @@ export default function OrganizationsPage() {
   const [showInactive, setShowInactive] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
 
-  const { data: organizations, isLoading, refetch, isFetching } = useOrganizations(showInactive)
+  const { data: organizations, isLoading, isError, refetch, isFetching } = useOrganizations(showInactive)
   const createMutation = useCreateOrganization()
   const updateMutation = useUpdateOrganization()
   const deactivateMutation = useDeactivateOrganization()
@@ -463,6 +464,14 @@ export default function OrganizationsPage() {
       <Card>
         {isLoading ? (
           <SkeletonTable rows={5} columns={7} />
+        ) : isError ? (
+          <QueryStatePanel
+            state="error"
+            title="Не удалось загрузить организации"
+            onRetry={() => refetch()}
+            isRetrying={isFetching}
+            className="border-0"
+          />
         ) : !organizations || organizations.length === 0 ? (
           <EmptyState
             icon={Building2}
