@@ -187,4 +187,10 @@ class NetworkErrorTest {
     fun `toUserMessage uses fallback when message is missing`() {
         assertEquals("Не удалось открыть дверь", RuntimeException().toUserMessage("Не удалось открыть дверь"))
     }
+
+    @Test
+    fun `malformed server address gets a Russian message`() {
+        val message = java.net.MalformedURLException("no protocol: example/health").toUserMessage()
+        assertEquals("Неверный адрес сервера", message)
+    }
 }

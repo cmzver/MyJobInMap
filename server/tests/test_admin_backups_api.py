@@ -70,6 +70,21 @@ class TestBackupList:
         finally:
             _cleanup_backup(fname)
 
+    def test_list_backups_created_is_file_write_time_in_utc(
+        self, client: TestClient, auth_headers: dict
+    ):
+        fname = _create_fake_backup()
+        written = datetime(2026, 1, 1, 9, 0, tzinfo=timezone.utc)
+        try:
+            path = os.path.join(BACKUP_DIR, fname)
+            os.utime(path, (written.timestamp(), written.timestamp()))
+            response = client.get("/api/admin/backups", headers=auth_headers)
+            item = next(b for b in response.json()["backups"] if b["name"] == fname)
+            # Не зависит от часового пояса машины: «Z» и ровно время записи
+            assert item["created"] == "2026-01-01T09:00:00Z"
+        finally:
+            _cleanup_backup(fname)
+
 
 class TestBackupDownload:
     """GET /api/admin/backups/{filename}/download"""

@@ -1,6 +1,7 @@
 package com.fieldworker.ui.auth
 
 import android.app.Application
+import com.fieldworker.data.network.ServerHealthCheck
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.AuthRepository
 import com.fieldworker.data.repository.DeviceRepository
@@ -35,6 +36,7 @@ class LoginViewModelTest {
     private lateinit var authRepository: AuthRepository
     private lateinit var deviceRepository: DeviceRepository
     private lateinit var preferences: AppPreferences
+    private lateinit var serverHealthCheck: ServerHealthCheck
 
     @Before
     fun setup() {
@@ -43,6 +45,7 @@ class LoginViewModelTest {
         authRepository = mockk(relaxed = true)
         deviceRepository = mockk(relaxed = true)
         preferences = mockk(relaxed = true)
+        serverHealthCheck = mockk()
     }
 
     @After
@@ -53,7 +56,7 @@ class LoginViewModelTest {
     private fun createViewModel(): LoginViewModel {
         // По умолчанию не авторизован
         every { authRepository.isLoggedIn() } returns false
-        return LoginViewModel(application, authRepository, deviceRepository, preferences)
+        return LoginViewModel(application, authRepository, deviceRepository, preferences, serverHealthCheck)
     }
 
     // ==================== Инициализация ====================
@@ -75,7 +78,7 @@ class LoginViewModelTest {
         every { authRepository.isLoggedIn() } returns true
         every { authRepository.getUserFullName() } returns "Иванов Иван"
 
-        val viewModel = LoginViewModel(application, authRepository, deviceRepository, preferences)
+        val viewModel = LoginViewModel(application, authRepository, deviceRepository, preferences, serverHealthCheck)
         advanceUntilIdle()
 
         assertTrue(viewModel.state.value.isLoggedIn)
@@ -294,5 +297,17 @@ class LoginViewModelTest {
         advanceUntilIdle()
 
         coVerify { authRepository.login("admin", "pass") }
+    }
+
+    // ==================== Проверка сервера ====================
+
+    @Test
+    fun `checkServer reports reachability and swallows connection errors`() = runTest {
+        val viewModel = createViewModel()
+        coEvery { serverHealthCheck.probe("https://ok.example") } returns true
+        coEvery { serverHealthCheck.probe("http://down.example:8001") } throws java.net.ConnectException("refused")
+
+        assertTrue(viewModel.checkServer("https://ok.example"))
+        assertFalse(viewModel.checkServer("http://down.example:8001"))
     }
 }

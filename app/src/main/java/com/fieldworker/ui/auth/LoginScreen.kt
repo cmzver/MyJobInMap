@@ -67,12 +67,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.fieldworker.BuildConfig
 import com.fieldworker.R
 import com.fieldworker.data.preferences.AppPreferences
+import com.fieldworker.data.preferences.ServerUrl
 import com.fieldworker.ui.utils.accentTextColor
-import java.net.HttpURLConnection
-import java.net.URL
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Экран авторизации
@@ -102,6 +99,7 @@ fun LoginScreen(
     if (showServerSettings) {
         ServerSettingsDialog(
             preferences = viewModel.preferences,
+            onTestConnection = viewModel::checkServer,
             onDismiss = { showServerSettings = false }
         )
     }
@@ -332,6 +330,7 @@ internal fun LoginContent(
 @Composable
 private fun ServerSettingsDialog(
     preferences: AppPreferences,
+    onTestConnection: suspend (String) -> Boolean,
     onDismiss: () -> Unit
 ) {
     var serverUrl by remember { mutableStateOf(preferences.getServerUrl()) }
@@ -384,15 +383,14 @@ private fun ServerSettingsDialog(
                         isTestingConnection = true
                         connectionResult = null
                         scope.launch {
-                            connectionResult = testServerConnection(
-                                serverUrl,
-                                serverPort.toIntOrNull() ?: 8001
+                            connectionResult = onTestConnection(
+                                ServerUrl.build(serverUrl, serverPort.toIntOrNull() ?: AppPreferences.DEFAULT_SERVER_PORT)
                             )
                             isTestingConnection = false
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !isTestingConnection,
+                    enabled = !isTestingConnection && serverUrl.isNotBlank(),
                     shape = MaterialTheme.shapes.large
                 ) {
                     if (isTestingConnection) {
@@ -441,7 +439,7 @@ private fun ServerSettingsDialog(
             Button(
                 onClick = {
                     preferences.setServerUrl(serverUrl)
-                    preferences.setServerPort(serverPort.toIntOrNull() ?: 8001)
+                    preferences.setServerPort(serverPort.toIntOrNull() ?: AppPreferences.DEFAULT_SERVER_PORT)
                     onDismiss()
                 }
             ) {
@@ -454,25 +452,4 @@ private fun ServerSettingsDialog(
             }
         }
     )
-}
-
-
-/**
- * Проверка соединения с сервером
- */
-private suspend fun testServerConnection(url: String, port: Int): Boolean {
-    return withContext(Dispatchers.IO) {
-        try {
-            val fullUrl = "${url.trimEnd('/')}:$port/health"
-            val connection = URL(fullUrl).openConnection() as HttpURLConnection
-            connection.connectTimeout = 5000
-            connection.readTimeout = 5000
-            connection.requestMethod = "GET"
-            val responseCode = connection.responseCode
-            connection.disconnect()
-            responseCode == 200
-        } catch (e: Exception) {
-            false
-        }
-    }
 }

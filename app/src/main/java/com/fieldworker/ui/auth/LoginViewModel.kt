@@ -5,10 +5,12 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fieldworker.FieldWorkerApplication
+import com.fieldworker.data.network.ServerHealthCheck
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.repository.AuthRepository
 import com.fieldworker.data.repository.DeviceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,7 +37,8 @@ class LoginViewModel @Inject constructor(
     private val application: Application,
     private val authRepository: AuthRepository,
     private val deviceRepository: DeviceRepository,
-    val preferences: AppPreferences
+    val preferences: AppPreferences,
+    private val serverHealthCheck: ServerHealthCheck,
 ) : ViewModel() {
     
     companion object {
@@ -128,4 +131,14 @@ class LoginViewModel @Inject constructor(
     fun clearError() {
         _state.value = _state.value.copy(error = null)
     }
+
+    /** «Проверить подключение» в настройках сервера на экране входа. */
+    suspend fun checkServer(url: String): Boolean =
+        try {
+            serverHealthCheck.probe(url)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
 }
