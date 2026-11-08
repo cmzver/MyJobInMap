@@ -6,6 +6,7 @@ import { DivIcon, Icon, LatLngBounds, divIcon, type Map as LeafletMap } from 'le
 import toast from 'react-hot-toast'
 import {
   Calendar,
+  Check,
   Filter,
   List,
   Locate,
@@ -308,6 +309,47 @@ function MapControls({ tasks }: { tasks: Task[] }) {
 
 type MarkerGroup = { key: string; lat: number; lon: number; tasks: Task[] }
 
+const DEFAULT_STATUSES: TaskStatus[] = ['NEW', 'IN_PROGRESS']
+
+/**
+ * Строка фильтра: точка цвета, подпись, число и галочка у выбранной.
+ * Без рамки у каждой строки — как пункты меню.
+ */
+function FilterOption({
+  label,
+  color,
+  selected,
+  count,
+  onClick,
+}: {
+  label: string
+  color: string
+  selected: boolean
+  count: number
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitemcheckbox"
+      aria-checked={selected}
+      onClick={onClick}
+      className={`flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/60 ${
+        selected ? 'font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'
+      }`}
+    >
+      <span
+        className={`h-2.5 w-2.5 shrink-0 rounded-full ${selected ? '' : 'opacity-40'}`}
+        style={{ background: color }}
+      />
+      <span className="flex-1 truncate">{label}</span>
+      {/* Невыбранные не загружаются — их «0» вводил бы в заблуждение */}
+      {selected && <span className="tabular-nums text-xs text-gray-400 dark:text-gray-500">{count}</span>}
+      <Check size={14} className={selected ? 'text-primary-500' : 'invisible'} />
+    </button>
+  )
+}
+
 const CLOSED_STATUSES = new Set<string>(['DONE', 'CANCELLED'])
 const isClosed = (task: Task) => CLOSED_STATUSES.has(task.status)
 // Закрытые заявки — бледнее: в первую очередь глаз должен цеплять живые
@@ -349,7 +391,7 @@ function ZoomToGroupMarker({
 export default function MapPage() {
   const { user } = useAuthStore()
   const { resolvedTheme } = useTheme()
-  const [statusFilter, setStatusFilter] = useState<TaskStatus[]>(['NEW', 'IN_PROGRESS'])
+  const [statusFilter, setStatusFilter] = useState<TaskStatus[]>([...DEFAULT_STATUSES])
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority[]>([])
   const [assigneeFilter, setAssigneeFilter] = useState<string>('')
   const [showFilters, setShowFilters] = useState(false)
@@ -412,11 +454,15 @@ export default function MapPage() {
       return acc
     }, {})
   }, [tasks])
-  const statusLabel = statusFilter.length === statusDefs.length
-    ? 'Все статусы'
-    : statusFilter.map((status) => statusDefs.find((def) => def.value === status)?.label || status).join(', ')
-  const extraFilterCount = priorityFilter.length + (assigneeFilter ? 1 : 0)
-  const filterLabel = extraFilterCount > 0 ? `${statusLabel} · +${extraFilterCount}` : statusLabel
+  // Сколько фильтров отличается от умолчания (новые + в работе, все приоритеты)
+  const isDefaultStatuses =
+    sortedStatuses.length === DEFAULT_STATUSES.length && DEFAULT_STATUSES.every((status) => statusFilter.includes(status))
+  const changedFilterCount = (isDefaultStatuses ? 0 : 1) + (priorityFilter.length > 0 ? 1 : 0) + (assigneeFilter ? 1 : 0)
+  const resetFilters = () => {
+    setStatusFilter([...DEFAULT_STATUSES])
+    setPriorityFilter([])
+    setAssigneeFilter('')
+  }
 
   const groupedTasks = useMemo(() => {
     // Размер ячейки кластеризации зависит от зума: на мелком масштабе
@@ -456,12 +502,37 @@ export default function MapPage() {
     })
   }
 
-  // Приоритет: пустой выбор = показывать все приоритеты.
+  // Приоритет: пустой выбор = все. Снять галочку при «все» — оставить
+  // остальные; отметить последний — снова «все».
   const togglePriority = (priority: TaskPriority) => {
-    setPriorityFilter((prev) =>
-      prev.includes(priority) ? prev.filter((item) => item !== priority) : [...prev, priority],
-    )
+    setPriorityFilter((prev) => {
+      const all = priorityLegend.map((item) => item.value as TaskPriority)
+      const current = prev.length === 0 ? all : prev
+      const next = current.includes(priority)
+        ? current.filter((item) => item !== priority)
+        : [...current, priority]
+      if (next.length === 0) return prev
+      return next.length === all.length ? [] : next
+    })
   }
+
+  // Панель фильтров закрывается кликом мимо неё и по Escape
+  const filterAreaRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!showFilters) return
+    const onPointerDown = (event: MouseEvent) => {
+      if (!filterAreaRef.current?.contains(event.target as Node)) setShowFilters(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowFilters(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [showFilters])
 
   const openNavigation = (task: Task) => {
     if (!isTaskWithUsableCoordinates(task)) return
@@ -470,105 +541,12 @@ export default function MapPage() {
 
   return (
     <div className="relative isolate h-[calc(100vh-8rem)] h-[calc(100dvh-8rem)]">
-      <div className="pointer-events-none absolute left-[4.5rem] top-4 z-[1000] flex max-w-[320px] flex-col gap-2">
-        <button
-          onClick={() => setShowFilters((prev) => !prev)}
-          className="pointer-events-auto flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
-        >
-          <Filter size={18} className="text-gray-700 dark:text-gray-200" />
-          <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{filterLabel}</span>
-        </button>
-
-        {showFilters && (
-          <div className="pointer-events-auto max-h-[72vh] w-[260px] overflow-y-auto rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <p className="mb-2 text-sm font-medium text-gray-900 dark:text-white">Статусы</p>
-            <div className="flex flex-col gap-2">
-              {statusDefs.map((status) => {
-                const checked = statusFilter.includes(status.value)
-                return (
-                  <label
-                    key={status.value}
-                    className={`flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors ${
-                      checked
-                        ? 'border-gray-300 bg-gray-50 dark:border-gray-600 dark:bg-gray-700'
-                        : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
-                    }`}
-                    onClick={() => toggleStatus(status.value)}
-                  >
-                    <span className="flex items-center gap-2">
-                      <span className="h-3 w-3 rounded-full" style={{ background: status.color }} />
-                      <span className="text-sm text-gray-900 dark:text-gray-100">{status.label}</span>
-                    </span>
-                    <span className="min-w-[18px] text-right text-sm text-gray-500 dark:text-gray-400">
-                      {statusCounts[status.value] || 0}
-                    </span>
-                  </label>
-                )
-              })}
-            </div>
-
-            <div className="mb-2 mt-4 flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-900 dark:text-white">Приоритет</p>
-              {priorityFilter.length > 0 && (
-                <button
-                  onClick={() => setPriorityFilter([])}
-                  className="text-xs text-primary-600 hover:underline dark:text-primary-400"
-                >
-                  Сбросить
-                </button>
-              )}
-            </div>
-            <div className="flex flex-col gap-2">
-              {priorityLegend.map((item) => {
-                const checked = priorityFilter.includes(item.value)
-                return (
-                  <label
-                    key={item.value}
-                    className={`flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors ${
-                      checked
-                        ? 'border-gray-300 bg-gray-50 dark:border-gray-600 dark:bg-gray-700'
-                        : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
-                    }`}
-                    onClick={() => togglePriority(item.value)}
-                  >
-                    <span className="flex items-center gap-2">
-                      <span className="h-3 w-3 rounded-full" style={{ background: priorityColors[item.value] }} />
-                      <span className="text-sm text-gray-900 dark:text-gray-100">{item.label}</span>
-                    </span>
-                    <span className="min-w-[18px] text-right text-sm text-gray-500 dark:text-gray-400">
-                      {priorityCounts[item.value] || 0}
-                    </span>
-                  </label>
-                )
-              })}
-            </div>
-
-            {!isWorker && (
-              <div className="mt-4">
-                <p className="mb-2 text-sm font-medium text-gray-900 dark:text-white">Исполнитель</p>
-                <Select
-                  options={[
-                    { value: '', label: 'Все исполнители' },
-                    ...assignableUsers.map((candidate) => ({
-                      value: String(candidate.id),
-                      label: candidate.full_name || candidate.username,
-                    })),
-                  ]}
-                  value={assigneeFilter}
-                  onChange={setAssigneeFilter}
-                  placeholder="Все исполнители"
-                  className="h-9 text-sm"
-                />
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="absolute right-4 top-4 z-10 flex items-center rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-        <span className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
+      {/* Всё управление картой — одной панелью справа: сколько на карте,
+          фильтры (раскрываются под ней), переход к списку */}
+      <div ref={filterAreaRef} className="absolute right-4 top-4 z-[1000] flex flex-col items-end gap-2">
+        <div className="flex items-center rounded-lg border border-gray-200 bg-white text-sm shadow-sm dark:border-gray-700 dark:bg-gray-800">
           <span
-            className="flex items-center gap-2 px-3 py-2 sm:px-4"
+            className="flex items-center gap-2 px-3 py-2 font-medium text-gray-800 dark:text-gray-100"
             title={
               withoutPoint > 0
                 ? `Ещё ${countRu(withoutPoint, 'заявка', 'заявки', 'заявок')} без точки на карте — адрес не найден`
@@ -584,15 +562,94 @@ export default function MapPage() {
               )}
             </span>
           </span>
-        </span>
-        <Link
-          to={taskListUrl}
-          className="flex items-center gap-2 border-l border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
-          aria-label={isWorker ? 'Открыть мои заявки списком' : 'Открыть отфильтрованные заявки списком'}
-        >
-          <List size={16} />
-          <span className="hidden sm:inline">Список</span>
-        </Link>
+          <button
+            type="button"
+            onClick={() => setShowFilters((prev) => !prev)}
+            aria-expanded={showFilters}
+            className={`flex items-center gap-2 border-l border-gray-200 px-3 py-2 font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 dark:border-gray-700 ${
+              showFilters
+                ? 'bg-gray-50 text-gray-900 dark:bg-gray-700 dark:text-white'
+                : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700'
+            }`}
+          >
+            <Filter size={16} />
+            <span className="hidden sm:inline">Фильтры</span>
+            {changedFilterCount > 0 && (
+              <span className="rounded-full bg-primary-500 px-1.5 text-[11px] font-semibold leading-[18px] text-white">
+                {changedFilterCount}
+              </span>
+            )}
+          </button>
+          <Link
+            to={taskListUrl}
+            className="flex items-center gap-2 border-l border-gray-200 px-3 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+            aria-label={isWorker ? 'Открыть мои заявки списком' : 'Открыть отфильтрованные заявки списком'}
+          >
+            <List size={16} />
+            <span className="hidden sm:inline">Список</span>
+          </Link>
+        </div>
+
+        {showFilters && (
+          <div className="max-h-[70vh] w-72 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+            <div className="p-2">
+              <p className="eyebrow px-2 pb-1 pt-1">Статус</p>
+              {statusDefs.map((status) => (
+                <FilterOption
+                  key={status.value}
+                  label={status.label}
+                  color={status.color}
+                  selected={statusFilter.includes(status.value)}
+                  count={statusCounts[status.value] || 0}
+                  onClick={() => toggleStatus(status.value)}
+                />
+              ))}
+            </div>
+            <div className="border-t border-gray-100 p-2 dark:border-gray-700">
+              <p className="eyebrow px-2 pb-1 pt-1">Приоритет</p>
+              {priorityLegend.map((item) => (
+                <FilterOption
+                  key={item.value}
+                  label={item.label}
+                  color={priorityColors[item.value]}
+                  // Пустой выбор приоритетов — «все»: отмечены все строки
+                  selected={priorityFilter.length === 0 || priorityFilter.includes(item.value)}
+                  count={priorityCounts[item.value] || 0}
+                  onClick={() => togglePriority(item.value)}
+                />
+              ))}
+            </div>
+            {!isWorker && (
+              <div className="border-t border-gray-100 p-3 dark:border-gray-700">
+                <p className="eyebrow pb-1.5">Исполнитель</p>
+                <Select
+                  options={[
+                    { value: '', label: 'Все исполнители' },
+                    ...assignableUsers.map((candidate) => ({
+                      value: String(candidate.id),
+                      label: candidate.full_name || candidate.username,
+                    })),
+                  ]}
+                  value={assigneeFilter}
+                  onChange={setAssigneeFilter}
+                  placeholder="Все исполнители"
+                  className="h-9 text-sm"
+                />
+              </div>
+            )}
+            {changedFilterCount > 0 && (
+              <div className="border-t border-gray-100 px-4 py-2 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="text-sm font-medium text-primary-600 hover:underline dark:text-primary-400"
+                >
+                  Сбросить фильтры
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="pointer-events-none absolute bottom-4 left-4 z-[1000] rounded-lg border border-gray-200 bg-white/95 px-3 py-2 shadow-sm dark:border-gray-700 dark:bg-gray-800/95">
