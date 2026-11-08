@@ -23,6 +23,7 @@ import PageHeader from '@/components/PageHeader'
 import Select from '@/components/Select'
 import Spinner from '@/components/Spinner'
 import EmptyState from '@/components/EmptyState'
+import Badge from '@/components/Badge'
 import Card from '@/components/Card'
 import MetricCard from '@/components/MetricCard'
 import QueryStatePanel from '@/components/QueryStatePanel'
@@ -262,14 +263,10 @@ export default function FinancePage() {
                         </span>
                       </td>
                       <td className="whitespace-nowrap text-right">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                          {worker.completed_tasks}
-                        </span>
+                        <Badge variant="success">{worker.completed_tasks}</Badge>
                       </td>
                       <td className="whitespace-nowrap text-right">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
-                          {worker.in_progress_tasks}
-                        </span>
+                        <Badge variant="warning">{worker.in_progress_tasks}</Badge>
                       </td>
                       <td className="whitespace-nowrap text-right">
                         <span className="text-sm text-gray-900 dark:text-white font-medium">
@@ -277,12 +274,12 @@ export default function FinancePage() {
                         </span>
                       </td>
                       <td className="whitespace-nowrap text-right">
-                        <span className="text-sm text-orange-600 dark:text-orange-400 font-medium">
+                        <span className="text-sm text-gray-900 dark:text-white font-medium">
                           {worker.remote_tasks}
                         </span>
                       </td>
                       <td className="whitespace-nowrap text-right">
-                        <span className="text-sm text-green-600 dark:text-green-400 font-semibold">
+                        <span className="text-sm text-gray-900 dark:text-white font-semibold">
                           {formatCurrency(worker.total_earned)}
                         </span>
                       </td>
@@ -301,19 +298,19 @@ export default function FinancePage() {
                     <td className="text-right">
                       {workerStats.reduce((sum, w) => sum + w.total_tasks, 0)}
                     </td>
-                    <td className="text-right text-green-600 dark:text-green-400">
+                    <td className="text-right">
                       {workerStats.reduce((sum, w) => sum + w.completed_tasks, 0)}
                     </td>
-                    <td className="text-right text-orange-600 dark:text-orange-400">
+                    <td className="text-right">
                       {workerStats.reduce((sum, w) => sum + w.in_progress_tasks, 0)}
                     </td>
                     <td className="text-right">
                       {workerStats.reduce((sum, w) => sum + w.paid_tasks, 0)}
                     </td>
-                    <td className="text-right text-orange-600 dark:text-orange-400">
+                    <td className="text-right">
                       {workerStats.reduce((sum, w) => sum + w.remote_tasks, 0)}
                     </td>
-                    <td className="text-right text-green-600 dark:text-green-400">
+                    <td className="text-right">
                       {formatCurrency(workerStats.reduce((sum, w) => sum + w.total_earned, 0))}
                     </td>
                   </tr>

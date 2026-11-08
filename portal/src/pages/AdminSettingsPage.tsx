@@ -549,7 +549,7 @@ const BRANDING_DEFAULTS: PortalBrandingFormState = {
   login_app_name: 'FieldWorker',
   login_product_label: 'Field Service Platform',
   login_headline: 'Защищённый вход в рабочее пространство',
-  login_description: 'Единая авторизация для администраторов, диспетчеров и исполнителей с tenant-изоляцией по организациям.',
+  login_description: 'Единая авторизация для администраторов, диспетчеров и исполнителей с изоляцией данных по организациям.',
   login_organization_name: '',
   support_email: '',
   support_phone: '',

@@ -104,10 +104,12 @@ const systemTypeLabels: Record<SystemType, string> = {
 }
 
 // Цвета статусов систем
-const systemStatusConfig: Record<SystemStatus, { label: string; color: string; bg: string }> = {
-  active: { label: 'Активна', color: 'text-green-700 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/30' },
-  maintenance: { label: 'На ремонте', color: 'text-yellow-700 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30' },
-  disabled: { label: 'Отключена', color: 'text-gray-700 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-900/30' },
+type StatusVariant = 'success' | 'warning' | 'danger' | 'gray'
+
+const systemStatusConfig: Record<SystemStatus, { label: string; variant: StatusVariant }> = {
+  active: { label: 'Активна', variant: 'success' },
+  maintenance: { label: 'На ремонте', variant: 'warning' },
+  disabled: { label: 'Отключена', variant: 'gray' },
 }
 
 // Иконки для типов оборудования
@@ -143,10 +145,10 @@ const equipmentTypeLabels: Record<EquipmentType, string> = {
 }
 
 // Цвета статусов оборудования
-const equipmentStatusConfig: Record<EquipmentStatus, { label: string; color: string; bg: string; Icon: typeof CheckCircle }> = {
-  working: { label: 'Работает', color: 'text-green-700 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/30', Icon: CheckCircle },
-  faulty: { label: 'Неисправно', color: 'text-red-700 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', Icon: AlertCircle },
-  dismantled: { label: 'Демонтировано', color: 'text-gray-700 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-900/30', Icon: XCircle },
+const equipmentStatusConfig: Record<EquipmentStatus, { label: string; variant: StatusVariant; Icon: typeof CheckCircle }> = {
+  working: { label: 'Работает', variant: 'success', Icon: CheckCircle },
+  faulty: { label: 'Неисправно', variant: 'danger', Icon: AlertCircle },
+  dismantled: { label: 'Демонтировано', variant: 'gray', Icon: XCircle },
 }
 
 // Названия типов документов
@@ -236,11 +238,11 @@ function RowActions({ children }: { children: ReactNode }) {
   return <div className="flex shrink-0 justify-end gap-0.5">{children}</div>
 }
 
-function StatusPill({ className, children }: { className?: string; children: ReactNode }) {
+function StatusPill({ variant, children }: { variant: StatusVariant; children: ReactNode }) {
   return (
-    <span className={cn('inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-full px-2 text-xs font-medium', className)}>
+    <Badge variant={variant} className="gap-1">
       {children}
-    </span>
+    </Badge>
   )
 }
 
@@ -785,7 +787,7 @@ export default function AddressDetailPage() {
                           <td className="whitespace-nowrap">
                             {system.service_end_date ? formatDate(system.service_end_date) : '—'}
                           </td>
-                          <td><StatusPill className={cn(statusConfig.bg, statusConfig.color)}>{statusConfig.label}</StatusPill></td>
+                          <td><StatusPill variant={statusConfig.variant}>{statusConfig.label}</StatusPill></td>
                           <td>
                             <RowActions>
                               <IconButton title="Изменить" onClick={() => setSystemModal({ open: true, system })}>
@@ -862,7 +864,7 @@ export default function AddressDetailPage() {
                           <td className="text-right tabular-nums">{item.quantity}</td>
                           <td className="max-w-[10rem] truncate whitespace-nowrap" title={item.location || undefined}>{item.location || '—'}</td>
                           <td>
-                            <StatusPill className={cn(statusConfig.bg, statusConfig.color)}>
+                            <StatusPill variant={statusConfig.variant}>
                               <StatusIcon className="h-3 w-3" />
                               {statusConfig.label}
                             </StatusPill>

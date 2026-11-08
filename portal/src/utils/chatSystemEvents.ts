@@ -8,6 +8,9 @@ export interface ChatSystemEventMeta {
   accentClassName: string
 }
 
+/** Системные события чата — один нейтральный цвет: тип читается из заголовка. */
+const SYSTEM_EVENT_TEXT = 'text-gray-600 dark:text-gray-300'
+
 export function getChatSystemEventMeta(message: MessageResponse): ChatSystemEventMeta {
   const text = (message.text ?? '').trim()
 
@@ -15,7 +18,7 @@ export function getChatSystemEventMeta(message: MessageResponse): ChatSystemEven
     return {
       kind: 'rename',
       title: 'Название группы изменено',
-      accentClassName: 'text-violet-700 dark:text-violet-300',
+      accentClassName: SYSTEM_EVENT_TEXT,
     }
   }
 
@@ -23,7 +26,7 @@ export function getChatSystemEventMeta(message: MessageResponse): ChatSystemEven
     return {
       kind: 'member_added',
       title: 'Участник добавлен',
-      accentClassName: 'text-emerald-700 dark:text-emerald-300',
+      accentClassName: SYSTEM_EVENT_TEXT,
     }
   }
 
@@ -31,7 +34,7 @@ export function getChatSystemEventMeta(message: MessageResponse): ChatSystemEven
     return {
       kind: 'member_removed',
       title: 'Участник удалён',
-      accentClassName: 'text-rose-700 dark:text-rose-300',
+      accentClassName: SYSTEM_EVENT_TEXT,
     }
   }
 
@@ -39,7 +42,7 @@ export function getChatSystemEventMeta(message: MessageResponse): ChatSystemEven
     return {
       kind: 'member_left',
       title: 'Участник вышел',
-      accentClassName: 'text-amber-700 dark:text-amber-300',
+      accentClassName: SYSTEM_EVENT_TEXT,
     }
   }
 
@@ -47,7 +50,7 @@ export function getChatSystemEventMeta(message: MessageResponse): ChatSystemEven
     return {
       kind: 'role_changed',
       title: 'Роль участника изменена',
-      accentClassName: 'text-sky-700 dark:text-sky-300',
+      accentClassName: SYSTEM_EVENT_TEXT,
     }
   }
 
@@ -55,13 +58,13 @@ export function getChatSystemEventMeta(message: MessageResponse): ChatSystemEven
     return {
       kind: 'ownership_transferred',
       title: 'Владелец сменился',
-      accentClassName: 'text-fuchsia-700 dark:text-fuchsia-300',
+      accentClassName: SYSTEM_EVENT_TEXT,
     }
   }
 
   return {
     kind: 'generic',
     title: 'Системное событие',
-    accentClassName: 'text-gray-600 dark:text-gray-300',
+    accentClassName: SYSTEM_EVENT_TEXT,
   }
 }

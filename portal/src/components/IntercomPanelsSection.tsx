@@ -21,6 +21,7 @@ import {
   X,
   Server,
 } from 'lucide-react'
+import Badge from '@/components/Badge'
 import Button from '@/components/Button'
 import Card from '@/components/Card'
 import Modal from '@/components/Modal'
@@ -172,11 +173,9 @@ function PanelCard({
   }
 
   const lockBadge = (() => {
-    if (lockQuery.isFetching) return { text: 'Проверка…', cls: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' }
-    if (lockQuery.data?.is_open === true)
-      return { text: 'Открыта', cls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' }
-    if (lockQuery.data?.is_open === false)
-      return { text: 'Закрыта', cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' }
+    if (lockQuery.isFetching) return { text: 'Проверка…', variant: 'gray' as const }
+    if (lockQuery.data?.is_open === true) return { text: 'Открыта', variant: 'warning' as const }
+    if (lockQuery.data?.is_open === false) return { text: 'Закрыта', variant: 'gray' as const }
     return null
   })()
 
@@ -187,9 +186,9 @@ function PanelCard({
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="flex shrink-0 items-center gap-1.5">
             <span className="font-medium text-gray-900 dark:text-white">{panel.label || panel.ip}</span>
-            {panel.entrance && !/подъезд/i.test(panel.label || '') && <Pill cls="bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">подъезд {panel.entrance}</Pill>}
-            {!panel.is_active && <Pill cls="bg-gray-100 text-gray-500 dark:bg-gray-700">выключена</Pill>}
-            {lockBadge && <Pill cls={lockBadge.cls}>{lockBadge.text}</Pill>}
+            {panel.entrance && !/подъезд/i.test(panel.label || '') && <Badge>подъезд {panel.entrance}</Badge>}
+            {!panel.is_active && <Badge>выключена</Badge>}
+            {lockBadge && <Badge variant={lockBadge.variant}>{lockBadge.text}</Badge>}
           </div>
           <p className="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">
             {panel.ip}{panel.port !== 80 ? `:${panel.port}` : ''}
@@ -265,10 +264,6 @@ function PanelCard({
       )}
     </li>
   )
-}
-
-function Pill({ cls, children }: { cls: string; children: ReactNode }) {
-  return <span className={`inline-flex h-5 items-center rounded-full px-2 text-xs ${cls}`}>{children}</span>
 }
 
 function PanelAction({

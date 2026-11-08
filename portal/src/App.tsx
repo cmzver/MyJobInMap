@@ -108,18 +108,18 @@ function App() {
           toastOptions={{
             duration: 4000,
             style: {
-              background: '#363636',
+              background: '#1f2937',
               color: '#fff',
             },
             success: {
               iconTheme: {
-                primary: '#4ade80',
+                primary: '#16A34A',
                 secondary: '#fff',
               },
             },
             error: {
               iconTheme: {
-                primary: '#ef4444',
+                primary: '#DC2626',
                 secondary: '#fff',
               },
             },
