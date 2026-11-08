@@ -28,6 +28,7 @@ from app.schemas.datetime_utc import UtcDateTime
 from app.services import applicant_notify
 from app.services.act_service import CANCELLED
 from app.services.public_url import public_base_url
+from app.services.role_utils import is_dispatcher_or_admin_user
 from app.utils import get_status_display_name
 
 router = APIRouter(prefix="/api/public/tasks", tags=["Public tasks"])
@@ -255,9 +256,15 @@ def task_status_link(
     """Ссылка заявителю на статус заявки: одна и та же при повторных запросах.
 
     renew — выпустить новую: прежняя ссылка и подписки Telegram перестают действовать.
+    Это решение диспетчера: мастер может только получить текущую ссылку.
     """
     task = access.task
     if renew:
+        if not is_dispatcher_or_admin_user(access.user):
+            raise HTTPException(
+                status_code=403,
+                detail="Выпустить новую ссылку может только диспетчер или администратор",
+            )
         task.public_token = None
         db.query(TaskSubscriberModel).filter_by(task_id=task.id).delete(
             synchronize_session=False
