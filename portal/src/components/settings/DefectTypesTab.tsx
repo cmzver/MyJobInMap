@@ -76,7 +76,7 @@ export default function DefectTypesTab() {
             {defectTypes.map((defectType) => (
               <div
                 key={defectType.id}
-                className="flex items-start justify-between gap-3 rounded-xl border border-gray-200 bg-slate-50/80 p-3 dark:border-gray-800 dark:bg-gray-800/50"
+                className="flex items-start justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/40"
               >
                 <div className="min-w-0">
                   <p className="font-medium text-gray-900 dark:text-white">{defectType.name}</p>

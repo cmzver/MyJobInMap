@@ -1316,7 +1316,7 @@ function CustomFieldsTab() {
               <div
                 key={field.id}
                 className={cn(
-                  'flex items-center justify-between rounded-xl border border-gray-200 bg-slate-50/80 p-3 dark:border-gray-800 dark:bg-gray-800/50',
+                  'flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/40',
                   !field.is_active && 'opacity-60'
                 )}
               >
@@ -2093,7 +2093,7 @@ function CompactEmptyPanel({
   return (
     <div className="rounded-lg border border-dashed border-gray-300 px-3 py-4 dark:border-gray-700">
       <div className="flex flex-col items-center justify-center text-center">
-        <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+        <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-700/60 dark:text-gray-300">
           <Icon className="h-4 w-4" />
         </div>
         <p className="text-sm font-medium text-gray-900 dark:text-white">{title}</p>

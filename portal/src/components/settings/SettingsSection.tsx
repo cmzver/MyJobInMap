@@ -42,17 +42,14 @@ export function SettingsIconButton({
 }
 
 /**
- * Wraps a list of rows (toggles / fields) with hairline dividers and
- * consistent vertical padding — so callers don't repeat the divider +
- * padding classes on every row.
+ * Wraps a list of rows (toggles / fields) with consistent spacing — no
+ * dividers inside a card: разделители только между секциями.
  */
 export function SettingsRows({ children }: { children: ReactNode }) {
   return (
-    <div className={settingsTokens.divider}>
+    <div className={settingsTokens.rows}>
       {Children.toArray(children).map((child, i) => (
-        <div key={i} className={settingsTokens.row}>
-          {child}
-        </div>
+        <div key={i}>{child}</div>
       ))}
     </div>
   )
@@ -86,7 +83,7 @@ export function SettingsCard({
   return (
     <section
       className={cn(
-        'rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900/70',
+        'rounded-xl border border-gray-200 bg-white transition-colors dark:border-gray-700 dark:bg-gray-800',
         className
       )}
     >
@@ -94,13 +91,13 @@ export function SettingsCard({
         <header className="flex items-start justify-between gap-3 px-4 pb-2 pt-2.5">
           <div className="flex min-w-0 items-center gap-2">
             {Icon && (
-              <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+              <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-700/60 dark:text-gray-300">
                 <Icon className="h-3.5 w-3.5" />
               </span>
             )}
             <div className="min-w-0">
               {title && (
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
+                <h3 className="eyebrow">{title}</h3>
               )}
               {description && (
                 <p className="mt-0.5 text-xs leading-5 text-gray-500 dark:text-gray-400">
@@ -253,7 +250,7 @@ export function StatRow({
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-gray-100 py-1 last:border-0 dark:border-gray-800">
+    <div className="flex items-center justify-between gap-3 py-1">
       <span className="text-sm text-gray-500 dark:text-gray-400">{label}</span>
       <div className="flex items-center gap-2">
         <span
