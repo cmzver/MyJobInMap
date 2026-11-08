@@ -78,13 +78,19 @@ fun dayStopPlan(plannedDate: String?, day: String): DayStopPlan? {
 /** «воскресенье, 8 ноября · 3 выезда» — подзаголовок «Моего дня». */
 fun myDaySubtitle(day: String, stops: Int?): String {
     val date = runCatching { LocalDate.parse(day) }.getOrNull()
-    val dateText = date?.format(DAY_TITLE) ?: day
+    // Месяц — в родительном падеже вручную: java.time на Android для «d MMMM»
+    // отдаёт именительный («8 ноябрь»)
+    val dateText = date?.let { "${it.format(WEEKDAY)}, ${it.dayOfMonth} ${MONTHS_GENITIVE[it.monthValue - 1]}" } ?: day
     if (stops == null || stops == 0) return dateText
     return "$dateText · $stops ${TaskUtils.pluralize(stops, "выезд", "выезда", "выездов")}"
 }
 
 private val OPEN_STATUSES = setOf(TaskStatus.NEW, TaskStatus.IN_PROGRESS)
 private val RU = Locale.forLanguageTag("ru")
-private val DAY_TITLE = DateTimeFormatter.ofPattern("EEEE, d MMMM", RU)
+private val WEEKDAY = DateTimeFormatter.ofPattern("EEEE", RU)
+private val MONTHS_GENITIVE = listOf(
+    "января", "февраля", "марта", "апреля", "мая", "июня",
+    "июля", "августа", "сентября", "октября", "ноября", "декабря",
+)
 private val SHORT_DATE = DateTimeFormatter.ofPattern("dd.MM")
 private val SHORT_TIME = DateTimeFormatter.ofPattern("HH:mm")

@@ -134,6 +134,9 @@ fun MainScreen(
         // Без этой ветки профиль считался «Картой»: над ним рисовались шапка
         // «Карта выездов» и нижняя панель
         Screen.UserSettings.route -> Screen.UserSettings
+        // Иначе «Мой день» считался «Картой»: шапка «Карта выездов» над своим
+        // заголовком и подсвеченная «Карта» в нижней панели
+        Screen.MyDay.route -> Screen.MyDay
         else -> Screen.Map
     }
     val unreadChatCount = remember(chatListState.conversations) {
