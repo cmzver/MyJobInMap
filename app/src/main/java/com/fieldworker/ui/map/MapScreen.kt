@@ -242,8 +242,10 @@ fun MapScreen(
 
     // Режим карты: все (по фильтрам списка), на сегодня, маршрут дня
     var mapMode by rememberSaveable { mutableStateOf(MapMode.ALL) }
-    val today = remember { LocalDate.now().toString() }
-    val routeStops = remember(uiState.tasks, mapMode) {
+    // Не remember: карта живёт и через полночь — «сегодня» и порядок дня
+    // должны смениться вместе с «Моим днём» при первом же обновлении.
+    val today = LocalDate.now().toString()
+    val routeStops = remember(uiState.tasks, mapMode, today) {
         if (mapMode == MapMode.ROUTE) {
             dayRouteTasks(
                 uiState.tasks,
@@ -255,7 +257,7 @@ fun MapScreen(
             null
         }
     }
-    val mapTasks = remember(filteredTasks, mapMode, routeStops) {
+    val mapTasks = remember(filteredTasks, mapMode, routeStops, today) {
         when (mapMode) {
             MapMode.ALL -> filteredTasks
             MapMode.TODAY -> filteredTasks.filter { it.isPlannedBy(today) }
