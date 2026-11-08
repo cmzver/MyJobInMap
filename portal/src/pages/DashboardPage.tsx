@@ -50,7 +50,7 @@ function KpiStrip({ data, repeats }: { data: AnalyticsData; repeats?: RepeatMetr
   const hasClosed = (repeats?.overview.completed ?? 0) > 0
   return (
     <div className="grid grid-cols-2 divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white sm:grid-cols-3 lg:grid-cols-6 lg:divide-x dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-800">
-      <Kpi label="Заявок" value={String(summary.total_tasks)} note={`≈ ${summary.avg_tasks_per_day.toFixed(1)} в день`} />
+      <Kpi label="Заявок" value={String(summary.total_tasks)} note={`≈ ${summary.avg_tasks_per_day.toLocaleString('ru-RU', { maximumFractionDigits: 1 })} в день`} />
       <Kpi
         label="Выполнено"
         value={String(summary.completed_tasks)}
@@ -354,7 +354,7 @@ function RepeatsCard({ repeats }: { repeats?: RepeatMetrics }) {
             Повторов {repeats.overview.returns} и дублей {repeats.overview.duplicates} из {repeats.overview.created} новых заявок —
             их отмечают диспетчеры в карточке заявки.
           </p>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <PlaceList
               title="Адреса"
               items={repeats.top_addresses.slice(0, 5).map((place) => ({
@@ -467,7 +467,7 @@ export default function DashboardPage() {
       ) : (
         <>
           <KpiStrip data={data} repeats={repeats} />
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2">
               <DynamicsCard data={data} />
             </div>

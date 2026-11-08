@@ -71,20 +71,30 @@ const STATE_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'gray'> =
   created: 'gray',
 }
 
+/** Состояния Docker по-русски; неизвестное — как пришло. */
+const STATE_LABEL: Record<string, string> = {
+  running: 'работает',
+  restarting: 'перезапуск',
+  paused: 'пауза',
+  exited: 'остановлен',
+  dead: 'сбой',
+  created: 'создан',
+}
+
 function ContainerRow({ c, onShowLogs }: { c: ContainerInfo; onShowLogs: (name: string) => void }) {
   const healthBadge =
     c.health === 'healthy' ? (
-      <Badge variant="success">healthy</Badge>
+      <Badge variant="success">в норме</Badge>
     ) : c.health === 'unhealthy' ? (
-      <Badge variant="danger">unhealthy</Badge>
+      <Badge variant="danger">сбой</Badge>
     ) : c.health === 'starting' ? (
-      <Badge variant="warning">starting</Badge>
+      <Badge variant="warning">запуск</Badge>
     ) : null
   return (
     <tr className="last:border-0">
       <td className="text-gray-800">{c.name}</td>
       <td>
-        <Badge variant={STATE_VARIANT[c.state] ?? 'gray'}>{c.state || '—'}</Badge>
+        <Badge variant={STATE_VARIANT[c.state] ?? 'gray'}>{STATE_LABEL[c.state] ?? (c.state || '—')}</Badge>
       </td>
       <td>{healthBadge ?? <span className="text-gray-400">—</span>}</td>
       <td>{c.status}</td>
@@ -221,7 +231,7 @@ function HealthBody({
           value={`${system.disk.used_gb} / ${system.disk.total_gb} ГБ`}
           percent={system.disk.percent}
         />
-        <MetricCard icon={Activity} label="Uptime" value={formatUptime(system.uptime_seconds)} />
+        <MetricCard icon={Activity} label="Время работы" value={formatUptime(system.uptime_seconds)} />
       </div>
 
       {/* Сервисы */}
@@ -263,7 +273,7 @@ function HealthBody({
                 <tr className="text-xs uppercase tracking-wide">
                   <th>Контейнер</th>
                   <th>Состояние</th>
-                  <th>Health</th>
+                  <th>Проверка</th>
                   <th>Статус</th>
                   <th />
                 </tr>

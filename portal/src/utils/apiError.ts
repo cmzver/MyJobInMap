@@ -1,6 +1,18 @@
 import axios from 'axios'
 import toast from 'react-hot-toast'
 
+const CYRILLIC = /[а-яё]/i
+
+/**
+ * Текст ошибки валидации pydantic: свои ValueError сервера приходят как
+ * «Value error, <текст>» — префикс срезаем; встроенные проверки pydantic
+ * («Field required», «String should have…») английские — их не показываем.
+ */
+function validationMessage(msg: string): string {
+  const text = msg.replace(/^value error,\s*/i, '').trim()
+  return CYRILLIC.test(text) ? text : 'Проверьте правильность заполнения полей'
+}
+
 /**
  * Извлекает человекочитаемое сообщение об ошибке из ответа API.
  *
@@ -24,8 +36,8 @@ export function getApiErrorMessage(
       // FastAPI может вернуть detail как массив (validation errors)
       if (Array.isArray(data.detail) && data.detail.length > 0) {
         const first = data.detail[0]
-        if (typeof first === 'object' && first.msg) {
-          return first.msg
+        if (first && typeof first === 'object' && typeof first.msg === 'string') {
+          return validationMessage(first.msg)
         }
       }
     }

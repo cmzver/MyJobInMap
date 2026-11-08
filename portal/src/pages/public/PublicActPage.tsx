@@ -136,7 +136,7 @@ function SignForm({ act, token }: { act: PublicAct; token: string }) {
         С актом ознакомлен(а) и подписываю его
       </label>
       {sign.isError && (
-        <p className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           {getApiErrorMessage(sign.error, 'Не удалось подписать акт')}
         </p>
       )}

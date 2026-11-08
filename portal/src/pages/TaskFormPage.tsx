@@ -17,6 +17,7 @@ import Input from '@/components/Input'
 import Textarea from '@/components/Textarea'
 import Select from '@/components/Select'
 import Spinner from '@/components/Spinner'
+import QueryStatePanel from '@/components/QueryStatePanel'
 import Card from '@/components/Card'
 import AddressForm from '@/components/AddressForm'
 import AddressCreateModal from '@/components/addresses/AddressCreateModal'
@@ -235,7 +236,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
   const [addressPrefill, setAddressPrefill] = useState<Partial<CreateAddressData> | null>(null)
 
   // Fetch task data for edit mode
-  const { data: task, isLoading: taskLoading } = useTask(taskId || 0)
+  const { data: task, isLoading: taskLoading, isError: taskError, refetch: refetchTask } = useTask(taskId || 0)
   const { data: portalInterfaceSettings } = usePortalInterfaceSettings()
   
   // Fetch users for assignee dropdown
@@ -610,8 +611,8 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
         customer_name: formData.customer_name.trim() || null,
         customer_phone: formData.customer_phone.trim() || null,
         priority: formData.priority,
-        is_paid: false,
-        payment_amount: 0,
+        // Оплату форма не показывает — не отправляем, иначе правка заявки
+        // обнуляла бы is_paid/payment_amount (сервер не трогает пропущенные поля)
         planned_date: formData.planned_date || null,
         // Система и тип неисправности
         system_id: formData.system_id ? Number(formData.system_id) : null,
@@ -671,6 +672,17 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
       <div className="flex justify-center items-center py-20">
         <Spinner size="lg" />
       </div>
+    )
+  }
+
+  // Без заявки форма открылась бы пустой — как будто правим «ничего»
+  if (mode === 'edit' && taskError) {
+    return (
+      <QueryStatePanel
+        state="error"
+        title="Не удалось загрузить заявку"
+        onRetry={() => refetchTask()}
+      />
     )
   }
 

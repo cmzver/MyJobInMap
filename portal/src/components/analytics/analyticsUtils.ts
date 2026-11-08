@@ -1,6 +1,8 @@
+const oneDecimal = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 })
+
 export function formatHours(hours: number): string {
   if (hours < 1) return `${Math.round(hours * 60)}м`
-  if (hours < 24) return Number.isInteger(hours) ? `${hours}ч` : `${hours.toFixed(1)}ч`
+  if (hours < 24) return `${oneDecimal.format(hours)}ч`
   const days = Math.floor(hours / 24)
   const h = Math.round(hours % 24)
   return h > 0 ? `${days}д ${h}ч` : `${days}д`

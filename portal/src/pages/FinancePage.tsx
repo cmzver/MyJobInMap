@@ -25,6 +25,7 @@ import Spinner from '@/components/Spinner'
 import EmptyState from '@/components/EmptyState'
 import Card from '@/components/Card'
 import MetricCard from '@/components/MetricCard'
+import QueryStatePanel from '@/components/QueryStatePanel'
 
 type Period = 'all' | 'month' | 'week'
 
@@ -52,6 +53,7 @@ export default function FinancePage() {
   const { 
     data: stats, 
     isLoading: statsLoading, 
+    isError: statsError,
     refetch: refetchStats,
     isFetching: statsFetching 
   } = useFinanceStats(
@@ -61,6 +63,7 @@ export default function FinancePage() {
   const { 
     data: workerStats, 
     isLoading: workersLoading,
+    isError: workersError,
     refetch: refetchWorkers,
     isFetching: workersFetching 
   } = useWorkerStats(period)
@@ -139,173 +142,189 @@ export default function FinancePage() {
         }
       />
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <MetricCard
-          icon={CheckCircle}
-          label="Выполнено заявок"
-          value={statsLoading ? '...' : stats?.completed_tasks || 0}
+      {/* Сбой — не нули: «0 ₽ заработано» в финансах хуже, чем честная ошибка */}
+      {(statsError || workersError) && (
+        <QueryStatePanel
+          state="error"
+          title="Не удалось загрузить статистику"
+          onRetry={handleRefresh}
+          isRetrying={isFetching}
+          className="min-h-0 py-6"
         />
-        <MetricCard
-          icon={DollarSign}
-          label="Платных заявок"
-          value={statsLoading ? '...' : stats?.paid_tasks || 0}
-        />
-        <MetricCard
-          icon={Home}
-          label="Удалённых заявок"
-          value={statsLoading ? '...' : stats?.remote_tasks || 0}
-        />
-        <MetricCard
-          icon={TrendingUp}
-          label="Общая сумма"
-          value={statsLoading ? '...' : formatCurrency(stats?.total_amount)}
-        />
-      </div>
+      )}
 
-      {/* Workers Stats Table */}
-      <Card>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <User className="w-5 h-5" />
-            Статистика по исполнителям
-          </h2>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleExport}
-            disabled={!workerStats?.length}
-          >
-            <Download className="w-4 h-4" />
-            Экспорт CSV
-          </Button>
+      {!(statsError || workersError) && (
+        <>
+        {/* Summary Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <MetricCard
+            icon={CheckCircle}
+            label="Выполнено заявок"
+            value={statsLoading ? '...' : stats?.completed_tasks || 0}
+          />
+          <MetricCard
+            icon={DollarSign}
+            label="Платных заявок"
+            value={statsLoading ? '...' : stats?.paid_tasks || 0}
+          />
+          <MetricCard
+            icon={Home}
+            label="Удалённых заявок"
+            value={statsLoading ? '...' : stats?.remote_tasks || 0}
+          />
+          <MetricCard
+            icon={TrendingUp}
+            label="Общая сумма"
+            value={statsLoading ? '...' : formatCurrency(stats?.total_amount)}
+          />
         </div>
+
+        {/* Workers Stats Table */}
+        <Card>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <User className="w-5 h-5" />
+              Статистика по исполнителям
+            </h2>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleExport}
+              disabled={!workerStats?.length}
+            >
+              <Download className="w-4 h-4" />
+              Экспорт CSV
+            </Button>
+          </div>
         
-        <div className="overflow-x-auto -mx-4 sm:-mx-6 px-4 sm:px-6">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>
-                  Исполнитель
-                </th>
-                <th className="text-right">
-                  Всего заявок
-                </th>
-                <th className="text-right">
-                  Выполнено
-                </th>
-                <th className="text-right">
-                  В работе
-                </th>
-                <th className="text-right">
-                  Платных
-                </th>
-                <th className="text-right">
-                  Удалённых
-                </th>
-                <th className="text-right">
-                  Заработано
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {workersLoading ? (
+          <div className="overflow-x-auto -mx-4 sm:-mx-6 px-4 sm:px-6">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center">
-                    <Spinner size="lg" />
-                  </td>
+                  <th>
+                    Исполнитель
+                  </th>
+                  <th className="text-right">
+                    Всего заявок
+                  </th>
+                  <th className="text-right">
+                    Выполнено
+                  </th>
+                  <th className="text-right">
+                    В работе
+                  </th>
+                  <th className="text-right">
+                    Платных
+                  </th>
+                  <th className="text-right">
+                    Удалённых
+                  </th>
+                  <th className="text-right">
+                    Заработано
+                  </th>
                 </tr>
-              ) : !workerStats?.length ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-12">
-                    <EmptyState
-                      icon={User}
-                      title="Нет данных"
-                      description="Статистика появится после выполнения заявок"
-                    />
-                  </td>
-                </tr>
-              ) : (
-                workerStats.map((worker) => (
-                  <tr 
-                    key={worker.user_id}
-                  >
-                    <td className="whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                          <User className="w-4 h-4 text-gray-500" />
-                        </div>
-                        <span className="font-medium text-gray-900 dark:text-white">
-                          {worker.user_name}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="whitespace-nowrap text-right">
-                      <span className="text-sm text-gray-900 dark:text-white font-medium">
-                        {worker.total_tasks}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap text-right">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                        {worker.completed_tasks}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap text-right">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
-                        {worker.in_progress_tasks}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap text-right">
-                      <span className="text-sm text-gray-900 dark:text-white font-medium">
-                        {worker.paid_tasks}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap text-right">
-                      <span className="text-sm text-orange-600 dark:text-orange-400 font-medium">
-                        {worker.remote_tasks}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap text-right">
-                      <span className="text-sm text-green-600 dark:text-green-400 font-semibold">
-                        {formatCurrency(worker.total_earned)}
-                      </span>
+              </thead>
+              <tbody>
+                {workersLoading ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-12 text-center">
+                      <Spinner size="lg" />
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
+                ) : !workerStats?.length ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-12">
+                      <EmptyState
+                        icon={User}
+                        title="Нет данных"
+                        description="Статистика появится после выполнения заявок"
+                      />
+                    </td>
+                  </tr>
+                ) : (
+                  workerStats.map((worker) => (
+                    <tr 
+                      key={worker.user_id}
+                    >
+                      <td className="whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                            <User className="w-4 h-4 text-gray-500" />
+                          </div>
+                          <span className="font-medium text-gray-900 dark:text-white">
+                            {worker.user_name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap text-right">
+                        <span className="text-sm text-gray-900 dark:text-white font-medium">
+                          {worker.total_tasks}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap text-right">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                          {worker.completed_tasks}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap text-right">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
+                          {worker.in_progress_tasks}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap text-right">
+                        <span className="text-sm text-gray-900 dark:text-white font-medium">
+                          {worker.paid_tasks}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap text-right">
+                        <span className="text-sm text-orange-600 dark:text-orange-400 font-medium">
+                          {worker.remote_tasks}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap text-right">
+                        <span className="text-sm text-green-600 dark:text-green-400 font-semibold">
+                          {formatCurrency(worker.total_earned)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
             
-            {/* Summary row */}
-            {workerStats && workerStats.length > 0 && (
-              <tfoot className="bg-gray-100 dark:bg-gray-800/70 font-semibold">
-                <tr>
-                  <td>
-                    Итого
-                  </td>
-                  <td className="text-right">
-                    {workerStats.reduce((sum, w) => sum + w.total_tasks, 0)}
-                  </td>
-                  <td className="text-right text-green-600 dark:text-green-400">
-                    {workerStats.reduce((sum, w) => sum + w.completed_tasks, 0)}
-                  </td>
-                  <td className="text-right text-orange-600 dark:text-orange-400">
-                    {workerStats.reduce((sum, w) => sum + w.in_progress_tasks, 0)}
-                  </td>
-                  <td className="text-right">
-                    {workerStats.reduce((sum, w) => sum + w.paid_tasks, 0)}
-                  </td>
-                  <td className="text-right text-orange-600 dark:text-orange-400">
-                    {workerStats.reduce((sum, w) => sum + w.remote_tasks, 0)}
-                  </td>
-                  <td className="text-right text-green-600 dark:text-green-400">
-                    {formatCurrency(workerStats.reduce((sum, w) => sum + w.total_earned, 0))}
-                  </td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-      </Card>
+              {/* Summary row */}
+              {workerStats && workerStats.length > 0 && (
+                <tfoot className="bg-gray-100 dark:bg-gray-800/70 font-semibold">
+                  <tr>
+                    <td>
+                      Итого
+                    </td>
+                    <td className="text-right">
+                      {workerStats.reduce((sum, w) => sum + w.total_tasks, 0)}
+                    </td>
+                    <td className="text-right text-green-600 dark:text-green-400">
+                      {workerStats.reduce((sum, w) => sum + w.completed_tasks, 0)}
+                    </td>
+                    <td className="text-right text-orange-600 dark:text-orange-400">
+                      {workerStats.reduce((sum, w) => sum + w.in_progress_tasks, 0)}
+                    </td>
+                    <td className="text-right">
+                      {workerStats.reduce((sum, w) => sum + w.paid_tasks, 0)}
+                    </td>
+                    <td className="text-right text-orange-600 dark:text-orange-400">
+                      {workerStats.reduce((sum, w) => sum + w.remote_tasks, 0)}
+                    </td>
+                    <td className="text-right text-green-600 dark:text-green-400">
+                      {formatCurrency(workerStats.reduce((sum, w) => sum + w.total_earned, 0))}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </Card>
+
+        </>
+      )}
 
       {/* Period Info */}
       <Card className="bg-gray-50 dark:bg-gray-800/50">

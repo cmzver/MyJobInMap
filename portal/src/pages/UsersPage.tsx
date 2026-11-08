@@ -35,6 +35,7 @@ import Modal from '@/components/Modal'
 import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
 import EmptyState from '@/components/EmptyState'
+import QueryStatePanel from '@/components/QueryStatePanel'
 import Input from '@/components/Input'
 import Select from '@/components/Select'
 import { SkeletonTable } from '@/components/Skeleton'
@@ -95,7 +96,7 @@ export default function UsersPage() {
   const currentUser = useAuthStore((state) => state.user)
   const isSuperadmin = isSuperadminRole(currentUser?.role, currentUser?.organizationId)
 
-  const { data: users, isLoading, refetch, isFetching } = useUsers()
+  const { data: users, isLoading, isError, refetch, isFetching } = useUsers()
   const { data: groups = [] } = useGroups()
   const {
     data: organizations,
@@ -343,6 +344,13 @@ export default function UsersPage() {
 
       {isLoading ? (
         <SkeletonTable rows={4} columns={5} />
+      ) : isError ? (
+        <QueryStatePanel
+          state="error"
+          title="Не удалось загрузить пользователей"
+          onRetry={() => refetch()}
+          isRetrying={isFetching}
+        />
       ) : !users || users.length === 0 ? (
         <EmptyState
           icon={UsersIcon}

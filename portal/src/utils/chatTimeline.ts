@@ -1,6 +1,6 @@
 import { formatDateShort } from '@/utils/dateFormat'
 import type { MessageResponse } from '@/types/chat'
-import { isToday, isYesterday, parseISO } from 'date-fns'
+import { format, isToday, isYesterday, parseISO } from 'date-fns'
 
 export type ChatTimelineItem =
   | { type: 'date'; key: string; label: string }
@@ -40,9 +40,10 @@ export function buildChatTimelineItems(messages: MessageResponse[]): ChatTimelin
   return items
 }
 
+/** День сообщения по местному времени — как и подпись «Сегодня/Вчера» (не UTC). */
 function getDateKey(value: string): string {
   try {
-    return parseISO(value).toISOString().slice(0, 10)
+    return format(parseISO(value), 'yyyy-MM-dd')
   } catch {
     return value.slice(0, 10)
   }

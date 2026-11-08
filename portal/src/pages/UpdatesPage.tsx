@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import Button from '@/components/Button'
 import Spinner from '@/components/Spinner'
 import EmptyState from '@/components/EmptyState'
+import QueryStatePanel from '@/components/QueryStatePanel'
 import Modal from '@/components/Modal'
 import Textarea from '@/components/Textarea'
 import PageHeader from '@/components/PageHeader'
@@ -26,7 +27,7 @@ interface UpdatesManagementSectionProps {
 }
 
 export function UpdatesManagementSection({ embedded = false }: UpdatesManagementSectionProps) {
-  const { data: updates, isLoading, refetch, isFetching } = useUpdates()
+  const { data: updates, isLoading, isError, refetch, isFetching } = useUpdates()
   const uploadMutation = useUploadUpdate()
   const deleteMutation = useDeleteUpdate()
 
@@ -135,7 +136,7 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
           <div>
             <StatRow label="Всего версий" value={updates.length} />
             <StatRow label="Обязательных обновлений" value={updates.filter((u) => u.is_mandatory).length} />
-            <StatRow label="Endpoint публикации" value={latestUpdate?.download_url ?? '/api/updates/download'} mono />
+            <StatRow label="Адрес публикации" value={latestUpdate?.download_url ?? '/api/updates/download'} mono />
           </div>
         </SettingsCard>
       )}
@@ -145,7 +146,7 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-1">
               <p className="text-sm font-medium text-gray-900 dark:text-white">
-                Текущая публикуемая версия: v{latestUpdate.version_name} (code {latestUpdate.version_code})
+                Текущая публикуемая версия: v{latestUpdate.version_name} (сборка {latestUpdate.version_code})
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Android-клиент получает обновление через проверку {`/api/updates/check`} и скачивает APK по адресу {latestUpdate.download_url}.
@@ -163,7 +164,14 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
       )}
 
       {/* Table */}
-      {!updates || updates.length === 0 ? (
+      {isError ? (
+        <QueryStatePanel
+          state="error"
+          title="Не удалось загрузить обновления"
+          onRetry={() => refetch()}
+          isRetrying={isFetching}
+        />
+      ) : !updates || updates.length === 0 ? (
         <SettingsCard title="Версии" icon={Smartphone}>
           <EmptyState
             icon={Smartphone}

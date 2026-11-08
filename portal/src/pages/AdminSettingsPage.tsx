@@ -389,7 +389,7 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
 
   return (
     <div className={settingsTokens.stack}>
-      <div className="grid gap-3 lg:grid-cols-3 lg:items-start">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3 lg:items-start">
         {/* Main column: maintenance + backups */}
         <div className={cn(settingsTokens.stack, 'lg:col-span-2')}>
           <SettingsCard title="Обслуживание базы данных" icon={Database}>
@@ -423,7 +423,7 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
               {dbStats && (
                 <>
                   <StatRow label="Тип БД" value={dbStats.database.type} />
-                  <StatRow label="Размер БД" value={`${dbStats.database.size_mb} MB`} />
+                  <StatRow label="Размер БД" value={formatFileSize(dbStats.database.size_mb * 1024 * 1024)} />
                   <StatRow label="Заявки" value={dbStats.tables.tasks} />
                   <StatRow label="Пользователи" value={dbStats.tables.users} />
                   <StatRow label="Фото" value={dbStats.tables.photos} />
@@ -613,7 +613,7 @@ function PortalBrandingSettingsTab() {
         icon={Palette}
         description="Параметры отображаются на экране авторизации до входа и доступны без авторизации через публичный endpoint."
       >
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <Input
             label="Название приложения"
             value={form.login_app_name}
@@ -655,7 +655,7 @@ function PortalBrandingSettingsTab() {
         icon={User}
         description="Заполните email или телефон, если на странице входа должен показываться блок с контактами."
       >
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <Input
             label="Email поддержки"
             value={form.support_email}
@@ -942,7 +942,7 @@ function BackupSettingsTab() {
               checked={autoBackup}
               onChange={setAutoBackup}
             />
-            <div className="grid gap-3 border-t border-gray-100 pt-4 dark:border-gray-800 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 dark:border-gray-800 sm:grid-cols-2">
               <SettingsField label="Расписание" help="Частота автоматического создания копий.">
                 <SettingsSelect value={schedule} onChange={(e) => setSchedule(e.target.value)}>
                   <option value="daily">Ежедневно в 03:00</option>
@@ -1522,7 +1522,7 @@ function CustomFieldModal({
           )}
 
           <Input
-            label="Placeholder"
+            label="Подсказка в пустом поле"
             value={formData.placeholder}
             onChange={(e) => setFormData({ ...formData, placeholder: e.target.value })}
           />
@@ -1687,13 +1687,13 @@ function DevicesTab() {
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-gray-400" />
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          {device.user_name || `User #${device.user_id}`}
+                          {device.user_name || `Пользователь #${device.user_id}`}
                         </span>
                       </div>
                     </td>
                     <td className="whitespace-nowrap">
                       <span className="text-sm text-gray-600 dark:text-gray-400">
-                        {device.device_name || 'Unknown Device'}
+                        {device.device_name || 'Устройство без названия'}
                       </span>
                     </td>
                     <td className="whitespace-nowrap">
@@ -2007,7 +2007,7 @@ function TelegramBotSettingsTab() {
               size="sm"
               onClick={handleAddMapping}
               disabled={!(newGroupName === '__custom__' ? customGroupName.trim() : newGroupName.trim()) || !newUsername.trim()}
-              title="Добавить маппинг"
+              title="Добавить сопоставление"
               className="self-center"
             >
               <Plus className="h-4 w-4" />

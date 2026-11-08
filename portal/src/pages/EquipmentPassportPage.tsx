@@ -7,6 +7,7 @@ import PageHeader from '@/components/PageHeader'
 import QueryStatePanel from '@/components/QueryStatePanel'
 import StatusBadge from '@/components/StatusBadge'
 import Button from '@/components/Button'
+import { formatDateOnly } from '@/utils/dateFormat'
 
 export default function EquipmentPassportPage() {
   const id = Number(useParams().id)
@@ -29,7 +30,7 @@ export default function EquipmentPassportPage() {
     <div className="flex flex-wrap gap-6 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
       <dl className="grid flex-1 grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm [&>dt]:text-gray-500 [&>dt]:dark:text-gray-400 [&>dd]:text-gray-900 [&>dd]:dark:text-white">
         <dt>Модель</dt><dd>{equipment.model || '—'}</dd><dt>Серийный номер</dt><dd>{equipment.serial_number || '—'}</dd>
-        <dt>Дата установки</dt><dd>{equipment.install_date?.slice(0, 10) || '—'}</dd><dt>Гарантия до</dt><dd>{equipment.warranty_until?.slice(0, 10) || '—'}</dd>
+        <dt>Дата установки</dt><dd>{formatDateOnly(equipment.install_date)}</dd><dt>Гарантия до</dt><dd>{formatDateOnly(equipment.warranty_until)}</dd>
         <dt>Расположение</dt><dd>{equipment.location || '—'}</dd><dt>Примечания</dt><dd className="whitespace-pre-wrap">{equipment.notes || '—'}</dd>
       </dl>
       <div className="text-center">{qr && <><img src={qr} width={180} height={180} alt="QR-код паспорта оборудования" /><a href={qr} download={`equipment-${id}.svg`} className="text-sm text-primary-600 hover:underline">Скачать QR-код</a></>}{qrError && <p role="alert" className="text-sm">QR-код недоступен</p>}</div>

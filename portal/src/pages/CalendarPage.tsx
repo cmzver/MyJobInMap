@@ -26,7 +26,7 @@ import StatusBadge from '@/components/StatusBadge'
 import { fetchAllTaskPages } from '@/api/tasks'
 import { operationsApi } from '@/api/operations'
 import { STATUS_HEX } from '@/config/taskConstants'
-import { useUpdateTaskStatus } from '@/hooks/useTasks'
+import { taskKeys, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useUsers } from '@/hooks/useUsers'
 import { useAuthStore } from '@/store/authStore'
 import type { Task } from '@/types/task'
@@ -38,6 +38,17 @@ const WEEK_DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
 /** «Все заявки дня» в селекторе исполнителя у диспетчера. */
 const ALL = 0
+
+/**
+ * Ключи под префиксом ['tasks']: WebSocket-события заявок инвалидируют его —
+ * иначе календарь и маршрут не узнают о новых/перенесённых/закрытых заявках.
+ */
+const calendarKeys = {
+  all: [...taskKeys.all, 'calendar'] as const,
+  month: (month: string, userId: number | null) => [...calendarKeys.all, month, userId] as const,
+  myDay: (organizationId: number | null | undefined, userId: number | undefined, day: string) =>
+    [...taskKeys.all, 'my-day', organizationId ?? null, userId ?? null, day] as const,
+}
 
 /**
  * Календарь и «Мой день» — одна страница: слева месяц, справа выбранный день.
@@ -53,7 +64,7 @@ export default function CalendarPage() {
 
   const users = useUsers({ enabled: !isWorker })
   const monthTasks = useQuery({
-    queryKey: ['calendar-tasks', format(month, 'yyyy-MM'), isWorker ? user?.id : null],
+    queryKey: calendarKeys.month(format(month, 'yyyy-MM'), isWorker ? (user?.id ?? null) : null),
     queryFn: () => {
       const params = new URLSearchParams()
       params.append('planned_date_from', format(startOfMonth(month), 'yyyy-MM-dd'))
@@ -198,7 +209,12 @@ export default function CalendarPage() {
           {showRoute ? (
             <DayRoute day={format(selected, 'yyyy-MM-dd')} userId={isWorker ? undefined : executor} />
           ) : (
-            <DayTasks tasks={tasksOn(selected)} isLoading={monthTasks.isLoading} />
+            <DayTasks
+              tasks={tasksOn(selected)}
+              isLoading={monthTasks.isLoading}
+              isError={monthTasks.isError}
+              onRetry={() => monthTasks.refetch()}
+            />
           )}
         </Card>
       </div>
@@ -207,8 +223,20 @@ export default function CalendarPage() {
 }
 
 /** Все заявки с плановой датой на выбранный день. */
-function DayTasks({ tasks, isLoading }: { tasks: Task[]; isLoading: boolean }) {
+function DayTasks({
+  tasks,
+  isLoading,
+  isError,
+  onRetry,
+}: {
+  tasks: Task[]
+  isLoading: boolean
+  isError: boolean
+  onRetry: () => void
+}) {
   if (isLoading) return <div className="flex justify-center py-8"><Spinner /></div>
+  // Без этого сбой загрузки выглядел как «на этот день заявок нет»
+  if (isError) return <QueryStatePanel state="error" onRetry={onRetry} className="border-0" />
   if (tasks.length === 0) {
     return <p className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">На этот день заявок нет</p>
   }
@@ -243,7 +271,7 @@ function DayTasks({ tasks, isLoading }: { tasks: Task[]; isLoading: boolean }) {
 function DayRoute({ day, userId }: { day: string; userId?: number }) {
   const user = useAuthStore((state) => state.user)
   const client = useQueryClient()
-  const key = ['my-day', user?.organizationId, userId ?? user?.id, day]
+  const key = calendarKeys.myDay(user?.organizationId, userId ?? user?.id, day)
   const query = useQuery({ queryKey: key, queryFn: () => operationsApi.myDay(day, userId) })
   const ownRoute = userId === undefined || userId === user?.id
   const status = useUpdateTaskStatus()
@@ -328,6 +356,7 @@ function DayRoute({ day, userId }: { day: string; userId?: number }) {
                     {
                       onSuccess: () => {
                         client.invalidateQueries({ queryKey: key })
+                        client.invalidateQueries({ queryKey: calendarKeys.all })
                         toast.success('Работа начата')
                       },
                       onError: (error) => showApiError(error, 'Не удалось начать работу'),

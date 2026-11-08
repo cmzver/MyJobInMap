@@ -53,7 +53,7 @@ export function useResolveRemotely(taskId: number) {
       syncTaskInPaginatedLists(queryClient, task)
       queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
       queryClient.invalidateQueries({ queryKey: commentKeys.list(taskId) })
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['analytics'] })
     },
   })
 }

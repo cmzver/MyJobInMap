@@ -10,18 +10,20 @@ import {
 } from 'lucide-react'
 import Card from '@/components/Card'
 import Spinner from '@/components/Spinner'
+import QueryStatePanel from '@/components/QueryStatePanel'
 import Button from '@/components/Button'
 import PageHeader from '@/components/PageHeader'
 import apiClient from '@/api/client'
 import { type Notification } from '@/hooks/useNotifications'
 import { formatDateRelative as formatDate } from '@/utils/dateFormat'
 import { countRu } from '@/utils/plural'
+import { showApiError } from '@/utils/apiError'
 
 export default function NotificationsPage() {
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['notifications', filter],
     queryFn: async () => {
       const params = filter === 'unread' ? '?is_read=false' : ''
@@ -37,6 +39,7 @@ export default function NotificationsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
+    onError: (error) => showApiError(error, 'Не удалось отметить уведомление'),
   })
 
   const markAllAsReadMutation = useMutation({
@@ -46,6 +49,7 @@ export default function NotificationsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
+    onError: (error) => showApiError(error, 'Не удалось отметить уведомления'),
   })
 
   const deleteNotificationMutation = useMutation({
@@ -55,6 +59,7 @@ export default function NotificationsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
+    onError: (error) => showApiError(error, 'Не удалось удалить уведомление'),
   })
 
   const notifications = data ?? []
@@ -90,7 +95,7 @@ export default function NotificationsPage() {
       {/* Header */}
       <PageHeader
         title="Уведомления"
-        description={unreadCount > 0 ? countRu(unreadCount, 'непрочитанное', 'непрочитанных', 'непрочитанных') : 'Все прочитано'}
+        description={isLoading || isError ? undefined : unreadCount > 0 ? countRu(unreadCount, 'непрочитанное', 'непрочитанных', 'непрочитанных') : 'Все прочитано'}
         actions={
           unreadCount > 0 && (
             <Button size="sm"
@@ -108,6 +113,8 @@ export default function NotificationsPage() {
       {/* Filters */}
       <div className="flex space-x-2">
         <button
+          type="button"
+          aria-pressed={filter === 'all'}
           onClick={() => setFilter('all')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
             filter === 'all'
@@ -118,6 +125,8 @@ export default function NotificationsPage() {
           Все
         </button>
         <button
+          type="button"
+          aria-pressed={filter === 'unread'}
           onClick={() => setFilter('unread')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
             filter === 'unread'
@@ -139,6 +148,13 @@ export default function NotificationsPage() {
         <div className="flex justify-center py-12">
           <Spinner size="lg" />
         </div>
+      ) : isError ? (
+        <QueryStatePanel
+          state="error"
+          title="Не удалось загрузить уведомления"
+          onRetry={() => refetch()}
+          isRetrying={isRefetching}
+        />
       ) : notifications.length === 0 ? (
         <Card className="p-12 text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
@@ -169,7 +185,7 @@ export default function NotificationsPage() {
                 
                 <div className="ml-4 flex-1 min-w-0">
                   <div className="flex items-start justify-between">
-                    <div>
+                    <div className="min-w-0 break-words">
                       <h3 className={`text-sm font-medium ${
                         notification.is_read 
                           ? 'text-gray-700 dark:text-gray-300' 

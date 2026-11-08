@@ -112,6 +112,23 @@ async function reconnectSync(qc: QueryClient): Promise<void> {
   }
 }
 
+/**
+ * Инвалидация кэша по событию заявки. Детальная карточка, карта, календарь и
+ * маршрут дня живут под префиксом ['tasks']; «Мои заявки» — отдельно.
+ * Смена статуса пишет в ленту системный комментарий — ленту тоже перечитываем;
+ * создание/смена статуса/удаление меняют цифры дашборда (['analytics']).
+ */
+export function invalidateForTaskEvent(qc: QueryClient, type: string, data: Record<string, unknown>) {
+  void qc.invalidateQueries({ queryKey: ['tasks'] })
+  void qc.invalidateQueries({ queryKey: myTaskKeys.all })
+  if (type === 'task_created' || type === 'task_status_changed' || type === 'task_deleted') {
+    void qc.invalidateQueries({ queryKey: ['analytics'] })
+  }
+  if (type === 'task_status_changed' && typeof data.task_id === 'number') {
+    void qc.invalidateQueries({ queryKey: commentKeys.list(data.task_id) })
+  }
+}
+
 export function useWebSocket() {
   const { token, isAuthenticated, user } = useAuthStore()
   const currentUserId = user?.id ?? 0
@@ -132,39 +149,17 @@ export function useWebSocket() {
         // Инвалидируем кэш React Query при обновлении данных
         switch (data.type) {
           case 'task_created':
-            queryClient.invalidateQueries({ queryKey: ['tasks'] })
-            queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
-            queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-            toast('📋 Новая заявка: ' + (data.data.task_number ?? ''), { icon: '🆕' })
-            break
-
           case 'task_status_changed':
-            queryClient.invalidateQueries({ queryKey: ['tasks'] })
-            queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
-            queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-            queryClient.invalidateQueries({ queryKey: ['sla'] })
-            if (data.data.task_id) {
-              queryClient.invalidateQueries({ queryKey: ['task', data.data.task_id] })
-            }
-            break
-
           case 'task_updated':
-            queryClient.invalidateQueries({ queryKey: ['tasks'] })
-            queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
-            if (data.data.task_id) {
-              queryClient.invalidateQueries({ queryKey: ['task', data.data.task_id] })
-            }
-            break
-
           case 'task_assigned':
-            queryClient.invalidateQueries({ queryKey: ['tasks'] })
-            queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
-            break
-
           case 'task_assigned_to_me':
-            queryClient.invalidateQueries({ queryKey: ['tasks'] })
-            queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
-            toast('📌 Вам назначена заявка: ' + (data.data.task_number ?? ''), { icon: '👤' })
+          case 'task_deleted':
+            invalidateForTaskEvent(queryClient, data.type, data.data)
+            if (data.type === 'task_created') {
+              toast('📋 Новая заявка: ' + (data.data.task_number ?? ''), { icon: '🆕' })
+            } else if (data.type === 'task_assigned_to_me') {
+              toast('📌 Вам назначена заявка: ' + (data.data.task_number ?? ''), { icon: '👤' })
+            }
             break
 
           // Клиент подписал акт по ссылке — без участия сотрудника
@@ -176,12 +171,6 @@ export function useWebSocket() {
             if (data.data.status === 'signed') {
               toast.success(`Клиент подписал акт №${String(data.data.number ?? '')}`)
             }
-            break
-
-          case 'task_deleted':
-            queryClient.invalidateQueries({ queryKey: ['tasks'] })
-            queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
-            queryClient.invalidateQueries({ queryKey: ['dashboard'] })
             break
 
           // ===== Chat events =====
@@ -288,7 +277,7 @@ export function useWebSocket() {
                 toast('Роль участника изменена', { icon: '🛡️', duration: 2000 })
                 break
               case 'ownership_transferred':
-                toast('Ownership передан', { icon: '👑', duration: 2000 })
+                toast('Сменился владелец чата', { icon: '👑', duration: 2000 })
                 break
             }
             break

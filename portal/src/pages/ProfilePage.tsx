@@ -159,7 +159,7 @@ export default function ProfilePage() {
   const formatHours = (hours: number | null) => {
     if (hours === null) return '—'
     if (hours < 1) return `${Math.round(hours * 60)} мин`
-    if (hours < 24) return `${hours.toFixed(1)} ч`
+    if (hours < 24) return `${hours.toLocaleString('ru-RU', { maximumFractionDigits: 1 })} ч`
     return `${Math.round(hours / 24)} д`
   }
 
@@ -339,7 +339,7 @@ export default function ProfilePage() {
               </Card>
 
               {/* Additional Stats */}
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <Card>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                     <BarChart3 size={20} className="mr-2 text-primary-500" />
