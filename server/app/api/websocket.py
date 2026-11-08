@@ -29,6 +29,7 @@ from app.models.base import get_db
 from app.models.chat import ConversationMemberModel
 from app.services import redis_realtime
 from app.services.chat_service import MEMBERS_CACHE, mark_as_read
+from app.services.role_utils import is_dispatcher_or_admin_user
 from app.services.websocket_manager import ws_manager
 
 router = APIRouter(tags=["WebSocket"])
@@ -87,8 +88,13 @@ def _released(db: Session, fn, *args):
 
 def _authenticate_websocket_user(
     token: str, db: Session
-) -> tuple[int, int | None, bool] | None:
-    """Проверить JWT и пользователя в БД. Возвращает user_id, organization_id, is_superadmin."""
+) -> tuple[int, int | None, bool, bool] | None:
+    """Проверить JWT и пользователя в БД.
+
+    Возвращает user_id, organization_id, is_superadmin и sees_all_tasks —
+    диспетчер/администратор (с учётом кастомных групп) получает события всех
+    заявок организации, мастер — только своих.
+    """
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
@@ -114,7 +120,8 @@ def _authenticate_websocket_user(
     ):
         return None
     is_superadmin = user.organization_id is None and user.role == UserRole.ADMIN.value
-    return user.id, user.organization_id, is_superadmin
+    sees_all_tasks = is_dispatcher_or_admin_user(user)
+    return user.id, user.organization_id, is_superadmin, sees_all_tasks
 
 
 @router.websocket("/ws")
@@ -151,10 +158,14 @@ async def websocket_endpoint(
         await websocket.close(code=4001, reason="Invalid or missing token")
         return
 
-    user_id, organization_id, is_superadmin = auth_context
+    user_id, organization_id, is_superadmin, sees_all_tasks = auth_context
 
     await ws_manager.connect(
-        websocket, user_id, organization_id=organization_id, is_superadmin=is_superadmin
+        websocket,
+        user_id,
+        organization_id=organization_id,
+        is_superadmin=is_superadmin,
+        sees_all_tasks=sees_all_tasks,
     )
 
     try:
