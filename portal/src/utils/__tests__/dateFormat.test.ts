@@ -56,6 +56,15 @@ describe('formatDateOnly', () => {
   it('returns original for invalid date', () => {
     expect(formatDateOnly('bad')).toBe('bad')
   })
+
+  it('date-only string keeps its day west of UTC', () => {
+    vi.stubEnv('TZ', 'America/New_York')
+    try {
+      expect(formatDateOnly('2026-03-15')).toBe('15.03.2026')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
 })
 
 // ========================================================================

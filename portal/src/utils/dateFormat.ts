@@ -32,11 +32,14 @@ export function formatDeadline(dateStr: string | null | undefined): string {
   return format(moment, 'dd.MM.yyyy HH:mm', { locale: ru })
 }
 
-/** Только дата: «25.01.2026» */
+/**
+ * Только дата: «25.01.2026». parseISO, а не new Date: «2026-01-25» без времени
+ * new Date читает как полночь UTC — западнее Гринвича это уже 24-е.
+ */
 export function formatDateOnly(dateStr: string | null | undefined): string {
   if (!dateStr) return '—'
   try {
-    return format(new Date(dateStr), 'dd.MM.yyyy', { locale: ru })
+    return format(parseISO(dateStr), 'dd.MM.yyyy', { locale: ru })
   } catch {
     return dateStr ?? '—'
   }
