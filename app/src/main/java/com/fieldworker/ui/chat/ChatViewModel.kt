@@ -87,6 +87,8 @@ class ChatViewModel @Inject constructor(
     private val typingTimeoutJobs = java.util.concurrent.ConcurrentHashMap<Long, Job>()
     private val locallyReadMessageIds = mutableMapOf<Long, Long>()
     private var unreadAnchorLoadJob: Job? = null
+    /** Загрузка открытого чата: при переходе в другой чат старая отменяется. */
+    private var openConversationJob: Job? = null
     private var shouldResolveInitialUnreadAnchor = false
     private var unreadAnchorLoadAttempts = 0
     private var pendingFocusMessageId: Long? = null
@@ -241,12 +243,15 @@ class ChatViewModel @Inject constructor(
                 isPreparingUnreadAnchor = shouldResolveInitialUnreadAnchor,
             )
         }
-        viewModelScope.launch {
+        openConversationJob?.cancel()
+        openConversationJob = viewModelScope.launch {
             val initialLoadLimit = initialMessageLoadLimit(conversationId)
             // Load detail in parallel with messages
             launch {
                 chatRepository.getConversationDetail(conversationId).fold(
                     onSuccess = { detail ->
+                        // Ответ по чату, из которого уже ушли, — не наш
+                        if (_chatState.value.conversationId != conversationId) return@fold
                         val initialReadReceipts = detail.members
                             .filter { it.userId != preferences.getUserId() && it.lastReadMessageId != null }
                             .associate { it.userId to (it.lastReadMessageId ?: 0L) }
@@ -270,6 +275,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun closeConversation() {
+        openConversationJob?.cancel()
         clearTypingUsers()
         sendTypingStopped()
         unreadAnchorLoadJob?.cancel()
@@ -294,7 +300,11 @@ class ChatViewModel @Inject constructor(
         if (showLoading) {
             _chatState.update { it.copy(isLoadingMessages = true) }
         }
-        chatRepository.getMessages(conversationId, beforeId = beforeId, limit = limit).fold(
+        val result = chatRepository.getMessages(conversationId, beforeId = beforeId, limit = limit)
+        // Пока грузили, открыли другой чат — его сообщения не трогаем
+        // (раньше поздний ответ подменял ленту чужими сообщениями).
+        if (_chatState.value.conversationId != conversationId) return
+        result.fold(
             onSuccess = { (msgs, hasMore) ->
                 val combined = if (initial) {
                     msgs
@@ -806,6 +816,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             chatRepository.getConversationDetail(conversationId).fold(
                 onSuccess = { detail ->
+                    if (_chatState.value.conversationId != conversationId) return@fold
                     val initialReadReceipts = detail.members
                         .filter { it.userId != preferences.getUserId() && it.lastReadMessageId != null }
                         .associate { it.userId to (it.lastReadMessageId ?: 0L) }
@@ -857,7 +868,7 @@ class ChatViewModel @Inject constructor(
                 if (event.userId == currentUserId) {
                     _notifications.tryEmit("Вы стали владельцем группы")
                 } else {
-                    _notifications.tryEmit("Ownership чата изменён")
+                    _notifications.tryEmit("Владелец группы сменился")
                 }
             }
         }

@@ -670,7 +670,11 @@ class MapViewModel @Inject constructor(
     private fun loadTaskDetails(taskId: Long) {
         viewModelScope.launch {
             val offline = _uiState.value.isOffline
-            _uiState.update { it.copy(isLoadingComments = true) }
+            // Спиннер истории — только у открытой карточки этой заявки: иначе
+            // (статус сменили из «Моего дня») он залипал бы до следующего открытия.
+            if (_uiState.value.selectedTask?.id == taskId) {
+                _uiState.update { it.copy(isLoadingComments = true) }
+            }
 
             val result = if (offline) {
                 getTasksUseCase.getCachedTaskDetail(taskId)
@@ -899,7 +903,10 @@ class MapViewModel @Inject constructor(
                         state.copy(
                             tasks = updatedTasks,
                             isLoading = false,
-                            selectedTask = updatedTask,
+                            // Статус меняют и без открытой карточки («Взять в работу»
+                            // в «Моём дне») — тогда карточку не открываем сами.
+                            selectedTask = updatedTask.takeIf { state.selectedTask?.id == it.id }
+                                ?: state.selectedTask,
                             statusUpdateSuccess = true
                         )
                     }
@@ -950,7 +957,8 @@ class MapViewModel @Inject constructor(
                         }
                         state.copy(
                             tasks = updatedTasks,
-                            selectedTask = updatedTask
+                            selectedTask = updatedTask.takeIf { state.selectedTask?.id == it.id }
+                                ?: state.selectedTask
                         )
                     }
                     // Перезагрузить комментарии для отображения записи об изменении
