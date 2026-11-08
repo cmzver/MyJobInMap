@@ -322,7 +322,12 @@ fun MainScreen(
             ) {
                 composable(Screen.MyDay.route) {
                     MyDayScreen(
-                        onOpenTask = { task -> viewModel.selectTask(task); navController.navigate(Screen.ObjectCard.route) },
+                        // Карточка заявки (статус, фото, акт), а не карточка объекта:
+                        // из «Моего дня» заявку закрывают. Назад — снова «Мой день».
+                        onOpenTask = { task ->
+                            viewModel.selectTask(task)
+                            navController.navigate(Screen.TaskList.route) { launchSingleTop = true }
+                        },
                         onStartTask = { task -> viewModel.updateTaskStatus(task.id, TaskStatus.IN_PROGRESS) },
                     )
                 }
