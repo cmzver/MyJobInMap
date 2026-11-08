@@ -51,9 +51,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
-import java.net.URL
 import javax.inject.Inject
 import com.fieldworker.data.network.toUserMessage
 
@@ -369,7 +366,7 @@ class MapViewModel @Inject constructor(
             appInForeground.collectLatest { inForeground ->
                 if (!inForeground) return@collectLatest
                 // Пауза 2с — дать UI загрузиться (и после возврата из фона)
-                withContext(Dispatchers.IO) { delay(2_000L) }
+                delay(2_000L)
                 while (currentCoroutineContext().isActive) {
                     val interval: Long
                     try {
@@ -395,7 +392,7 @@ class MapViewModel @Inject constructor(
                         // В тестах моки могут быть освобождены раньше жизненного цикла VM.
                         break
                     }
-                    withContext(Dispatchers.IO) { delay(interval) }
+                    delay(interval)
                 }
             }
         }
@@ -1118,21 +1115,7 @@ class MapViewModel @Inject constructor(
             _connectionStatus.value = ConnectionStatus.TESTING
 
             try {
-                val result = withContext(Dispatchers.IO) {
-                    val baseUrl = url.trimEnd('/')
-                    val healthUrl = if (baseUrl.endsWith("/health")) baseUrl else "$baseUrl/health"
-                    val connection = URL(healthUrl).openConnection() as HttpURLConnection
-                    connection.connectTimeout = 5000
-                    connection.readTimeout = 5000
-                    connection.requestMethod = "GET"
-
-                    try {
-                        connection.connect()
-                        connection.responseCode == HttpURLConnection.HTTP_OK
-                    } finally {
-                        connection.disconnect()
-                    }
-                }
+                val result = serverHealthCheck.probe(url)
 
                 _connectionStatus.value = if (result) {
                     ConnectionStatus.SUCCESS
