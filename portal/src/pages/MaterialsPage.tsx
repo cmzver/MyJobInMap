@@ -165,11 +165,17 @@ function OwnStocks() {
   return (
     <Card flush title="Мои остатки">
       {stocks.isPending ? (
-        <QueryStatePanel state="loading" />
+        <QueryStatePanel bare state="loading" />
       ) : stocks.isError ? (
-        <QueryStatePanel state="error" onRetry={() => stocks.refetch()} />
+        <QueryStatePanel bare state="error" onRetry={() => stocks.refetch()} />
       ) : stocks.data.length === 0 ? (
-        <p className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">Материалы ещё не выданы.</p>
+        <QueryStatePanel
+          bare
+          state="empty"
+          icon={Package}
+          title="Материалы ещё не выданы"
+          description="Когда кладовщик выдаст материал, он появится здесь."
+        />
       ) : (
         <table className="data-table">
           <thead>
@@ -206,11 +212,12 @@ function BalancesTab({ onOperate }: { onOperate: (kind: MaterialOperationKind, m
   if (balances.isError) return <QueryStatePanel state="error" onRetry={() => balances.refetch()} />
   if (balances.data.length === 0) {
     return (
-      <Card>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Склад пуст. Добавьте материал в справочник и оформите приход.
-        </p>
-      </Card>
+      <QueryStatePanel
+        state="empty"
+        icon={Boxes}
+        title="Склад пуст"
+        description="Добавьте материал в справочник и оформите приход."
+      />
     )
   }
   return (
@@ -336,11 +343,17 @@ function JournalTab() {
       }
     >
       {movements.isPending ? (
-        <QueryStatePanel state="loading" />
+        <QueryStatePanel bare state="loading" />
       ) : movements.isError ? (
-        <QueryStatePanel state="error" onRetry={() => movements.refetch()} />
+        <QueryStatePanel bare state="error" onRetry={() => movements.refetch()} />
       ) : movements.data.items.length === 0 ? (
-        <p className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">Операций нет.</p>
+        <QueryStatePanel
+          bare
+          state="empty"
+          icon={History}
+          title="Операций нет"
+          description="Измените месяц или тип операции."
+        />
       ) : (
         <div className="overflow-x-auto">
           <table className="data-table">
@@ -431,11 +444,17 @@ function TurnoverTab() {
       }
     >
       {turnover.isPending ? (
-        <QueryStatePanel state="loading" />
+        <QueryStatePanel bare state="loading" />
       ) : turnover.isError ? (
-        <QueryStatePanel state="error" onRetry={() => turnover.refetch()} />
+        <QueryStatePanel bare state="error" onRetry={() => turnover.refetch()} />
       ) : turnover.data.length === 0 ? (
-        <p className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">За месяц движений не было.</p>
+        <QueryStatePanel
+          bare
+          state="empty"
+          icon={Table2}
+          title="За месяц движений не было"
+          description="Выберите другой месяц."
+        />
       ) : (
         <div className="overflow-x-auto">
           <table className="data-table">
@@ -482,7 +501,13 @@ function CatalogTab({ onEdit }: { onEdit: (material: Material) => void }) {
   return (
     <Card flush title="Справочник материалов">
       {catalog.data.length === 0 ? (
-        <p className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">Справочник пуст.</p>
+        <QueryStatePanel
+          bare
+          state="empty"
+          icon={Package}
+          title="Справочник пуст"
+          description="Добавьте первый материал кнопкой «Материал»."
+        />
       ) : (
         <table className="data-table">
           <thead>

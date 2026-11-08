@@ -14,7 +14,6 @@ import {
   MessageSquare,
   Image as ImageIcon,
   Clock,
-  AlertTriangle,
   Send,
   Upload,
   X,
@@ -45,6 +44,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import SendTaskToChatModal from '@/components/chat/SendTaskToChatModal'
 import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/Button'
+import QueryStatePanel from '@/components/QueryStatePanel'
 import Spinner from '@/components/Spinner'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
@@ -140,7 +140,7 @@ export default function TaskDetailPage() {
   }, [selectedPhoto])
 
   // Data fetching
-  const { data: task, isLoading, isError, error } = useTask(taskId)
+  const { data: task, isLoading, isError, error, refetch, isFetching } = useTask(taskId)
   const { data: comments = [], isLoading: commentsLoading } = useComments(taskId)
   // История места — после загрузки заявки: блок свёрнут, а к недоступной
   // заявке (чужая у мастера) запрос заведомо вернёт ошибку
@@ -349,13 +349,13 @@ export default function TaskDetailPage() {
           <ArrowLeft className="h-4 w-4 mr-2" />
           Назад к списку
         </Button>
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
-          <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
-          <h3 className="text-lg font-medium text-red-800 dark:text-red-400 mb-1">Ошибка загрузки</h3>
-          <p className="text-red-600 dark:text-red-500 text-sm">
-            {getApiErrorMessage(error, 'Заявка не найдена')}
-          </p>
-        </div>
+        <QueryStatePanel
+          state="error"
+          title="Не удалось открыть заявку"
+          description={getApiErrorMessage(error, 'Заявка не найдена')}
+          onRetry={refetch}
+          isRetrying={isFetching}
+        />
       </div>
     )
   }
