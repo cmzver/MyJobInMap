@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.fieldworker.data.preferences.AppPreferences
+import com.fieldworker.data.preferences.ServerUrl
 import com.fieldworker.domain.model.AccessLevel
 import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.avatarInitials
@@ -338,7 +339,7 @@ fun SettingsScreen(
                 TextButton(
                     onClick = {
                         preferences.setServerUrl(serverUrl)
-                        preferences.setServerPort(serverPort.toIntOrNull() ?: 8001)
+                        preferences.setServerPort(serverPort.toIntOrNull() ?: AppPreferences.DEFAULT_SERVER_PORT)
                         showServerDialog = false
                         scope.launch { snackbarHostState.showSnackbar("Сохранено") }
                     }
@@ -346,7 +347,12 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { onTestConnection(buildServerEndpointPreview(serverUrl, serverPort)) }
+                    onClick = {
+                        onTestConnection(
+                            ServerUrl.build(serverUrl, serverPort.toIntOrNull() ?: AppPreferences.DEFAULT_SERVER_PORT)
+                        )
+                    },
+                    enabled = serverUrl.isNotBlank() && connectionStatus != ConnectionStatus.TESTING
                 ) { Text("Проверить") }
             }
         )
@@ -575,18 +581,7 @@ private fun ProfileAvatar(
     }
 }
 
-private fun buildServerEndpointPreview(serverUrl: String, serverPort: String): String {
-    val baseUrl = serverUrl.trim().removeSuffix("/")
-    if (baseUrl.isBlank()) {
-        return "Сервер не задан"
-    }
-
-    val port = serverPort.toIntOrNull() ?: 8001
-    val urlWithoutScheme = baseUrl.substringAfter("://", baseUrl)
-    return when {
-        urlWithoutScheme.contains(":") -> baseUrl
-        baseUrl.startsWith("https://") -> baseUrl
-        else -> "$baseUrl:$port"
-    }
-}
+private fun buildServerEndpointPreview(serverUrl: String, serverPort: String): String =
+    ServerUrl.build(serverUrl, serverPort.toIntOrNull() ?: AppPreferences.DEFAULT_SERVER_PORT)
+        .ifEmpty { "Сервер не задан" }
 

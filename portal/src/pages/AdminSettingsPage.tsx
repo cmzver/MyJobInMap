@@ -996,7 +996,7 @@ function BackupSettingsTab() {
                   {backup.name}
                 </span>
                 <span className="shrink-0 text-xs tabular-nums text-gray-400 dark:text-gray-500">
-                  {formatFileSize(backup.size)} · {new Date(backup.created).toLocaleDateString('ru-RU')}
+                  {formatFileSize(backup.size)} · {formatDate(backup.created)}
                 </span>
                 <div className="flex shrink-0 items-center">
                   <SettingsIconButton

@@ -103,9 +103,9 @@ class MapViewModelTest {
         // EncryptedSharedPreferences недоступен в чистой JVM — конструктор
         // ловит исключение и откатывается на context.getSharedPreferences(...).
         val prefs = AppPreferences(context)
-        // Невалидный URL — на случай, если что-то пойдёт в сеть мимо мока
-        // ServerHealthCheck: упадёт сразу (MalformedURLException), а не повиснет.
-        prefs.setServerUrl("invalid-url")
+        // Закрытый локальный порт — на случай, если что-то пойдёт в сеть мимо
+        // мока ServerHealthCheck: отказ в соединении сразу, без DNS и ожидания.
+        prefs.setServerUrl("http://127.0.0.1:1")
         return prefs
     }
 

@@ -10,7 +10,7 @@ Backup Service
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 from fastapi import Depends
@@ -85,7 +85,11 @@ class BackupService:
                         BackupFile(
                             name=f,
                             size=stat.st_size,
-                            created=datetime.fromtimestamp(stat.st_ctime),
+                            # mtime — время записи файла (ctime в Linux меняется
+                            # и от chmod); aware UTC — клиент сам переведёт в местное
+                            created=datetime.fromtimestamp(
+                                stat.st_mtime, tz=timezone.utc
+                            ),
                         )
                     )
         backups.sort(key=lambda x: x.created, reverse=True)

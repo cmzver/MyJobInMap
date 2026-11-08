@@ -5,6 +5,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import retrofit2.HttpException
+import java.net.MalformedURLException
 import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -152,6 +153,8 @@ fun Throwable.toUserMessage(fallback: String = "Неизвестная ошиб�
         is SSLException -> NetworkError.SSLError.message
         is SocketException -> NetworkError.Unreachable.message
         is SerializationException -> NetworkError.BadResponse.message
+        // «no protocol: …» и т.п. — адрес сервера введён с ошибкой
+        is MalformedURLException -> "Неверный адрес сервера"
         is HttpException -> serverMessage(this)
             ?: NetworkError.fromHttpCode(this.code()).message
             ?: fallback
