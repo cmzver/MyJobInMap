@@ -81,6 +81,7 @@ import com.fieldworker.domain.model.PendingPhoto
 import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.TaskRepeat
 import com.fieldworker.domain.model.TaskStatus
+import com.fieldworker.ui.components.FilterFunnelIcon
 import com.fieldworker.ui.components.QuickFilterChip
 import com.fieldworker.ui.components.AppSearchField
 import com.fieldworker.ui.components.PhotoGallery
@@ -373,29 +374,6 @@ fun TaskListScreen(
             }
         )
     }
-}
-
-/**
- * Иконка-воронка «фильтр» (официальный Material path). Определена локально, чтобы
- * не тянуть весь material-icons-extended ради одного значка.
- */
-private val FilterFunnelIcon: ImageVector by lazy {
-    ImageVector.Builder(
-        name = "FilterList",
-        defaultWidth = 24.dp,
-        defaultHeight = 24.dp,
-        viewportWidth = 24f,
-        viewportHeight = 24f,
-    ).apply {
-        path(fill = SolidColor(Color.Black)) {
-            moveTo(10f, 18f); horizontalLineToRelative(4f); verticalLineToRelative(-2f)
-            horizontalLineToRelative(-4f); close()
-            moveTo(3f, 6f); verticalLineToRelative(2f); horizontalLineToRelative(18f)
-            verticalLineTo(6f); horizontalLineTo(3f); close()
-            moveTo(6f, 13f); horizontalLineToRelative(12f); verticalLineToRelative(-2f)
-            horizontalLineTo(6f); close()
-        }
-    }.build()
 }
 
 @Composable
