@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import io
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Optional
 
 from openpyxl import Workbook
@@ -15,7 +15,8 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import TaskModel, UserModel
-from app.services.business_time import format_local
+from app.services.analytics_periods import _local_day_end, _local_midnight
+from app.services.business_time import format_local, to_naive_utc
 from app.services.tenant_filter import TenantFilter
 
 logger = logging.getLogger(__name__)
@@ -143,6 +144,23 @@ def export_tasks_to_excel(
     return output
 
 
+def _parse_bound(value: str, *, end: bool) -> Optional[datetime]:
+    """Граница выборки как наивное UTC (так лежит created_at).
+
+    Голая дата («2026-11-08») — целый день в поясе бизнеса: для date_to это
+    конец дня, иначе заявки последнего дня выпадали (сравнение шло с полуночью).
+    """
+    try:
+        if len(value) == 10:
+            day = date.fromisoformat(value)
+            moment = _local_day_end(day) if end else _local_midnight(day)
+        else:
+            moment = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return to_naive_utc(moment)
+
+
 def _load_tasks(
     db: Session,
     *,
@@ -167,19 +185,13 @@ def _load_tasks(
     if assignee_id is not None:
         query = query.filter(TaskModel.assigned_user_id == assignee_id)
 
-    if date_from:
-        try:
-            dt_from = datetime.fromisoformat(date_from)
-            query = query.filter(TaskModel.created_at >= dt_from)
-        except ValueError:
-            pass
+    dt_from = _parse_bound(date_from, end=False) if date_from else None
+    if dt_from is not None:
+        query = query.filter(TaskModel.created_at >= dt_from)
 
-    if date_to:
-        try:
-            dt_to = datetime.fromisoformat(date_to)
-            query = query.filter(TaskModel.created_at <= dt_to)
-        except ValueError:
-            pass
+    dt_to = _parse_bound(date_to, end=True) if date_to else None
+    if dt_to is not None:
+        query = query.filter(TaskModel.created_at <= dt_to)
 
     return query.order_by(TaskModel.created_at.desc()).all()
 

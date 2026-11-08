@@ -128,3 +128,55 @@ def test_sla_worker_filter_applies_to_trends(client_with_auth, db_session):
     assert data["overview"]["total_tasks"] == 1
     assert sum(item["created"] for item in data["trends"]) == 1
     assert sum(item["completed"] for item in data["trends"]) == 1
+
+
+def test_excel_export_all_period_includes_last_day(
+    client_with_auth, db_session, monkeypatch
+):
+    """period=all с сырыми датами: date_to — включительно до конца дня по
+    поясу бизнеса, date_from — с местной полуночи."""
+    from app.config import settings
+    from app.services.business_time import business_tz
+
+    monkeypatch.setattr(settings, "BUSINESS_TIMEZONE", "Europe/Moscow")
+    business_tz.cache_clear()
+    try:
+        moments = {
+            "Z-IN-MORNING": datetime(2026, 3, 9, 21, 30),  # 00:30 МСК 10-го
+            "Z-IN-EVENING": datetime(2026, 3, 10, 20, 0),  # 23:00 МСК 10-го
+            "Z-OUT-BEFORE": datetime(2026, 3, 9, 20, 30),  # 23:30 МСК 9-го
+            "Z-OUT-AFTER": datetime(2026, 3, 10, 21, 30),  # 00:30 МСК 11-го
+        }
+        for number, created in moments.items():
+            db_session.add(
+                TaskModel(
+                    title=number,
+                    raw_address="ул. Тестовая, 1",
+                    description="",
+                    task_number=number,
+                    created_at=created,
+                )
+            )
+        db_session.commit()
+
+        response = client_with_auth.get(
+            "/api/reports/export/excel",
+            params={
+                "period": "all",
+                "date_from": "2026-03-10",
+                "date_to": "2026-03-10",
+            },
+        )
+        assert response.status_code == 200
+        workbook = load_workbook(io.BytesIO(response.content))
+        cells = {
+            str(cell.value)
+            for sheet in workbook.worksheets
+            for row in sheet.iter_rows()
+            for cell in row
+            if cell.value
+        }
+        assert {"Z-IN-MORNING", "Z-IN-EVENING"} <= cells
+        assert not {"Z-OUT-BEFORE", "Z-OUT-AFTER"} & cells
+    finally:
+        business_tz.cache_clear()
