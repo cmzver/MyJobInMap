@@ -33,8 +33,6 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -74,7 +72,7 @@ import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.components.CompactTaskCard
-import com.fieldworker.ui.components.QuickFilterChip
+import com.fieldworker.ui.components.FilterFunnelIcon
 import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.PhotoUploadConfirmDialog
 import com.fieldworker.ui.components.rememberPhotoDraft
@@ -90,6 +88,8 @@ import com.fieldworker.ui.utils.contentColor
 import com.fieldworker.ui.utils.priorityColor
 import com.fieldworker.ui.utils.isDarkPalette
 import com.fieldworker.ui.utils.TaskUtils
+import com.fieldworker.ui.theme.AppShape
+import com.fieldworker.ui.utils.accentTextColor
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
@@ -334,20 +334,25 @@ fun MapScreen(
         ) {
             // Статистика задач
             TasksStatsBar(tasks = mapTasks, modifier = Modifier.padding(horizontal = 16.dp))
-            MapModeChips(
+            // Что сейчас отфильтровано — видно сразу и сбрасывается одним тапом
+            val filterSummary = mapFilterSummary(
                 mode = mapMode,
-                onModeChange = {
-                    mapMode = it
-                    fitTick++
-                },
                 statusFilter = uiState.statusFilter,
-                onStatusFilterChange = viewModel::setStatusFilter,
-                showMine = uiState.canManageTasks,
-                mineOnly = uiState.taskScope == TaskScope.MINE,
-                onToggleMine = {
-                    viewModel.setTaskScope(if (uiState.taskScope == TaskScope.MINE) TaskScope.ALL else TaskScope.MINE)
-                },
+                mineOnly = uiState.canManageTasks && uiState.taskScope == TaskScope.MINE,
             )
+            if (filterSummary != null) {
+                ActiveFilterChip(
+                    text = filterSummary,
+                    onReset = {
+                        if (mapMode == MapMode.TODAY) {
+                            mapMode = MapMode.ALL
+                            fitTick++
+                        }
+                        viewModel.setStatusFilter(emptySet())
+                        if (uiState.canManageTasks) viewModel.setTaskScope(TaskScope.ALL)
+                    },
+                )
+            }
             // Заявки без координат на карте не видны — не прячем их молча
             val withoutPoint = remember(mapTasks) { mapTasks.count { !it.hasValidCoordinates() } }
             if (withoutPoint > 0) {
@@ -369,6 +374,19 @@ fun MapScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            MapFilterButton(
+                mode = mapMode,
+                onModeChange = {
+                    mapMode = it
+                    fitTick++
+                },
+                statusFilter = uiState.statusFilter,
+                onStatusFilterChange = viewModel::setStatusFilter,
+                showMine = uiState.canManageTasks,
+                mineOnly = uiState.taskScope == TaskScope.MINE,
+                onMineChange = { mine -> viewModel.setTaskScope(if (mine) TaskScope.MINE else TaskScope.ALL) },
+            )
+
             MapActionButton(
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -689,6 +707,9 @@ private fun MapActionButton(
     contentDescription: String,
     isActive: Boolean = false
 ) {
+    // key: при смене состояния поверх карты (AndroidView) слой с тенью не
+    // перерисовывал фон — кнопка становилась белой с белым значком
+    key(isActive) {
     Surface(
         modifier = Modifier.size(48.dp),
         shape = CircleShape,
@@ -705,6 +726,7 @@ private fun MapActionButton(
                 modifier = Modifier.size(22.dp)
             )
         }
+    }
     }
 }
 
@@ -1219,63 +1241,143 @@ private fun Task.isPlannedBy(day: String): Boolean =
     (status == TaskStatus.NEW || status == TaskStatus.IN_PROGRESS) &&
         plannedDate != null && plannedDate.take(10) <= day
 
+/** Подпись активного фильтра карты; null — показано всё. */
+private fun mapFilterSummary(mode: MapMode, statusFilter: Set<TaskStatus>, mineOnly: Boolean): String? {
+    val parts = buildList {
+        // Маршрут дня объясняет себя панелью внизу
+        if (mode == MapMode.TODAY) add("На сегодня")
+        if (mode != MapMode.ROUTE) {
+            when {
+                statusFilter.isEmpty() -> Unit
+                statusFilter == setOf(TaskStatus.NEW) -> add("Новые")
+                statusFilter == setOf(TaskStatus.IN_PROGRESS) -> add("В работе")
+                else -> add("${statusFilter.size} ${TaskUtils.pluralize(statusFilter.size, "статус", "статуса", "статусов")}")
+            }
+            if (mineOnly) add("мои")
+        }
+    }
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+}
+
 @Composable
-private fun MapModeChips(
+private fun ActiveFilterChip(text: String, onReset: () -> Unit) {
+    Surface(
+        onClick = onReset,
+        modifier = Modifier.padding(top = 8.dp),
+        shape = AppShape.pill,
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 3.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Row(
+            modifier = Modifier
+                .height(32.dp)
+                .padding(start = 12.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge,
+                color = accentTextColor(),
+                maxLines = 1,
+            )
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Сбросить фильтр",
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** Кнопка фильтров в правой колонке: меню «что показать» и статусы. */
+@Composable
+private fun MapFilterButton(
     mode: MapMode,
     onModeChange: (MapMode) -> Unit,
     statusFilter: Set<TaskStatus>,
     onStatusFilterChange: (Set<TaskStatus>) -> Unit,
     showMine: Boolean,
     mineOnly: Boolean,
-    onToggleMine: () -> Unit,
+    onMineChange: (Boolean) -> Unit,
 ) {
-    // Те же «таблетки», что над лентой заявок; тень — чтобы читались на тайлах
-    val elevation = 3.dp
-    // На всю ширину: ряд прокручивается до края экрана, а не обрезается
-    // у отступа; помещается целиком — стоит по центру
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp)
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-    ) {
-        QuickFilterChip(
-            label = "Маршрут дня",
-            selected = mode == MapMode.ROUTE,
-            onClick = { onModeChange(if (mode == MapMode.ROUTE) MapMode.ALL else MapMode.ROUTE) },
-            shadowElevation = elevation,
+    var expanded by remember { mutableStateOf(false) }
+    val active = mode != MapMode.ALL ||
+        (mode != MapMode.ROUTE && (statusFilter.isNotEmpty() || (showMine && mineOnly)))
+    Box {
+        MapActionButton(
+            onClick = { expanded = true },
+            icon = FilterFunnelIcon,
+            contentDescription = "Фильтры карты",
+            isActive = active,
         )
-        QuickFilterChip(
-            label = "На сегодня",
-            selected = mode == MapMode.TODAY,
-            onClick = { onModeChange(if (mode == MapMode.TODAY) MapMode.ALL else MapMode.TODAY) },
-            shadowElevation = elevation,
-        )
-        // Маршрут дня — свой набор: мои открытые, фильтры ленты к нему не относятся
-        if (mode != MapMode.ROUTE) {
-            // Статус — как в ленте: один выбранный; повторный тап — снова все
-            listOf(TaskStatus.NEW to "Новые", TaskStatus.IN_PROGRESS to "В работе").forEach { (status, label) ->
-                val only = setOf(status)
-                QuickFilterChip(
-                    label = label,
-                    selected = statusFilter == only,
-                    onClick = { onStatusFilterChange(if (statusFilter == only) emptySet() else only) },
-                    dotColor = status.contentColor(),
-                    shadowElevation = elevation,
-                )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            fun pick(action: () -> Unit) {
+                action()
+                expanded = false
             }
-            if (showMine) {
-                QuickFilterChip(
-                    label = "Мои",
-                    selected = mineOnly,
-                    onClick = onToggleMine,
-                    shadowElevation = elevation,
-                )
+            MenuSectionLabel("Показать")
+            MenuChoice("Все заявки", mode == MapMode.ALL) { pick { onModeChange(MapMode.ALL) } }
+            MenuChoice("На сегодня", mode == MapMode.TODAY) { pick { onModeChange(MapMode.TODAY) } }
+            MenuChoice("Маршрут дня", mode == MapMode.ROUTE) { pick { onModeChange(MapMode.ROUTE) } }
+            // Маршрут дня — свой набор: мои открытые, фильтры ленты к нему не относятся
+            if (mode != MapMode.ROUTE) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                MenuSectionLabel("Статус")
+                MenuChoice("Все статусы", statusFilter.isEmpty()) { pick { onStatusFilterChange(emptySet()) } }
+                listOf(TaskStatus.NEW to "Новые", TaskStatus.IN_PROGRESS to "В работе").forEach { (status, label) ->
+                    MenuChoice(label, statusFilter == setOf(status), dotColor = status.contentColor()) {
+                        pick { onStatusFilterChange(setOf(status)) }
+                    }
+                }
+                if (showMine) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    MenuChoice("Только мои", mineOnly) { pick { onMineChange(!mineOnly) } }
+                }
             }
         }
     }
+}
+
+@Composable
+private fun MenuSectionLabel(text: String) {
+    Text(
+        text = text.uppercase(),
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun MenuChoice(label: String, selected: Boolean, dotColor: Color? = null, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = {
+            Text(
+                text = label,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (selected) accentTextColor() else MaterialTheme.colorScheme.onSurface,
+            )
+        },
+        onClick = onClick,
+        leadingIcon = dotColor?.let { color ->
+            {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(color),
+                )
+            }
+        },
+        trailingIcon = if (selected) {
+            { Icon(Icons.Default.Check, contentDescription = null, tint = accentTextColor()) }
+        } else {
+            null
+        },
+    )
 }
 
 /** Низ карты в режиме маршрута: сколько точек, сколько ехать, «Поехали». */
