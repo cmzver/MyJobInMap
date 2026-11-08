@@ -5,7 +5,7 @@ import { showApiError, getApiErrorMessage } from '@/utils/apiError'
 import { Plus, RefreshCw, AlertTriangle, List, TableProperties } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useUnreadTaskNotifications } from '@/hooks/useNotifications'
-import { useTasks, useDispatchOverview } from '@/hooks/useTasks'
+import { myTaskKeys, useTasks, useDispatchOverview } from '@/hooks/useTasks'
 import { usePortalInterfaceSettings } from '@/hooks/useSettings'
 import { useUsers } from '@/hooks/useUsers'
 import { MAX_TASKS_PAGE_SIZE, tasksApi } from '@/api/tasks'
@@ -60,6 +60,7 @@ import {
   type TaskSavedViewSettings,
 } from '@/hooks/useTaskSavedViews'
 import { countRu } from '@/utils/plural'
+import { settleEach, type BulkResult } from '@/utils/bulk'
 import { useConfirm } from '@/hooks/useConfirm'
 
 const PAGE_SIZE = 20
@@ -1109,47 +1110,48 @@ export default function TasksPage() {
     },
   })
 
+  // Частичный сбой — не повод не обновить список: часть заявок уже изменена
+  const invalidateTaskLists = () => {
+    queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
+  }
+
   const bulkAssigneeMutation = useMutation({
-    mutationFn: async ({
-      ids,
-      assignedUserId,
-    }: {
-      ids: number[]
-      assignedUserId: number | null
-    }) => {
-      await Promise.all(ids.map((id) => tasksApi.assignTask(id, assignedUserId)))
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] })
-    },
+    mutationFn: ({ ids, assignedUserId }: { ids: number[]; assignedUserId: number | null }) =>
+      settleEach(ids, (id) => tasksApi.assignTask(id, assignedUserId)),
+    onSettled: invalidateTaskLists,
   })
 
   const bulkPriorityMutation = useMutation({
-    mutationFn: async ({ ids, priority }: { ids: number[]; priority: TaskPriority }) => {
-      await Promise.all(ids.map((id) => tasksApi.updateTask(id, { priority })))
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] })
-    },
+    mutationFn: ({ ids, priority }: { ids: number[]; priority: TaskPriority }) =>
+      settleEach(ids, (id) => tasksApi.updateTask(id, { priority })),
+    onSettled: invalidateTaskLists,
   })
 
   const bulkPlannedDateMutation = useMutation({
-    mutationFn: async ({ ids, planned_date }: { ids: number[]; planned_date: string | null }) => {
-      await Promise.all(ids.map((id) => tasksApi.updateTask(id, { planned_date })))
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] })
-    },
+    mutationFn: ({ ids, planned_date }: { ids: number[]; planned_date: string | null }) =>
+      settleEach(ids, (id) => tasksApi.updateTask(id, { planned_date })),
+    onSettled: invalidateTaskLists,
   })
 
   const bulkDeleteMutation = useMutation({
-    mutationFn: async ({ ids }: { ids: number[] }) => {
-      await Promise.all(ids.map((id) => tasksApi.deleteTask(id)))
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] })
-    },
+    mutationFn: ({ ids }: { ids: number[] }) => settleEach(ids, (id) => tasksApi.deleteTask(id)),
+    onSettled: invalidateTaskLists,
   })
+
+  /** Итог массового действия: успех, сбой с причиной; неудачные остаются выделенными. */
+  const reportBulk = (result: BulkResult, success: (count: number) => string, failure: string) => {
+    if (result.successCount > 0) toast.success(success(result.successCount))
+    if (result.failedCount > 0) {
+      toast.error(
+        `${failure}: ${countRu(result.failedCount, 'заявка', 'заявки', 'заявок')} — ${getApiErrorMessage(result.firstError, 'ошибка сервера')}`,
+      )
+    }
+    if (result.successCount > 0) {
+      const done = new Set(result.succeededIds)
+      setSelectedIds((prev) => new Set([...prev].filter((id) => !done.has(id))))
+    }
+  }
 
   const applyBulkStatus = async () => {
     if (!bulkStatus || selectedIds.size === 0) {
@@ -1243,9 +1245,8 @@ export default function TasksPage() {
     const assignedUserId = bulkAssignee === 'none' ? null : Number(bulkAssignee)
     const ids = Array.from(selectedIds)
     try {
-      await bulkAssigneeMutation.mutateAsync({ ids, assignedUserId })
-      toast.success(`Исполнитель обновлён для ${countRu(ids.length, 'заявки', 'заявок', 'заявок')}`)
-      clearSelection()
+      const result = await bulkAssigneeMutation.mutateAsync({ ids, assignedUserId })
+      reportBulk(result, (n) => `Исполнитель обновлён для ${countRu(n, 'заявки', 'заявок', 'заявок')}`, 'Не назначен исполнитель')
     } catch (err) {
       showApiError(err, 'Ошибка массового назначения')
     }
@@ -1263,9 +1264,8 @@ export default function TasksPage() {
     }
     const ids = Array.from(selectedIds)
     try {
-      await bulkPriorityMutation.mutateAsync({ ids, priority })
-      toast.success(`Приоритет обновлён для ${countRu(ids.length, 'заявки', 'заявок', 'заявок')}`)
-      clearSelection()
+      const result = await bulkPriorityMutation.mutateAsync({ ids, priority })
+      reportBulk(result, (n) => `Приоритет обновлён для ${countRu(n, 'заявки', 'заявок', 'заявок')}`, 'Приоритет не изменён')
     } catch (err) {
       showApiError(err, 'Ошибка массового обновления приоритета')
     }
@@ -1282,9 +1282,12 @@ export default function TasksPage() {
     }
     const ids = Array.from(selectedIds)
     try {
-      await bulkPlannedDateMutation.mutateAsync({ ids, planned_date: bulkPlannedDate })
-      toast.success(`Плановая дата обновлена для ${countRu(ids.length, 'заявки', 'заявок', 'заявок')}`)
-      clearSelection()
+      const result = await bulkPlannedDateMutation.mutateAsync({ ids, planned_date: bulkPlannedDate })
+      reportBulk(
+        result,
+        (n) => `Плановая дата обновлена для ${countRu(n, 'заявки', 'заявок', 'заявок')}`,
+        'Дата не изменена',
+      )
     } catch (err) {
       showApiError(err, 'Ошибка массового обновления даты')
     }
@@ -1303,9 +1306,8 @@ export default function TasksPage() {
     if (!ok) return
     const ids = Array.from(selectedIds)
     try {
-      await bulkDeleteMutation.mutateAsync({ ids })
-      toast.success(`Удалено заявок: ${ids.length}`)
-      clearSelection()
+      const result = await bulkDeleteMutation.mutateAsync({ ids })
+      reportBulk(result, (n) => `Удалено заявок: ${n}`, 'Не удалены')
     } catch (err) {
       showApiError(err, 'Ошибка массового удаления')
     }
