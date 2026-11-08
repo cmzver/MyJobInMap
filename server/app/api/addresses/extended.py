@@ -255,7 +255,7 @@ def create_address_system(
     address_id: int,
     data: AddressSystemCreate,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user_required),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
     """Добавить систему на объект"""
     get_address_or_404(address_id, db, user)
@@ -282,7 +282,7 @@ def update_address_system(
     system_id: int,
     data: AddressSystemUpdate,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user_required),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
     """Обновить систему"""
     get_address_or_404(address_id, db, user)
@@ -320,7 +320,7 @@ def delete_address_system(
     address_id: int,
     system_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user_required),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
     """Удалить систему"""
     get_address_or_404(address_id, db, user)
@@ -384,7 +384,7 @@ def create_address_equipment(
     address_id: int,
     data: AddressEquipmentCreate,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user_required),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
     """Добавить оборудование на объект"""
     get_address_or_404(address_id, db, user)
@@ -428,7 +428,7 @@ def update_address_equipment(
     equipment_id: int,
     data: AddressEquipmentUpdate,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user_required),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
     """Обновить оборудование"""
     get_address_or_404(address_id, db, user)
@@ -466,7 +466,7 @@ def delete_address_equipment(
     address_id: int,
     equipment_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user_required),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
     """Удалить оборудование"""
     get_address_or_404(address_id, db, user)
@@ -525,7 +525,7 @@ def create_address_panel(
     address_id: int,
     data: IntercomPanelCreate,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user_required),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
     """Добавить сетевую панель на объект"""
     get_address_or_404(address_id, db, user)
@@ -552,7 +552,7 @@ def update_address_panel(
     panel_id: int,
     data: IntercomPanelUpdate,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user_required),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
     """Обновить сетевую панель"""
     get_address_or_404(address_id, db, user)
@@ -590,7 +590,7 @@ def delete_address_panel(
     address_id: int,
     panel_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user_required),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
     """Удалить сетевую панель"""
     get_address_or_404(address_id, db, user)
@@ -814,7 +814,7 @@ def upload_address_document(
     valid_until: Optional[str] = Form(default=None),
     notes: Optional[str] = Form(default=None),
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user_required),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
     """Загрузить документ на объект"""
     get_address_or_404(address_id, db, user)
@@ -932,7 +932,7 @@ def delete_address_document(
     address_id: int,
     document_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user_required),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
     """Удалить документ"""
     get_address_or_404(address_id, db, user)
@@ -999,7 +999,7 @@ def create_address_contact(
     address_id: int,
     data: AddressContactCreate,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user_required),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
     """Добавить контакт на объект"""
     get_address_or_404(address_id, db, user)
@@ -1035,7 +1035,7 @@ def update_address_contact(
     contact_id: int,
     data: AddressContactUpdate,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user_required),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
     """Обновить контакт"""
     get_address_or_404(address_id, db, user)
@@ -1081,7 +1081,7 @@ def delete_address_contact(
     address_id: int,
     contact_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user_required),
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
     """Удалить контакт"""
     get_address_or_404(address_id, db, user)
