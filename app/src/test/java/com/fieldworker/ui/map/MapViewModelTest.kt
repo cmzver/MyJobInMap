@@ -18,6 +18,7 @@ import com.fieldworker.ui.utils.TaskSortOrder
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -26,6 +27,7 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import java.net.MalformedURLException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MapViewModelTest {
@@ -101,8 +103,8 @@ class MapViewModelTest {
         // EncryptedSharedPreferences недоступен в чистой JVM — конструктор
         // ловит исключение и откатывается на context.getSharedPreferences(...).
         val prefs = AppPreferences(context)
-        // Невалидный URL → прямые HTTP-проверки (testConnection) падают мгновенно
-        // (MalformedURLException), а не ходят в сеть. /health — через мок ServerHealthCheck.
+        // Невалидный URL — на случай, если что-то пойдёт в сеть мимо мока
+        // ServerHealthCheck: упадёт сразу (MalformedURLException), а не повиснет.
         prefs.setServerUrl("invalid-url")
         return prefs
     }
@@ -624,34 +626,43 @@ class MapViewModelTest {
     // ==================== Подключение ====================
 
     @Test
-    fun `testConnection sets testing status`() = runTest {
+    fun `testConnection shows testing while probing, then error`() = runTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
-
-        // Все промежуточные статусы: IO-поток может бросить ошибку ещё внутри
-        // runCurrent(), и тогда значение уже ERROR — TESTING ловим по истории
+        coEvery { serverHealthCheck.probe("not-a-url") } coAnswers {
+            delay(1_000)
+            throw MalformedURLException("no protocol: not-a-url")
+        }
         val seen = mutableListOf<ConnectionStatus>()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.connectionStatus.collect { seen += it }
         }
 
-        // Без схемы URL падает сразу (MalformedURLException), в сеть не ходит
         viewModel.testConnection("not-a-url")
-        // Продвигаем scheduler чтобы выполнился первый шаг корутины
-        testDispatcher.scheduler.runCurrent()
+        runCurrent()
+        assertEquals(ConnectionStatus.TESTING, viewModel.connectionStatus.value)
 
-        assertTrue("статус TESTING не выставлялся: $seen", ConnectionStatus.TESTING in seen)
+        advanceUntilIdle()
+        assertEquals(ConnectionStatus.IDLE, seen[0])
+        assertEquals(ConnectionStatus.TESTING, seen[1])
+        assertTrue("ожидали ERROR последним: $seen", seen.last() is ConnectionStatus.ERROR)
+        assertEquals(3, seen.size)
+    }
 
-        // Проверка идёт на Dispatchers.IO: дожидаемся её конца, иначе продолжение
-        // вернётся на Main уже после resetMain и уронит следующий тест.
-        val deadline = System.currentTimeMillis() + 5_000
-        while (viewModel.connectionStatus.value == ConnectionStatus.TESTING &&
-            System.currentTimeMillis() < deadline
-        ) {
-            Thread.sleep(10)
-            testDispatcher.scheduler.runCurrent()
-        }
-        assertTrue(viewModel.connectionStatus.value is ConnectionStatus.ERROR)
+    @Test
+    fun `testConnection reports success and server not answering`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        coEvery { serverHealthCheck.probe(any()) } returns true
+        viewModel.testConnection("https://example.org")
+        advanceUntilIdle()
+        assertEquals(ConnectionStatus.SUCCESS, viewModel.connectionStatus.value)
+
+        coEvery { serverHealthCheck.probe(any()) } returns false
+        viewModel.testConnection("https://example.org")
+        advanceUntilIdle()
+        assertEquals(ConnectionStatus.ERROR("Сервер не отвечает"), viewModel.connectionStatus.value)
     }
 
     // ==================== Ошибки ====================

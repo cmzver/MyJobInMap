@@ -31,27 +31,42 @@ class ServerHealthCheck @Inject constructor(
         get() = lastResult
 
     suspend fun isReachable(): Boolean = withContext(ioDispatcher) {
-        check().also { lastResult = it }
-    }
-
-    private fun check(): Boolean =
-        try {
-            val healthUrl = preferences.getFullServerUrl().trimEnd('/') + "/health"
-            val connection = URL(healthUrl).openConnection() as HttpURLConnection
-            connection.connectTimeout = TIMEOUT_MS
-            connection.readTimeout = TIMEOUT_MS
-            connection.requestMethod = "GET"
-            try {
-                connection.connect()
-                connection.responseCode == HttpURLConnection.HTTP_OK
-            } finally {
-                connection.disconnect()
-            }
+        val reachable = try {
+            get(preferences.getFullServerUrl(), TIMEOUT_MS)
         } catch (_: Exception) {
             false
         }
+        reachable.also { lastResult = it }
+    }
+
+    /**
+     * Ручная проверка адреса из настроек («Проверить подключение»). Ошибка
+     * соединения летит наружу — по ней пользователю пишут понятную причину.
+     * На [lastKnownReachable] не влияет: адрес ещё не сохранён.
+     */
+    suspend fun probe(baseUrl: String): Boolean = withContext(ioDispatcher) {
+        get(baseUrl, MANUAL_TIMEOUT_MS)
+    }
+
+    private fun get(baseUrl: String, timeoutMs: Int): Boolean {
+        val base = baseUrl.trimEnd('/')
+        val healthUrl = if (base.endsWith("/health")) base else "$base/health"
+        val connection = URL(healthUrl).openConnection() as HttpURLConnection
+        connection.connectTimeout = timeoutMs
+        connection.readTimeout = timeoutMs
+        connection.requestMethod = "GET"
+        return try {
+            connection.connect()
+            connection.responseCode == HttpURLConnection.HTTP_OK
+        } finally {
+            connection.disconnect()
+        }
+    }
 
     private companion object {
         const val TIMEOUT_MS = 3_000
+
+        // Пользователь сам ждёт ответа — даём медленной сети больше времени
+        const val MANUAL_TIMEOUT_MS = 5_000
     }
 }
