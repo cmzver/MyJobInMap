@@ -11,6 +11,7 @@ from sqlalchemy import distinct, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.api.addresses.extended import detach_tasks_from_systems
 from app.models import AddressAssigneeModel, AddressModel, CounterpartyModel, get_db
 from app.models.task import TaskModel
 from app.models.user import UserModel
@@ -478,6 +479,7 @@ def delete_address(
     """Удалить адрес (только admin/dispatcher)"""
     address = get_tenant_address_or_404(address_id, db, user)
 
+    detach_tasks_from_systems(db, [system.id for system in address.systems])
     db.delete(address)
     db.commit()
 

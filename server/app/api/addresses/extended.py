@@ -78,6 +78,20 @@ def get_address_or_404(
     return address
 
 
+def detach_tasks_from_systems(db: Session, system_ids) -> None:
+    """Отвязать заявки от удаляемых систем объекта.
+
+    tasks.system_id ссылается на address_systems без ON DELETE: удаление
+    системы (или всего объекта), по которой были заявки, падало на внешнем
+    ключе (500). Тип системы остаётся в заявке строкой (system_type).
+    """
+    ids = list(system_ids)
+    if ids:
+        db.query(TaskModel).filter(TaskModel.system_id.in_(ids)).update(
+            {TaskModel.system_id: None}, synchronize_session=False
+        )
+
+
 def add_history_event(
     db: Session,
     address_id: int,
@@ -323,6 +337,7 @@ def delete_address_system(
         raise HTTPException(status_code=404, detail="Система не найдена")
 
     system_name = system.name
+    detach_tasks_from_systems(db, [system.id])
     db.delete(system)
 
     add_history_event(

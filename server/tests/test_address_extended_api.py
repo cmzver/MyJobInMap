@@ -216,6 +216,52 @@ class TestAddressSystemsCRUD:
         )
         assert check is None
 
+    @pytest.mark.parametrize("target", ["system", "address"])
+    def test_delete_system_with_tasks_keeps_tasks(
+        self,
+        client: TestClient,
+        address: AddressModel,
+        db_session: Session,
+        auth_headers: dict,
+        target: str,
+    ):
+        """Система (или весь объект), по которой были заявки: удаление не падает
+        на внешнем ключе tasks.system_id — заявки остаются без привязки."""
+        from sqlalchemy import text
+
+        if db_session.bind.dialect.name == "sqlite":
+            db_session.execute(text("PRAGMA foreign_keys=ON"))
+        system = AddressSystemModel(
+            address_id=address.id, system_type="intercom", name="Домофон"
+        )
+        db_session.add(system)
+        db_session.commit()
+        task = TaskModel(
+            title="Не работает",
+            raw_address=address.address,
+            status="DONE",
+            priority="CURRENT",
+            address_id=address.id,
+            system_id=system.id,
+            system_type="intercom",
+        )
+        db_session.add(task)
+        db_session.commit()
+        task_id = task.id
+
+        url = (
+            f"/api/addresses/{address.id}/systems/{system.id}"
+            if target == "system"
+            else f"/api/addresses/{address.id}"
+        )
+        assert client.delete(url, headers=auth_headers).status_code == 204
+
+        db_session.expire_all()
+        kept = db_session.get(TaskModel, task_id)
+        assert kept is not None
+        assert kept.system_id is None
+        assert kept.system_type == "intercom"
+
 
 class TestAddressEquipmentCRUD:
     """Тесты CRUD для оборудования."""
