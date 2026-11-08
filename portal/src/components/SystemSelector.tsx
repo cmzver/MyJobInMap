@@ -26,22 +26,30 @@ export default function SystemSelector({
   const syncedSelectionRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!buildingId) return
-
-    const loadSystems = async () => {
-        setIsLoading(true)
-        try {
-          const result = await addressesApi.getSystems(buildingId)
-          setSystems(result)
-        } catch (err) {
-          if (import.meta.env.DEV) console.error('Error loading systems:', err)
-          setSystems([])
-      } finally {
-        setIsLoading(false)
-      }
+    // Системы прежнего дома не должны пережить смену адреса
+    setSystems([])
+    if (!buildingId) {
+      setIsLoading(false)
+      return
     }
 
-    loadSystems()
+    // Ответ по прежнему дому, пришедший позже нового, отбрасываем
+    let cancelled = false
+    setIsLoading(true)
+    addressesApi
+      .getSystems(buildingId)
+      .then((result) => {
+        if (!cancelled) setSystems(result)
+      })
+      .catch((err) => {
+        if (import.meta.env.DEV) console.error('Error loading systems:', err)
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [buildingId])
 
   useEffect(() => {
