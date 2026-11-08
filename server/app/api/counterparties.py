@@ -9,7 +9,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, true
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.api.acts import act_to_response
 from app.models import (
@@ -306,6 +306,7 @@ def create_summary_act(
             db, counterparty, data.month, user, data.supersedes_act_id
         )
     except ActServiceError as exc:
+        db.rollback()  # номер акта, взятый под блокировкой, не расходуем
         raise _error(exc)
     return act_to_response(act)
 
@@ -319,6 +320,7 @@ def list_summary_acts(
     counterparty = _get(db, counterparty_id, user)
     acts = (
         db.query(ActModel)
+        .options(selectinload(ActModel.lines))
         .filter(ActModel.kind == SUMMARY, ActModel.counterparty_id == counterparty.id)
         .order_by(ActModel.period_start.desc(), ActModel.id.desc())
         .all()

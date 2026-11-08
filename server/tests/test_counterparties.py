@@ -230,6 +230,42 @@ class TestSummaryAct:
         listed = client.get(url, headers=headers).json()
         assert [item["id"] for item in listed] == [fixed.json()["id"], act["id"]]
 
+    def test_parallel_issue_does_not_create_second_act(
+        self, client: TestClient, db_session, monkeypatch
+    ):
+        """Двойной клик: второй запрос прошёл первую проверку до коммита первого
+        и ждал счётчик номеров. Под блокировкой он видит выпущенный акт — 409,
+        второго акта за месяц нет."""
+        from app.services import summary_act_service
+
+        _, headers, counterparty, _ = _setup(client, db_session, "SumRace")
+        url = f"/api/counterparties/{counterparty['id']}/summary-acts"
+        assert (
+            client.post(url, json={"month": MONTH}, headers=headers).status_code == 201
+        )
+
+        real = summary_act_service.existing_summary_act
+        calls = {"n": 0}
+
+        def racing(*args, **kwargs):
+            calls["n"] += 1
+            return None if calls["n"] == 1 else real(*args, **kwargs)
+
+        monkeypatch.setattr(summary_act_service, "existing_summary_act", racing)
+        again = client.post(url, json={"month": MONTH}, headers=headers)
+
+        assert again.status_code == 409
+        assert "другим запросом" in again.json()["detail"]
+        assert (
+            db_session.query(ActModel)
+            .filter(
+                ActModel.kind == "summary",
+                ActModel.counterparty_id == counterparty["id"],
+            )
+            .count()
+            == 1
+        )
+
     def test_summary_act_not_counted_in_money(self, client: TestClient, db_session):
         _, headers, counterparty, _ = _setup(client, db_session, "SumMoney")
         before = client.get("/api/acts/summary", headers=headers).json()
