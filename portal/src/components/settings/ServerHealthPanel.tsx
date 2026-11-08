@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   Activity,
   Cpu,
@@ -8,11 +8,12 @@ import {
   RefreshCw,
   ScrollText,
   Server,
-  X,
 } from 'lucide-react'
 import type { ContainerInfo, SystemHealth } from '@/api/system'
 import { useContainerLogs, useSystemHealth } from '@/hooks/useSystemHealth'
 import Badge from '@/components/Badge'
+import Button from '@/components/Button'
+import Modal from '@/components/Modal'
 import Spinner from '@/components/Spinner'
 import { SettingsCard } from '@/components/settings/SettingsSection'
 import { getApiErrorMessage } from '@/utils/apiError'
@@ -117,32 +118,17 @@ const TAIL_OPTIONS = [200, 500, 1000]
 function LogsModal({ name, onClose }: { name: string; onClose: () => void }) {
   const [tail, setTail] = useState(200)
   const { data, isLoading, isFetching, refetch } = useContainerLogs(name, tail)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Логи: ${name}`}
-        className="flex h-[80vh] w-full max-w-4xl flex-col rounded-xl bg-white shadow-2xl dark:bg-gray-800"
-      >
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
-            <ScrollText className="h-4 w-4" />
-            Логи: {name}
-          </h3>
+    <Modal isOpen onClose={onClose} title={`Логи: ${name}`} size="xl">
+      <div className="flex h-[65vh] flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-gray-500 dark:text-gray-400">Автообновление каждые 5 секунд</span>
           <div className="flex items-center gap-2">
             <select
               aria-label="Сколько строк показать"
               value={tail}
               onChange={(e) => setTail(Number(e.target.value))}
-              className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="field h-8 w-32"
             >
               {TAIL_OPTIONS.map((t) => (
                 <option key={t} value={t}>
@@ -150,26 +136,12 @@ function LogsModal({ name, onClose }: { name: string; onClose: () => void }) {
                 </option>
               ))}
             </select>
-            <button
-              type="button"
-              onClick={() => refetch()}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-              title="Обновить"
-              aria-label="Обновить"
-            >
+            <Button type="button" variant="ghost" size="sm" onClick={() => refetch()} title="Обновить" aria-label="Обновить">
               <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
-            </button>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              title="Закрыть"
-              aria-label="Закрыть"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            </Button>
           </div>
         </div>
-        <div className="flex-1 overflow-auto bg-gray-950 p-3">
+        <div className="min-h-0 flex-1 overflow-auto rounded-lg bg-gray-950 p-3">
           {isLoading ? (
             <div className="flex justify-center py-6">
               <Spinner />
@@ -184,11 +156,8 @@ function LogsModal({ name, onClose }: { name: string; onClose: () => void }) {
             </p>
           )}
         </div>
-        <div className="border-t border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
-          Автообновление каждые 5 секунд
-        </div>
       </div>
-    </div>
+    </Modal>
   )
 }
 
