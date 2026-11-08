@@ -199,6 +199,14 @@ export function getStatusCommentCopy(status: TaskStatus | null, options?: { plur
   }
 }
 
+/** Подписи сортировки — одни и те же в «Заявках» и «Моих заявках». */
+export const SORT_LABELS = {
+  newest: 'Сначала новые',
+  oldest: 'Сначала старые',
+  due: 'Сначала ближайший срок',
+  priority: 'Сначала срочные',
+} as const
+
 /** Фильтр списка по сроку (due). */
 export const DUE_FILTER_OPTIONS = [
   { value: '', label: 'Любой срок' },

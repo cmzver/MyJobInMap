@@ -42,7 +42,7 @@ const categoryOptions = [
 const statusOptions = [
   { value: 'new', label: 'Новый' },
   { value: 'in_progress', label: 'В работе' },
-  { value: 'resolved', label: 'Решен' },
+  { value: 'resolved', label: 'Решён' },
   { value: 'closed', label: 'Закрыт' },
 ] as const
 
@@ -50,20 +50,20 @@ const statusFilterOptions = [{ value: 'all', label: 'Все статусы' }, .
 
 const categoryMeta: Record<
   SupportTicketCategory,
-  { label: string; badge: 'danger' | 'info' | 'primary'; icon: typeof Bug }
+  { label: string; badge: 'gray'; icon: typeof Bug }
 > = {
-  bug: { label: 'Ошибка', badge: 'danger', icon: Bug },
-  improvement: { label: 'Улучшение', badge: 'info', icon: Lightbulb },
-  feedback: { label: 'Обратная связь', badge: 'primary', icon: MessageSquare },
+  bug: { label: 'Ошибка', badge: 'gray', icon: Bug },
+  improvement: { label: 'Улучшение', badge: 'gray', icon: Lightbulb },
+  feedback: { label: 'Обратная связь', badge: 'gray', icon: MessageSquare },
 }
 
 const statusMeta: Record<
   SupportTicketStatus,
   { label: string; badge: 'warning' | 'info' | 'success' | 'gray' }
 > = {
-  new: { label: 'Новый', badge: 'warning' },
-  in_progress: { label: 'В работе', badge: 'info' },
-  resolved: { label: 'Решен', badge: 'success' },
+  new: { label: 'Новый', badge: 'info' },
+  in_progress: { label: 'В работе', badge: 'warning' },
+  resolved: { label: 'Решён', badge: 'success' },
   closed: { label: 'Закрыт', badge: 'gray' },
 }
 
@@ -143,7 +143,7 @@ export default function SupportPage() {
       />
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <StatPill title="Всего" value={tickets.length} tone="primary" />
+        <StatPill title="Всего" value={tickets.length} tone="gray" />
         <StatPill title="Открытые" value={openCount} tone="warning" />
         <StatPill title="Закрытые" value={resolvedCount} tone="success" />
       </div>
@@ -283,11 +283,9 @@ export default function SupportPage() {
                   </p>
 
                   {ticket.admin_response && (
-                    <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-900/60 dark:bg-emerald-950/20">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">
-                        Ответ поддержки
-                      </div>
-                      <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm leading-5 text-emerald-900 dark:text-emerald-100">
+                    <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900/40">
+                      <div className="eyebrow">Ответ поддержки</div>
+                      <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm leading-5 text-gray-800 dark:text-gray-200">
                         {ticket.admin_response}
                       </p>
                     </div>
@@ -324,11 +322,10 @@ function StatPill({
 }: {
   title: string
   value: number
-  tone: 'primary' | 'warning' | 'success'
+  tone: 'gray' | 'warning' | 'success'
 }) {
   const toneClasses = {
-    primary:
-      'border-primary-100 bg-primary-50/70 text-primary-700 dark:border-primary-900/50 dark:bg-primary-950/20 dark:text-primary-200',
+    gray: 'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-200',
     warning:
       'border-amber-100 bg-amber-50/70 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200',
     success:
@@ -368,7 +365,7 @@ function ContactRow({
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">
+        <div className="eyebrow">
           {label}
         </div>
         <div className="mt-0.5 break-all text-sm font-medium text-gray-900 dark:text-white">{value}</div>

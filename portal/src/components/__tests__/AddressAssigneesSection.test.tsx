@@ -53,4 +53,18 @@ describe('AddressAssigneesSection', () => {
     expect(await screen.findByText('Иванов')).toBeTruthy()
     expect(screen.queryByText('Петров (уволен)')).toBeNull()
   })
+
+  it('исполнитель видит назначенных, но не назначает и не снимает доступ', async () => {
+    useAuthStore.setState({
+      user: { id: 2, username: 'ivanov', fullName: 'Иванов', role: 'worker', baseAccess: 'worker', organizationId: 1 },
+    } as never)
+    vi.spyOn(addressesApi, 'getAssignees').mockResolvedValue([
+      { id: 9, user_id: 2, username: 'ivanov', full_name: 'Иванов', role_label: 'Работник' },
+    ] as never)
+    renderSection()
+
+    expect(await screen.findByText('Иванов')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Назначить сотрудника' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Снять доступ' })).toBeNull()
+  })
 })

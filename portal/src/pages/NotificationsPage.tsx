@@ -65,29 +65,14 @@ export default function NotificationsPage() {
   const notifications = data ?? []
   const unreadCount = notifications.filter(n => !n.is_read).length
 
+  // Тип уведомления различает иконка, а не цвет: плашка у всех нейтральная.
   const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case 'task':
-        return <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
-          <Bell className="w-5 h-5 text-primary-600 dark:text-primary-400" />
-        </div>
-      case 'alert':
-        return <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-          <Bell className="w-5 h-5 text-red-600 dark:text-red-400" />
-        </div>
-      case 'sla':
-        return <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-          <Clock className="w-5 h-5 text-orange-600 dark:text-orange-400" />
-        </div>
-      case 'support':
-        return <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-          <Bell className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-        </div>
-      default:
-        return <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-          <Bell className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-        </div>
-    }
+    const Icon = type === 'sla' ? Clock : Bell
+    return (
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700/60 dark:text-gray-300">
+        <Icon className="h-5 w-5" />
+      </div>
+    )
   }
 
   return (
@@ -201,7 +186,7 @@ export default function NotificationsPage() {
                           to={`/tasks/${notification.task_id}`}
                           className="mt-2 inline-flex text-xs font-medium text-primary-600 hover:text-primary-700"
                         >
-                          Открыть заявку #{notification.task_id}
+                          {notification.task_number ? `Открыть заявку №${notification.task_number}` : 'Открыть заявку'}
                         </Link>
                       )}
                       {notification.type === 'support' && notification.support_ticket_id && (

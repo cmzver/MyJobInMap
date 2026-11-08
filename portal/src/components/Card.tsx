@@ -25,7 +25,7 @@ function Card({ children, className, title, action, flush = false }: CardProps) 
       {(title || action) && (
         <div className="flex min-h-10 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-gray-200 px-4 py-1 dark:border-gray-700">
           {title && (
-            <h3 className="min-w-0 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
+            <h3 className="eyebrow min-w-0">
               {title}
             </h3>
           )}

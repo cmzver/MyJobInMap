@@ -203,7 +203,7 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
                       <div className="flex items-center gap-2">
                         <span>v{update.version_name}</span>
                         {latestUpdate?.version_code === update.version_code && (
-                          <Badge variant="info">Последняя</Badge>
+                          <Badge variant="gray">Последняя</Badge>
                         )}
                       </div>
                     </td>
@@ -281,7 +281,7 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
 
           <Textarea
             label="Описание изменений"
-            placeholder="Что нового в этой версии..."
+            placeholder="Что нового в этой версии…"
             value={releaseNotes}
             onChange={(e) => setReleaseNotes(e.target.value)}
             rows={3}
@@ -338,7 +338,7 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
               {uploadMutation.isPending ? (
                 <>
                   <Spinner size="sm" />
-                  <span className="ml-2">Загрузка...</span>
+                  <span className="ml-2">Загрузка…</span>
                 </>
               ) : (
                 'Загрузить'
@@ -369,9 +369,9 @@ export function UpdatesManagementSection({ embedded = false }: UpdatesManagement
             <Button
               variant="danger"
               onClick={handleDelete}
-              disabled={deleteMutation.isPending}
+              isLoading={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? 'Удаление...' : 'Удалить'}
+              Удалить
             </Button>
           </div>
         </div>

@@ -427,8 +427,8 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 
 .dark .badge[data-variant="warning"],
 .theme-aurora .badge[data-variant="warning"] {
-  background: rgba(251, 146, 60, 0.16);
-  color: #fdba74;
+  background: rgba(251, 191, 36, 0.14);
+  color: #fcd34d;
 }
 
 .dark .badge[data-variant="success"],
@@ -438,11 +438,16 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 }
 
 .dark .badge[data-variant="info"],
-.theme-aurora .badge[data-variant="info"],
-.dark .badge[data-variant="primary"],
-.theme-aurora .badge[data-variant="primary"] {
+.theme-aurora .badge[data-variant="info"] {
   background: rgba(96, 165, 250, 0.16);
   color: #dbeafe;
+}
+
+/* primary — акцент портала (оранжевый), не синий «Новой» */
+.dark .badge[data-variant="primary"],
+.theme-aurora .badge[data-variant="primary"] {
+  background: rgba(255, 167, 38, 0.16);
+  color: #ffcc80;
 }
 
 .dark .badge[data-variant="gray"],

@@ -116,7 +116,7 @@ export default function NewChatModal({ isOpen, onClose, onSubmit, isLoading }: P
 
         {/* User search */}
         <Input
-          placeholder="Поиск пользователей..."
+          placeholder="Поиск пользователей…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />

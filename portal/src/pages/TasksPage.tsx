@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { showApiError, getApiErrorMessage } from '@/utils/apiError'
-import { Plus, RefreshCw, AlertTriangle, List, TableProperties } from 'lucide-react'
+import { Plus, RefreshCw, List, TableProperties } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useUnreadTaskNotifications } from '@/hooks/useNotifications'
 import { myTaskKeys, useTasks, useDispatchOverview } from '@/hooks/useTasks'
@@ -32,6 +32,7 @@ import PageHeader from '@/components/PageHeader'
 import { SkeletonTaskList } from '@/components/Skeleton'
 import Pagination from '@/components/Pagination'
 import EmptyState from '@/components/EmptyState'
+import QueryStatePanel from '@/components/QueryStatePanel'
 import Modal from '@/components/Modal'
 import Textarea from '@/components/Textarea'
 import TaskFiltersPanel, { type ActiveTaskFilter } from '@/components/tasks/TaskFiltersPanel'
@@ -1436,7 +1437,7 @@ export default function TasksPage() {
       <PageHeader
         className="mb-6"
         title="Заявки"
-        description={data ? `Всего: ${data.total}` : 'Загрузка...'}
+        description={data ? `Всего: ${data.total}` : 'Загрузка…'}
         actions={
           <>
             <Button
@@ -1512,18 +1513,13 @@ export default function TasksPage() {
       {isLoading ? (
         <SkeletonTaskList count={6} />
       ) : isError ? (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
-          <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
-          <h3 className="text-lg font-medium text-red-800 dark:text-red-400 mb-1">
-            Ошибка загрузки
-          </h3>
-          <p className="text-red-600 dark:text-red-300 text-sm mb-4">
-            {getApiErrorMessage(error, 'Не удалось загрузить заявки')}
-          </p>
-          <Button variant="danger" size="sm" onClick={() => refetch()}>
-            Попробовать снова
-          </Button>
-        </div>
+        <QueryStatePanel
+          state="error"
+          title="Не удалось загрузить заявки"
+          description={getApiErrorMessage(error, 'Проверьте подключение и попробуйте ещё раз.')}
+          onRetry={refetch}
+          isRetrying={isFetching}
+        />
       ) : data && data.items.length === 0 ? (
         <EmptyState
           title="Заявки не найдены"

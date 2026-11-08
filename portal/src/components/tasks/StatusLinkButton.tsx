@@ -7,6 +7,8 @@ import { showApiError, showApiSuccess } from '@/utils/apiError'
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
 import { useConfirm } from '@/hooks/useConfirm'
+import { useAuthStore } from '@/store/authStore'
+import { normalizeRoleForAccess } from '@/types/user'
 
 type StatusLink = components['schemas']['TaskStatusLink']
 
@@ -22,6 +24,9 @@ async function copy(text: string) {
 /** Ссылка заявителю на страницу статуса заявки (и подписка на Telegram с неё). */
 export default function StatusLinkButton({ taskId, phone }: { taskId: number; phone?: string | null }) {
   const confirmAction = useConfirm()
+  const user = useAuthStore((state) => state.user)
+  // Перевыпуск ломает ссылку у заявителя — только диспетчер и администратор
+  const canRenew = normalizeRoleForAccess(user?.role, user?.baseAccess) !== 'worker'
   const [link, setLink] = useState<StatusLink | null>(null)
   const issue = useMutation({
     mutationFn: async (renew: boolean = false) =>
@@ -51,22 +56,26 @@ export default function StatusLinkButton({ taskId, phone }: { taskId: number; ph
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Подписаны в Telegram: {link.subscribers}</p>
           )}
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            Ссылка перестанет работать через 30 дней после закрытия заявки.{' '}
-            <button
-              type="button"
-              className="text-red-600 hover:underline dark:text-red-400"
-              onClick={async () => {
-                const ok = await confirmAction({
-                  title: 'Выпустить новую ссылку?',
-                  message: 'Старая перестанет открываться, подписки Telegram отключатся.',
-                  confirmText: 'Выпустить',
-                  danger: true,
-                })
-                if (ok) issue.mutate(true)
-              }}
-            >
-              Выпустить новую
-            </button>
+            Ссылка перестанет работать через 30 дней после закрытия заявки.
+            {canRenew && (
+              <>{' '}
+                <button
+                  type="button"
+                  className="text-red-600 hover:underline dark:text-red-400"
+                  onClick={async () => {
+                    const ok = await confirmAction({
+                      title: 'Выпустить новую ссылку?',
+                      message: 'Старая перестанет открываться, подписки Telegram отключатся.',
+                      confirmText: 'Выпустить',
+                      danger: true,
+                    })
+                    if (ok) issue.mutate(true)
+                  }}
+                >
+                  Выпустить новую
+                </button>
+              </>
+            )}
           </p>
           <div className="mt-4 flex flex-wrap justify-end gap-2">
             {digits.length >= 10 && (

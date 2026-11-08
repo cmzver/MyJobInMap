@@ -5,21 +5,17 @@ import { cabinetApi, type CabinetAct } from '@/api/cabinet'
 import { ACT_STATUS, formatRub } from '@/components/acts/actLabels'
 import SignaturePad, { type SignaturePadHandle } from '@/components/acts/SignaturePad'
 import Badge from '@/components/Badge'
+import { STATUS_COLORS } from '@/config/taskConstants'
+import type { TaskStatus } from '@/types/task'
 import Button from '@/components/Button'
 import Modal from '@/components/Modal'
 import { formatDateOnly } from '@/utils/dateFormat'
 import { showApiError, showApiSuccess } from '@/utils/apiError'
 import { actTitle } from './cabinetLabels'
 
-const TASK_STATUS: Record<string, 'info' | 'warning' | 'success' | 'gray'> = {
-  NEW: 'info',
-  IN_PROGRESS: 'warning',
-  DONE: 'success',
-  CANCELLED: 'gray',
-}
-
+// Цвета статусов — общие с порталом (taskConstants), подпись — с сервера.
 export function TaskStatusBadge({ status, label }: { status: string; label: string }) {
-  return <Badge variant={TASK_STATUS[status] ?? 'gray'}>{label}</Badge>
+  return <Badge variant={STATUS_COLORS[status as TaskStatus] ?? 'gray'}>{label}</Badge>
 }
 
 export function ActStatusBadge({ status }: { status: string }) {

@@ -7,6 +7,7 @@ import {
   DUE_FILTER_OPTIONS,
   PRIORITY_OPTIONS,
   REPEAT_FILTER_OPTIONS,
+  SORT_LABELS,
   STATUS_OPTIONS,
 } from '@/config/taskConstants'
 import type { TaskPriority, TaskSort, TaskStatus } from '@/types/task'
@@ -82,16 +83,14 @@ const groupOptions = [
 ]
 
 const sortOptions = [
-  { value: 'created_at_desc', label: 'Дата заявки: новые сверху' },
-  { value: 'created_at_asc', label: 'Дата заявки: старые сверху' },
-  { value: 'due_at_asc', label: 'Срок: горящие сверху' },
+  { value: 'created_at_desc', label: SORT_LABELS.newest },
+  { value: 'created_at_asc', label: SORT_LABELS.oldest },
+  { value: 'due_at_asc', label: SORT_LABELS.due },
 ]
 
-const quickButtonClass = (active: boolean, urgent = false) => `h-9 flex-shrink-0 rounded-md border px-3 text-sm font-medium transition-colors ${
+const quickButtonClass = (active: boolean) => `h-9 flex-shrink-0 rounded-lg border px-3 text-sm font-medium transition-colors ${
   active
-    ? urgent
-      ? 'border-orange-400 bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300'
-      : 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+    ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
     : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700'
 }`
 
@@ -176,7 +175,7 @@ export default function TaskFiltersPanel({
             <button type="button" aria-pressed={isInProgressQuickView} onClick={() => onToggleQuickStatus('IN_PROGRESS')} className={quickButtonClass(isInProgressQuickView)}>
               В работе
             </button>
-            <button type="button" aria-pressed={isUrgentQuickView} onClick={onToggleUrgentPriorities} className={quickButtonClass(isUrgentQuickView, true)}>
+            <button type="button" aria-pressed={isUrgentQuickView} onClick={onToggleUrgentPriorities} className={quickButtonClass(isUrgentQuickView)}>
               Срочные
             </button>
           </div>
@@ -268,7 +267,7 @@ export default function TaskFiltersPanel({
             { label: 'Без исполнителя', value: summary.unassigned, active: false },
             { label: 'Просроченные', value: summary.overdue, active: summary.overdue > 0, tone: 'red' as const },
             { label: 'Срок < 24ч', value: summary.dueSoon, active: summary.dueSoon > 0, tone: 'amber' as const },
-            { label: 'Срочные', value: summary.urgent, active: summary.urgent > 0, tone: 'orange' as const },
+            { label: 'Срочные', value: summary.urgent, active: false },
           ].map((item) => (
             <span
               key={item.label}
@@ -277,9 +276,7 @@ export default function TaskFiltersPanel({
                   ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'
                   : item.active && item.tone === 'amber'
                     ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
-                    : item.active && item.tone === 'orange'
-                      ? 'bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300'
-                      : 'bg-gray-50 text-gray-600 dark:bg-gray-900/40 dark:text-gray-400'
+                    : 'bg-gray-50 text-gray-600 dark:bg-gray-900/40 dark:text-gray-400'
               }`}
             >
               {item.label}

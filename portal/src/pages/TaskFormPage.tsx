@@ -119,7 +119,7 @@ const parseAddress = (addressStr: string): AddressFormData => {
     }
   }
 
-  // Если перепутались город/улица (часто из Telegram: "СПб, Ленинский пр-т...")
+  // Если перепутались город/улица (часто из Telegram: "СПб, Ленинский пр-т…")
   const cityLooksLikeStreet = /(ул|пр|пр-т|просп|шоссе|ш|пер|бульвар|проезд)/i.test(result.city)
   const streetLooksLikeCity = /^(спб|санкт|петербург|москва|екат|екатеринбург|казань|новосибирск|нижний|самара|краснодар)/i.test(result.street)
   if (cityLooksLikeStreet && streetLooksLikeCity) {
@@ -791,7 +791,7 @@ export default function TaskFormPage({ mode }: TaskFormPageProps) {
             {/* Описание */}
             <Textarea
               label="Описание проблемы *"
-              placeholder="Подробное описание неисправности..."
+              placeholder="Подробное описание неисправности…"
               value={formData.description}
               onChange={(e) => handleFormChange('description', e.target.value)}
               rows={4}

@@ -26,7 +26,8 @@ import { useUsers } from '@/hooks/useUsers'
 import { fetchAllTaskPages } from '@/api/tasks'
 import type { Task, TaskPriority, TaskStatus } from '@/types/task'
 import { normalizeRoleForAccess, isAssignableRole } from '@/types/user'
-import { STATUS_HEX, normalizePriority } from '@/config/taskConstants'
+import { STATUS_HEX, STATUS_LABELS, normalizePriority } from '@/config/taskConstants'
+import { EMERGENCY_MARKER_HEX, getMarkerColor } from '@/utils/mapMarkerColor'
 import { formatDatePretty } from '@/utils/dateFormat'
 import { buildTaskListUrl } from '@/utils/taskListUrl'
 
@@ -82,22 +83,8 @@ const createMarkerIcon = (color: string) => new Icon({
 
 const markerColors = STATUS_HEX
 
-// Маркеры красятся по приоритету — для диспетчера это главный сигнал.
+// Маркеры красятся по СТАТУСУ (как в Android), открытая аварийная — красным.
 type PriorityKey = 'EMERGENCY' | 'URGENT' | 'CURRENT' | 'PLANNED'
-
-const priorityColors: Record<PriorityKey, string> = {
-  EMERGENCY: '#DC2626', // danger
-  URGENT: '#F59E0B', // warning
-  CURRENT: '#3B82F6', // info
-  PLANNED: '#22C55E', // success
-}
-
-const PRIORITY_RANK: Record<PriorityKey, number> = {
-  EMERGENCY: 4,
-  URGENT: 3,
-  CURRENT: 2,
-  PLANNED: 1,
-}
 
 const priorityLegend: { value: PriorityKey; label: string }[] = [
   { value: 'EMERGENCY', label: 'Аварийная' },
@@ -106,27 +93,25 @@ const priorityLegend: { value: PriorityKey; label: string }[] = [
   { value: 'PLANNED', label: 'Плановая' },
 ]
 
-const priorityIcons: Record<PriorityKey, Icon> = {
-  EMERGENCY: createMarkerIcon(priorityColors.EMERGENCY),
-  URGENT: createMarkerIcon(priorityColors.URGENT),
-  CURRENT: createMarkerIcon(priorityColors.CURRENT),
-  PLANNED: createMarkerIcon(priorityColors.PLANNED),
+const statusLegend: { value: TaskStatus; label: string }[] = [
+  { value: 'NEW', label: STATUS_LABELS.NEW },
+  { value: 'IN_PROGRESS', label: STATUS_LABELS.IN_PROGRESS },
+  { value: 'DONE', label: STATUS_LABELS.DONE },
+  { value: 'CANCELLED', label: STATUS_LABELS.CANCELLED },
+]
+
+const markerIconCache = new Map<string, Icon>()
+const getMarkerIcon = (color: string) => {
+  let icon = markerIconCache.get(color)
+  if (!icon) {
+    icon = createMarkerIcon(color)
+    markerIconCache.set(color, icon)
+  }
+  return icon
 }
 
-// Цвет группы — по самому высокому приоритету среди заявок в точке.
-const getGroupPriority = (groupTasks: Task[]): PriorityKey => {
-  let best: PriorityKey = 'PLANNED'
-  let bestRank = 0
-  for (const task of groupTasks) {
-    const priority = normalizePriority(task.priority) as PriorityKey
-    const rank = PRIORITY_RANK[priority] ?? 0
-    if (rank > bestRank) {
-      bestRank = rank
-      best = priority
-    }
-  }
-  return best
-}
+/** Точка «моё местоположение» — нейтральная, чтобы не путать с «Новой». */
+const MY_POSITION_HEX = '#111827'
 
 const countIconCache = new Map<string, DivIcon>()
 const createCountMarkerIcon = (color: string, count: number) => {
@@ -280,7 +265,7 @@ function MapControls({ tasks }: { tasks: Task[] }) {
         <CircleMarker
           center={myPosition}
           radius={8}
-          pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#2563EB', fillOpacity: 1 }}
+          pathOptions={{ color: '#ffffff', weight: 3, fillColor: MY_POSITION_HEX, fillOpacity: 1 }}
         />
       )}
       <div className="absolute bottom-8 right-3 z-[1000] flex flex-col gap-2">
@@ -323,7 +308,8 @@ function FilterOption({
   onClick,
 }: {
   label: string
-  color: string
+  /** Без цвета — нейтральная строка (приоритет не красит маркеры). */
+  color?: string
   selected: boolean
   count: number
   onClick: () => void
@@ -338,10 +324,12 @@ function FilterOption({
         selected ? 'font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'
       }`}
     >
-      <span
-        className={`h-2.5 w-2.5 shrink-0 rounded-full ${selected ? '' : 'opacity-40'}`}
-        style={{ background: color }}
-      />
+      {color && (
+        <span
+          className={`h-2.5 w-2.5 shrink-0 rounded-full ${selected ? '' : 'opacity-40'}`}
+          style={{ background: color }}
+        />
+      )}
       <span className="flex-1 truncate">{label}</span>
       {/* Невыбранные не загружаются — их «0» вводил бы в заблуждение */}
       {selected && <span className="tabular-nums text-xs text-gray-400 dark:text-gray-500">{count}</span>}
@@ -611,7 +599,6 @@ export default function MapPage() {
                 <FilterOption
                   key={item.value}
                   label={item.label}
-                  color={priorityColors[item.value]}
                   // Пустой выбор приоритетов — «все»: отмечены все строки
                   selected={priorityFilter.length === 0 || priorityFilter.includes(item.value)}
                   count={priorityCounts[item.value] || 0}
@@ -653,16 +640,18 @@ export default function MapPage() {
       </div>
 
       <div className="pointer-events-none absolute bottom-4 left-4 z-[1000] rounded-lg border border-gray-200 bg-white/95 px-3 py-2 shadow-sm dark:border-gray-700 dark:bg-gray-800/95">
-        <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-          Приоритет
-        </p>
+        <p className="eyebrow mb-1.5">Статус</p>
         <div className="flex flex-col gap-1">
-          {priorityLegend.map((item) => (
+          {statusLegend.map((item) => (
             <span key={item.value} className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-200">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: priorityColors[item.value] }} />
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: STATUS_HEX[item.value] }} />
               {item.label}
             </span>
           ))}
+          <span className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-200">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: EMERGENCY_MARKER_HEX }} />
+            Аварийная
+          </span>
           {statusFilter.some((status) => CLOSED_STATUSES.has(status)) && (
             <span className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">Бледные — закрытые</span>
           )}
@@ -715,11 +704,10 @@ export default function MapPage() {
 
           {groupedTasks.map((group) => {
             const primaryTask = group.tasks[0]!
-            const groupPriority = getGroupPriority(group.tasks)
-            const groupColor = priorityColors[groupPriority]
+            const groupColor = getMarkerColor(group.tasks)
             const icon = group.tasks.length > 1
               ? createCountMarkerIcon(groupColor, group.tasks.length)
-              : priorityIcons[groupPriority]
+              : getMarkerIcon(groupColor)
             const isGrouped = group.tasks.length > 1
             const secondaryTitle = getTaskSecondaryTitle(primaryTask)
             const opacity = group.tasks.every(isClosed) ? CLOSED_MARKER_OPACITY : 1

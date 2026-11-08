@@ -411,7 +411,7 @@ export default function DashboardPage() {
   const handleExport = async () => {
     try {
       await downloadAnalyticsReport(filters)
-      toast.success('Отчёт формируется...')
+      toast.success('Отчёт формируется…')
     } catch (err) {
       toast.error('Не удалось сформировать отчёт')
       if (import.meta.env.DEV) console.error('Analytics export failed:', err)

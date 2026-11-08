@@ -410,7 +410,7 @@ export default function OrganizationsPage() {
       {/* Header */}
       <PageHeader
         title="Организации"
-        description="Управление организациями (multi-tenant)"
+        description="Организации-клиенты портала и их администраторы"
         actions={
           <>
             <Button
@@ -626,37 +626,30 @@ export default function OrganizationsPage() {
       >
         {createdCredentials ? (
           <div className="space-y-5">
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/30">
-              <div className="flex items-start gap-3">
-                <div className="rounded-full bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
-                  <ShieldCheck className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-semibold text-emerald-900 dark:text-emerald-200">
-                    Новый tenant готов к входу
-                  </h3>
-                  <p className="mt-1 text-sm leading-6 text-emerald-800 dark:text-emerald-300/90">
-                    Сохраните реквизиты первичного администратора перед закрытием окна. Пароль повторно из API не возвращается.
-                  </p>
-                </div>
+            <div className="flex items-start gap-3">
+              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-700/60 dark:text-gray-300">
+                <ShieldCheck className="h-5 w-5" />
+              </span>
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Организация готова к входу</h3>
+                <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">
+                  Сохраните реквизиты администратора перед закрытием окна — пароль повторно не показывается.
+                </p>
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900/80">
-              <div className="border-b border-gray-200 bg-[linear-gradient(135deg,#0f172a_0%,#1e293b_100%)] px-5 py-5 text-white dark:border-gray-700">
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-300">Карточка доступа</div>
-                <h3 className="mt-2 text-xl font-semibold">{createdCredentials.organizationName}</h3>
-                <p className="mt-2 max-w-xl text-sm leading-6 text-slate-300">
-                  Передайте карточку ответственному лицу. После первого входа рекомендуется сменить пароль администратора.
-                </p>
-              </div>
-              <div className="grid gap-3 bg-gray-50/70 p-4 dark:bg-gray-900/30">
+            <Card title="Карточка доступа">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{createdCredentials.organizationName}</h3>
+              <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                Передайте карточку ответственному лицу. После первого входа рекомендуется сменить пароль администратора.
+              </p>
+              <div className="mt-3 grid gap-2">
                 <CredentialRow label="Роль" value="Администратор организации" />
                 <CredentialRow label="Логин" value={createdCredentials.username} monospace />
                 <CredentialRow label="Пароль" value={createdCredentials.password} monospace highlight />
                 <CredentialRow label="Ссылка входа" value={createdCredentials.loginUrl} monospace />
               </div>
-            </div>
+            </Card>
 
             <div className="flex flex-wrap justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
               <Button variant="outline" type="button" onClick={handleCopyCredentials}>
@@ -754,7 +747,7 @@ export default function OrganizationsPage() {
                     Первичный администратор организации
                   </div>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    Можно сразу создать отдельную admin-учётку для новой организации. Это основной onboarding для нового tenant.
+                    Можно сразу создать учётную запись администратора — тогда организация будет готова к входу.
                   </p>
                 </div>
                 <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
@@ -849,8 +842,8 @@ export default function OrganizationsPage() {
             <Button variant="ghost" onClick={handleCloseModal} type="button">
               Отмена
             </Button>
-            <Button type="submit" disabled={isMutating}>
-              {isMutating ? 'Сохранение...' : editingOrg ? 'Сохранить' : 'Создать'}
+            <Button type="submit" isLoading={isMutating}>
+              {editingOrg ? 'Сохранить' : 'Создать'}
             </Button>
           </div>
         </form>
@@ -872,8 +865,8 @@ function CredentialRow({
   highlight?: boolean
 }) {
   return (
-    <div className={`grid gap-1 rounded-lg border px-3 py-2 ${highlight ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/60 dark:bg-emerald-950/20' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/70'}`}>
-      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">{label}</span>
+    <div className={`grid gap-1 rounded-lg border px-3 py-2 ${highlight ? 'border-primary-200 bg-primary-50 dark:border-primary-900/60 dark:bg-primary-950/20' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40'}`}>
+      <span className="eyebrow">{label}</span>
       <span className={monospace ? 'break-all font-mono text-sm text-gray-900 dark:text-white' : 'text-sm text-gray-900 dark:text-white'}>
         {value}
       </span>

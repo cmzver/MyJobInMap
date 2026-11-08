@@ -50,7 +50,7 @@ export default function PageHeader({
           </button>
         )}
         {Icon && (
-          <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+          <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-700/60 dark:text-gray-300">
             <Icon className="h-3.5 w-3.5" />
           </span>
         )}

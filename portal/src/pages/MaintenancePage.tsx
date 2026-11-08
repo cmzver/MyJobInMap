@@ -17,6 +17,7 @@ import { useUsers } from '@/hooks/useUsers'
 import { showApiError, showApiSuccess } from '@/utils/apiError'
 import { cn } from '@/utils/cn'
 import PageHeader from '@/components/PageHeader'
+import Badge from '@/components/Badge'
 import Button from '@/components/Button'
 import Card from '@/components/Card'
 import Input from '@/components/Input'
@@ -42,12 +43,13 @@ const everyLabel = (frequency: string, interval: number) => {
   return interval === 1 ? single : `раз в ${interval} ${unit}`
 }
 
-const CELL_MARKS: { key: keyof Omit<ScheduleCell, 'month'>; mark: string; title: string; className: string }[] = [
-  { key: 'done', mark: '✓', title: 'Выполнено', className: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
-  { key: 'open', mark: '●', title: 'В работе', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' },
-  { key: 'overdue', mark: '!', title: 'Просрочено', className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
-  { key: 'planned', mark: '○', title: 'Запланировано', className: 'border border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-400' },
-  { key: 'cancelled', mark: '×', title: 'Отменено', className: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400' },
+type MarkVariant = 'success' | 'warning' | 'danger' | 'gray'
+const CELL_MARKS: { key: keyof Omit<ScheduleCell, 'month'>; mark: string; title: string; variant: MarkVariant; className?: string }[] = [
+  { key: 'done', mark: '✓', title: 'Выполнено', variant: 'success' },
+  { key: 'open', mark: '●', title: 'В работе', variant: 'warning' },
+  { key: 'overdue', mark: '!', title: 'Просрочено', variant: 'danger' },
+  { key: 'planned', mark: '○', title: 'Запланировано', variant: 'gray', className: 'border-gray-300 bg-transparent text-gray-500 dark:border-gray-600' },
+  { key: 'cancelled', mark: '×', title: 'Отменено', variant: 'gray', className: 'text-gray-500' },
 ]
 
 /** Регламентное ТО: сетка «регламент × месяц», массовые регламенты и отчёт. */
@@ -228,7 +230,7 @@ export default function MaintenancePage() {
                 )
               })}
               <tr className="bg-gray-50 dark:bg-gray-800/60">
-                <td className="text-xs font-semibold uppercase tracking-wide text-gray-500">Итого</td>
+                <td className="eyebrow">Итого</td>
                 {grid.data.totals.map((cell) => (
                   <td key={cell.month} className="text-center"><CellMarks cell={cell} /></td>
                 ))}
@@ -239,7 +241,7 @@ export default function MaintenancePage() {
           <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-gray-100 px-4 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
             {CELL_MARKS.map((item) => (
               <span key={item.key} className="flex items-center gap-1.5">
-                <Mark className={item.className}>{item.mark}</Mark>
+                <Mark variant={item.variant} className={item.className}>{item.mark}</Mark>
                 {item.title}
               </span>
             ))}
@@ -276,11 +278,11 @@ function monthLabel(month: string): string {
   return day.getMonth() === 0 ? `${label} ${format(day, 'yy')}` : label
 }
 
-function Mark({ className, children }: { className: string; children: ReactNode }) {
+function Mark({ variant, className, children }: { variant: MarkVariant; className?: string; children: ReactNode }) {
   return (
-    <span className={cn('inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold tabular-nums', className)}>
+    <Badge variant={variant} className={cn('min-w-5 justify-center px-1 text-[11px] font-semibold tabular-nums', className)}>
       {children}
-    </span>
+    </Badge>
   )
 }
 
@@ -293,7 +295,7 @@ function CellMarks({ cell }: { cell: ScheduleCell }) {
         const count = cell[item.key] ?? 0
         return (
           <span key={item.key} title={`${item.title}: ${count}`}>
-            <Mark className={item.className}>{count > 1 ? `${item.mark}${count}` : item.mark}</Mark>
+            <Mark variant={item.variant} className={item.className}>{count > 1 ? `${item.mark}${count}` : item.mark}</Mark>
           </span>
         )
       })}

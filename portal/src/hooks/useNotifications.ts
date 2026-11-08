@@ -12,6 +12,8 @@ export interface Notification {
   is_read: boolean
   created_at: string
   task_id?: number
+  /** Номер заявки для подписи ссылки — если сервер его присылает. */
+  task_number?: string | null
   support_ticket_id?: number
   conversation_id?: number
 }

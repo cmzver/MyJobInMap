@@ -15,6 +15,8 @@ interface QueryStatePanelProps {
   onRetry?: () => void | Promise<unknown>
   isRetrying?: boolean
   className?: string
+  /** Внутри Card: без своей рамки и фона, компактная высота. */
+  bare?: boolean
 }
 
 const defaults: Record<QueryState, { title: string; description: string }> = {
@@ -40,6 +42,7 @@ export default function QueryStatePanel({
   onRetry,
   isRetrying = false,
   className,
+  bare = false,
 }: QueryStatePanelProps) {
   const Icon = icon ?? (state === 'error' ? AlertTriangle : Inbox)
 
@@ -49,7 +52,10 @@ export default function QueryStatePanel({
       aria-live={state === 'error' ? 'assertive' : 'polite'}
       aria-busy={state === 'loading'}
       className={cn(
-        'flex min-h-[240px] items-center justify-center rounded-lg border border-gray-200 bg-white px-6 py-10 text-center dark:border-gray-700 dark:bg-gray-800',
+        'flex items-center justify-center px-6 text-center',
+        bare
+          ? 'min-h-0 py-8'
+          : 'min-h-[240px] rounded-lg border border-gray-200 bg-white py-10 dark:border-gray-700 dark:bg-gray-800',
         className,
       )}
     >

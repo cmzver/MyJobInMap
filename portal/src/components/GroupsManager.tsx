@@ -287,7 +287,7 @@ export default function GroupsManager({ showOrgSelector = false }: GroupsManager
                 <Copy className="h-3.5 w-3.5" />
               </button>
               {group.is_system ? (
-                <Badge variant="info">Системная</Badge>
+                <Badge variant="gray">Системная</Badge>
               ) : (
                 <>
                   <button

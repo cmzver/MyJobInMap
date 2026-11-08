@@ -199,10 +199,10 @@ export default function TaskPanelsBadge({ task, canResolve }: { task: TaskDetail
         type="button"
         title="На адресе есть сетевые панели домофона — открыть дверь или решить заявку удалённо"
         onClick={() => setPanelsOpen(true)}
-        className="inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-full border border-sky-200 bg-sky-50 px-2 text-xs font-medium text-sky-700 transition-colors hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50"
+        className="inline-flex h-5 items-center gap-1 whitespace-nowrap text-xs font-medium text-primary-600 hover:underline focus:outline-none focus-visible:underline dark:text-primary-400"
       >
         <Server className="h-3 w-3" />
-        Сетевые панели · {panels.length}
+        Панели · {panels.length}
       </button>
 
       {panelsOpen && (

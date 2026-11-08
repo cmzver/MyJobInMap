@@ -20,6 +20,7 @@ import { useOrganizations } from '@/hooks/useOrganizations'
 import { useGroups } from '@/hooks/useGroups'
 import { useAuthStore } from '@/store/authStore'
 import {
+  getRoleBadgeVariant,
   isSuperadminRole,
   type CreateUserData,
   type UpdateUserData,
@@ -41,18 +42,20 @@ import Select from '@/components/Select'
 import { SkeletonTable } from '@/components/Skeleton'
 import GroupsManager from '@/components/GroupsManager'
 
-type RoleVisual = { label: string; variant: 'info' | 'warning' | 'danger' | 'gray'; icon: typeof User }
+type RoleVisual = { label: string; variant: 'primary' | 'gray'; icon: typeof User }
 
 // Бейдж роли строится из реестра групп; роль может быть встроенной или кастомной.
+// Цвет — общий getRoleBadgeVariant: акцент только у администратора.
 function getRoleVisual(role: string, groups: ApiGroup[]): RoleVisual {
-  if (role === 'superadmin') return { label: 'Супер-админ', variant: 'danger', icon: Shield }
+  if (role === 'superadmin') return { label: 'Супер-админ', variant: getRoleBadgeVariant(role), icon: Shield }
   const group = groups.find((g) => g.name === role)
   if (group) {
-    if (group.base_access === 'admin') return { label: group.label, variant: 'danger', icon: Shield }
-    if (group.base_access === 'dispatcher') return { label: group.label, variant: 'warning', icon: UsersIcon }
-    return { label: group.label, variant: 'info', icon: Briefcase }
+    const variant = getRoleBadgeVariant(role, group.base_access)
+    if (group.base_access === 'admin') return { label: group.label, variant, icon: Shield }
+    if (group.base_access === 'dispatcher') return { label: group.label, variant, icon: UsersIcon }
+    return { label: group.label, variant, icon: Briefcase }
   }
-  return { label: role, variant: 'gray', icon: User }
+  return { label: role, variant: getRoleBadgeVariant(role), icon: User }
 }
 
 interface UserFormData {
@@ -307,7 +310,7 @@ export default function UsersPage() {
         className="mb-6"
         title="Пользователи"
         description={
-          users ? `Всего: ${users.length} • групп: ${groupedUsers.length || 1}` : 'Загрузка...'
+          users ? `Всего: ${users.length} • групп: ${groupedUsers.length || 1}` : 'Загрузка…'
         }
         actions={
           <>
@@ -368,7 +371,7 @@ export default function UsersPage() {
           {groupedUsers.length > 1 && (
             <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                <Badge variant="info">Организаций: {groupedUsers.length}</Badge>
+                <Badge variant="gray">Организаций: {groupedUsers.length}</Badge>
                 <Badge variant="gray">Свернуто: {collapsedCount}</Badge>
               </div>
               <div className="flex flex-wrap gap-2">

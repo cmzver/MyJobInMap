@@ -241,7 +241,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const renderMenuSection = (section: MenuSection, closeSidebar?: () => void) => (
     <div key={section.id} className="mb-6">
       {section.title && (
-        <h3 className="px-4 mb-2 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+        <h3 className="eyebrow mb-2 px-4">
           {section.title}
         </h3>
       )}
@@ -289,7 +289,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <Clock size={16} className="text-primary-500 dark:text-primary-400" />
                 <div className="leading-tight">
                   <div className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white">{formattedTime}</div>
-                  <div className="hidden md:block text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  <div className="eyebrow hidden md:block">
                     {formattedDate}
                   </div>
                 </div>

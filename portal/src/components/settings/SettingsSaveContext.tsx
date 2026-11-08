@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect } from 'react'
 /**
  * Lets the active settings panel publish its "unsaved changes" state and
  * save/reset handlers up to the page header, so a single global
- * "Сбросить / Сохранить изменения" control can drive the current form
+ * "Сбросить / Сохранить" control can drive the current form
  * (as on the reference design).
  */
 export type SettingsSaveState = {

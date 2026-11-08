@@ -320,7 +320,7 @@ function MessageInput({
             onClick={updateCaretPosition}
             onKeyUp={updateCaretPosition}
             onSelect={updateCaretPosition}
-            placeholder="Сообщение..."
+            placeholder="Сообщение…"
             disabled={disabled}
             rows={1}
             className={cn(

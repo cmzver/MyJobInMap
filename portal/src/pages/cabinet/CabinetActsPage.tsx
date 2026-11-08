@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { cabinetApi } from '@/api/cabinet'
 import { cn } from '@/utils/cn'
+import Badge from '@/components/Badge'
 import Button from '@/components/Button'
 import Card from '@/components/Card'
 import QueryStatePanel from '@/components/QueryStatePanel'
@@ -55,7 +56,7 @@ export default function CabinetActsPage() {
               >
                 {item.label}
                 {item.value === 'pending' && (pending.data?.total ?? 0) > 0 && (
-                  <span className="ml-1 rounded-full bg-orange-100 px-1.5 text-xs text-orange-800">{pending.data?.total}</span>
+                  <Badge variant="primary" className="ml-1 px-1.5">{pending.data?.total}</Badge>
                 )}
               </button>
             ))}

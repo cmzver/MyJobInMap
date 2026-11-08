@@ -12,9 +12,9 @@ import {
   Target,
   TrendingUp,
   Calendar,
-  Award,
   Flame,
-  BarChart3
+  Star,
+  Trophy,
 } from 'lucide-react'
 import Card from '@/components/Card'
 import MetricCard from '@/components/MetricCard'
@@ -24,7 +24,8 @@ import Input from '@/components/Input'
 import UserAvatar from '@/components/UserAvatar'
 import { useAuthStore } from '@/store/authStore'
 import apiClient from '@/api/client'
-import { getRoleLabel } from '@/types/user'
+import { getRoleBadgeVariant, getRoleLabel } from '@/types/user'
+import Badge from '@/components/Badge'
 
 interface ProfileForm {
   fullName: string
@@ -48,6 +49,8 @@ interface UserStats {
   tasks_this_month: number
   streak_days: number
 }
+
+const ACHIEVED_TONE = 'text-primary-600 dark:text-primary-400'
 
 export default function ProfilePage() {
   const { user, setUser, token } = useAuthStore()
@@ -203,9 +206,9 @@ export default function ProfilePage() {
               <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
                 JPG, PNG, WEBP или GIF до 5 МБ
               </p>
-              <span className="inline-block mt-2 px-3 py-1 text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded-full">
+              <Badge variant={getRoleBadgeVariant(user?.role, user?.baseAccess)} className="mt-2">
                 {user?.roleLabel || getRoleLabel(user?.role)}
-              </span>
+              </Badge>
             </div>
           </div>
           
@@ -217,12 +220,12 @@ export default function ProfilePage() {
                 <div className="text-xs text-gray-500 dark:text-gray-400">Всего заявок</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{stats.completion_rate}%</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.completion_rate}%</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">Выполнено</div>
               </div>
               <div className="text-center">
-                <div className="flex items-center justify-center text-2xl font-bold text-orange-500">
-                  <Flame size={20} className="mr-1" />
+                <div className="flex items-center justify-center text-2xl font-bold text-gray-900 dark:text-white">
+                  <Flame size={20} className="mr-1 text-gray-400 dark:text-gray-500" />
                   {stats.streak_days}
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">Дней подряд</div>
@@ -294,7 +297,7 @@ export default function ProfilePage() {
               className="w-full"
             >
               <Save size={18} className="mr-2" />
-              Сохранить изменения
+              Сохранить
             </Button>
           </form>
         </Card>
@@ -320,95 +323,63 @@ export default function ProfilePage() {
               </div>
 
               {/* Progress Bar */}
-              <Card>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Прогресс выполнения</h3>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-600 dark:text-gray-400">Выполнено</span>
-                      <span className="font-medium text-gray-900 dark:text-white">{stats.completed_tasks} из {stats.total_tasks}</span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                      <div 
-                        className="bg-gradient-to-r from-green-400 to-green-600 h-3 rounded-full transition-all duration-500"
-                        style={{ width: `${stats.completion_rate}%` }}
-                      ></div>
-                    </div>
-                  </div>
+              <Card title="Прогресс выполнения">
+                <div className="mb-1 flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">Выполнено</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{stats.completed_tasks} из {stats.total_tasks}</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div
+                    className="h-2 rounded-full bg-primary-500 transition-all duration-500"
+                    style={{ width: `${stats.completion_rate}%` }}
+                  />
                 </div>
               </Card>
 
               {/* Additional Stats */}
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <Card>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                    <BarChart3 size={20} className="mr-2 text-primary-500" />
-                    Активность
-                  </h3>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                      <div className="flex items-center">
-                        <Calendar size={18} className="text-gray-400 dark:text-gray-500 mr-3" />
-                        <span className="text-gray-600 dark:text-gray-400">За эту неделю</span>
-                      </div>
-                      <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.tasks_this_week}</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                      <div className="flex items-center">
-                        <Calendar size={18} className="text-gray-400 dark:text-gray-500 mr-3" />
-                        <span className="text-gray-600 dark:text-gray-400">За этот месяц</span>
-                      </div>
-                      <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.tasks_this_month}</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                      <div className="flex items-center">
-                        <Clock size={18} className="text-gray-400 dark:text-gray-500 mr-3" />
-                        <span className="text-gray-600 dark:text-gray-400">Среднее время</span>
-                      </div>
-                      <span className="text-xl font-bold text-gray-900 dark:text-white">{formatHours(stats.avg_completion_hours)}</span>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                    <Award size={20} className="mr-2 text-yellow-500" />
-                    Достижения
-                  </h3>
-                  <div className="space-y-3">
-                    {/* Streak Achievement */}
-                    <div className={`p-4 rounded-lg ${stats.streak_days > 0 ? 'bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20' : 'bg-gray-50 dark:bg-gray-800'}`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <Flame size={24} className={stats.streak_days > 0 ? 'text-orange-500' : 'text-gray-400'} />
-                          <div className="ml-3">
-                            <p className="font-medium text-gray-900 dark:text-white">Серия</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Дней подряд с заявками</p>
-                          </div>
-                        </div>
-                        <span className={`text-2xl font-bold ${stats.streak_days > 0 ? 'text-orange-500' : 'text-gray-400'}`}>
-                          {stats.streak_days}
+                <Card title="Активность">
+                  <div className="space-y-2">
+                    {[
+                      { icon: Calendar, label: 'За эту неделю', value: stats.tasks_this_week },
+                      { icon: Calendar, label: 'За этот месяц', value: stats.tasks_this_month },
+                      { icon: Clock, label: 'Среднее время', value: formatHours(stats.avg_completion_hours) },
+                    ].map(({ icon: Icon, label, value }) => (
+                      <div key={label} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900/40">
+                        <span className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                          <Icon size={16} className="mr-2 text-gray-400 dark:text-gray-500" />
+                          {label}
                         </span>
+                        <span className="text-lg font-semibold text-gray-900 dark:text-white">{value}</span>
                       </div>
-                    </div>
-
-                    {/* Performance Badges */}
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className={`p-3 text-center rounded-lg ${stats.completion_rate >= 90 ? 'bg-green-100 dark:bg-green-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                        <span className={`text-2xl ${stats.completion_rate >= 90 ? '' : 'grayscale opacity-50'}`}>🏆</span>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">90%+</p>
-                      </div>
-                      <div className={`p-3 text-center rounded-lg ${stats.completed_tasks >= 50 ? 'bg-primary-100 dark:bg-primary-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                        <span className={`text-2xl ${stats.completed_tasks >= 50 ? '' : 'grayscale opacity-50'}`}>⭐</span>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">50+ дел</p>
-                      </div>
-                      <div className={`p-3 text-center rounded-lg ${stats.streak_days >= 7 ? 'bg-orange-100 dark:bg-orange-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                        <span className={`text-2xl ${stats.streak_days >= 7 ? '' : 'grayscale opacity-50'}`}>🔥</span>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">7+ дней</p>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </Card>
+
+                {/* Достижения: нейтральные метрики, отметка — подписью акцентного цвета */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 md:grid-cols-1">
+                  <MetricCard
+                    icon={Flame}
+                    label="Серия, дней"
+                    value={stats.streak_days}
+                    note={stats.streak_days >= 7 ? 'Достижение «7+ дней» получено' : `До «7+ дней» — ещё ${7 - stats.streak_days}`}
+                    noteTone={stats.streak_days >= 7 ? ACHIEVED_TONE : undefined}
+                  />
+                  <MetricCard
+                    icon={Trophy}
+                    label="Выполнение 90%+"
+                    value={`${stats.completion_rate}%`}
+                    note={stats.completion_rate >= 90 ? 'Достижение получено' : 'Цель — 90% выполненных'}
+                    noteTone={stats.completion_rate >= 90 ? ACHIEVED_TONE : undefined}
+                  />
+                  <MetricCard
+                    icon={Star}
+                    label="50+ выполненных"
+                    value={stats.completed_tasks}
+                    note={stats.completed_tasks >= 50 ? 'Достижение получено' : `Ещё ${50 - stats.completed_tasks}`}
+                    noteTone={stats.completed_tasks >= 50 ? ACHIEVED_TONE : undefined}
+                  />
+                </div>
               </div>
             </>
           ) : (

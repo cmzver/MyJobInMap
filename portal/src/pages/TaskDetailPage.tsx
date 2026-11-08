@@ -14,7 +14,6 @@ import {
   MessageSquare,
   Image as ImageIcon,
   Clock,
-  AlertTriangle,
   Send,
   Upload,
   X,
@@ -45,6 +44,7 @@ import { usePermissions } from '@/hooks/usePermissions'
 import SendTaskToChatModal from '@/components/chat/SendTaskToChatModal'
 import { useAuthStore } from '@/store/authStore'
 import Button from '@/components/Button'
+import QueryStatePanel from '@/components/QueryStatePanel'
 import Spinner from '@/components/Spinner'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
@@ -96,7 +96,7 @@ function CollapsibleCard({ title, meta, defaultOpen = false, children }: Collaps
         <div className="flex min-h-10 cursor-pointer items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-1 transition-colors group-open:rounded-b-none dark:border-gray-700 dark:bg-gray-800">
           <div className="flex items-center gap-2">
             <ChevronDown className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180" />
-            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">{title}</span>
+            <span className="eyebrow">{title}</span>
           </div>
           {meta != null && meta !== '' && <div className="text-xs text-gray-500 dark:text-gray-400">{meta}</div>}
         </div>
@@ -140,7 +140,7 @@ export default function TaskDetailPage() {
   }, [selectedPhoto])
 
   // Data fetching
-  const { data: task, isLoading, isError, error } = useTask(taskId)
+  const { data: task, isLoading, isError, error, refetch, isFetching } = useTask(taskId)
   const { data: comments = [], isLoading: commentsLoading } = useComments(taskId)
   // История места — после загрузки заявки: блок свёрнут, а к недоступной
   // заявке (чужая у мастера) запрос заведомо вернёт ошибку
@@ -349,13 +349,13 @@ export default function TaskDetailPage() {
           <ArrowLeft className="h-4 w-4 mr-2" />
           Назад к списку
         </Button>
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
-          <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
-          <h3 className="text-lg font-medium text-red-800 dark:text-red-400 mb-1">Ошибка загрузки</h3>
-          <p className="text-red-600 dark:text-red-500 text-sm">
-            {getApiErrorMessage(error, 'Заявка не найдена')}
-          </p>
-        </div>
+        <QueryStatePanel
+          state="error"
+          title="Не удалось открыть заявку"
+          description={getApiErrorMessage(error, 'Заявка не найдена')}
+          onRetry={refetch}
+          isRetrying={isFetching}
+        />
       </div>
     )
   }
@@ -669,7 +669,7 @@ export default function TaskDetailPage() {
 
           <CollapsibleCard
             title="История адреса"
-            meta={addressHistory ? addressHistory.history.length : '...'}
+            meta={addressHistory ? addressHistory.history.length : '…'}
           >
             {addressHistory ? (
               <AddressHistoryList tasks={addressHistory.history} />
@@ -680,7 +680,7 @@ export default function TaskDetailPage() {
 
           <CollapsibleCard
             title="Фотографии"
-            meta={photosLoading ? '...' : `${photos.length} фото`}
+            meta={photosLoading ? '…' : `${photos.length} фото`}
           >
             <div className="flex flex-wrap items-center gap-2 mb-4">
               <select
@@ -748,7 +748,7 @@ export default function TaskDetailPage() {
                       />
                     ) : (
                       <div className="flex aspect-square w-full items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-500 dark:bg-gray-700">
-                        {isLoadingPhotoUrls ? 'Загрузка...' : 'Нет доступа'}
+                        {isLoadingPhotoUrls ? 'Загрузка…' : 'Нет доступа'}
                       </div>
                     )}
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors rounded-lg" />
@@ -776,7 +776,7 @@ export default function TaskDetailPage() {
           {/* History */}
           <CollapsibleCard
             title="История изменений"
-            meta={commentsLoading ? '...' : `${historyEvents.length}`}
+            meta={commentsLoading ? '…' : `${historyEvents.length}`}
           >
             {commentsLoading ? (
               <div className="flex justify-center py-6">
@@ -916,7 +916,7 @@ export default function TaskDetailPage() {
                     type="text"
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
-                    placeholder="Добавить комментарий..."
+                    placeholder="Добавить комментарий…"
                     className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
                     disabled={addCommentMutation.isPending}
