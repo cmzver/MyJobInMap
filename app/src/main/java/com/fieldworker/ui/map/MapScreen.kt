@@ -72,6 +72,7 @@ import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.components.CompactTaskCard
+import com.fieldworker.ui.components.Eyebrow
 import com.fieldworker.ui.components.FilterFunnelIcon
 import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.PhotoUploadConfirmDialog
@@ -1345,11 +1346,9 @@ private fun MapFilterButton(
 
 @Composable
 private fun MenuSectionLabel(text: String) {
-    Text(
-        text = text.uppercase(),
+    Eyebrow(
+        text = text,
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
 

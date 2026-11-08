@@ -71,6 +71,8 @@ import androidx.paging.compose.LazyPagingItems
 import com.fieldworker.R
 import com.fieldworker.domain.model.AddressDetails
 import com.fieldworker.ui.act.LocalTaskActsSection
+import com.fieldworker.ui.components.EmptyState
+import com.fieldworker.ui.components.Eyebrow
 import com.fieldworker.ui.remote.LocalTaskRemoteSection
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
@@ -228,12 +230,18 @@ fun TaskListScreen(
                 // Пустое состояние
                 displayEmpty -> {
                     EmptyState(
-                        message = if (hasFilters) "Заявки не найдены" else "Заявок нет",
-                        isFiltered = hasFilters,
-                        onReset = {
+                        title = if (hasFilters) "Заявки не найдены" else "Заявок нет",
+                        message = if (hasFilters) {
+                            "Попробуйте изменить параметры поиска"
+                        } else {
+                            "Новые заявки появятся здесь автоматически"
+                        },
+                        icon = if (hasFilters) Icons.Default.Search else Icons.Default.CheckCircle,
+                        actionLabel = if (hasFilters) "Сбросить фильтры" else null,
+                        onAction = {
                             onStatusFilterChange(emptySet())
                             onSearchQueryChange("")
-                        }
+                        },
                     )
                 }
                 // Список задач с Pull-to-Refresh
@@ -1308,16 +1316,6 @@ private fun SheetHeaderChip(text: String) {
     }
 }
 
-/** Мелкий приглушённый лейбл над значением (eyebrow, как в портале). */
-@Composable
-private fun Eyebrow(text: String) {
-    Text(
-        text = text.uppercase(),
-        style = MaterialTheme.typography.labelSmall,
-        letterSpacing = 0.6.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-}
 
 private data class TaskFact(
     val label: String,
@@ -1973,54 +1971,6 @@ private fun ScrollToTopButton(
     }
 }
 
-@Composable
-fun EmptyState(
-    message: String,
-    isFiltered: Boolean = false,
-    onReset: (() -> Unit)? = null
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = if (isFiltered) Icons.Default.Search else Icons.Default.CheckCircle,
-                contentDescription = null,
-                modifier = Modifier.size(56.dp),
-                // Пустое состояние — спокойный нейтрал, акцент только для действий
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = message,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = if (isFiltered) {
-                    "Попробуйте изменить параметры поиска"
-                } else {
-                    "Новые заявки появятся здесь автоматически"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                textAlign = TextAlign.Center
-            )
-            if (isFiltered && onReset != null) {
-                Spacer(modifier = Modifier.height(16.dp))
-                OutlinedButton(onClick = onReset) {
-                    Text("Сбросить фильтры")
-                }
-            }
-        }
-    }
-}
 
 /**
  * Skeleton loading для карточки задачи (strict стиль).
@@ -2120,12 +2070,8 @@ private fun TaskGroupHeader(label: String) {
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.background,
     ) {
-        Text(
-            text = label.uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            letterSpacing = 0.8.sp,
+        Eyebrow(
+            text = label,
             modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp),
         )
     }

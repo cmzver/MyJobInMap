@@ -40,11 +40,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.fieldworker.domain.model.AddressDetails
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
+import com.fieldworker.ui.components.Eyebrow
 import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.TaskUtils
 import com.fieldworker.ui.utils.accentTextColor
@@ -387,12 +387,7 @@ private fun ObjectFactsGrid(facts: List<ObjectFact>) {
                                 }
                             )
                     ) {
-                        Text(
-                            text = fact.label.uppercase(),
-                            style = MaterialTheme.typography.labelSmall,
-                            letterSpacing = 0.6.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Eyebrow(fact.label)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = fact.value,

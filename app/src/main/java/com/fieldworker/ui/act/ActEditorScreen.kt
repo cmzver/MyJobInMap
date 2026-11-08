@@ -65,6 +65,7 @@ import com.fieldworker.domain.model.ActDraft
 import com.fieldworker.domain.model.ActLineDraft
 import com.fieldworker.domain.model.ActPaymentMethod
 import com.fieldworker.domain.model.ActSignerRole
+import com.fieldworker.ui.components.Eyebrow
 import com.fieldworker.ui.components.SignaturePad
 import com.fieldworker.ui.components.SignatureState
 import java.math.BigDecimal
@@ -231,7 +232,7 @@ private fun EditStep(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item { SectionTitle("Работы и материалы") }
+            item { Eyebrow("Работы и материалы") }
             items(draft.lines, key = { it.key }) { line ->
                 LineEditor(
                     line = line,
@@ -277,7 +278,7 @@ private fun EditStep(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            item { SectionTitle("Заказчик") }
+            item { Eyebrow("Заказчик") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
@@ -316,7 +317,7 @@ private fun EditStep(
                 }
             }
             if (draft.total.signum() > 0) {
-                item { SectionTitle("Оплата") }
+                item { Eyebrow("Оплата") }
                 item {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ActPaymentMethod.entries.forEach { method ->
@@ -375,15 +376,6 @@ private fun EditStep(
     }
 }
 
-@Composable
-private fun SectionTitle(text: String) {
-    Text(
-        text = text.uppercase(),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        fontWeight = FontWeight.SemiBold,
-    )
-}
 
 @Composable
 private fun LineEditor(

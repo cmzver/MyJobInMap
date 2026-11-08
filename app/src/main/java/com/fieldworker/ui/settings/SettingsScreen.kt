@@ -34,6 +34,7 @@ import coil.request.ImageRequest
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.preferences.ServerUrl
 import com.fieldworker.domain.model.AccessLevel
+import com.fieldworker.ui.components.Eyebrow
 import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.avatarInitials
 import com.fieldworker.ui.utils.resolveAvatarUrl
@@ -400,13 +401,9 @@ fun SettingsScreen(
 @Composable
 private fun SectionLabel(text: String) {
     // Нейтральный eyebrow, как в портале: акцент — только для действий
-    Text(
-        text = text.uppercase(),
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = 0.8.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp)
+    Eyebrow(
+        text = text,
+        modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp),
     )
 }
 
