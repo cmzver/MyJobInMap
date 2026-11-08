@@ -1687,13 +1687,13 @@ function DevicesTab() {
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-gray-400" />
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          {device.user_name || `User #${device.user_id}`}
+                          {device.user_name || `Пользователь #${device.user_id}`}
                         </span>
                       </div>
                     </td>
                     <td className="whitespace-nowrap">
                       <span className="text-sm text-gray-600 dark:text-gray-400">
-                        {device.device_name || 'Unknown Device'}
+                        {device.device_name || 'Устройство без названия'}
                       </span>
                     </td>
                     <td className="whitespace-nowrap">
@@ -2007,7 +2007,7 @@ function TelegramBotSettingsTab() {
               size="sm"
               onClick={handleAddMapping}
               disabled={!(newGroupName === '__custom__' ? customGroupName.trim() : newGroupName.trim()) || !newUsername.trim()}
-              title="Добавить маппинг"
+              title="Добавить сопоставление"
               className="self-center"
             >
               <Plus className="h-4 w-4" />
