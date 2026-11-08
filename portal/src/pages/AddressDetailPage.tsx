@@ -635,8 +635,8 @@ export default function AddressDetailPage() {
             }
           >
             <dl className="grid grid-cols-4 divide-x divide-gray-100 dark:divide-gray-700">
-              <Stat label="Новые" value={taskStats.new} tone="text-red-600 dark:text-red-400" />
-              <Stat label="В работе" value={taskStats.in_progress} tone="text-orange-600 dark:text-orange-400" />
+              <Stat label="Новые" value={taskStats.new} tone="text-blue-600 dark:text-blue-400" />
+              <Stat label="В работе" value={taskStats.in_progress} tone="text-amber-700 dark:text-amber-300" />
               <Stat label="Готово" value={taskStats.done} tone="text-green-600 dark:text-green-400" />
               <Stat label="Отмена" value={taskStats.cancelled} />
             </dl>

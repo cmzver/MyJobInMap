@@ -3,7 +3,11 @@ import { useQuery } from '@tanstack/react-query'
 import { CheckCircle2, Circle, Phone, Send } from 'lucide-react'
 import apiClient from '@/api/client'
 import type { components } from '@/types/api.generated'
+import Badge from '@/components/Badge'
 import Spinner from '@/components/Spinner'
+import StatusBadge from '@/components/StatusBadge'
+import { STATUS_LABELS } from '@/config/taskConstants'
+import type { TaskStatus } from '@/types/task'
 import { formatDateOnly, formatDateTime } from '@/utils/dateFormat'
 import { cn } from '@/utils/cn'
 import PublicShell, { PublicCard } from './PublicShell'
@@ -11,12 +15,6 @@ import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 
 type PublicTask = components['schemas']['PublicTaskView']
 
-const STATUS_STYLE: Record<string, string> = {
-  NEW: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  IN_PROGRESS: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-  DONE: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  CANCELLED: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
-}
 // Шаги для заявителя: принята → в работе → выполнена
 const STEPS = [
   { status: 'NEW', label: 'Принята' },
@@ -64,9 +62,11 @@ export default function PublicTaskPage() {
           {task.organization && <p className="eyebrow">{task.organization}</p>}
           <div className="mt-1 flex flex-wrap items-start gap-2">
             <h1 className="min-w-0 flex-1 text-xl font-semibold text-gray-900 dark:text-white">{task.title}</h1>
-            <span className={cn('rounded-full px-2.5 py-0.5 text-sm font-medium', STATUS_STYLE[task.status])}>
-              {task.status_label}
-            </span>
+            {task.status in STATUS_LABELS ? (
+              <StatusBadge status={task.status as TaskStatus} />
+            ) : (
+              <Badge>{task.status_label}</Badge>
+            )}
           </div>
           <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
             Заявка {task.number} · {task.address}
