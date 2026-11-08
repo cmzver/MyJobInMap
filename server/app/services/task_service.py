@@ -121,8 +121,9 @@ def _address_match_score(
 ) -> int:
     """Насколько адрес книги совпадает с адресом заявки; 0 — это другой дом.
 
-    Совпасть должны дом и улица, а город и корпус — не противоречить: на
-    «Центральной ул., д. 3» в Новоселье и в Кудрово разные координаты.
+    Совпасть должны дом, улица и корпус (корпус — отдельное здание), а город —
+    не противоречить: на «Центральной ул., д. 3» в Новоселье и в Кудрово
+    разные координаты.
     """
     normalized_candidate = geocoding_service.normalize_address(
         candidate.address or ""
@@ -146,14 +147,20 @@ def _address_match_score(
     else:
         return 0
 
-    for left, right in (
-        (city_key(parsed.city), city_key(candidate.city or from_text.city)),
-        (corpus_key(parsed.corpus), corpus_key(candidate.corpus or from_text.corpus)),
-    ):
-        if left and right:
-            if left != right:
-                return 0
-            score += 18
+    # Корпус — отдельное здание: «Невская 9 к2» и «Невская 9» — разные дома
+    mine_corpus = corpus_key(parsed.corpus)
+    if mine_corpus != corpus_key(candidate.corpus or from_text.corpus):
+        return 0
+    if mine_corpus:
+        score += 18
+
+    # Город может быть не указан, но не должен противоречить
+    mine_city = city_key(parsed.city)
+    theirs_city = city_key(candidate.city or from_text.city)
+    if mine_city and theirs_city:
+        if mine_city != theirs_city:
+            return 0
+        score += 18
     return score
 
 
