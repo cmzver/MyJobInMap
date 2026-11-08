@@ -213,3 +213,59 @@ class TestServiceSingleton:
 
         assert geocoding_service is not None
         assert isinstance(geocoding_service, GeocodingService)
+
+
+class TestDirectoryPoint:
+    """Точка из справочника DaData: дом — сразу, улица — только если OSM молчит."""
+
+    @staticmethod
+    def _dadata(monkeypatch, qc_geo):
+        from tests.test_address_suggest import _fake_dadata, _suggestion
+
+        _fake_dadata(
+            monkeypatch,
+            [
+                _suggestion(
+                    "г Санкт-Петербург, пр-кт Энгельса, д 120",
+                    house="120",
+                    qc_geo=qc_geo,
+                    geo_lat="60.03",
+                    geo_lon="30.32",
+                )
+            ],
+        )
+
+    @staticmethod
+    def _osm(service, found):
+        location = MagicMock(latitude=60.0, longitude=30.0) if found else None
+        service.geolocator = MagicMock()
+        service.geolocator.geocode = MagicMock(return_value=location)
+
+    def test_exact_house_from_directory_skips_osm(self, monkeypatch):
+        service = GeocodingService()
+        self._dadata(monkeypatch, "0")
+        self._osm(service, found=True)
+
+        assert service.geocode("пр. Энгельса, 120") == (60.03, 30.32)
+        service.geolocator.geocode.assert_not_called()
+
+    def test_street_point_loses_to_osm(self, monkeypatch):
+        service = GeocodingService()
+        self._dadata(monkeypatch, "2")
+        self._osm(service, found=True)
+
+        assert service.geocode("пр. Энгельса, 120") == (60.0, 30.0)
+
+    def test_street_point_when_osm_is_unavailable(self, monkeypatch):
+        service = GeocodingService()
+        self._dadata(monkeypatch, "2")
+        self._osm(service, found=False)
+
+        assert service.geocode("пр. Энгельса, 120") == (60.03, 30.32)
+
+    def test_city_level_point_is_not_used(self, monkeypatch):
+        service = GeocodingService()
+        self._dadata(monkeypatch, "4")
+        self._osm(service, found=False)
+
+        assert service.geocode("пр. Энгельса, 120") == (0.0, 0.0)
