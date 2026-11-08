@@ -12,7 +12,7 @@
 import logging
 import time
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, NamedTuple, Optional
 
 import httpx
 
@@ -147,12 +147,15 @@ def _district(data: Dict[str, Any]) -> str:
     return data.get("city_district_with_type") or data.get("area_with_type") or ""
 
 
-def house_details(address: str) -> Optional[Dict[str, Any]]:
-    """
-    Район и код дома ФИАС по строке адреса — только если справочник узнал
-    именно дом (не улицу). None — справочник выключен, недоступен или дом
-    не найден: адрес сохраняется и без этих полей.
-    """
+class HousePoint(NamedTuple):
+    lat: float
+    lon: float
+    # True — точка дома (qc_geo 0/1); False — центр улицы (qc_geo 2)
+    exact: bool
+
+
+def _house_data(address: str) -> Optional[Dict[str, Any]]:
+    """data первой подсказки, если справочник узнал именно дом (не улицу)."""
     query = address.strip()[:MAX_QUERY_LENGTH]
     if len(query) < 3:
         return None
@@ -164,8 +167,17 @@ def house_details(address: str) -> Optional[Dict[str, Any]]:
     if not found:
         return None
     data = found[0].get("data") or {}
-    # Справочник нашёл улицу, а не дом — район по ней не надёжен
-    if not data.get("house"):
+    return data if data.get("house") else None
+
+
+def house_details(address: str) -> Optional[Dict[str, Any]]:
+    """
+    Район и код дома ФИАС по строке адреса — только если справочник узнал
+    именно дом. None — справочник выключен, недоступен или дом не найден:
+    адрес сохраняется и без этих полей.
+    """
+    data = _house_data(address)
+    if data is None:
         return None
     district = _district(data) or None
     # Код дома ФИАС бесплатные подсказки отдают не для всех домов
@@ -173,6 +185,21 @@ def house_details(address: str) -> Optional[Dict[str, Any]]:
     if not district and not fias_id:
         return None
     return {"district": district, "fias_id": fias_id}
+
+
+def house_point(address: str) -> Optional[HousePoint]:
+    """Точка дома из справочника; центр улицы — с exact=False; хуже — None."""
+    data = _house_data(address)
+    if data is None:
+        return None
+    quality = str(data.get("qc_geo") or "")
+    if quality not in ("0", "1", "2"):
+        return None
+    try:
+        lat, lon = float(data["geo_lat"]), float(data["geo_lon"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return HousePoint(lat, lon, exact=quality in ("0", "1"))
 
 
 # Так город часто пишут в своей базе — справочник знает его полное имя

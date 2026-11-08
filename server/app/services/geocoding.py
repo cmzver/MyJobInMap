@@ -14,6 +14,7 @@ from geopy.geocoders import Nominatim
 
 from app.config import settings
 from app.models.enums import TaskPriority
+from app.services import address_suggest
 
 logger = logging.getLogger(__name__)
 
@@ -183,17 +184,38 @@ class GeocodingService:
         return result
 
     def geocode(self, address: str) -> Tuple[float, float]:
-        """Геокодировать адрес в координаты"""
+        """Координаты адреса; (0.0, 0.0) — не нашли.
+
+        Сначала точка дома из справочника DaData, затем Nominatim (с прода
+        он бывает недоступен: блокирует IP ответом 429), в последнюю очередь —
+        точка улицы из DaData: заявка хотя бы окажется на своей улице, а не
+        пропадёт с карты.
+        """
         normalized = self.normalize_address(address)
 
-        # Проверяем кэш
         cached = self._get_from_cache(normalized)
         if cached:
-            # print(f"Geocoding (cached): '{address[:50]}...' -> {cached}")
             return cached
 
-        # print(f"Geocoding: '{address[:80]}...' -> '{normalized}'")
+        point = address_suggest.house_point(address)
+        if point is not None and point.exact:
+            coords = (point.lat, point.lon)
+            self._add_to_cache(normalized, coords)
+            return coords
 
+        coords = self._geocode_nominatim(address, normalized)
+        if coords is None and point is not None:
+            logger.info("Geocoding: точка улицы из DaData для '%s'", address)
+            coords = (point.lat, point.lon)
+        if coords is None:
+            return (0.0, 0.0)
+        self._add_to_cache(normalized, coords)
+        return coords
+
+    def _geocode_nominatim(
+        self, address: str, normalized: str
+    ) -> Optional[Tuple[float, float]]:
+        """Nominatim (OSM); None — не нашёл или недоступен."""
         try:
             # Извлекаем компоненты
             street_match = re.search(
@@ -324,9 +346,7 @@ class GeocodingService:
             logger.warning("Geocoding timeout/error for '%s': %s", address, e)
         except Exception as e:
             logger.warning("Geocoding failed for '%s': %s", address, e)
-
-        # Location not found - return default
-        return (0.0, 0.0)
+        return None
 
 
 # Singleton
