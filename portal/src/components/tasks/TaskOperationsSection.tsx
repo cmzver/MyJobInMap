@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { addressesApi } from '@/api/addresses'
 import { operationsApi } from '@/api/operations'
 import { materialsApi } from '@/api/materials'
+import { taskKeys } from '@/hooks/useTasks'
 import { useAuthStore } from '@/store/authStore'
 import { showApiError } from '@/utils/apiError'
 import Button from '@/components/Button'
@@ -16,7 +17,7 @@ export default function TaskOperationsSection({ task }: { task: Task | TaskDetai
   const [materialId, setMaterialId] = useState('')
   const [quantity, setQuantity] = useState('1')
   const [operationId, setOperationId] = useState(() => crypto.randomUUID())
-  const key = ['task-materials', user?.organizationId, task.id]
+  const key = taskKeys.materials(task.id, user?.organizationId)
   const movements = useQuery({ queryKey: key, queryFn: () => materialsApi.taskMaterials(task.id) })
   const stocks = useQuery({ queryKey: ['materials', user?.organizationId, 'stock', user?.id], queryFn: () => materialsApi.stocks() })
   const consume = useMutation({ mutationFn: () => materialsApi.consume(task.id, { material_id: Number(materialId), quantity, reason: '', operation_id: operationId }),

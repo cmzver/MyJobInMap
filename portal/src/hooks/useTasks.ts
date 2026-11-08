@@ -11,6 +11,9 @@ export const taskKeys = {
   details: () => [...taskKeys.all, 'detail'] as const,
   detail: (id: number) => [...taskKeys.details(), id] as const,
   related: (query: RelatedTasksQuery) => [...taskKeys.all, 'related', query] as const,
+  /** Расход материалов по заявке — под ['tasks'], чтобы события WS обновляли карточку. */
+  materials: (id: number, organizationId?: number | null) =>
+    [...taskKeys.all, 'materials', id, organizationId ?? null] as const,
 }
 
 export const myTaskKeys = {

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }))
 
 import { invalidateForTaskEvent } from '../useWebSocket'
+import { taskKeys } from '../useTasks'
 
 function invalidatedKeys(type: string, data: Record<string, unknown>) {
   const qc = new QueryClient()
@@ -31,12 +32,13 @@ describe('invalidateForTaskEvent', () => {
     expect(keys).not.toContain(JSON.stringify(['analytics']))
   })
 
-  it('инвалидация префикса tasks задевает карточку, карту и календарь', () => {
+  it('инвалидация префикса tasks задевает карточку, карту, календарь и материалы заявки', () => {
     const qc = new QueryClient()
     const keys = [
       ['tasks', 'detail', 7],
       ['tasks', 'map', 'NEW', '', null],
       ['tasks', 'calendar', '2026-11', null],
+      [...taskKeys.materials(7, 1)],
     ]
     keys.forEach((key) => qc.setQueryData(key, {}))
     invalidateForTaskEvent(qc, 'task_created', { task_id: 7 })
