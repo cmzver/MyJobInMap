@@ -114,6 +114,38 @@ def test_stage_migrations_down_and_up_with_data(database_url, monkeypatch):
             tables = set(inspect(connection).get_table_names())
             assert {"client_accounts", "task_subscribers"} <= tables
 
+        # До 20261108_0002 адрес был уникален во всей базе (индекс на address);
+        # после — в пределах организации: тот же дом у двух организаций.
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO organizations (id, name, slug, is_active, max_users,"
+                    " max_tasks) VALUES (1, 'Первая', 'first', :yes, 50, 100),"
+                    " (2, 'Вторая', 'second', :yes, 50, 100)"
+                ),
+                {"yes": True},
+            )
+            for org_id in (1, 2):
+                connection.execute(
+                    text(
+                        "INSERT INTO addresses (address, organization_id, lat, lon,"
+                        " is_active) VALUES ('Ленина, 1', :org, 0, 0, :yes)"
+                    ),
+                    {"org": org_id, "yes": True},
+                )
+        with pytest.raises(Exception):
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "INSERT INTO addresses (address, organization_id, lat, lon,"
+                        " is_active) VALUES ('Ленина, 1', 1, 0, 0, :yes)"
+                    ),
+                    {"yes": True},
+                )
+        with engine.begin() as connection:
+            connection.execute(text("DELETE FROM addresses"))
+            connection.execute(text("DELETE FROM organizations"))
+
         # Повторный цикл: downgrade чистит всё, что добавил upgrade
         command.downgrade(config, BASE_REVISION)
         command.upgrade(config, "head")

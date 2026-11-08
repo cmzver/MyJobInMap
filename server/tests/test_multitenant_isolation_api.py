@@ -313,6 +313,46 @@ def test_address_created_by_org_admin_is_bound_and_visible_in_own_list(
     assert [item["id"] for item in items] == [address_id]
 
 
+def test_same_house_can_be_served_by_two_organizations(client: TestClient, db_session):
+    """Один дом обслуживают две организации: у каждой — своя карточка адреса.
+    Раньше адрес был уникален во всей базе, и вторая получала 500."""
+    headers = {}
+    for slug in ("house-org-a", "house-org-b"):
+        org = OrganizationModel(name=slug, slug=slug)
+        db_session.add(org)
+        db_session.commit()
+        admin = _create_org_user(
+            db_session,
+            username=f"{slug}-admin",
+            password="pass123",
+            role=UserRole.ADMIN.value,
+            organization_id=org.id,
+        )
+        headers[slug] = _login_headers(client, admin.username, "pass123")
+
+    payload = {"address": "Общий дом, 7", "lat": 55.0, "lon": 37.0}
+    first = client.post("/api/addresses", json=payload, headers=headers["house-org-a"])
+    second = client.post("/api/addresses", json=payload, headers=headers["house-org-b"])
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert first.json()["id"] != second.json()["id"]
+
+    again = client.post("/api/addresses", json=payload, headers=headers["house-org-a"])
+    assert again.status_code == 400
+
+    other = client.post(
+        "/api/addresses",
+        json={"address": "Другой дом, 1", "lat": 55.0, "lon": 37.0},
+        headers=headers["house-org-b"],
+    )
+    renamed = client.patch(
+        f"/api/addresses/{other.json()['id']}",
+        json={"address": "Общий дом, 7"},
+        headers=headers["house-org-b"],
+    )
+    assert renamed.status_code == 400
+
+
 def test_address_autocomplete_is_isolated_between_organizations(
     client: TestClient, db_session
 ):
