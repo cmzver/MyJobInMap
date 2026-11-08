@@ -88,7 +88,7 @@ export default function AddressesPage() {
           <input
             aria-label="Поиск по адресу"
             type="text"
-            placeholder="Поиск по адресу..."
+            placeholder="Адрес или район…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="field pl-9"
@@ -149,11 +149,12 @@ export default function AddressesPage() {
                           <div className="font-medium text-gray-900 dark:text-white truncate hover:text-primary-600 dark:hover:text-primary-400">
                             {address.address}
                           </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                            {[address.city, address.street, address.building, address.corpus, address.entrance]
-                              .filter(Boolean)
-                              .join(', ')}
-                          </div>
+                          {(address.city || address.district) && (
+                            // Строка выше — уже адрес; здесь — где он: город и район
+                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              {[address.city, address.district].filter(Boolean).join(' · ')}
+                            </div>
+                          )}
                           {address.notes && (
                             <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{address.notes}</div>
                           )}

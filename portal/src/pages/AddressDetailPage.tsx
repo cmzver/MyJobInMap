@@ -592,6 +592,7 @@ export default function AddressDetailPage() {
               <Stat label="Квартир" value={address.apartment_count} />
             </dl>
             <dl className="space-y-2 px-4 py-3 text-sm">
+              <Fact label="Район" value={address.district} />
               <Fact
                 label="УК"
                 value={address.counterparty_id ? (

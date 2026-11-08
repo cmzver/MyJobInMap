@@ -212,6 +212,8 @@ def get_address_full(
         entrance=address.entrance,
         lat=address.lat,
         lon=address.lon,
+        district=address.district,
+        fias_id=address.fias_id,
         entrance_count=address.entrance_count,
         floor_count=address.floor_count,
         apartment_count=address.apartment_count,

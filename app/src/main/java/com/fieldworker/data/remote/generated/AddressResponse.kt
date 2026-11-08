@@ -42,6 +42,8 @@ import kotlinx.serialization.Contextual
  * @param entrance 
  * @param lat 
  * @param lon 
+ * @param district 
+ * @param fiasId 
  * @param entranceCount 
  * @param floorCount 
  * @param apartmentCount 
@@ -91,6 +93,12 @@ data class AddressResponse (
 
     @Contextual @SerialName(value = "lon")
     val lon: java.math.BigDecimal? = null,
+
+    @SerialName(value = "district")
+    val district: kotlin.String? = null,
+
+    @SerialName(value = "fias_id")
+    val fiasId: kotlin.String? = null,
 
     @SerialName(value = "entrance_count")
     val entranceCount: kotlin.Long? = null,

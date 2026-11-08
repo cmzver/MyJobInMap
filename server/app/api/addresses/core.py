@@ -94,7 +94,7 @@ def get_addresses(
     db: Session = Depends(get_db),
     user: UserModel = Depends(get_current_user_required),
 ):
-    """Получить список адресов с пагинацией и поиском"""
+    """Получить список адресов с пагинацией и поиском (и по району)"""
     query = db.query(AddressModel)
 
     # Multi-tenant: фильтрация по организации
@@ -109,6 +109,7 @@ def get_addresses(
                 AddressModel.address.ilike(search_pattern),
                 AddressModel.street.ilike(search_pattern),
                 AddressModel.building.ilike(search_pattern),
+                AddressModel.district.ilike(search_pattern),
             )
         )
 
@@ -341,6 +342,7 @@ def create_address(
     lat, lon = data.lat, data.lon
     if lat is None or lon is None:
         lat, lon = geocoding_service.geocode(data.address)
+    house = address_suggest.house_details(data.address) or {}
 
     address = AddressModel(
         address=data.address,
@@ -351,6 +353,8 @@ def create_address(
         entrance=data.entrance or "",
         lat=lat,
         lon=lon,
+        district=house.get("district"),
+        fias_id=house.get("fias_id"),
         entrance_count=data.entrance_count or 1,
         floor_count=data.floor_count or 1,
         apartment_count=data.apartment_count,
@@ -408,6 +412,11 @@ def update_address(
             lat, lon = geocoding_service.geocode(update_data["address"])
             update_data["lat"] = lat
             update_data["lon"] = lon
+
+        # Другой дом — другой район; не узнали дом — старые значения неверны
+        house = address_suggest.house_details(update_data["address"]) or {}
+        update_data["district"] = house.get("district")
+        update_data["fias_id"] = house.get("fias_id")
 
     if update_data.get("counterparty_id") is not None:
         counterparty = (

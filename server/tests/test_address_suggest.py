@@ -343,3 +343,155 @@ def test_full_address_lists_own_objects_first_without_duplicates(
         ("base", "Ветеранов пр., д. 46, СПб"),
         ("dadata", "г Санкт-Петербург, пр-кт Ветеранов, д 48"),
     ]
+
+
+def test_house_district_and_fias_are_stored_and_searchable(
+    client: TestClient, db_session, monkeypatch
+):
+    env = _org(client, db_session, "SuggestDistrict")
+    _fake_dadata(
+        monkeypatch,
+        [
+            _suggestion(
+                "г Санкт-Петербург, пр-кт Ветеранов, д 46",
+                city="Санкт-Петербург",
+                city_district_with_type="Кировский р-н",
+                street_with_type="пр-кт Ветеранов",
+                house="46",
+                house_fias_id="0f1a2b3c-0000-4000-8000-000000000046",
+                geo_lat="59.8417",
+                geo_lon="30.2391",
+            )
+        ],
+    )
+
+    created = client.post(
+        "/api/addresses",
+        json={"address": "Санкт-Петербург, пр. Ветеранов, 46"},
+        headers=env.dispatcher.headers,
+    ).json()
+    assert created["district"] == "Кировский р-н"
+    assert created["fias_id"] == "0f1a2b3c-0000-4000-8000-000000000046"
+
+    found = client.get(
+        "/api/addresses", params={"search": "Кировский"}, headers=env.dispatcher.headers
+    ).json()
+    assert [item["id"] for item in found["items"]] == [created["id"]]
+
+    # Другой дом, которого справочник не знает, — старый район не остаётся
+    _fake_dadata(monkeypatch, [])
+    address_suggest.clear_cache()
+    updated = client.patch(
+        f"/api/addresses/{created['id']}",
+        json={"address": "Санкт-Петербург, ул. Неизвестная, 1"},
+        headers=env.dispatcher.headers,
+    ).json()
+    assert (updated["district"], updated["fias_id"]) == (None, None)
+
+
+def test_settlement_gets_oblast_district_and_street_match_is_not_a_house(monkeypatch):
+    _fake_dadata(
+        monkeypatch,
+        [
+            _suggestion(
+                "Ленинградская обл, Всеволожский р-н, гп Новоселье, ул Невская, д 9",
+                settlement="Новоселье",
+                area_with_type="Всеволожский р-н",
+                house="9",
+                house_fias_id="aaaa",
+            )
+        ],
+    )
+    assert address_suggest.house_details("Новоселье, Невская 9") == {
+        "district": "Всеволожский р-н",
+        "fias_id": "aaaa",
+    }
+
+    address_suggest.clear_cache()
+    _fake_dadata(
+        monkeypatch,
+        [
+            _suggestion(
+                "г Санкт-Петербург, ул Невская",
+                city_district_with_type="Невский р-н",
+                fias_id="bbbb",
+            )
+        ],
+    )
+    assert address_suggest.house_details("Невская") is None
+
+    # Дом узнан, но кода ФИАС у него нет — район всё равно нужен
+    address_suggest.clear_cache()
+    _fake_dadata(
+        monkeypatch,
+        [
+            _suggestion(
+                "г Санкт-Петербург, пр-кт Энгельса, д 120",
+                city_district_with_type="Выборгский р-н",
+                house="120",
+                fias_id="street-guid",
+            )
+        ],
+    )
+    assert address_suggest.house_details("пр. Энгельса, 120") == {
+        "district": "Выборгский р-н",
+        "fias_id": None,
+    }
+
+
+def test_backfill_fills_only_addresses_without_district(db_session, monkeypatch):
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location(
+        "backfill_address_district",
+        Path(__file__).parent.parent / "scripts" / "backfill_address_district.py",
+    )
+    script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(script)
+
+    done = AddressModel(address="Готовый, 1", fias_id="keep", district="Старый")
+    todo = AddressModel(address="Санкт-Петербург, Народная, 3")
+    db_session.add_all([done, todo])
+    db_session.commit()
+    calls = []
+    _fake_dadata(
+        monkeypatch,
+        [
+            _suggestion(
+                "г Санкт-Петербург, ул Народная, д 3",
+                city_district_with_type="Невский р-н",
+                house="3",
+                house_fias_id="cccc",
+            )
+        ],
+        calls,
+    )
+
+    assert script.backfill(db_session, dry_run=True) == {"filled": 1, "not_found": 0}
+    db_session.refresh(todo)
+    assert todo.fias_id is None
+
+    assert script.backfill(db_session) == {"filled": 1, "not_found": 0}
+    db_session.refresh(todo)
+    db_session.refresh(done)
+    assert (todo.district, todo.fias_id) == ("Невский р-н", "cccc")
+    assert (done.district, done.fias_id) == ("Старый", "keep")
+    assert [call["query"] for call in calls] == ["Санкт-Петербург, Народная, 3"]
+
+
+def test_address_card_shows_district(client: TestClient, db_session):
+    env = _org(client, db_session, "CardDistrict")
+    address = AddressModel(
+        address="Санкт-Петербург, Народная, 3",
+        district="Невский р-н",
+        fias_id="dddd",
+        organization_id=env.org.id,
+    )
+    db_session.add(address)
+    db_session.commit()
+
+    card = client.get(
+        f"/api/addresses/{address.id}/full", headers=env.dispatcher.headers
+    ).json()
+    assert (card["district"], card["fias_id"]) == ("Невский р-н", "dddd")
