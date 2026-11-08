@@ -149,5 +149,6 @@ def resolve_remotely(
         new_status=task.status,
         user_id=access.user.id,
         organization_id=task.organization_id,
+        task_user_ids=[task.assigned_user_id],
     )
     return task_to_response(task)

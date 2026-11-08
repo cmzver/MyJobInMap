@@ -572,7 +572,9 @@ class TestConversationManagementWebSocket:
         )
         conv_id = create_resp.json()["id"]
 
-        self._mock_ws_auth(monkeypatch, {"user2-token": (second_user.id, None, False)})
+        self._mock_ws_auth(
+            monkeypatch, {"user2-token": (second_user.id, None, False, False)}
+        )
 
         with client.websocket_connect("/ws?token=user2-token") as ws:
             resp = client.patch(
@@ -606,7 +608,9 @@ class TestConversationManagementWebSocket:
         )
         conv_id = create_resp.json()["id"]
 
-        self._mock_ws_auth(monkeypatch, {"worker-token": (worker_user.id, None, False)})
+        self._mock_ws_auth(
+            monkeypatch, {"worker-token": (worker_user.id, None, False, False)}
+        )
 
         with client.websocket_connect("/ws?token=worker-token") as ws:
             resp = client.post(
@@ -640,7 +644,9 @@ class TestConversationManagementWebSocket:
         )
         conv_id = create_resp.json()["id"]
 
-        self._mock_ws_auth(monkeypatch, {"user2-token": (second_user.id, None, False)})
+        self._mock_ws_auth(
+            monkeypatch, {"user2-token": (second_user.id, None, False, False)}
+        )
 
         with client.websocket_connect("/ws?token=user2-token") as ws:
             resp = client.patch(
@@ -675,7 +681,9 @@ class TestConversationManagementWebSocket:
         )
         conv_id = create_resp.json()["id"]
 
-        self._mock_ws_auth(monkeypatch, {"user2-token": (second_user.id, None, False)})
+        self._mock_ws_auth(
+            monkeypatch, {"user2-token": (second_user.id, None, False, False)}
+        )
 
         with client.websocket_connect("/ws?token=user2-token") as ws:
             resp = client.post(

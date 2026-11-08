@@ -114,6 +114,27 @@ class TestStatusPage:
         db_session.commit()
         assert client.get(f"/api/public/tasks/{renewed['token']}").status_code == 404
 
+    def test_worker_gets_link_but_cannot_renew(self, client: TestClient, db_session):
+        env = _org(client, db_session, "StatRenew")
+        first = _link(client, env)
+        url = f"/api/tasks/{env.task.id}/status-link"
+
+        shown = client.post(url, headers=env.worker.headers)
+        assert shown.status_code == 200, shown.text
+        assert shown.json()["token"] == first["token"]
+
+        denied = client.post(url, params={"renew": True}, headers=env.worker.headers)
+        assert denied.status_code == 403
+        assert "диспетчер" in denied.json()["detail"]
+        # Старая ссылка продолжает работать.
+        assert client.get(f"/api/public/tasks/{first['token']}").status_code == 200
+
+        renewed = client.post(
+            url, params={"renew": True}, headers=env.dispatcher.headers
+        )
+        assert renewed.status_code == 200
+        assert renewed.json()["token"] != first["token"]
+
     def test_worker_of_other_org_cannot_issue(self, client: TestClient, db_session):
         env = _org(client, db_session, "StatOwn")
         other = _org(client, db_session, "StatOther")

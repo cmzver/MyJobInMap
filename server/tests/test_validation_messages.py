@@ -28,8 +28,52 @@ def test_custom_value_error_keeps_project_message():
     assert message_for(error) == "Неверный формат телефона"
 
 
-def test_unknown_type_falls_back_to_original_message():
-    assert message_for({"type": "something_new", "msg": "Original"}) == "Original"
+def test_unknown_type_falls_back_to_russian():
+    assert message_for({"type": "something_new", "msg": "Оригинал"}) == "Оригинал"
+    assert message_for({"type": "something_new", "msg": "Original"}) == (
+        "неверное значение"
+    )
+    # Свой ValueError, даже если pydantic завернул его в другой тип.
+    assert message_for({"type": "x", "msg": "Value error, Не тот номер"}) == (
+        "Не тот номер"
+    )
+
+
+def test_enum_and_numbers_are_russian():
+    assert (
+        message_for(
+            {"type": "enum", "msg": "...", "ctx": {"expected": "'a', 'b' or 'c'"}}
+        )
+        == "допустимые значения: 'a', 'b' или 'c'"
+    )
+    assert (
+        message_for({"type": "greater_than", "msg": "...", "ctx": {"gt": 0}})
+        == "должно быть больше 0"
+    )
+    assert message_for({"type": "int_parsing", "msg": "Input should"}) == (
+        "ожидается целое число"
+    )
+    assert (
+        message_for(
+            {"type": "string_too_long", "msg": "...", "ctx": {"max_length": 200}}
+        )
+        == "слишком длинное значение (максимум 200)"
+    )
+
+
+def test_api_422_keeps_client_format(client_with_auth):
+    """Формат, который разбирают портал (apiError.ts) и Android (NetworkError.kt):
+    строка ``error`` и список ``details`` — без английских фраз pydantic."""
+    response = client_with_auth.get("/api/tasks", params={"page": "abc"})
+    assert response.status_code == 422
+    body = response.json()
+    assert set(body) == {"error", "details", "request_id"}
+    assert body["error"] == "Поле «page»: ожидается целое число"
+    assert body["details"][0] == {
+        "field": "page",
+        "message": "ожидается целое число",
+        "type": "int_parsing",
+    }
 
 
 def test_field_label_drops_location_source():

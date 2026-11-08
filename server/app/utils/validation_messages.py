@@ -5,6 +5,7 @@ at least 3 characters»); портал и приложение показыва�
 есть. Здесь — перевод по ``type`` ошибки с подстановкой ограничений из ``ctx``.
 """
 
+import re
 from typing import Any, Dict, Iterable, List
 
 # Части loc, которые пользователю ничего не говорят.
@@ -42,7 +43,22 @@ _SIMPLE = {
     "extra_forbidden": "лишнее поле",
     "string_unicode": "недопустимые символы",
     "finite_number": "ожидается конечное число",
+    "multiple_of": "недопустимое значение",
+    "decimal_max_digits": "слишком много цифр",
+    "decimal_max_places": "слишком много знаков после запятой",
+    "decimal_whole_digits": "слишком много цифр до запятой",
+    "date_past": "дата должна быть в прошлом",
+    "date_future": "дата должна быть в будущем",
+    "datetime_past": "дата должна быть в прошлом",
+    "datetime_future": "дата должна быть в будущем",
+    "url_too_long": "слишком длинная ссылка",
+    "none_required": "значение не допускается",
+    "union_tag_invalid": "недопустимое значение",
+    "is_instance_of": "недопустимое значение",
 }
+
+_CYRILLIC = re.compile(r"[а-яё]", re.IGNORECASE)
+_VALUE_ERROR_PREFIXES = ("Value error, ", "Assertion failed, ")
 
 
 def _ctx_format(template: str, ctx: Dict[str, Any], *keys: str) -> str:
@@ -80,16 +96,20 @@ def message_for(error: Dict[str, Any]) -> str:
         return "неверный формат"
     if kind in ("enum", "literal_error"):
         expected = ctx.get("expected")
-        return (
-            f"допустимые значения: {expected}" if expected else "недопустимое значение"
-        )
-    if kind in ("value_error", "assertion_error"):
-        # Свои валидаторы проекта пишут сообщение по-русски — оставляем его.
-        for prefix in ("Value error, ", "Assertion failed, "):
-            if msg.startswith(prefix):
-                return msg[len(prefix) :]
+        if not expected:
+            return "недопустимое значение"
+        # pydantic перечисляет «'a', 'b' or 'c'» — союз по-русски.
+        return f"допустимые значения: {str(expected).replace(' or ', ' или ')}"
+    # Свои валидаторы проекта (ValueError/assert) пишут по-русски — оставляем
+    # текст, срезав служебный префикс pydantic.
+    for prefix in _VALUE_ERROR_PREFIXES:
+        if msg.startswith(prefix):
+            msg = msg[len(prefix) :]
+            break
+    if _CYRILLIC.search(msg):
         return msg
-    return msg
+    # Непереведённая английская фраза pydantic пользователю ничего не скажет.
+    return "неверное значение"
 
 
 def field_label(loc: Iterable[Any]) -> str:

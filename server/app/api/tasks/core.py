@@ -163,6 +163,7 @@ def create_task(
         title=db_task.title or "",
         user_id=user.id,
         organization_id=db_task.organization_id,
+        task_user_ids=[db_task.assigned_user_id],
     )
 
     return task_to_response(db_task)
@@ -732,6 +733,7 @@ def update_task_status(
         new_status=status_update.status.value,
         user_id=access.user.id,
         organization_id=updated_task.organization_id,
+        task_user_ids=[updated_task.assigned_user_id],
     )
 
     # Системное сообщение в чат заявки (если он существует) + realtime-доставка.
@@ -772,6 +774,7 @@ def delete_task(
     if task_obj:
         tenant.enforce_access(task_obj, detail="Нет доступа к этой заявке")
     task_number = task_obj.task_number if task_obj else ""
+    task_assignee_id = task_obj.assigned_user_id if task_obj else None
     try:
         task_service.delete(task_id)
     except TaskServiceError as exc:
@@ -784,6 +787,7 @@ def delete_task(
         task_number=task_number,
         user_id=user.id,
         organization_id=task_obj.organization_id if task_obj else None,
+        task_user_ids=[task_assignee_id],
     )
 
     return {"message": "Task deleted", "id": task_id}
@@ -856,6 +860,7 @@ def assign_task(
             assignee, detail="Нельзя назначить пользователя из другой организации"
         )
 
+    previous_assignee_id = task_obj.assigned_user_id
     try:
         task = task_service.assign(task_id, assignee_data.assigned_user_id, user)
     except TaskServiceError as exc:
@@ -877,6 +882,7 @@ def assign_task(
             assigned_user_name=assignee_name,
             user_id=user.id,
             organization_id=task.organization_id,
+            task_user_ids=[task.assigned_user_id, previous_assignee_id],
         )
 
     return task_to_response(task)

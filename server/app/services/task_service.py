@@ -580,7 +580,9 @@ class TaskService:
                     send_push=True,
                 )
 
-        stage_task_event(self.db, task, user=admin)
+        stage_task_event(
+            self.db, task, user=admin, previous_assignee_id=old_assigned_user_id
+        )
         self.db.commit()
         self.db.refresh(task)
         for notification in assignment_notifications:
@@ -834,7 +836,12 @@ class TaskService:
                 )
 
         stage_task_event(
-            self.db, task, "task_assigned", user, assigned_user_id=assignee_id
+            self.db,
+            task,
+            "task_assigned",
+            user,
+            previous_assignee_id=old_assignee_id,
+            assigned_user_id=assignee_id,
         )
         self.db.commit()
         self.db.refresh(task)

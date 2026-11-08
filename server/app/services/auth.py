@@ -107,13 +107,82 @@ def issue_refresh_token(
     return token
 
 
+# Сколько повторных выдач по одному погашенному токену допускает окно
+# параллельных обновлений (несколько одновременных запросов с телефона).
+REFRESH_GRACE_MAX_REISSUES = 3
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+def _store_refresh_token(
+    db: Session, user: UserModel, family_id: str, jti: str, now: datetime
+) -> str:
+    """Выпустить refresh token в цепочке family_id и записать сессию (без commit)."""
+    token = create_refresh_token(
+        {
+            "sub": user.username,
+            "user_id": user.id,
+            "auth_version": user.auth_version,
+            "jti": jti,
+            "family_id": family_id,
+        },
+        expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+    )
+    db.add(
+        RefreshSessionModel(
+            jti=jti,
+            family_id=family_id,
+            user_id=user.id,
+            token_hash=_token_hash(token),
+            expires_at=now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        )
+    )
+    return token
+
+
+def _within_reuse_grace(
+    db: Session, session: RefreshSessionModel, now: datetime
+) -> bool:
+    """Повтор только что ротированного токена — параллельное обновление, а не кража.
+
+    Условия: токен погашен именно ротацией (есть преемник) не дольше
+    REFRESH_REUSE_GRACE_SECONDS назад, преемник ещё жив (цепочку не гасили
+    выходом/сменой пароля) и повторных выдач было немного.
+    """
+    grace = settings.REFRESH_REUSE_GRACE_SECONDS
+    if grace <= 0 or session.revoked_at is None or not session.replaced_by_jti:
+        return False
+    revoked_at = _as_utc(session.revoked_at)
+    if now - revoked_at > timedelta(seconds=grace):
+        return False
+    successor = db.get(RefreshSessionModel, session.replaced_by_jti)
+    if successor is None or successor.revoked_at is not None:
+        return False
+    issued_since = (
+        db.query(RefreshSessionModel.jti)
+        .filter(
+            RefreshSessionModel.family_id == session.family_id,
+            # Сравниваем с сохранённым значением как есть: обе колонки
+            # пишутся одинаково, без пересчёта поясов.
+            RefreshSessionModel.created_at >= session.revoked_at,
+        )
+        .count()
+    )
+    # issued_since включает законного преемника — повторных выдач на одну меньше.
+    return issued_since - 1 < REFRESH_GRACE_MAX_REISSUES
+
+
 def rotate_refresh_token(
     db: Session, token: str, payload: dict, user: UserModel
 ) -> Optional[str]:
     """Атомарно погасить старый refresh token и выпустить следующий.
 
     Повторное предъявление уже погашенного токена блокирует всю его семью —
-    это ограничивает ущерб при краже refresh token.
+    это ограничивает ущерб при краже refresh token. Исключение — короткое
+    окно сразу после ротации: телефон часто обновляет токен двумя запросами
+    одновременно, и второй получает новую пару в той же цепочке.
     """
     jti = payload.get("jti")
     family_id = payload.get("family_id")
@@ -130,55 +199,43 @@ def rotate_refresh_token(
         return None
 
     now = datetime.now(timezone.utc)
-    if session.revoked_at is not None:
-        db.query(RefreshSessionModel).filter(
-            RefreshSessionModel.family_id == family_id,
-            RefreshSessionModel.revoked_at.is_(None),
-        ).update({RefreshSessionModel.revoked_at: now}, synchronize_session=False)
-        db.commit()
-        return None
-
-    next_jti = uuid.uuid4().hex
-    updated = (
-        db.query(RefreshSessionModel)
-        .filter(
-            RefreshSessionModel.jti == jti,
-            RefreshSessionModel.revoked_at.is_(None),
+    if session.revoked_at is None:
+        next_jti = uuid.uuid4().hex
+        updated = (
+            db.query(RefreshSessionModel)
+            .filter(
+                RefreshSessionModel.jti == jti,
+                RefreshSessionModel.revoked_at.is_(None),
+            )
+            .update(
+                {
+                    RefreshSessionModel.revoked_at: now,
+                    RefreshSessionModel.replaced_by_jti: next_jti,
+                },
+                synchronize_session=False,
+            )
         )
-        .update(
-            {
-                RefreshSessionModel.revoked_at: now,
-                RefreshSessionModel.replaced_by_jti: next_jti,
-            },
-            synchronize_session=False,
-        )
-    )
-    if updated != 1:
+        if updated == 1:
+            new_token = _store_refresh_token(db, user, family_id, next_jti, now)
+            db.commit()
+            return new_token
+        # Параллельный запрос успел погасить токен первым — дальше как повтор.
         db.rollback()
-        return None
+        session = db.get(RefreshSessionModel, jti)
+        if session is None or session.revoked_at is None:
+            return None
 
-    expires_at = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    new_token = create_refresh_token(
-        {
-            "sub": user.username,
-            "user_id": user.id,
-            "auth_version": user.auth_version,
-            "jti": next_jti,
-            "family_id": family_id,
-        },
-        expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
-    )
-    db.add(
-        RefreshSessionModel(
-            jti=next_jti,
-            family_id=family_id,
-            user_id=user.id,
-            token_hash=_token_hash(new_token),
-            expires_at=expires_at,
-        )
-    )
+    if _within_reuse_grace(db, session, now):
+        new_token = _store_refresh_token(db, user, family_id, uuid.uuid4().hex, now)
+        db.commit()
+        return new_token
+
+    db.query(RefreshSessionModel).filter(
+        RefreshSessionModel.family_id == family_id,
+        RefreshSessionModel.revoked_at.is_(None),
+    ).update({RefreshSessionModel.revoked_at: now}, synchronize_session=False)
     db.commit()
-    return new_token
+    return None
 
 
 def revoke_user_refresh_sessions(db: Session, user_id: int) -> None:

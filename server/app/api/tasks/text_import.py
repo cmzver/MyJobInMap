@@ -232,6 +232,7 @@ def create_task_from_text(
                     assigned_user_name=assign_name,
                     user_id=user.id,
                     organization_id=existing_task.organization_id,
+                    task_user_ids=[assigned_id],
                 )
 
             source_log = f" [{request.source}]" if request.source else ""
@@ -302,6 +303,7 @@ def create_task_from_text(
         title=db_task.title or "",
         user_id=user.id,
         organization_id=db_task.organization_id,
+        task_user_ids=[db_task.assigned_user_id],
     )
 
     # Уведомление исполнителю (DB + FCM push)
@@ -337,6 +339,7 @@ def create_task_from_text(
             ),
             user_id=user.id,
             organization_id=db_task.organization_id,
+            task_user_ids=[assigned_id],
         )
 
     return CreateTaskFromTextResponse(

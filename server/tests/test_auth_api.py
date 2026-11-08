@@ -184,14 +184,85 @@ class TestTokenRefresh:
         assert len(data["access_token"]) > 0
         assert len(data["refresh_token"]) > 0
 
-    def test_refresh_token_is_single_use(self, client, admin_user):
+    @staticmethod
+    def _age_rotation(db_session, seconds):
+        """Сдвинуть момент ротации в прошлое — будто повтор пришёл позже."""
+        from datetime import timedelta
+
+        from app.models import RefreshSessionModel
+
+        for row in db_session.query(RefreshSessionModel).filter(
+            RefreshSessionModel.revoked_at.isnot(None)
+        ):
+            row.revoked_at = row.revoked_at - timedelta(seconds=seconds)
+        db_session.commit()
+
+    def test_refresh_token_is_single_use(self, client, admin_user, db_session):
         refresh_token = self._get_refresh_token(client, admin_user)
 
         first = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
+        self._age_rotation(db_session, settings.REFRESH_REUSE_GRACE_SECONDS + 1)
         replay = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
 
         assert first.status_code == 200
         assert replay.status_code == 401
+        # Повтор после окна — кража: гаснет вся цепочка, включая новый токен.
+        successor = client.post(
+            "/api/auth/refresh", json={"refresh_token": first.json()["refresh_token"]}
+        )
+        assert successor.status_code == 401
+
+    def test_parallel_refresh_within_grace_keeps_chain(
+        self, client, admin_user, db_session
+    ):
+        """Два одновременных обновления с телефона одним токеном — оба успешны."""
+        refresh_token = self._get_refresh_token(client, admin_user)
+
+        first = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
+        second = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
+
+        assert first.status_code == 200
+        assert second.status_code == 200, second.text
+        first_next = first.json()["refresh_token"]
+        second_next = second.json()["refresh_token"]
+        assert first_next != second_next
+        # Цепочка жива: оба новых токена работают дальше.
+        for token in (first_next, second_next):
+            again = client.post("/api/auth/refresh", json={"refresh_token": token})
+            assert again.status_code == 200, again.text
+
+    def test_grace_does_not_survive_logout_of_chain(
+        self, client, admin_user, db_session
+    ):
+        """Если цепочку уже погасили (выход/смена пароля), окно не спасает."""
+        from app.services.auth import revoke_user_refresh_sessions
+
+        refresh_token = self._get_refresh_token(client, admin_user)
+        first = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
+        assert first.status_code == 200
+        revoke_user_refresh_sessions(db_session, admin_user.id)
+        db_session.commit()
+
+        replay = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
+        assert replay.status_code == 401
+
+    def test_grace_limits_number_of_reissues(self, client, admin_user):
+        from app.services.auth import REFRESH_GRACE_MAX_REISSUES
+
+        refresh_token = self._get_refresh_token(client, admin_user)
+        codes = [
+            client.post(
+                "/api/auth/refresh", json={"refresh_token": refresh_token}
+            ).status_code
+            for _ in range(1 + REFRESH_GRACE_MAX_REISSUES)
+        ]
+        assert codes == [200] * (1 + REFRESH_GRACE_MAX_REISSUES)
+        assert (
+            client.post(
+                "/api/auth/refresh", json={"refresh_token": refresh_token}
+            ).status_code
+            == 401
+        )
 
     def test_refresh_with_new_access_token_works(self, client, admin_user):
         """Test that the new access token is valid for API calls."""

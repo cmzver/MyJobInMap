@@ -10,6 +10,7 @@
 """
 
 import logging
+import threading
 import time
 from collections import OrderedDict
 from typing import Any, Dict, List, NamedTuple, Optional
@@ -28,16 +29,23 @@ _CACHE_TTL_SECONDS = 24 * 3600
 _CACHE_MAX_ITEMS = 5000
 
 _cache: "OrderedDict[tuple, tuple[float, list]]" = OrderedDict()
+# Подсказки запрашиваются из обычных def-эндпоинтов, т.е. из пула потоков:
+# OrderedDict с move_to_end/popitem без блокировки ломается при гонке
+# (KeyError, «mutated during iteration»).
+_cache_lock = threading.Lock()
 
 # Одно соединение на процесс: без keep-alive каждая подсказка заново
 # открывала TLS к DaData и иногда упиралась в тайм-аут подключения.
 _client: Optional[httpx.Client] = None
+_client_lock = threading.Lock()
 
 
 def _http_post(url: str, json: Dict[str, Any], headers: Dict[str, str], timeout: float):
     global _client
     if _client is None:
-        _client = httpx.Client()
+        with _client_lock:
+            if _client is None:
+                _client = httpx.Client()
     return _client.post(url, json=json, headers=headers, timeout=timeout)
 
 
@@ -54,26 +62,29 @@ def _boost() -> List[Dict[str, str]]:
 
 
 def _cache_get(key: tuple) -> Optional[list]:
-    entry = _cache.get(key)
-    if entry is None:
-        return None
-    stored_at, value = entry
-    if time.monotonic() - stored_at > _CACHE_TTL_SECONDS:
-        _cache.pop(key, None)
-        return None
-    _cache.move_to_end(key)
-    return value
+    with _cache_lock:
+        entry = _cache.get(key)
+        if entry is None:
+            return None
+        stored_at, value = entry
+        if time.monotonic() - stored_at > _CACHE_TTL_SECONDS:
+            _cache.pop(key, None)
+            return None
+        _cache.move_to_end(key)
+        return value
 
 
 def _cache_put(key: tuple, value: list) -> None:
-    _cache[key] = (time.monotonic(), value)
-    _cache.move_to_end(key)
-    while len(_cache) > _CACHE_MAX_ITEMS:
-        _cache.popitem(last=False)
+    with _cache_lock:
+        _cache[key] = (time.monotonic(), value)
+        _cache.move_to_end(key)
+        while len(_cache) > _CACHE_MAX_ITEMS:
+            _cache.popitem(last=False)
 
 
 def clear_cache() -> None:
-    _cache.clear()
+    with _cache_lock:
+        _cache.clear()
 
 
 def _request(body: Dict[str, Any]) -> List[Dict[str, Any]]:

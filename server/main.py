@@ -363,7 +363,40 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
+from sqlalchemy.exc import DataError
 from sqlalchemy.orm.exc import StaleDataError
+
+# SQLSTATE PostgreSQL → понятная причина. 22003 — число вне диапазона столбца
+# (например, id из пути больше int4), 22001 — строка длиннее столбца.
+_DATA_ERROR_MESSAGES = {
+    "22003": "Число вне допустимого диапазона",
+    "22001": "Слишком длинное значение",
+    "22007": "Неверный формат даты или времени",
+    "22008": "Дата или время вне допустимого диапазона",
+    "22P02": "Неверный формат значения",
+}
+
+
+@app.exception_handler(DataError)
+async def data_error_handler(request: Request, exc: DataError):
+    """Значение, которое БД не может принять (вне диапазона, слишком длинное),
+    — ошибка запроса (422), а не сбой сервера (500)."""
+    code = getattr(exc.orig, "pgcode", None) or getattr(exc.orig, "sqlstate", None)
+    request_id = getattr(request.state, "request_id", None)
+    logger.warning(
+        "Data error [%s]: %s %s — SQLSTATE %s",
+        request_id,
+        request.method,
+        request.url.path,
+        code,
+    )
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": _DATA_ERROR_MESSAGES.get(code, "Недопустимое значение в запросе"),
+            "request_id": request_id,
+        },
+    )
 
 
 @app.exception_handler(StaleDataError)

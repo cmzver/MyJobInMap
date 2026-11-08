@@ -490,7 +490,8 @@ def delete_address(
 def deactivate_address(
     address_id: int,
     db: Session = Depends(get_db),
-    user: UserModel = Depends(get_current_user_required),
+    # Как и удаление — только диспетчер/администратор.
+    user: UserModel = Depends(get_current_dispatcher_or_admin),
 ):
     """Деактивировать адрес (мягкое удаление)"""
     address = get_tenant_address_or_404(address_id, db, user)

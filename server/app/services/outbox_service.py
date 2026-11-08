@@ -9,6 +9,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -119,7 +120,23 @@ def stage_push(
         event.available_at = not_before
 
 
-def stage_task_event(db, task, event_type="task_updated", user=None, **data):
+def task_audience(task, previous_assignee_id=None) -> list[int]:
+    """Мастера, которым видно событие заявки: текущий исполнитель и прежний
+    (чтобы у него снятая заявка исчезла). Диспетчеры получают всё и так.
+
+    Прежнего берём явно или из несброшенной истории атрибута — после flush
+    история пуста, поэтому при переназначении его передают явно.
+    """
+    ids = {task.assigned_user_id, previous_assignee_id}
+    state = sa_inspect(task, raiseerr=False)
+    if state is not None and "assigned_user_id" in state.attrs:
+        ids.update(state.attrs.assigned_user_id.history.deleted or ())
+    return sorted(uid for uid in ids if uid is not None)
+
+
+def stage_task_event(
+    db, task, event_type="task_updated", user=None, previous_assignee_id=None, **data
+):
     from app.services.websocket_manager import _event
 
     event = _event(
@@ -133,6 +150,7 @@ def stage_task_event(db, task, event_type="task_updated", user=None, **data):
             "event": event,
             "organization_id": task.organization_id,
             "exclude_user_id": user.id if user else None,
+            "task_user_ids": task_audience(task, previous_assignee_id),
         },
         organization_id=task.organization_id,
     )
@@ -212,6 +230,7 @@ async def dispatch_event(kind, payload):
             payload["event"],
             organization_id=payload["organization_id"],
             exclude_user_id=payload.get("exclude_user_id"),
+            task_user_ids=payload.get("task_user_ids"),
         )
     elif kind == "notification":
         from app.services.notification_service import (

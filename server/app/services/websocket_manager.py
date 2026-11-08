@@ -16,7 +16,7 @@ WebSocket Manager
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Optional, Set, TypedDict
+from typing import Dict, Iterable, Optional, Set, TypedDict
 
 from fastapi import WebSocket
 
@@ -29,6 +29,9 @@ class ConnectionMeta(TypedDict):
     user_id: int
     organization_id: Optional[int]
     is_superadmin: bool
+    # Диспетчер/администратор (в т.ч. кастомная группа с таким base_access):
+    # получает события по всем заявкам организации, мастер — только по своим.
+    sees_all_tasks: bool
 
 
 class ConnectionManager:
@@ -75,6 +78,7 @@ class ConnectionManager:
         user_id: int,
         organization_id: Optional[int] = None,
         is_superadmin: bool = False,
+        sees_all_tasks: bool = False,
     ) -> None:
         """Принять WebSocket-соединение и зарегистрировать пользователя."""
         await websocket.accept()
@@ -87,6 +91,7 @@ class ConnectionManager:
                 "user_id": user_id,
                 "organization_id": organization_id,
                 "is_superadmin": is_superadmin,
+                "sees_all_tasks": sees_all_tasks or is_superadmin,
             }
 
         metrics.set_websocket_connections(self.active_connections_count)
@@ -136,19 +141,30 @@ class ConnectionManager:
         exclude_user_id: Optional[int] = None,
         organization_id: Optional[int] = None,
         global_event: bool = False,
+        task_user_ids: Optional[Iterable[int]] = None,
     ) -> int:
-        """Отправить сообщение подключённым клиентам организации (или всем)."""
+        """Отправить сообщение подключённым клиентам организации (или всем).
+
+        task_user_ids — событие по заявке: мастерам оно уходит, только если они
+        в этом списке (текущий и прежний исполнитель), диспетчерам — всегда.
+        """
+        task_users = (
+            None
+            if task_user_ids is None
+            else sorted({int(uid) for uid in task_user_ids if uid is not None})
+        )
         bus_message = {
             "op": "broadcast",
             "message": message,
             "exclude_user_id": exclude_user_id,
             "organization_id": organization_id,
             "global_event": global_event,
+            "task_user_ids": task_users,
         }
         if await self._publish(bus_message):
             return 0
         return await self._local_broadcast(
-            message, exclude_user_id, organization_id, global_event
+            message, exclude_user_id, organization_id, global_event, task_users
         )
 
     async def broadcast_to_roles(
@@ -184,6 +200,7 @@ class ConnectionManager:
                 bus_message.get("exclude_user_id"),
                 bus_message.get("organization_id"),
                 bool(bus_message.get("global_event")),
+                bus_message.get("task_user_ids"),
             )
         elif op == "users":
             await self._local_broadcast_to_roles(
@@ -227,6 +244,7 @@ class ConnectionManager:
         exclude_user_id: Optional[int] = None,
         organization_id: Optional[int] = None,
         global_event: bool = False,
+        task_user_ids: Optional[Iterable[int]] = None,
     ) -> int:
         """
         Отправить сообщение подключённым к этому процессу клиентам.
@@ -234,6 +252,7 @@ class ConnectionManager:
         Args:
             message: JSON-сериализуемый dict
             exclude_user_id: Не отправлять этому пользователю (чтобы не дублировать)
+            task_user_ids: Для событий заявки — кому из мастеров их можно видеть
 
         Returns:
             Количество успешно отправленных сообщений.
@@ -241,6 +260,11 @@ class ConnectionManager:
         sent = 0
         all_ws = list(self._ws_to_user.keys())
         stale: list[WebSocket] = []
+        task_users = (
+            None
+            if task_user_ids is None
+            else {int(uid) for uid in task_user_ids if uid is not None}
+        )
 
         for ws in all_ws:
             meta = self._ws_meta.get(ws)
@@ -256,6 +280,10 @@ class ConnectionManager:
                     not meta["is_superadmin"]
                     and meta["organization_id"] != organization_id
                 ):
+                    continue
+            if task_users is not None and user_id not in task_users:
+                # Мастер видит только свои заявки (и ту, что у него забрали).
+                if meta is None or not meta.get("sees_all_tasks"):
                     continue
             try:
                 await ws.send_json(message)
@@ -338,6 +366,7 @@ async def broadcast_task_created(
     title: str,
     user_id: Optional[int] = None,
     organization_id: Optional[int] = None,
+    task_user_ids: Iterable[int] = (),
 ) -> None:
     """Broadcast: новая заявка создана."""
     await ws_manager.broadcast(
@@ -351,6 +380,7 @@ async def broadcast_task_created(
         ),
         exclude_user_id=user_id,
         organization_id=organization_id,
+        task_user_ids=task_user_ids,
     )
 
 
@@ -361,6 +391,7 @@ async def broadcast_task_status_changed(
     new_status: str,
     user_id: Optional[int] = None,
     organization_id: Optional[int] = None,
+    task_user_ids: Iterable[int] = (),
 ) -> None:
     """Broadcast: статус заявки изменён."""
     await ws_manager.broadcast(
@@ -375,6 +406,7 @@ async def broadcast_task_status_changed(
         ),
         exclude_user_id=user_id,
         organization_id=organization_id,
+        task_user_ids=task_user_ids,
     )
 
 
@@ -385,6 +417,7 @@ async def broadcast_task_assigned(
     assigned_user_name: str,
     user_id: Optional[int] = None,
     organization_id: Optional[int] = None,
+    task_user_ids: Iterable[int] = (),
 ) -> None:
     """Broadcast: заявка назначена."""
     # Уведомить назначенного пользователя напрямую
@@ -412,6 +445,7 @@ async def broadcast_task_assigned(
         ),
         exclude_user_id=user_id,
         organization_id=organization_id,
+        task_user_ids=task_user_ids,
     )
 
 
@@ -420,6 +454,7 @@ async def broadcast_task_deleted(
     task_number: str,
     user_id: Optional[int] = None,
     organization_id: Optional[int] = None,
+    task_user_ids: Iterable[int] = (),
 ) -> None:
     """Broadcast: заявка удалена."""
     await ws_manager.broadcast(
@@ -432,6 +467,7 @@ async def broadcast_task_deleted(
         ),
         exclude_user_id=user_id,
         organization_id=organization_id,
+        task_user_ids=task_user_ids,
     )
 
 
