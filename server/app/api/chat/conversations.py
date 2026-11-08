@@ -21,6 +21,7 @@ from fastapi import (
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.api.deps import assert_task_access
 from app.config import settings
 from app.models import UserModel, get_db
 from app.models.chat import ConversationModel, ConversationType
@@ -68,6 +69,16 @@ def create_conversation(
     db: Session = Depends(get_db),
 ):
     """Создать чат (direct, group, org_general)."""
+    if data.type == ConversationType.TASK.value:
+        # Чат заявки — только с доступом к ней. Иначе можно было заранее
+        # завести чат чужой заявки и потом читать переписку её исполнителей.
+        if not data.task_id:
+            raise HTTPException(400, "task_id обязателен для чата по заявке")
+        assert_task_access(db, current_user, data.task_id)
+        conv = chat_service.get_or_create_task_conversation(
+            db, data.task_id, current_user.id, None
+        )
+        return ConversationResponse.model_validate(conv)
     conv = chat_service.create_conversation(
         db,
         conv_type=data.type,
@@ -368,10 +379,13 @@ def get_task_chat(
     db: Session = Depends(get_db),
 ):
     """Получить/создать чат заявки."""
+    # Те же правила, что у самой заявки: организация, право и для монтажника —
+    # только назначенные ему заявки.
+    assert_task_access(db, current_user, task_id)
     conv = chat_service.get_or_create_task_conversation(
         db,
         task_id,
         current_user.id,
-        current_user.organization_id,
+        None,
     )
     return ConversationResponse.model_validate(conv)
