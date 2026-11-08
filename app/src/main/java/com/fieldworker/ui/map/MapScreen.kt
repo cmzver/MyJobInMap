@@ -83,6 +83,7 @@ import com.fieldworker.ui.utils.extractPhoneNumber
 import com.fieldworker.ui.utils.contentColor
 import com.fieldworker.ui.utils.priorityColor
 import com.fieldworker.ui.utils.isDarkPalette
+import com.fieldworker.ui.utils.TaskUtils
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
@@ -265,6 +266,11 @@ fun MapScreen(
         ) {
             // Статистика задач
             TasksStatsBar(tasks = filteredTasks)
+            // Заявки без координат на карте не видны — не прячем их молча
+            val withoutPoint = remember(filteredTasks) { filteredTasks.count { !it.hasValidCoordinates() } }
+            if (withoutPoint > 0) {
+                MapHintChip(text = "$withoutPoint ${TaskUtils.pluralize(withoutPoint, "заявка", "заявки", "заявок")} без точки — в списке")
+            }
         }
         
         // Индикатор загрузки
@@ -495,6 +501,25 @@ fun TasksStatsBar(
     }
 }
 
+
+/** Подсказка под панелью статистики. */
+@Composable
+private fun MapHintChip(text: String) {
+    Surface(
+        modifier = Modifier.padding(top = 8.dp),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+        shadowElevation = 3.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
 
 @Composable
 fun StatItem(count: Int, label: String, color: Color) {
@@ -754,8 +779,9 @@ private fun OsmMapView(
                 controller.setZoom(savedPosition.third)
                 controller.setCenter(GeoPoint(savedPosition.first, savedPosition.second))
             } else {
-                controller.setZoom(12.0)
-                controller.setCenter(GeoPoint(55.7558, 37.6173))
+                // Петербург — основной регион; до первых заявок/геопозиции
+                controller.setZoom(11.0)
+                controller.setCenter(GeoPoint(59.9386, 30.3141))
             }
         }
     }
@@ -771,9 +797,23 @@ private fun OsmMapView(
     // Если есть сохранённая позиция — карта уже спозиционирована при создании mapView
     var mapCentered by remember { mutableStateOf(savedPosition != null) }
 
-    // Явный запрос "перейти к моему местоположению" — сбрасываем флаг
+    // Явный запрос «к моему местоположению»: ждём координаты (последние
+    // известные приходят сразу, свежий fix — позже) и переводим карту к ним.
+    // Раньше кнопка лишь сбрасывала флаг центровки: при заявках на карте
+    // она никуда не двигала, а следующее обновление маркеров уводило карту
+    // к ним.
+    var centerOnMePending by remember { mutableStateOf(false) }
     LaunchedEffect(centerOnLocationTick) {
-        if (centerOnLocationTick > 0) mapCentered = false
+        if (centerOnLocationTick > 0) centerOnMePending = true
+    }
+    LaunchedEffect(centerOnMePending, myLocationLat, myLocationLon) {
+        val lat = myLocationLat
+        val lon = myLocationLon
+        if (centerOnMePending && lat != null && lon != null) {
+            mapView.controller.animateTo(GeoPoint(lat, lon), maxOf(mapView.zoomLevelDouble, 16.0), 400L)
+            centerOnMePending = false
+            mapCentered = true
+        }
     }
 
     DisposableEffect(lifecycleOwner) {

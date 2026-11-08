@@ -405,6 +405,12 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   color: #e2e8f0 !important;
 }
 
+/* Тёмная тема карты: тайлы OSM, инвертированные фильтром (маркеры — в
+   своих панелях и фильтр не получают) */
+.fw-tiles-dark {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.55);
+}
+
 /* Leaflet control positioning for map page */
 .fw-map .leaflet-top.leaflet-left {
   top: 0.75rem;
