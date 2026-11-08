@@ -82,6 +82,8 @@ import type {
   ContactType
 } from '@/types/address'
 import { formatFileSize } from '@/utils/fileSize'
+import { useAuthStore } from '@/store/authStore'
+import { canManageObjectData } from '@/types/user'
 
 // Иконки для типов систем
 const systemTypeIcons: Record<SystemType, typeof Video> = {
@@ -343,6 +345,9 @@ export default function AddressDetailPage() {
   const [documentModal, setDocumentModal] = useState(false)
   const [contactModal, setContactModal] = useState<{ open: boolean; contact: AddressContact | null }>({ open: false, contact: null })
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: string; id: number; name: string } | null>(null)
+  // Карточку объекта меняют только диспетчер и администратор; исполнитель — смотрит
+  const user = useAuthStore((state) => state.user)
+  const canManage = canManageObjectData(user?.role, user?.baseAccess)
   
   // Загружаем полную информацию об объекте
   const { data: addressFull, isLoading, error } = useAddressFull(addressId)
@@ -567,10 +572,12 @@ export default function AddressDetailPage() {
         description="Карточка объекта"
         actions={
           <>
-            <Button size="sm" variant="outline" onClick={() => setAddressModal(true)}>
-              <Edit className="h-4 w-4 mr-2" />
-              Редактировать
-            </Button>
+            {canManage && (
+              <Button size="sm" variant="outline" onClick={() => setAddressModal(true)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Редактировать
+              </Button>
+            )}
             {address.lat && address.lon && (
               <Button size="sm"
                 variant="outline"
@@ -656,9 +663,11 @@ export default function AddressDetailPage() {
             flush
             title="Контакты"
             action={
-              <IconButton title="Добавить контакт" onClick={() => setContactModal({ open: true, contact: null })}>
-                <Plus className="h-4 w-4" />
-              </IconButton>
+              canManage && (
+                <IconButton title="Добавить контакт" onClick={() => setContactModal({ open: true, contact: null })}>
+                  <Plus className="h-4 w-4" />
+                </IconButton>
+              )
             }
           >
             {contacts.length === 0 ? (
@@ -689,14 +698,16 @@ export default function AddressDetailPage() {
                         </div>
                       )}
                     </div>
-                    <RowActions>
-                      <IconButton title="Изменить" onClick={() => setContactModal({ open: true, contact })}>
-                        <Edit className="h-3.5 w-3.5" />
-                      </IconButton>
-                      <IconButton danger title="Удалить" onClick={() => setDeleteConfirm({ type: 'contact', id: contact.id, name: contact.name })}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </IconButton>
-                    </RowActions>
+                    {canManage && (
+                      <RowActions>
+                        <IconButton title="Изменить" onClick={() => setContactModal({ open: true, contact })}>
+                          <Edit className="h-3.5 w-3.5" />
+                        </IconButton>
+                        <IconButton danger title="Удалить" onClick={() => setDeleteConfirm({ type: 'contact', id: contact.id, name: contact.name })}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </IconButton>
+                      </RowActions>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -744,9 +755,11 @@ export default function AddressDetailPage() {
               flush
               title="Системы на обслуживании"
               action={
-                <Button size="sm" onClick={() => setSystemModal({ open: true, system: null })}>
-                  <Plus className="h-4 w-4 mr-1" /> Добавить
-                </Button>
+                canManage && (
+                  <Button size="sm" onClick={() => setSystemModal({ open: true, system: null })}>
+                    <Plus className="h-4 w-4 mr-1" /> Добавить
+                  </Button>
+                )
               }
             >
               {systems.length === 0 ? (
@@ -789,14 +802,16 @@ export default function AddressDetailPage() {
                           </td>
                           <td><StatusPill variant={statusConfig.variant}>{statusConfig.label}</StatusPill></td>
                           <td>
-                            <RowActions>
-                              <IconButton title="Изменить" onClick={() => setSystemModal({ open: true, system })}>
-                                <Edit className="h-3.5 w-3.5" />
-                              </IconButton>
-                              <IconButton danger title="Удалить" onClick={() => setDeleteConfirm({ type: 'system', id: system.id, name: system.name })}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </IconButton>
-                            </RowActions>
+                            {canManage && (
+                              <RowActions>
+                                <IconButton title="Изменить" onClick={() => setSystemModal({ open: true, system })}>
+                                  <Edit className="h-3.5 w-3.5" />
+                                </IconButton>
+                                <IconButton danger title="Удалить" onClick={() => setDeleteConfirm({ type: 'system', id: system.id, name: system.name })}>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </IconButton>
+                              </RowActions>
+                            )}
                           </td>
                         </tr>
                       )
@@ -814,9 +829,11 @@ export default function AddressDetailPage() {
               flush
               title="Оборудование"
               action={
-                <Button size="sm" onClick={() => setEquipmentModal({ open: true, equipment: null })}>
-                  <Plus className="h-4 w-4 mr-1" /> Добавить
-                </Button>
+                canManage && (
+                  <Button size="sm" onClick={() => setEquipmentModal({ open: true, equipment: null })}>
+                    <Plus className="h-4 w-4 mr-1" /> Добавить
+                  </Button>
+                )
               }
             >
               {equipment.length === 0 ? (
@@ -870,14 +887,16 @@ export default function AddressDetailPage() {
                             </StatusPill>
                           </td>
                           <td>
-                            <RowActions>
-                              <IconButton title="Изменить" onClick={() => setEquipmentModal({ open: true, equipment: item })}>
-                                <Edit className="h-3.5 w-3.5" />
-                              </IconButton>
-                              <IconButton danger title="Удалить" onClick={() => setDeleteConfirm({ type: 'equipment', id: item.id, name: item.name })}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </IconButton>
-                            </RowActions>
+                            {canManage && (
+                              <RowActions>
+                                <IconButton title="Изменить" onClick={() => setEquipmentModal({ open: true, equipment: item })}>
+                                  <Edit className="h-3.5 w-3.5" />
+                                </IconButton>
+                                <IconButton danger title="Удалить" onClick={() => setDeleteConfirm({ type: 'equipment', id: item.id, name: item.name })}>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </IconButton>
+                              </RowActions>
+                            )}
                           </td>
                         </tr>
                       )
@@ -886,7 +905,7 @@ export default function AddressDetailPage() {
                 </table>
               )}
             </Card>
-            <IntercomPanelsSection addressId={addressId} panels={panels} />
+            <IntercomPanelsSection addressId={addressId} panels={panels} canManage={canManage} />
             </div>
           )}
 
@@ -898,9 +917,11 @@ export default function AddressDetailPage() {
               flush
               title="Документы объекта"
               action={
-                <Button size="sm" onClick={() => setDocumentModal(true)}>
-                  <Upload className="h-4 w-4 mr-1" /> Загрузить
-                </Button>
+                canManage && (
+                  <Button size="sm" onClick={() => setDocumentModal(true)}>
+                    <Upload className="h-4 w-4 mr-1" /> Загрузить
+                  </Button>
+                )
               }
             >
               {documents.length === 0 ? (
@@ -945,9 +966,11 @@ export default function AddressDetailPage() {
                             >
                               <Download className="h-3.5 w-3.5" />
                             </IconButton>
-                            <IconButton danger title="Удалить" onClick={() => setDeleteConfirm({ type: 'document', id: doc.id, name: doc.name })}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </IconButton>
+                            {canManage && (
+                              <IconButton danger title="Удалить" onClick={() => setDeleteConfirm({ type: 'document', id: doc.id, name: doc.name })}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </IconButton>
+                            )}
                           </RowActions>
                         </td>
                       </tr>

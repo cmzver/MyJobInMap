@@ -13,6 +13,8 @@ import Modal from '@/components/Modal'
 import Spinner from '@/components/Spinner'
 import { useAssignees, useAddAssignee, useRemoveAssignee } from '@/hooks/useAddressCard'
 import { useUsers } from '@/hooks/useUsers'
+import { useAuthStore } from '@/store/authStore'
+import { canManageObjectData } from '@/types/user'
 import { showApiError, showApiSuccess } from '@/utils/apiError'
 
 export default function AddressAssigneesSection({ addressId }: { addressId: number }) {
@@ -20,6 +22,8 @@ export default function AddressAssigneesSection({ addressId }: { addressId: numb
   const { data: users = [] } = useUsers()
   const addAssignee = useAddAssignee(addressId)
   const removeAssignee = useRemoveAssignee(addressId)
+  const user = useAuthStore((state) => state.user)
+  const canManage = canManageObjectData(user?.role, user?.baseAccess)
 
   const [addModal, setAddModal] = useState(false)
 
@@ -51,15 +55,17 @@ export default function AddressAssigneesSection({ addressId }: { addressId: numb
       flush
       title="Доступ"
       action={
-        <button
-          type="button"
-          onClick={() => setAddModal(true)}
-          title="Назначить сотрудника"
-          aria-label="Назначить сотрудника"
-          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
+        canManage && (
+          <button
+            type="button"
+            onClick={() => setAddModal(true)}
+            title="Назначить сотрудника"
+            aria-label="Назначить сотрудника"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        )
       }
     >
       {isLoading ? (
@@ -89,15 +95,17 @@ export default function AddressAssigneesSection({ addressId }: { addressId: numb
                   <p className="truncate text-xs text-gray-500 dark:text-gray-400">{a.role_label}</p>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => handleRemove(a.user_id)}
-                title="Снять доступ"
-                aria-label="Снять доступ"
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-700 dark:hover:text-red-400"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={() => handleRemove(a.user_id)}
+                  title="Снять доступ"
+                  aria-label="Снять доступ"
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-700 dark:hover:text-red-400"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
             </li>
           ))}
         </ul>

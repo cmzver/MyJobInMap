@@ -147,8 +147,9 @@ function PanelCard({
 }: {
   addressId: number
   panel: IntercomPanel
-  onEdit: () => void
-  onDelete: () => void
+  /** Без них — только просмотр и дверь (исполнитель). */
+  onEdit?: () => void
+  onDelete?: () => void
   onVideo: () => void
 }) {
   const [confirmAction, setConfirmAction] = useState<'open' | 'close' | null>(null)
@@ -227,13 +228,19 @@ function PanelCard({
         <PanelAction title="Код записи ключей" onClick={() => scanQuery.refetch()} disabled={scanQuery.isFetching}>
           {scanQuery.isFetching ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
         </PanelAction>
-        <span className="mx-1 hidden h-4 w-px bg-gray-200 dark:bg-gray-700 sm:block" aria-hidden />
-        <PanelAction title="Редактировать" onClick={onEdit}>
-          <Pencil className="h-3.5 w-3.5" />
-        </PanelAction>
-        <PanelAction title="Удалить" danger onClick={onDelete}>
-          <Trash2 className="h-3.5 w-3.5" />
-        </PanelAction>
+        {(onEdit || onDelete) && (
+          <span className="mx-1 hidden h-4 w-px bg-gray-200 dark:bg-gray-700 sm:block" aria-hidden />
+        )}
+        {onEdit && (
+          <PanelAction title="Редактировать" onClick={onEdit}>
+            <Pencil className="h-3.5 w-3.5" />
+          </PanelAction>
+        )}
+        {onDelete && (
+          <PanelAction title="Удалить" danger onClick={onDelete}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </PanelAction>
+        )}
       </div>
 
       {confirmAction && (
@@ -300,9 +307,12 @@ function PanelAction({
 export default function IntercomPanelsSection({
   addressId,
   panels,
+  canManage = false,
 }: {
   addressId: number
   panels: IntercomPanel[]
+  /** Добавлять/менять/удалять панели — только диспетчер и администратор. */
+  canManage?: boolean
 }) {
   const [formModal, setFormModal] = useState<{ open: boolean; panel: IntercomPanel | null }>({
     open: false,
@@ -355,9 +365,11 @@ export default function IntercomPanelsSection({
       flush
       title="Сетевые панели"
       action={
-        <Button size="sm" variant="outline" onClick={() => setFormModal({ open: true, panel: null })}>
-          <Plus className="h-4 w-4 mr-1" /> Добавить панель
-        </Button>
+        canManage && (
+          <Button size="sm" variant="outline" onClick={() => setFormModal({ open: true, panel: null })}>
+            <Plus className="h-4 w-4 mr-1" /> Добавить панель
+          </Button>
+        )
       }
     >
       {panels.length === 0 ? (
@@ -371,8 +383,8 @@ export default function IntercomPanelsSection({
               key={panel.id}
               addressId={addressId}
               panel={panel}
-              onEdit={() => setFormModal({ open: true, panel })}
-              onDelete={() => setDeleteConfirm(panel)}
+              onEdit={canManage ? () => setFormModal({ open: true, panel }) : undefined}
+              onDelete={canManage ? () => setDeleteConfirm(panel) : undefined}
               onVideo={() => setVideoPanel(panel)}
             />
           ))}
