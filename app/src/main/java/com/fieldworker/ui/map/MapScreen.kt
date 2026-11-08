@@ -1471,10 +1471,11 @@ private fun addRouteOverlays(
     }
     stops.forEachIndexed { index, task ->
         if (!task.hasValidCoordinates()) return@forEachIndexed
-        val color = TaskMarkerGroup(listOf(task), task.lat!!, task.lon!!).summary.markerColor()
+        // Тот же цвет, что у номера точки в «Моём дне»
+        val color = com.fieldworker.ui.day.dayStopColor(task)
         into.add(
             Marker(mapView).apply {
-                position = GeoPoint(task.lat, task.lon)
+                position = GeoPoint(task.lat!!, task.lon!!)
                 title = "${index + 1}. [${task.taskNumber}] ${task.title}"
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                 icon = getRouteStopIcon(context, color, index + 1)

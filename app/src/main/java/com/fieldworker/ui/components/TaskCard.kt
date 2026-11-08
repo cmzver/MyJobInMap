@@ -262,7 +262,7 @@ private fun dueLabelFor(task: Task): String? {
 }
 
 @Composable
-private fun BulletDot() {
+internal fun BulletDot() {
     Text(
         text = "·",
         style = MaterialTheme.typography.labelMedium,
@@ -275,7 +275,7 @@ private fun BulletDot() {
  * безымянный кружок — статус теперь читается без легенды.
  */
 @Composable
-private fun StatusChip(task: Task) {
+internal fun StatusChip(task: Task) {
     val color by animateColorAsState(task.status.contentColor(), label = "status-color")
     val container by animateColorAsState(task.status.containerColor(), label = "status-container")
     Row(
