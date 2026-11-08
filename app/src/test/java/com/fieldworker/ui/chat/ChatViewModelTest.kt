@@ -21,6 +21,7 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.runs
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -137,6 +138,59 @@ class ChatViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { chatRepository.getMessages(CONVERSATION_ID, 11L, 30) }
+    }
+
+    @Test
+    fun `late messages of a chat that was left do not replace the opened one`() = runTest {
+        val otherId = 88L
+        val slowMessages = CompletableDeferred<Result<Pair<List<ChatMessage>, Boolean>>>()
+        coEvery { chatRepository.getConversationDetail(CONVERSATION_ID) } returns Result.success(conversationDetail())
+        coEvery { chatRepository.getConversationDetail(otherId) } returns Result.success(conversationDetail().copy(id = otherId))
+        coEvery { chatRepository.getMessages(CONVERSATION_ID, null, any()) } coAnswers { slowMessages.await() }
+        coEvery { chatRepository.getMessages(otherId, null, any()) } returns Result.success(listOf(message(21L)) to false)
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.openConversation(CONVERSATION_ID)
+        advanceUntilIdle()
+        viewModel.closeConversation()
+        viewModel.openConversation(otherId)
+        advanceUntilIdle()
+        // Ответ первого чата пришёл, когда уже открыт второй
+        slowMessages.complete(Result.success(listOf(message(11L), message(12L)) to true))
+        advanceUntilIdle()
+
+        val state = viewModel.chatState.value
+        assertEquals(otherId, state.conversationId)
+        assertEquals(listOf(21L), state.messages.map { it.id })
+        assertEquals(otherId, state.detail?.id)
+    }
+
+    @Test
+    fun `older page of a chat that was left is not merged into the opened one`() = runTest {
+        val otherId = 88L
+        val slowPage = CompletableDeferred<Result<Pair<List<ChatMessage>, Boolean>>>()
+        coEvery { chatRepository.getConversationDetail(any()) } returns Result.success(conversationDetail())
+        coEvery { chatRepository.getMessages(CONVERSATION_ID, null, any()) } returns
+            Result.success(listOf(message(11L), message(12L)) to true)
+        coEvery { chatRepository.getMessages(CONVERSATION_ID, 11L, any()) } coAnswers { slowPage.await() }
+        coEvery { chatRepository.getMessages(otherId, null, any()) } returns Result.success(listOf(message(21L)) to false)
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        viewModel.openConversation(CONVERSATION_ID)
+        advanceUntilIdle()
+        viewModel.loadMoreMessages()
+        advanceUntilIdle()
+
+        viewModel.closeConversation()
+        viewModel.openConversation(otherId)
+        advanceUntilIdle()
+        slowPage.complete(Result.success(listOf(message(9L), message(10L)) to false))
+        advanceUntilIdle()
+
+        assertEquals(listOf(21L), viewModel.chatState.value.messages.map { it.id })
     }
 
     private fun createViewModel(): ChatViewModel =
