@@ -2,7 +2,8 @@
 
 ## Status
 
-Proposed
+Accepted — выполнено: прод на PostgreSQL 15 (`docker-compose.postgres.yml`),
+SQLite остаётся для быстрых тестов (in-memory).
 
 ## Context
 
