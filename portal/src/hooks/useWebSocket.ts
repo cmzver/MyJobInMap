@@ -85,6 +85,9 @@ export function onChatRead(handler: ChatReadHandler) {
  * чтобы не получить дыру в истории.
  */
 async function reconnectSync(qc: QueryClient): Promise<void> {
+  // События заявок за время обрыва потеряны — списки и карта перечитываются
+  void qc.invalidateQueries({ queryKey: ['tasks'] })
+  void qc.invalidateQueries({ queryKey: myTaskKeys.all })
   void qc.invalidateQueries({ queryKey: chatKeys.conversationsRoot() })
 
   const cached = qc.getQueriesData<InfiniteData<MessageListResponse>>({

@@ -824,7 +824,9 @@ fun TaskDetailBottomSheet(
     onCancelPendingPhoto: (Long) -> Unit = {},
     onDeletePhoto: (Long) -> Unit = {},
     onPlannedDateChange: ((String?) -> Unit)? = null,
-    onAssignClick: (() -> Unit)? = null
+    onAssignClick: (() -> Unit)? = null,
+    // «1,2 км» от текущего места; null — местоположение неизвестно
+    distanceText: String? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -856,7 +858,8 @@ fun TaskDetailBottomSheet(
             onCancelPendingPhoto = onCancelPendingPhoto,
             onDeletePhoto = onDeletePhoto,
             onPlannedDateChange = onPlannedDateChange,
-            onAssignClick = onAssignClick
+            onAssignClick = onAssignClick,
+            distanceText = distanceText
         )
     }
 }
@@ -892,7 +895,9 @@ fun TaskDetailContent(
     onCancelPendingPhoto: (Long) -> Unit = {},
     onDeletePhoto: (Long) -> Unit = {},
     onPlannedDateChange: ((String?) -> Unit)? = null,
-    onAssignClick: (() -> Unit)? = null
+    onAssignClick: (() -> Unit)? = null,
+    // «1,2 км» от текущего места; null — местоположение неизвестно
+    distanceText: String? = null
 ) {
     var commentText by remember { mutableStateOf("") }
     val context = LocalContext.current
@@ -1022,6 +1027,7 @@ fun TaskDetailContent(
             item {
                 TaskFactsCard(
                     task = task,
+                    distanceText = distanceText,
                     formattedDate = formattedDate,
                     formattedPlannedDate = formattedPlannedDate,
                     apartment = apartment,
@@ -1405,6 +1411,7 @@ private data class TaskFact(
 @Composable
 private fun TaskFactsCard(
     task: Task,
+    distanceText: String?,
     formattedDate: String,
     formattedPlannedDate: String?,
     apartment: String?,
@@ -1473,6 +1480,13 @@ private fun TaskFactsCard(
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                    distanceText?.let {
+                        Text(
+                            text = "≈ $it от вас",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,

@@ -269,3 +269,24 @@ class TestDirectoryPoint:
         self._osm(service, found=False)
 
         assert service.geocode("пр. Энгельса, 120") == (0.0, 0.0)
+
+    def test_osm_place_in_another_region_loses_to_directory(self, monkeypatch):
+        """Новоселье в Ярославской области вместо Ленинградской — берём справочник."""
+        service = GeocodingService()
+        self._dadata(monkeypatch, "2")
+        service.geolocator = MagicMock()
+        service.geolocator.geocode = MagicMock(
+            return_value=MagicMock(latitude=56.71, longitude=38.85)
+        )
+
+        assert service.geocode("пр. Энгельса, 120") == (60.03, 30.32)
+
+    def test_other_house_from_directory_is_not_exact(self, monkeypatch):
+        """На «… 20» DaData может первой вернуть «д 2» — это не точка дома."""
+        from app.services import address_suggest
+
+        self._dadata(monkeypatch, "0")
+        point = address_suggest.house_point("пр. Энгельса, 12")
+        assert point is not None and point.exact is False
+        details = address_suggest.house_details("пр. Энгельса, 12")
+        assert details is None or details["fias_id"] is None
