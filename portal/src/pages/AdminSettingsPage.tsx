@@ -423,7 +423,7 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
               {dbStats && (
                 <>
                   <StatRow label="Тип БД" value={dbStats.database.type} />
-                  <StatRow label="Размер БД" value={`${dbStats.database.size_mb} MB`} />
+                  <StatRow label="Размер БД" value={formatFileSize(dbStats.database.size_mb * 1024 * 1024)} />
                   <StatRow label="Заявки" value={dbStats.tables.tasks} />
                   <StatRow label="Пользователи" value={dbStats.tables.users} />
                   <StatRow label="Фото" value={dbStats.tables.photos} />

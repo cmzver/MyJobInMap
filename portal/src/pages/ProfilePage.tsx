@@ -159,7 +159,7 @@ export default function ProfilePage() {
   const formatHours = (hours: number | null) => {
     if (hours === null) return '—'
     if (hours < 1) return `${Math.round(hours * 60)} мин`
-    if (hours < 24) return `${hours.toFixed(1)} ч`
+    if (hours < 24) return `${hours.toLocaleString('ru-RU', { maximumFractionDigits: 1 })} ч`
     return `${Math.round(hours / 24)} д`
   }
 
