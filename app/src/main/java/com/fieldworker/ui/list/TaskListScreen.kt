@@ -72,6 +72,7 @@ import com.fieldworker.domain.model.AddressDetails
 import com.fieldworker.ui.act.LocalTaskActsSection
 import com.fieldworker.ui.components.EmptyState
 import com.fieldworker.ui.components.Eyebrow
+import com.fieldworker.ui.components.RoundActionButton
 import com.fieldworker.ui.remote.LocalTaskRemoteSection
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
@@ -1961,12 +1962,11 @@ private fun ScrollToTopButton(
         exit = fadeOut(),
         modifier = modifier,
     ) {
-        FloatingActionButton(
+        RoundActionButton(
             onClick = onClick,
-            containerColor = MaterialTheme.colorScheme.primary,
-        ) {
-            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Наверх")
-        }
+            icon = Icons.Default.KeyboardArrowUp,
+            contentDescription = "Наверх",
+        )
     }
 }
 

@@ -97,6 +97,7 @@ import com.fieldworker.ui.chat.components.BubbleShape
 import com.fieldworker.ui.chat.components.ChatAvatar
 import com.fieldworker.ui.chat.components.swipeToReply
 import com.fieldworker.ui.components.EmptyState
+import com.fieldworker.ui.components.RoundActionButton
 import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.theme.Radius
 import com.fieldworker.ui.utils.TaskUtils
@@ -551,17 +552,15 @@ fun ChatScreen(
                     enter = fadeIn() + scaleIn(initialScale = 0.82f),
                     exit = fadeOut() + scaleOut(targetScale = 0.82f)
                 ) {
-                    FloatingActionButton(
+                    RoundActionButton(
                         onClick = {
                             coroutineScope.launch {
                                 listState.animateScrollToItem(0)
                             }
                         },
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    ) {
-                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Вниз")
-                    }
+                        icon = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Вниз",
+                    )
                 }
             }
         ) { padding ->

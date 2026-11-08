@@ -235,13 +235,14 @@ fun PhotoUploadConfirmDialog(
                 // Кнопки выбора типа: не влезли в строку — переносятся целиком
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     PhotoType.entries.forEach { type ->
-                        FilterChip(
+                        QuickFilterChip(
+                            label = type.displayName,
                             selected = selectedType == type,
                             onClick = { selectedType = type },
-                            label = { Text(type.displayName, maxLines = 1) },
                             enabled = !isUploading
                         )
                     }

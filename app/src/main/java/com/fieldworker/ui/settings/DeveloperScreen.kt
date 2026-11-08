@@ -4,6 +4,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -22,6 +23,7 @@ import com.fieldworker.R
 import com.fieldworker.data.notification.FCMService
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.ui.MainActivity
+import com.fieldworker.ui.theme.AppShape
 import kotlinx.coroutines.launch
 
 /**
@@ -61,12 +63,7 @@ fun DeveloperScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // ==================== Информация ====================
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
+            DevCard {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         "Информация о среде",
@@ -81,7 +78,7 @@ fun DeveloperScreen(
             }
             
             // ==================== Тест уведомлений ====================
-            Card(modifier = Modifier.fillMaxWidth()) {
+            DevCard {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         "Тестирование уведомлений",
@@ -106,7 +103,7 @@ fun DeveloperScreen(
             }
             
             // ==================== Сброс ====================
-            Card(modifier = Modifier.fillMaxWidth()) {
+            DevCard {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         "Опасная зона",
@@ -138,6 +135,18 @@ fun DeveloperScreen(
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
+}
+
+/** Плоская карточка с обводкой — как группа в настройках. */
+@Composable
+private fun DevCard(content: @Composable () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = AppShape.lg,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        content = content,
+    )
 }
 
 @Composable

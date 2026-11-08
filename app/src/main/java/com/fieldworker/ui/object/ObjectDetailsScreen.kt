@@ -236,6 +236,8 @@ fun ObjectDetailsScreen(
 private fun ObjectHeaderCard(task: Task?, addressDetails: AddressDetails?) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         shape = AppShape.lg
     ) {
         Column(

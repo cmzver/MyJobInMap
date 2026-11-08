@@ -76,6 +76,7 @@ import com.fieldworker.ui.components.Eyebrow
 import com.fieldworker.ui.components.FilterFunnelIcon
 import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.PhotoUploadConfirmDialog
+import com.fieldworker.ui.components.RoundActionButton
 import com.fieldworker.ui.components.rememberPhotoDraft
 import com.fieldworker.ui.components.rememberPickPhotoLauncher
 import com.fieldworker.ui.components.rememberTakePhotoLauncher
@@ -390,7 +391,7 @@ fun MapScreen(
                 onMineChange = { mine -> viewModel.setTaskScope(if (mine) TaskScope.MINE else TaskScope.ALL) },
             )
 
-            MapActionButton(
+            RoundActionButton(
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     val lat = uiState.myLocationLat
@@ -417,7 +418,7 @@ fun MapScreen(
                 contentDescription = "Ближайшая заявка"
             )
 
-            MapActionButton(
+            RoundActionButton(
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     if (hasLocationPermission) {
@@ -437,7 +438,7 @@ fun MapScreen(
                 isActive = uiState.myLocationLat != null
             )
 
-            MapActionButton(
+            RoundActionButton(
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     viewModel.forceSync()
@@ -703,36 +704,6 @@ fun StatItem(count: Int, label: String, color: Color) {
 /**
  * Карточка комментария
  */
-@Composable
-private fun MapActionButton(
-    onClick: () -> Unit,
-    icon: ImageVector,
-    contentDescription: String,
-    isActive: Boolean = false
-) {
-    // key: при смене состояния поверх карты (AndroidView) слой с тенью не
-    // перерисовывал фон — кнопка становилась белой с белым значком
-    key(isActive) {
-    Surface(
-        modifier = Modifier.size(48.dp),
-        shape = CircleShape,
-        color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-        contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
-        tonalElevation = 0.dp,
-        shadowElevation = 6.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
-        IconButton(onClick = onClick) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-    }
-    }
-}
-
 /**
  * Диалог изменения статуса с комментарием.
  *
@@ -1310,7 +1281,7 @@ private fun MapFilterButton(
     val active = mode != MapMode.ALL ||
         (mode != MapMode.ROUTE && (statusFilter.isNotEmpty() || (showMine && mineOnly)))
     Box {
-        MapActionButton(
+        RoundActionButton(
             onClick = { expanded = true },
             icon = FilterFunnelIcon,
             contentDescription = "Фильтры карты",
