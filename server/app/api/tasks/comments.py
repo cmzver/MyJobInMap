@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import List
 
 from fastapi import APIRouter, Depends
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import TaskAccess, require_task_access
@@ -60,7 +61,16 @@ def add_comment(
             scope,
             CommentResponse.model_validate(db_comment),
         )
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Повтор из офлайн-очереди пришёл, пока первый запрос ещё выполнялся:
+        # его ключ уже сохранён — второй комментарий не нужен, отдаём ответ первого.
+        db.rollback()
+        cached = cached_response(db, user.id, idempotency_key, scope)
+        if cached is None:
+            raise
+        return cached
     db.refresh(db_comment)
 
     return db_comment
