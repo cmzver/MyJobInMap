@@ -254,63 +254,60 @@ object TaskUtils {
     }
 
     /**
-     * Открывает навигацию до задачи
+     * Маршрут до заявки: Яндекс.Карты → Навигатор → Google Maps → 2ГИС → сайт.
+     * Без координат (или с нулевыми) — поиск адреса в картах. false — открыть
+     * нечем (раньше последний вариант падал ActivityNotFoundException).
      */
-    fun openNavigation(context: Context, task: Task, preferYandex: Boolean = true) {
-        if (task.lat == null || task.lon == null) return
-        
+    fun openNavigation(context: Context, task: Task, preferYandex: Boolean = true): Boolean {
+        if (!task.hasValidCoordinates()) return openAddressSearch(context, task.address)
         val lat = task.lat
         val lon = task.lon
-        
-        // Пробуем Яндекс.Карты
+
+        // Пробуем Яндекс.Карты и Яндекс.Навигатор
         if (preferYandex) {
             val yandexIntent = Intent(Intent.ACTION_VIEW).apply {
                 data = Uri.parse("yandexmaps://maps.yandex.ru/?rtext=~$lat,$lon&rtt=auto")
                 setPackage("ru.yandex.yandexmaps")
             }
-            if (yandexIntent.resolveActivity(context.packageManager) != null) {
-                context.startActivity(yandexIntent)
-                return
-            }
-            
-            // Яндекс.Навигатор
+            if (startIfResolvable(context, yandexIntent)) return true
+
             val navigatorIntent = Intent(Intent.ACTION_VIEW).apply {
                 data = Uri.parse("yandexnavi://build_route_on_map?lat_to=$lat&lon_to=$lon")
                 setPackage("ru.yandex.yandexnavi")
             }
-            if (navigatorIntent.resolveActivity(context.packageManager) != null) {
-                context.startActivity(navigatorIntent)
-                return
-            }
+            if (startIfResolvable(context, navigatorIntent)) return true
         }
-        
-        // Google Maps
+
         val googleIntent = Intent(Intent.ACTION_VIEW).apply {
             data = Uri.parse("google.navigation:q=$lat,$lon&mode=d")
             setPackage("com.google.android.apps.maps")
         }
-        if (googleIntent.resolveActivity(context.packageManager) != null) {
-            context.startActivity(googleIntent)
-            return
-        }
-        
-        // 2GIS
+        if (startIfResolvable(context, googleIntent)) return true
+
         val dgisIntent = Intent(Intent.ACTION_VIEW).apply {
             data = Uri.parse("dgis://2gis.ru/routeSearch/rsType/car/to/$lon,$lat")
             setPackage("ru.dublgis.dgismobile")
         }
-        if (dgisIntent.resolveActivity(context.packageManager) != null) {
-            context.startActivity(dgisIntent)
-            return
-        }
-        
+        if (startIfResolvable(context, dgisIntent)) return true
+
         // Fallback на браузер
-        val browserIntent = Intent(Intent.ACTION_VIEW).apply {
-            data = Uri.parse("https://yandex.ru/maps/?rtext=~$lat,$lon&rtt=auto")
-        }
-        context.startActivity(browserIntent)
+        return tryStart(context, Intent(Intent.ACTION_VIEW, Uri.parse("https://yandex.ru/maps/?rtext=~$lat,$lon&rtt=auto")))
     }
-    
+
+    /** Поиск адреса в любом приложении карт, иначе — на сайте Яндекс.Карт. */
+    fun openAddressSearch(context: Context, address: String): Boolean {
+        if (address.isBlank()) return false
+        val query = Uri.encode(address)
+        return tryStart(context, Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$query"))) ||
+            tryStart(context, Intent(Intent.ACTION_VIEW, Uri.parse("https://yandex.ru/maps/?text=$query")))
+    }
+
+    private fun startIfResolvable(context: Context, intent: Intent): Boolean =
+        intent.resolveActivity(context.packageManager) != null && tryStart(context, intent)
+
+    private fun tryStart(context: Context, intent: Intent): Boolean =
+        runCatching { context.startActivity(intent) }.isSuccess
+
     /**
      * Открывает задачу на карте (без маршрута)
      */

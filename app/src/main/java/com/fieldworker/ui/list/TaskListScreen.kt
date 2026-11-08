@@ -5,8 +5,6 @@ package com.fieldworker.ui.list
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
@@ -101,7 +99,6 @@ import com.fieldworker.ui.utils.formatPhoneForDisplay
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private fun normalizePhoneForDial(phone: String) = com.fieldworker.ui.utils.normalizePhoneForDial(phone)
 
 /**
  * Экран со списком задач и фильтрами
@@ -921,20 +918,15 @@ fun TaskDetailContent(
         }
     }
     
+    // Без координат — поиск адреса в картах (раньше был только тост)
     val openNavigation = {
-        if (task.hasValidCoordinates()) {
-            com.fieldworker.ui.utils.TaskUtils.openNavigation(context, task)
-        } else {
-            Toast.makeText(context, "Координаты не указаны", Toast.LENGTH_SHORT).show()
+        if (!com.fieldworker.ui.utils.TaskUtils.openNavigation(context, task)) {
+            Toast.makeText(context, "Нет приложения для карт", Toast.LENGTH_SHORT).show()
         }
     }
+    // Через общий dialPhone: без «звонилки» (планшет) раньше было падение
     val dialPhone: (() -> Unit)? = phoneNumber?.let { phone ->
-        {
-            val intent = Intent(Intent.ACTION_DIAL).apply {
-                data = Uri.parse("tel:${normalizePhoneForDial(phone)}")
-            }
-            context.startActivity(intent)
-        }
+        { com.fieldworker.ui.utils.dialPhone(context, phone) }
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {

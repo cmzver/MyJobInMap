@@ -1,7 +1,5 @@
 package com.fieldworker.ui.day
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -100,7 +98,7 @@ fun MyDayScreen(
         onOpenTask = onOpenTask,
         onStartTask = onStartTask,
         onGo = { TaskUtils.openRoute(context, tasks.orEmpty()) },
-        onRoute = { task -> openStopNavigation(context, task) },
+        onRoute = { task -> TaskUtils.openNavigation(context, task) },
         onCall = { phone -> dialPhone(context, phone) },
     )
 }
@@ -424,13 +422,3 @@ private fun StopAction(icon: ImageVector, label: String, onClick: () -> Unit) {
     }
 }
 
-/** Навигатор до точки; без координат — поиск адреса в картах. */
-private fun openStopNavigation(context: android.content.Context, task: Task) {
-    runCatching {
-        if (task.hasValidCoordinates()) {
-            TaskUtils.openNavigation(context, task)
-        } else {
-            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(task.address)}")))
-        }
-    }
-}
