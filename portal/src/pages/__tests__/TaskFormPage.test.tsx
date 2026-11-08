@@ -7,6 +7,7 @@ import { ROUTER_FUTURE } from '@/config/routerFuture'
 import TaskFormPage from '../TaskFormPage'
 
 const updateMutate = vi.fn()
+let taskState: Record<string, unknown> = {}
 
 const paidTask = {
   id: 42,
@@ -27,7 +28,7 @@ const paidTask = {
 }
 
 vi.mock('@/hooks/useTasks', () => ({
-  useTask: () => ({ data: paidTask, isLoading: false }),
+  useTask: () => taskState,
   useCreateTask: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateTask: () => ({ mutate: updateMutate, isPending: false }),
   useAssignTask: () => ({ mutate: vi.fn(), isPending: false }),
@@ -46,15 +47,20 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+function renderEdit() {
+  render(
+    <MemoryRouter initialEntries={['/tasks/42/edit']} future={ROUTER_FUTURE}>
+      <Routes>
+        <Route path="/tasks/:id/edit" element={<TaskFormPage mode="edit" />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
 describe('TaskFormPage — редактирование', () => {
   it('не обнуляет оплату, которой нет в форме', () => {
-    render(
-      <MemoryRouter initialEntries={['/tasks/42/edit']} future={ROUTER_FUTURE}>
-        <Routes>
-          <Route path="/tasks/:id/edit" element={<TaskFormPage mode="edit" />} />
-        </Routes>
-      </MemoryRouter>,
-    )
+    taskState = { data: paidTask, isLoading: false, isError: false, refetch: vi.fn() }
+    renderEdit()
 
     fireEvent.click(screen.getByRole('button', { name: /Сохранить/ }))
 
@@ -64,5 +70,16 @@ describe('TaskFormPage — редактирование', () => {
     expect(data.description).toBe('Не открывается дверь')
     expect(data).not.toHaveProperty('is_paid')
     expect(data).not.toHaveProperty('payment_amount')
+  })
+
+  it('сбой загрузки заявки — ошибка с повтором, а не пустая форма', () => {
+    const refetch = vi.fn()
+    taskState = { data: undefined, isLoading: false, isError: true, refetch }
+    renderEdit()
+
+    expect(screen.getByText('Не удалось загрузить заявку')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Сохранить/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Повторить/ }))
+    expect(refetch).toHaveBeenCalled()
   })
 })
