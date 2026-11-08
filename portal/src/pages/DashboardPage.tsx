@@ -354,7 +354,7 @@ function RepeatsCard({ repeats }: { repeats?: RepeatMetrics }) {
             Повторов {repeats.overview.returns} и дублей {repeats.overview.duplicates} из {repeats.overview.created} новых заявок —
             их отмечают диспетчеры в карточке заявки.
           </p>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <PlaceList
               title="Адреса"
               items={repeats.top_addresses.slice(0, 5).map((place) => ({
@@ -467,7 +467,7 @@ export default function DashboardPage() {
       ) : (
         <>
           <KpiStrip data={data} repeats={repeats} />
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2">
               <DynamicsCard data={data} />
             </div>

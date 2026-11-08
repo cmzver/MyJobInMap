@@ -389,7 +389,7 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
 
   return (
     <div className={settingsTokens.stack}>
-      <div className="grid gap-3 lg:grid-cols-3 lg:items-start">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3 lg:items-start">
         {/* Main column: maintenance + backups */}
         <div className={cn(settingsTokens.stack, 'lg:col-span-2')}>
           <SettingsCard title="Обслуживание базы данных" icon={Database}>
@@ -613,7 +613,7 @@ function PortalBrandingSettingsTab() {
         icon={Palette}
         description="Параметры отображаются на экране авторизации до входа и доступны без авторизации через публичный endpoint."
       >
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <Input
             label="Название приложения"
             value={form.login_app_name}
@@ -655,7 +655,7 @@ function PortalBrandingSettingsTab() {
         icon={User}
         description="Заполните email или телефон, если на странице входа должен показываться блок с контактами."
       >
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <Input
             label="Email поддержки"
             value={form.support_email}
@@ -942,7 +942,7 @@ function BackupSettingsTab() {
               checked={autoBackup}
               onChange={setAutoBackup}
             />
-            <div className="grid gap-3 border-t border-gray-100 pt-4 dark:border-gray-800 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 dark:border-gray-800 sm:grid-cols-2">
               <SettingsField label="Расписание" help="Частота автоматического создания копий.">
                 <SettingsSelect value={schedule} onChange={(e) => setSchedule(e.target.value)}>
                   <option value="daily">Ежедневно в 03:00</option>
@@ -1522,7 +1522,7 @@ function CustomFieldModal({
           )}
 
           <Input
-            label="Placeholder"
+            label="Подсказка в пустом поле"
             value={formData.placeholder}
             onChange={(e) => setFormData({ ...formData, placeholder: e.target.value })}
           />

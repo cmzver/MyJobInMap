@@ -339,7 +339,7 @@ export default function ProfilePage() {
               </Card>
 
               {/* Additional Stats */}
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <Card>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                     <BarChart3 size={20} className="mr-2 text-primary-500" />
