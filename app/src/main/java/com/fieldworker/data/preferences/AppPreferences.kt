@@ -118,9 +118,12 @@ class AppPreferences @Inject constructor(
     
     fun getStatusFilter(): Set<TaskStatus> {
         val saved = prefs.getStringSet(KEY_STATUS_FILTER, null)
+        // Пусто — «Все». Раньше пустой выбор читался как набор по умолчанию
+        // (новые/в работе/отменённые): «Все» не переживало перезапуск, а
+        // кнопка фильтров горела без выбранного чипа. Завершённые и так
+        // скрывает отдельная настройка (hideDoneTasks, по умолчанию да).
         return if (saved.isNullOrEmpty()) {
-            // По умолчанию скрываем выполненные задачи
-            setOf(TaskStatus.NEW, TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED)
+            emptySet()
         } else {
             saved.mapNotNull { 
                 try { TaskStatus.fromString(it) } catch (e: Exception) { null }
@@ -237,7 +240,7 @@ class AppPreferences @Inject constructor(
     fun resetToDefaults() {
         prefs.edit().clear().apply()
         _serverUrl.value = DEFAULT_SERVER_URL
-        _statusFilter.value = setOf(TaskStatus.NEW, TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED)
+        _statusFilter.value = emptySet()
         _priorityFilter.value = emptySet()
         _hideDoneTasks.value = true
         _showMyLocation.value = true
