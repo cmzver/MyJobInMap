@@ -523,6 +523,40 @@ class TestConversationManagementWebSocket:
             lambda token, db=None: token_map.get(token),
         )
 
+    def test_ws_does_not_hold_db_transaction(
+        self, client, auth_headers, second_user, db_session, monkeypatch
+    ):
+        """Открытый WebSocket не держит соединение пула: после входа, typing и
+        отметки прочтения транзакция сессии завершена. Чужой чат в chat_read
+        не рвёт соединение."""
+        from app.services.auth import create_access_token
+
+        conv_id = client.post(
+            "/api/chat/conversations",
+            json={"type": "direct", "member_user_ids": [second_user.id]},
+            headers=auth_headers,
+        ).json()["id"]
+        token = create_access_token(
+            {
+                "sub": second_user.username,
+                "user_id": second_user.id,
+                "auth_version": second_user.auth_version,
+            }
+        )
+
+        with client.websocket_connect(f"/ws?token={token}") as ws:
+            ws.send_json({"type": "ping"})
+            assert ws.receive_json() == {"type": "pong"}
+            assert not db_session.in_transaction()
+
+            ws.send_json({"type": "chat_typing", "conversation_id": conv_id})
+            ws.send_json(
+                {"type": "chat_read", "conversation_id": 999999, "last_message_id": 1}
+            )
+            ws.send_json({"type": "ping"})
+            assert ws.receive_json() == {"type": "pong"}
+            assert not db_session.in_transaction()
+
     def test_ws_receives_conversation_renamed(
         self, client, auth_headers, second_user, monkeypatch
     ):
