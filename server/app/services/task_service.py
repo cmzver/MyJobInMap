@@ -246,6 +246,42 @@ class TaskService:
 
         return best_candidate
 
+    def link_tasks_to_address(self, address: AddressModel) -> int:
+        """
+        Привязать к дому из базы его непривязанные заявки той же организации:
+        улица и дом совпадают, город и корпус не противоречат (как при
+        создании заявки). Заявки получают точку дома. Возвращает число
+        привязанных — по ним карточка дома и строит историю.
+        """
+        street = address.street or parse_address(address.address or "").street
+        # Отбор по слову улицы, как в match_address_book; точность — ниже
+        street_words = re.findall(r"[^\W\d_]{3,}", street_name(street or ""))
+        if not street_words:
+            return 0
+        street_word = max(street_words, key=len)
+        query = self.db.query(TaskModel).filter(
+            TaskModel.address_id.is_(None),
+            TaskModel.raw_address.ilike(f"%{street_word}%"),
+        )
+        if address.organization_id is None:
+            query = query.filter(TaskModel.organization_id.is_(None))
+        else:
+            query = query.filter(TaskModel.organization_id == address.organization_id)
+
+        use_point = has_valid_task_coordinates(address.lat, address.lon)
+        linked = 0
+        for task in query.all():
+            raw = task.raw_address or ""
+            parsed = parse_address(raw)
+            normalized = geocoding_service.normalize_address(raw).lower()
+            if _address_match_score(parsed, normalized, address) <= 0:
+                continue
+            task.address_id = address.id
+            if use_point:
+                task.lat, task.lon = address.lat, address.lon
+            linked += 1
+        return linked
+
     def get_by_id(self, task_id: int) -> TaskModel:
         """
         Получить заявку по ID.

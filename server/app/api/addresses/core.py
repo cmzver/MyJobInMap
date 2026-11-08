@@ -36,7 +36,7 @@ from app.services.address_parser import (
 )
 from app.services.auth import get_current_dispatcher_or_admin, get_current_user_required
 from app.services.geocoding import geocoding_service
-from app.services.task_service import _address_match_score
+from app.services.task_service import TaskService, _address_match_score
 from app.services.tenant_filter import TenantFilter
 
 router = APIRouter(prefix="/api/addresses", tags=["Addresses"])
@@ -373,6 +373,9 @@ def create_address(
     tenant.set_org_id(address)
 
     db.add(address)
+    db.flush()
+    # Заявки, заведённые до дома в базе, — к нему: история и точка дома
+    TaskService(db).link_tasks_to_address(address)
     db.commit()
     db.refresh(address)
 
@@ -446,6 +449,8 @@ def update_address(
             {TaskModel.lat: address.lat, TaskModel.lon: address.lon},
             synchronize_session=False,
         )
+    if "address" in update_data:
+        TaskService(db).link_tasks_to_address(address)
 
     db.commit()
     db.refresh(address)
