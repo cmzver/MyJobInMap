@@ -63,7 +63,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -259,8 +258,9 @@ private fun AvatarBlock(
                     Text(
                         text = initials,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        // Инициалы в большом аватаре — заголовочный стиль шкалы
+                        style = MaterialTheme.typography.displayLarge,
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 40.sp,
                     )
                 } else {
                     Icon(

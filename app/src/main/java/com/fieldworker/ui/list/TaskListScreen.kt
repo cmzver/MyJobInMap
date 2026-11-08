@@ -913,7 +913,7 @@ fun TaskDetailContent(
                         showDatePicker = false
                     }
                 ) {
-                    Text("Применить")
+                    Text("Готово")
                 }
             },
             dismissButton = {

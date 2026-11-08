@@ -468,8 +468,8 @@ private fun TaskStatsCard(stats: AddressTaskStats) {
         ) {
             StatPill("Новые", stats.newCount, TaskStatus.NEW, Modifier.weight(1f))
             StatPill("В работе", stats.inProgress, TaskStatus.IN_PROGRESS, Modifier.weight(1f))
-            StatPill("Готово", stats.done, TaskStatus.DONE, Modifier.weight(1f))
-            StatPill("Отменено", stats.cancelled, TaskStatus.CANCELLED, Modifier.weight(1f))
+            StatPill("Выполненные", stats.done, TaskStatus.DONE, Modifier.weight(1f))
+            StatPill("Отменённые", stats.cancelled, TaskStatus.CANCELLED, Modifier.weight(1f))
         }
     }
 }
