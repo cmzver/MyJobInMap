@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(
         default=30, description="Время жизни refresh токена в днях (30д)"
     )
+    REFRESH_REUSE_GRACE_SECONDS: int = Field(
+        default=30,
+        description=(
+            "Окно после ротации refresh токена, в котором его повтор (параллельное "
+            "обновление с телефона) не считается кражей и не гасит цепочку"
+        ),
+    )
 
     OUTBOX_ENABLED: bool = Field(
         default=True, description="Доставка сохранённых событий после коммита"
