@@ -9,7 +9,7 @@ Acts API
 """
 
 import json
-from datetime import date, datetime, time, timedelta
+from datetime import date, timedelta
 from typing import List, Optional
 from urllib.parse import quote
 
@@ -73,6 +73,7 @@ from app.services.act_service import (
     issue_public_link,
     scan_path,
 )
+from app.services.business_time import local_day_end_utc
 from app.services.idempotency import IdempotencyKey, cached_response, stage_response
 from app.services.public_url import public_base_url
 from app.services.role_utils import is_worker_user
@@ -400,15 +401,15 @@ def _filtered_acts(
     query = _visible_acts(db, user)
     if status:
         query = query.filter(ActModel.status.in_(status))
+    # Дни — по календарю бизнеса, created_at — наивное UTC: без перевода акт,
+    # выпущенный 1-го числа до 03:00 по Москве, попадал в прошлый месяц
+    # (реестр, сводка денег, архив за месяц).
     if date_from is not None:
         query = query.filter(
-            ActModel.created_at >= datetime.combine(date_from, time.min)
+            ActModel.created_at >= local_day_end_utc(date_from - timedelta(days=1))
         )
     if date_to is not None:
-        query = query.filter(
-            ActModel.created_at
-            < datetime.combine(date_to + timedelta(days=1), time.min)
-        )
+        query = query.filter(ActModel.created_at < local_day_end_utc(date_to))
     if search and search.strip():
         pattern = f"%{search.strip()}%"
         query = query.filter(

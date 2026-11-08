@@ -57,8 +57,8 @@ class TaskAccess:
 
 def require_task_access(
     permission: str,
-    detail: str = "Permission denied",
-    worker_detail: str = "Access denied",
+    detail: str = "Недостаточно прав для этого действия",
+    worker_detail: str = "Нет доступа к этой заявке",
 ) -> Callable:
     # Сначала вход, потом поиск заявки: иначе без токена по 404/401 видно,
     # какие номера заявок существуют. FastAPI решает зависимости по порядку.

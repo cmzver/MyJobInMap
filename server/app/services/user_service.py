@@ -13,6 +13,7 @@ from decimal import Decimal
 from typing import List
 
 from fastapi import Depends
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import TaskModel, UserModel, UserRole, get_db
@@ -315,9 +316,20 @@ class UserService:
                 "Сначала спишите остатки материалов пользователя или деактивируйте его",
                 409,
             )
+        username = user.username
         self.db.delete(user)
-        self.db.commit()
-        audit_user_deleted(actor.id, actor.username, user_id, user.username)
+        try:
+            self.db.commit()
+        except IntegrityError:
+            # На пользователя ссылаются его сообщения, комментарии, акты и т.п. —
+            # удаление сломало бы историю. Отвечаем понятно вместо 500.
+            self.db.rollback()
+            raise UserServiceError(
+                "У пользователя есть история работы (комментарии, сообщения, "
+                "документы) — удалить нельзя, деактивируйте его",
+                409,
+            )
+        audit_user_deleted(actor.id, actor.username, user_id, username)
 
 
 def get_user_service(db: Session = Depends(get_db)) -> UserService:

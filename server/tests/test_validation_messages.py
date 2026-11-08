@@ -58,3 +58,10 @@ def test_api_422_is_readable(client_with_auth):
     fields = {item["field"] for item in body["details"]}
     assert "title" in fields
     assert all("Field required" not in item["message"] for item in body["details"])
+
+
+def test_permission_403_is_in_russian(client_with_worker):
+    """Отказ по праву без своего текста — тоже по-русски, а не «Permission denied»."""
+    response = client_with_worker.delete("/api/tasks/1")
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Недостаточно прав для этого действия"

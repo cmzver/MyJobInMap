@@ -186,6 +186,43 @@ class TestAdminUsers:
         deleted_user = db_session.get(UserModel, user_id)
         assert deleted_user is None
 
+    def test_delete_user_with_history_is_409_not_500(
+        self, client: TestClient, auth_headers: dict, db_session: Session
+    ):
+        """Сообщения и комментарии ссылаются на пользователя: удаление сломало
+        бы историю — понятный 409, пользователь остаётся."""
+        from sqlalchemy import text
+
+        from app.models import CommentModel
+        from app.services.auth import get_password_hash
+
+        if db_session.bind.dialect.name == "sqlite":
+            # В тестовой SQLite внешние ключи по умолчанию не проверяются
+            db_session.execute(text("PRAGMA foreign_keys=ON"))
+        user = UserModel(
+            username="withhistory",
+            password_hash=get_password_hash("pass123"),
+            full_name="With History",
+            role=UserRole.WORKER.value,
+        )
+        db_session.add(user)
+        db_session.commit()
+        task = TaskModel(title="t", raw_address="a", status="NEW", priority="CURRENT")
+        db_session.add(task)
+        db_session.commit()
+        db_session.add(
+            CommentModel(task_id=task.id, text="x", author="W", author_id=user.id)
+        )
+        db_session.commit()
+        user_id = user.id
+
+        response = client.delete(f"/api/admin/users/{user_id}", headers=auth_headers)
+
+        assert response.status_code == 409
+        assert "деактивируйте" in response.json()["detail"]
+        db_session.expire_all()
+        assert db_session.get(UserModel, user_id) is not None
+
     def test_delete_self_fails(
         self, client: TestClient, auth_headers: dict, admin_user: UserModel
     ):

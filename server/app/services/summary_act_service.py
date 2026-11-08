@@ -289,6 +289,16 @@ def issue_summary_act(
     number = next_act_number(
         db, organization_id, issued_at.astimezone(business_tz()).year, prefix
     )
+    # Счётчик номеров заблокирован до коммита: параллельный выпуск за тот же
+    # месяц (двойной клик, две вкладки) ждал здесь и уже прошёл проверку выше.
+    # Перепроверяем под блокировкой — иначе за месяц выходило два акта.
+    current = existing_summary_act(db, counterparty, month)
+    if (current.id if current else None) != (existing.id if existing else None):
+        raise ActServiceError(
+            f"За {period_label(first)} акт № {current.number} только что выпущен "
+            "другим запросом — обновите страницу",
+            409,
+        )
     snapshot = _counterparty_snapshot(counterparty)
     signer = snapshot.get("signer_name")
     content = {

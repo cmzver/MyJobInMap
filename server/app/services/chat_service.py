@@ -57,6 +57,18 @@ logger = logging.getLogger(__name__)
 _ROLE_LABELS = {"admin": "администратор", "member": "участник", "owner": "владелец"}
 
 
+def _same_tenant(db: Session, actor_id: int, other: UserModel) -> bool:
+    """Собеседник из той же организации, что и инициатор (суперадмин — любой).
+
+    Без этого сотрудник одной организации мог написать сотруднику другой или
+    добавить его в свой групповой чат — и увидеть его имя и логин.
+    """
+    from app.services.tenant_filter import TenantFilter
+
+    actor = db.get(UserModel, actor_id)
+    return actor is not None and TenantFilter(actor).check_access(other)
+
+
 def create_conversation(
     db: Session,
     conv_type: str,
@@ -82,7 +94,7 @@ def create_conversation(
             .filter(UserModel.id == other_id, UserModel.is_active == True)
             .first()
         )  # noqa: E712
-        if not other:
+        if not other or not _same_tenant(db, creator_id, other):
             raise HTTPException(404, "Пользователь не найден")
         # Idempotent: проверяем существующий direct-чат
         existing = _find_direct_conversation(db, creator_id, other_id)
@@ -151,7 +163,7 @@ def create_conversation(
             .filter(UserModel.id == uid, UserModel.is_active == True)
             .first()
         )  # noqa: E712
-        if user:
+        if user and _same_tenant(db, creator_id, user):
             db.add(
                 ConversationMemberModel(
                     conversation_id=conv.id,
@@ -474,7 +486,7 @@ def add_members(
             .filter(UserModel.id == uid, UserModel.is_active == True)
             .first()
         )  # noqa: E712
-        if user:
+        if user and _same_tenant(db, added_by, user):
             db.add(
                 ConversationMemberModel(
                     conversation_id=conv_id,

@@ -8,8 +8,10 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import distinct, func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.api.addresses.extended import detach_tasks_from_systems
 from app.models import AddressAssigneeModel, AddressModel, CounterpartyModel, get_db
 from app.models.task import TaskModel
 from app.models.user import UserModel
@@ -373,7 +375,12 @@ def create_address(
     tenant.set_org_id(address)
 
     db.add(address)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        # Параллельный запрос успел завести тот же адрес
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Адрес уже существует в базе")
     # Заявки, заведённые до дома в базе, — к нему: история и точка дома
     TaskService(db).link_tasks_to_address(address)
     db.commit()
@@ -450,6 +457,11 @@ def update_address(
             synchronize_session=False,
         )
     if "address" in update_data:
+        try:
+            db.flush()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(status_code=400, detail="Такой адрес уже существует")
         TaskService(db).link_tasks_to_address(address)
 
     db.commit()
@@ -467,6 +479,7 @@ def delete_address(
     """Удалить адрес (только admin/dispatcher)"""
     address = get_tenant_address_or_404(address_id, db, user)
 
+    detach_tasks_from_systems(db, [system.id for system in address.systems])
     db.delete(address)
     db.commit()
 

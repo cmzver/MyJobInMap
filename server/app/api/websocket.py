@@ -11,7 +11,14 @@ import logging
 import time
 
 import jwt
-from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.concurrency import run_in_threadpool
 from jwt import PyJWTError as JWTError
 from sqlalchemy.orm import Session
@@ -62,6 +69,20 @@ redis_realtime.register_invalidator(MEMBERS_CACHE, _invalidate_members)
 
 
 logger = logging.getLogger(__name__)
+
+
+def _released(db: Session, fn, *args):
+    """Выполнить работу с БД и сразу завершить транзакцию сессии.
+
+    Сессия WebSocket живёт столько же, сколько соединение. Незавершённая
+    транзакция держала бы соединение пула всё это время («idle in transaction»):
+    несколько десятков открытых порталов и телефонов исчерпали бы пул, и обычные
+    HTTP-запросы ждали бы свободного соединения до таймаута.
+    """
+    try:
+        return fn(*args)
+    finally:
+        db.rollback()
 
 
 def _authenticate_websocket_user(
@@ -123,7 +144,9 @@ async def websocket_endpoint(
     ```
     """
     # Аутентификация по JWT
-    auth_context = _authenticate_websocket_user(token, db)
+    auth_context = await run_in_threadpool(
+        _released, db, _authenticate_websocket_user, token, db
+    )
     if auth_context is None:
         await websocket.close(code=4001, reason="Invalid or missing token")
         return
@@ -147,7 +170,7 @@ async def websocket_endpoint(
                 conv_id = data.get("conversation_id")
                 if conv_id:
                     member_ids = await run_in_threadpool(
-                        _get_conversation_member_ids_cached, db, conv_id
+                        _released, db, _get_conversation_member_ids_cached, db, conv_id
                     )
                     if user_id not in member_ids:
                         continue
@@ -168,9 +191,19 @@ async def websocket_endpoint(
                 conv_id = data.get("conversation_id")
                 last_message_id = data.get("last_message_id")
                 if conv_id and last_message_id:
-                    await run_in_threadpool(
-                        mark_as_read, db, conv_id, user_id, last_message_id
-                    )
+                    try:
+                        await run_in_threadpool(
+                            _released,
+                            db,
+                            mark_as_read,
+                            db,
+                            conv_id,
+                            user_id,
+                            last_message_id,
+                        )
+                    except HTTPException:
+                        # Не участник чата — игнорируем, соединение не рвём
+                        continue
     except WebSocketDisconnect:
         pass
     except Exception as e:

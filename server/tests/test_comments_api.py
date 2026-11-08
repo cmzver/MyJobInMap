@@ -94,6 +94,59 @@ class TestAddComment:
         data = response.json()
         assert len(data["text"]) == 500
 
+    def test_parallel_retry_with_same_key_returns_first_response(
+        self,
+        client: TestClient,
+        admin_token: str,
+        admin_user,
+        test_task,
+        db_session: Session,
+        monkeypatch,
+    ):
+        """Повтор с тем же Idempotency-Key, пока первый запрос ещё не закоммитил
+        ответ: проверка ключа в начале его не видит, коммит упирается в
+        уникальность ключа. Нужен ответ первого запроса, а не 500 и не дубль."""
+        import json
+
+        from app.api.tasks import comments as comments_api
+        from app.models.idempotency import IdempotencyKeyModel
+
+        scope = f"comment:{test_task.id}"
+        first = {"id": 777, "task_id": test_task.id, "text": "первый"}
+        db_session.add(
+            IdempotencyKeyModel(
+                user_id=admin_user.id,
+                key="retry-1",
+                scope=scope,
+                status_code=200,
+                response_json=json.dumps(first, ensure_ascii=False),
+            )
+        )
+        db_session.commit()
+
+        real = comments_api.cached_response
+        calls = {"n": 0}
+
+        def racing_cached_response(*args, **kwargs):
+            calls["n"] += 1
+            # Первая проверка — до коммита параллельного запроса
+            return None if calls["n"] == 1 else real(*args, **kwargs)
+
+        monkeypatch.setattr(comments_api, "cached_response", racing_cached_response)
+
+        response = client.post(
+            f"/api/tasks/{test_task.id}/comments",
+            json={"text": "повтор"},
+            headers={
+                "Authorization": f"Bearer {admin_token}",
+                "Idempotency-Key": "retry-1",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json() == first
+        assert db_session.query(CommentModel).filter_by(text="повтор").count() == 0
+
 
 class TestGetComments:
     """Тесты получения комментариев."""

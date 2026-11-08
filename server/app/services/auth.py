@@ -355,7 +355,9 @@ def check_permission(db: Session, user: UserModel, permission: str) -> bool:
     return False
 
 
-def require_permission(permission: str, detail: str = "Permission denied") -> Callable:
+def require_permission(
+    permission: str, detail: str = "Недостаточно прав для этого действия"
+) -> Callable:
     """Return a dependency that enforces a single permission."""
 
     def _dependency(
@@ -395,7 +397,7 @@ def create_default_users(db: Session):
 
 
 def enforce_worker_task_access(
-    user: UserModel, task: TaskModel, detail: str = "Access denied"
+    user: UserModel, task: TaskModel, detail: str = "Нет доступа к этой заявке"
 ) -> None:
     """Raise 403 if a user tries to access a task outside their tenant or worker scope."""
     from app.services.tenant_filter import TenantFilter

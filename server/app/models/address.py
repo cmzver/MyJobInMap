@@ -20,6 +20,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -127,13 +128,24 @@ class AddressModel(Base):
     """������ ������ � ���� ������"""
 
     __tablename__ = "addresses"
+    __table_args__ = (
+        # Один и тот же дом могут обслуживать разные организации: адрес
+        # уникален в пределах организации, а не во всей базе.
+        Index("uq_addresses_org_address", "organization_id", "address", unique=True),
+        # Записи без организации (одноорганизационный режим) — как раньше.
+        Index(
+            "uq_addresses_address_no_org",
+            "address",
+            unique=True,
+            postgresql_where=text("organization_id IS NULL"),
+            sqlite_where=text("organization_id IS NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
 
     # �������� ����������
-    address: Mapped[str] = mapped_column(
-        String(500), nullable=False, index=True, unique=True
-    )
+    address: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
     city: Mapped[str] = mapped_column(String(100), nullable=True, default="")  # �����
     street: Mapped[str] = mapped_column(String(200), nullable=True, default="")  # �����
     building: Mapped[str] = mapped_column(

@@ -523,6 +523,40 @@ class TestConversationManagementWebSocket:
             lambda token, db=None: token_map.get(token),
         )
 
+    def test_ws_does_not_hold_db_transaction(
+        self, client, auth_headers, second_user, db_session, monkeypatch
+    ):
+        """Открытый WebSocket не держит соединение пула: после входа, typing и
+        отметки прочтения транзакция сессии завершена. Чужой чат в chat_read
+        не рвёт соединение."""
+        from app.services.auth import create_access_token
+
+        conv_id = client.post(
+            "/api/chat/conversations",
+            json={"type": "direct", "member_user_ids": [second_user.id]},
+            headers=auth_headers,
+        ).json()["id"]
+        token = create_access_token(
+            {
+                "sub": second_user.username,
+                "user_id": second_user.id,
+                "auth_version": second_user.auth_version,
+            }
+        )
+
+        with client.websocket_connect(f"/ws?token={token}") as ws:
+            ws.send_json({"type": "ping"})
+            assert ws.receive_json() == {"type": "pong"}
+            assert not db_session.in_transaction()
+
+            ws.send_json({"type": "chat_typing", "conversation_id": conv_id})
+            ws.send_json(
+                {"type": "chat_read", "conversation_id": 999999, "last_message_id": 1}
+            )
+            ws.send_json({"type": "ping"})
+            assert ws.receive_json() == {"type": "pong"}
+            assert not db_session.in_transaction()
+
     def test_ws_receives_conversation_renamed(
         self, client, auth_headers, second_user, monkeypatch
     ):
@@ -1530,3 +1564,138 @@ class TestSendMessageWithAttachment:
             headers=auth_headers,
         )
         assert resp.status_code == 404
+
+
+# ============================================================================
+# Изоляция организаций
+# ============================================================================
+
+
+class TestChatTenantIsolation:
+    """Чаты не должны связывать сотрудников разных организаций."""
+
+    @pytest.fixture
+    def two_orgs(self, client, db_session):
+        from app.models import (
+            OrganizationModel,
+            RolePermissionModel,
+            TaskModel,
+            UserModel,
+            UserRole,
+        )
+        from app.services.auth import get_password_hash
+
+        org1 = OrganizationModel(name="Org One", slug="chat-org-one")
+        org2 = OrganizationModel(name="Org Two", slug="chat-org-two")
+        db_session.add_all([org1, org2])
+        db_session.commit()
+
+        def make(username, role, org):
+            user = UserModel(
+                username=username,
+                password_hash=get_password_hash("pass123"),
+                full_name=username,
+                role=role,
+                is_active=True,
+                organization_id=org.id,
+            )
+            db_session.add(user)
+            db_session.commit()
+            db_session.refresh(user)
+            return user
+
+        users = {
+            "disp1": make("chatdisp1", UserRole.DISPATCHER.value, org1),
+            "worker1": make("chatworker1", UserRole.WORKER.value, org1),
+            "other1": make("chatother1", UserRole.WORKER.value, org1),
+            "disp2": make("chatdisp2", UserRole.DISPATCHER.value, org2),
+        }
+        task1 = TaskModel(
+            title="Org1 task",
+            raw_address="Addr",
+            status="NEW",
+            priority="CURRENT",
+            organization_id=org1.id,
+            assigned_user_id=users["worker1"].id,
+        )
+        task2 = TaskModel(
+            title="Org2 task",
+            raw_address="Addr",
+            status="NEW",
+            priority="CURRENT",
+            organization_id=org2.id,
+        )
+        db_session.add_all([task1, task2])
+        for role in ("worker", "dispatcher"):
+            db_session.add(
+                RolePermissionModel(role=role, permission="view_tasks", is_allowed=True)
+            )
+        db_session.commit()
+
+        def headers(key):
+            resp = client.post(
+                "/api/auth/login",
+                data={"username": users[key].username, "password": "pass123"},
+            )
+            assert resp.status_code == 200
+            return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+        return users, task1, task2, headers
+
+    def test_direct_chat_with_foreign_org_user_404(self, client, two_orgs):
+        users, _, _, headers = two_orgs
+        resp = client.post(
+            "/api/chat/conversations",
+            json={"type": "direct", "member_user_ids": [users["disp2"].id]},
+            headers=headers("disp1"),
+        )
+        assert resp.status_code == 404
+
+    def test_group_and_add_members_skip_foreign_org_users(
+        self, client, two_orgs, db_session
+    ):
+        from app.models.chat import ConversationMemberModel
+
+        users, _, _, headers = two_orgs
+        h = headers("disp1")
+        resp = client.post(
+            "/api/chat/conversations",
+            json={
+                "type": "group",
+                "name": "Бригада",
+                "member_user_ids": [users["worker1"].id, users["disp2"].id],
+            },
+            headers=h,
+        )
+        assert resp.status_code == 200
+        conv_id = resp.json()["id"]
+        client.post(
+            f"/api/chat/conversations/{conv_id}/members",
+            json={"user_ids": [users["disp2"].id]},
+            headers=h,
+        )
+        member_ids = {
+            row.user_id
+            for row in db_session.query(ConversationMemberModel).filter_by(
+                conversation_id=conv_id
+            )
+        }
+        assert member_ids == {users["disp1"].id, users["worker1"].id}
+
+    def test_cannot_create_chat_for_foreign_org_task(self, client, two_orgs):
+        _, _, task2, headers = two_orgs
+        h = headers("disp1")
+        resp = client.post(
+            "/api/chat/conversations",
+            json={"type": "task", "task_id": task2.id},
+            headers=h,
+        )
+        assert resp.status_code == 403
+        assert client.get(f"/api/chat/task/{task2.id}", headers=h).status_code == 403
+
+    def test_worker_cannot_join_chat_of_unassigned_task(self, client, two_orgs):
+        _, task1, _, headers = two_orgs
+        ok = client.get(f"/api/chat/task/{task1.id}", headers=headers("worker1"))
+        assert ok.status_code == 200
+        resp = client.get(f"/api/chat/task/{task1.id}", headers=headers("other1"))
+        assert resp.status_code == 403
