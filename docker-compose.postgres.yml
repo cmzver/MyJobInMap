@@ -29,8 +29,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-fieldworker}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fieldworker_secret}
       POSTGRES_DB: ${POSTGRES_DB:-fieldworker_db}
+    # Только с самого сервера (контейнеры ходят по сети compose): Docker
+    # публикует порты в обход ufw, и «5432:5432» открывал базу в интернет.
+    # Подключиться снаружи — через SSH-туннель: ssh -L 5432:127.0.0.1:5432
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
