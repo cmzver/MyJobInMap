@@ -221,6 +221,9 @@ export function useUpdateTaskStatus() {
       queryClient.invalidateQueries({ queryKey: taskKeys.detail(id) })
       queryClient.invalidateQueries({ queryKey: taskKeys.lists() })
       queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
+      // Сервер пишет смену статуса комментарием — из них строится история
+      // заявки; WS-событие автору не приходит, поэтому перечитываем сами
+      queryClient.invalidateQueries({ queryKey: commentKeys.list(id) })
     },
   })
 }
@@ -265,6 +268,8 @@ export function useAssignTask() {
       queryClient.invalidateQueries({ queryKey: taskKeys.detail(id) })
       queryClient.invalidateQueries({ queryKey: taskKeys.lists() })
       queryClient.invalidateQueries({ queryKey: myTaskKeys.all })
+      // Смена исполнителя — тоже запись в истории (комментарий)
+      queryClient.invalidateQueries({ queryKey: commentKeys.list(id) })
     },
   })
 }
