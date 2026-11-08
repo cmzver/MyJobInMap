@@ -191,7 +191,7 @@ function ThresholdsSection({ overview }: { overview: ReturnType<typeof useSecuri
         )}
 
         <div className="border-t border-gray-100 pt-3 dark:border-gray-800">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          <p className="eyebrow mb-2">
             Заблокированные IP
           </p>
           <BlockForm />
@@ -201,7 +201,7 @@ function ThresholdsSection({ overview }: { overview: ReturnType<typeof useSecuri
         </div>
 
         <div className="border-t border-gray-100 pt-3 dark:border-gray-800">
-          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          <p className="eyebrow mb-2 flex items-center gap-1.5">
             <Globe className="h-3.5 w-3.5" />
             Белый список
           </p>
@@ -209,7 +209,7 @@ function ThresholdsSection({ overview }: { overview: ReturnType<typeof useSecuri
         </div>
 
         <div className="border-t border-gray-100 pt-3 dark:border-gray-800">
-          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          <p className="eyebrow mb-2 flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5" />
             Последние события
           </p>

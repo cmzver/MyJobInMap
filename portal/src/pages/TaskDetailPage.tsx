@@ -96,7 +96,7 @@ function CollapsibleCard({ title, meta, defaultOpen = false, children }: Collaps
         <div className="flex min-h-10 cursor-pointer items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-1 transition-colors group-open:rounded-b-none dark:border-gray-700 dark:bg-gray-800">
           <div className="flex items-center gap-2">
             <ChevronDown className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180" />
-            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">{title}</span>
+            <span className="eyebrow">{title}</span>
           </div>
           {meta != null && meta !== '' && <div className="text-xs text-gray-500 dark:text-gray-400">{meta}</div>}
         </div>

@@ -906,7 +906,7 @@ export default function ChatPage() {
           {debouncedConvSearchQuery.length >= 2 && (
             <div className="border-t border-gray-200 px-2.5 pt-2 dark:border-gray-700">
               <div className="flex items-center justify-between px-1.5 pb-1.5">
-                <span className="text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                <span className="eyebrow">
                   Сообщения
                 </span>
                 {isGlobalSearching && <Spinner size="sm" />}

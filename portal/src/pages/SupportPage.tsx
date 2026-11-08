@@ -283,11 +283,9 @@ export default function SupportPage() {
                   </p>
 
                   {ticket.admin_response && (
-                    <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-900/60 dark:bg-emerald-950/20">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-300">
-                        Ответ поддержки
-                      </div>
-                      <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm leading-5 text-emerald-900 dark:text-emerald-100">
+                    <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900/40">
+                      <div className="eyebrow">Ответ поддержки</div>
+                      <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm leading-5 text-gray-800 dark:text-gray-200">
                         {ticket.admin_response}
                       </p>
                     </div>
@@ -368,7 +366,7 @@ function ContactRow({
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">
+        <div className="eyebrow">
           {label}
         </div>
         <div className="mt-0.5 break-all text-sm font-medium text-gray-900 dark:text-white">{value}</div>

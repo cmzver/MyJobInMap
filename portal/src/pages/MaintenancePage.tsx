@@ -228,7 +228,7 @@ export default function MaintenancePage() {
                 )
               })}
               <tr className="bg-gray-50 dark:bg-gray-800/60">
-                <td className="text-xs font-semibold uppercase tracking-wide text-gray-500">Итого</td>
+                <td className="eyebrow">Итого</td>
                 {grid.data.totals.map((cell) => (
                   <td key={cell.month} className="text-center"><CellMarks cell={cell} /></td>
                 ))}

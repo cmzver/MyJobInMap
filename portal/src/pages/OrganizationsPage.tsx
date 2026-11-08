@@ -873,7 +873,7 @@ function CredentialRow({
 }) {
   return (
     <div className={`grid gap-1 rounded-lg border px-3 py-2 ${highlight ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/60 dark:bg-emerald-950/20' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/70'}`}>
-      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">{label}</span>
+      <span className="eyebrow">{label}</span>
       <span className={monospace ? 'break-all font-mono text-sm text-gray-900 dark:text-white' : 'text-sm text-gray-900 dark:text-white'}>
         {value}
       </span>
