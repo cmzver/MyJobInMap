@@ -7,6 +7,7 @@ import {
   DUE_FILTER_OPTIONS,
   PRIORITY_OPTIONS,
   REPEAT_FILTER_OPTIONS,
+  SORT_LABELS,
   STATUS_OPTIONS,
 } from '@/config/taskConstants'
 import type { TaskPriority, TaskSort, TaskStatus } from '@/types/task'
@@ -82,9 +83,9 @@ const groupOptions = [
 ]
 
 const sortOptions = [
-  { value: 'created_at_desc', label: 'Дата заявки: новые сверху' },
-  { value: 'created_at_asc', label: 'Дата заявки: старые сверху' },
-  { value: 'due_at_asc', label: 'Срок: горящие сверху' },
+  { value: 'created_at_desc', label: SORT_LABELS.newest },
+  { value: 'created_at_asc', label: SORT_LABELS.oldest },
+  { value: 'due_at_asc', label: SORT_LABELS.due },
 ]
 
 const quickButtonClass = (active: boolean) => `h-9 flex-shrink-0 rounded-lg border px-3 text-sm font-medium transition-colors ${

@@ -11,6 +11,7 @@ import { useAuthStore } from '@/store/authStore'
 import { fetchAllTaskPages } from '@/api/tasks'
 import { myTaskKeys } from '@/hooks/useTasks'
 import { Task } from '@/types/task'
+import { PRIORITY_LABELS, SORT_LABELS, STATUS_LABELS, STATUS_OPTIONS } from '@/config/taskConstants'
 import { formatDatePretty as formatDate, formatDateShort } from '@/utils/dateFormat'
 import { cn } from '@/utils/cn'
 
@@ -25,26 +26,15 @@ const priorityOrder: Record<Task['priority'], number> = {
   PLANNED: 1,
 }
 
+// Полоса слева красная только у аварийной: синий/янтарный/зелёный заняты статусами.
 const priorityStripe: Record<Task['priority'], string> = {
   EMERGENCY: 'border-l-red-500',
-  URGENT: 'border-l-orange-500',
-  CURRENT: 'border-l-blue-500',
-  PLANNED: 'border-l-emerald-500',
+  URGENT: 'border-l-gray-300 dark:border-l-gray-600',
+  CURRENT: 'border-l-gray-200 dark:border-l-gray-700',
+  PLANNED: 'border-l-gray-200 dark:border-l-gray-700',
 }
 
-const priorityLabel: Record<Task['priority'], string> = {
-  EMERGENCY: 'Аварийная',
-  URGENT: 'Срочная',
-  CURRENT: 'Текущая',
-  PLANNED: 'Плановая',
-}
-
-const statusShort: Record<Task['status'], string> = {
-  NEW: 'Новая',
-  IN_PROGRESS: 'В работе',
-  DONE: 'Готово',
-  CANCELLED: 'Отменена',
-}
+const statusOptionLabel = (value: string) => STATUS_OPTIONS.find((option) => option.value === value)?.label ?? value
 
 // Заголовки часто приходят с префиксами вида "[1190557] " и "№1190557" —
 // номер мы и так показываем отдельно слева, поэтому вычищаем дубли.
@@ -94,18 +84,20 @@ export default function MyTasksPage() {
 
   const tasks = useMemo(() => data ?? [], [data])
 
-  const statusFilters: { value: StatusFilter; label: string; icon: LucideIcon }[] = [
-    { value: 'NEW', label: 'Новые', icon: Clock },
-    { value: 'IN_PROGRESS', label: 'В работе', icon: Navigation },
-    { value: 'DONE', label: 'Выполнено', icon: CheckCircle2 },
+  // «Все» первым, затем «Активные» и статусы — подписи из STATUS_OPTIONS.
+  const statusFilters: { value: VisibleStatusFilter; label: string; icon: LucideIcon }[] = [
     { value: 'all', label: 'Все', icon: Filter },
+    { value: 'default', label: 'Активные', icon: Filter },
+    { value: 'NEW', label: statusOptionLabel('NEW'), icon: Clock },
+    { value: 'IN_PROGRESS', label: statusOptionLabel('IN_PROGRESS'), icon: Navigation },
+    { value: 'DONE', label: statusOptionLabel('DONE'), icon: CheckCircle2 },
   ]
 
   const sortOptions = [
-    { value: 'priority_desc', label: 'Сначала срочные' },
-    { value: 'planned_date_asc', label: 'Ближайший срок' },
-    { value: 'created_at_desc', label: 'Сначала новые' },
-    { value: 'created_at_asc', label: 'Сначала старые' },
+    { value: 'priority_desc', label: SORT_LABELS.priority },
+    { value: 'planned_date_asc', label: SORT_LABELS.due },
+    { value: 'created_at_desc', label: SORT_LABELS.newest },
+    { value: 'created_at_asc', label: SORT_LABELS.oldest },
   ] as const
 
   const openNavigation = (lat?: number, lon?: number, address?: string) => {
@@ -129,6 +121,7 @@ export default function MyTasksPage() {
       NEW: tasks.filter((task) => task.status === 'NEW').length,
       IN_PROGRESS: tasks.filter((task) => task.status === 'IN_PROGRESS').length,
       DONE: tasks.filter((task) => task.status === 'DONE').length,
+      default: tasks.filter((task) => task.status === 'NEW' || task.status === 'IN_PROGRESS').length,
       all: tasks.length,
     }),
     [tasks]
@@ -234,23 +227,6 @@ export default function MyTasksPage() {
           <div className="space-y-2">
             <p className="text-sm font-medium text-gray-900 dark:text-white">Показывать</p>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setStatusFilter('default')}
-                className={cn(
-                  'inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors',
-                  statusFilter === 'default'
-                    ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
-                    : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700'
-                )}
-              >
-                <Filter size={16} />
-                <span>Активные</span>
-                <span className="text-xs opacity-80">
-                  {filterCounts.NEW + filterCounts.IN_PROGRESS}
-                </span>
-              </button>
-
               {statusFilters.map((filter) => {
                 const Icon = filter.icon
                 const isActive = statusFilter === filter.value
@@ -310,7 +286,7 @@ export default function MyTasksPage() {
             const hasNavigation = task.lat != null || task.lon != null || Boolean(task.raw_address)
             const taskNumber = task.task_number || String(task.id)
             const displayTitle = cleanTaskTitle(task.title, taskNumber)
-            const cardTitle = `${priorityLabel[task.priority]} · ${statusShort[task.status]} · №${taskNumber}`
+            const cardTitle = `${PRIORITY_LABELS[task.priority]} · ${STATUS_LABELS[task.status]} · №${taskNumber}`
 
             return (
               <div
@@ -323,7 +299,7 @@ export default function MyTasksPage() {
               >
                 <Link
                   to={`/tasks/${task.id}`}
-                  aria-label={`Открыть заявку №${taskNumber}, ${priorityLabel[task.priority]}, ${statusShort[task.status]}`}
+                  aria-label={`Открыть заявку №${taskNumber}, ${PRIORITY_LABELS[task.priority]}, ${STATUS_LABELS[task.status]}`}
                   className="absolute inset-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
 

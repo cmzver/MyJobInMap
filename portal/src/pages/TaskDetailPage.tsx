@@ -669,7 +669,7 @@ export default function TaskDetailPage() {
 
           <CollapsibleCard
             title="История адреса"
-            meta={addressHistory ? addressHistory.history.length : '...'}
+            meta={addressHistory ? addressHistory.history.length : '…'}
           >
             {addressHistory ? (
               <AddressHistoryList tasks={addressHistory.history} />
@@ -680,7 +680,7 @@ export default function TaskDetailPage() {
 
           <CollapsibleCard
             title="Фотографии"
-            meta={photosLoading ? '...' : `${photos.length} фото`}
+            meta={photosLoading ? '…' : `${photos.length} фото`}
           >
             <div className="flex flex-wrap items-center gap-2 mb-4">
               <select
@@ -748,7 +748,7 @@ export default function TaskDetailPage() {
                       />
                     ) : (
                       <div className="flex aspect-square w-full items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-500 dark:bg-gray-700">
-                        {isLoadingPhotoUrls ? 'Загрузка...' : 'Нет доступа'}
+                        {isLoadingPhotoUrls ? 'Загрузка…' : 'Нет доступа'}
                       </div>
                     )}
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors rounded-lg" />
@@ -776,7 +776,7 @@ export default function TaskDetailPage() {
           {/* History */}
           <CollapsibleCard
             title="История изменений"
-            meta={commentsLoading ? '...' : `${historyEvents.length}`}
+            meta={commentsLoading ? '…' : `${historyEvents.length}`}
           >
             {commentsLoading ? (
               <div className="flex justify-center py-6">
@@ -916,7 +916,7 @@ export default function TaskDetailPage() {
                     type="text"
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
-                    placeholder="Добавить комментарий..."
+                    placeholder="Добавить комментарий…"
                     className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
                     disabled={addCommentMutation.isPending}

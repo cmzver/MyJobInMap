@@ -324,7 +324,7 @@ export default function SupportTicketDetailPage() {
                   disabled={!isDirty}
                 >
                   <CheckCircle2 className="mr-2 h-4 w-4" />
-                  Сохранить изменения
+                  Сохранить
                 </Button>
               </div>
             </Card>

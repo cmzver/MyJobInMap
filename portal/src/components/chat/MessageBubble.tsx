@@ -146,7 +146,7 @@ function ImageAttachmentPreview({
           'flex h-40 w-full items-center justify-center text-xs animate-pulse',
           isOwn ? 'bg-white/10 text-white/70' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300',
         )}>
-          Загрузка изображения...
+          Загрузка изображения…
         </div>
       )}
     </button>
@@ -440,7 +440,7 @@ function ImageAttachmentLightbox({
             disabled={isDownloading}
             className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
           >
-            {isDownloading ? 'Открытие...' : 'Открыть отдельно'}
+            {isDownloading ? 'Открытие…' : 'Открыть отдельно'}
           </button>
         </div>
 
@@ -469,7 +469,7 @@ function ImageAttachmentLightbox({
             </button>
           )}
           {isLoading && (
-            <div className="text-sm text-white/70">Загрузка изображения...</div>
+            <div className="text-sm text-white/70">Загрузка изображения…</div>
           )}
           {!isLoading && hasError && (
             <div className="text-sm text-white/70">Не удалось загрузить изображение</div>
@@ -787,7 +787,7 @@ function MessageBubble({
                         )}
                       >
                         {downloadingAttachmentId === att.id
-                          ? 'Открытие...'
+                          ? 'Открытие…'
                           : att.mime_type.startsWith('image/') || att.mime_type === 'application/pdf'
                             ? 'Открыть'
                             : 'Скачать'}

@@ -310,7 +310,7 @@ export default function UsersPage() {
         className="mb-6"
         title="Пользователи"
         description={
-          users ? `Всего: ${users.length} • групп: ${groupedUsers.length || 1}` : 'Загрузка...'
+          users ? `Всего: ${users.length} • групп: ${groupedUsers.length || 1}` : 'Загрузка…'
         }
         actions={
           <>

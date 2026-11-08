@@ -842,8 +842,8 @@ export default function OrganizationsPage() {
             <Button variant="ghost" onClick={handleCloseModal} type="button">
               Отмена
             </Button>
-            <Button type="submit" disabled={isMutating}>
-              {isMutating ? 'Сохранение...' : editingOrg ? 'Сохранить' : 'Создать'}
+            <Button type="submit" isLoading={isMutating}>
+              {editingOrg ? 'Сохранить' : 'Создать'}
             </Button>
           </div>
         </form>

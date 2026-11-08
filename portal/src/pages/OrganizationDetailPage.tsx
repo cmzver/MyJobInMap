@@ -535,8 +535,8 @@ export default function OrganizationDetailPage() {
             <Button variant="ghost" onClick={() => setShowEditModal(false)} type="button">
               Отмена
             </Button>
-            <Button type="submit" disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+            <Button type="submit" isLoading={updateMutation.isPending}>
+              Сохранить
             </Button>
           </div>
         </form>
@@ -625,8 +625,8 @@ export default function OrganizationDetailPage() {
               <Button variant="ghost" onClick={() => setShowAssignModal(false)} type="button">
                 Отмена
               </Button>
-              <Button type="submit" disabled={createUserMutation.isPending}>
-                {createUserMutation.isPending ? 'Создание...' : 'Создать'}
+              <Button type="submit" isLoading={createUserMutation.isPending}>
+                Создать
               </Button>
             </div>
           </form>
@@ -647,8 +647,8 @@ export default function OrganizationDetailPage() {
               <Button variant="ghost" onClick={() => setShowAssignModal(false)} type="button">
                 Отмена
               </Button>
-              <Button type="submit" disabled={assignMutation.isPending}>
-                {assignMutation.isPending ? 'Добавление...' : 'Добавить'}
+              <Button type="submit" isLoading={assignMutation.isPending}>
+                Добавить
               </Button>
             </div>
           </form>

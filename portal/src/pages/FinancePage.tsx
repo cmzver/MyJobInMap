@@ -161,22 +161,22 @@ export default function FinancePage() {
           <MetricCard
             icon={CheckCircle}
             label="Выполнено заявок"
-            value={statsLoading ? '...' : stats?.completed_tasks || 0}
+            value={statsLoading ? '…' : stats?.completed_tasks || 0}
           />
           <MetricCard
             icon={DollarSign}
             label="Платных заявок"
-            value={statsLoading ? '...' : stats?.paid_tasks || 0}
+            value={statsLoading ? '…' : stats?.paid_tasks || 0}
           />
           <MetricCard
             icon={Home}
             label="Удалённых заявок"
-            value={statsLoading ? '...' : stats?.remote_tasks || 0}
+            value={statsLoading ? '…' : stats?.remote_tasks || 0}
           />
           <MetricCard
             icon={TrendingUp}
             label="Общая сумма"
-            value={statsLoading ? '...' : formatCurrency(stats?.total_amount)}
+            value={statsLoading ? '…' : formatCurrency(stats?.total_amount)}
           />
         </div>
 

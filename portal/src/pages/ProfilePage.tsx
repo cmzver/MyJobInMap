@@ -297,7 +297,7 @@ export default function ProfilePage() {
               className="w-full"
             >
               <Save size={18} className="mr-2" />
-              Сохранить изменения
+              Сохранить
             </Button>
           </form>
         </Card>

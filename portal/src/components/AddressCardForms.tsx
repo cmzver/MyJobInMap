@@ -193,7 +193,7 @@ export function SystemForm({ system, onSubmit, onCancel, isLoading }: SystemForm
         label="Примечания"
         value={formData.notes}
         onChange={(e) => handleChange('notes', e.target.value)}
-        placeholder="Дополнительная информация о системе..."
+        placeholder="Дополнительная информация о системе…"
         rows={3}
       />
 
@@ -368,7 +368,7 @@ export function EquipmentForm({ equipment, systems, onSubmit, onCancel, isLoadin
         label="Примечания"
         value={formData.notes}
         onChange={(e) => handleChange('notes', e.target.value)}
-        placeholder="Дополнительная информация..."
+        placeholder="Дополнительная информация…"
         rows={2}
       />
 
@@ -502,7 +502,7 @@ export function DocumentForm({ onSubmit, onCancel, isLoading }: DocumentFormProp
         label="Примечания"
         value={formData.notes}
         onChange={(e) => handleChange('notes', e.target.value)}
-        placeholder="Дополнительная информация..."
+        placeholder="Дополнительная информация…"
         rows={2}
       />
 
@@ -625,7 +625,7 @@ export function ContactForm({ contact, onSubmit, onCancel, isLoading }: ContactF
         label="Примечания"
         value={formData.notes}
         onChange={(e) => handleChange('notes', e.target.value)}
-        placeholder="Звонить после 18:00..."
+        placeholder="Звонить после 18:00…"
         rows={2}
       />
 
@@ -903,7 +903,7 @@ export function AddressForm({ address, onSubmit, onCancel, isLoading }: AddressF
         label="Заметки"
         value={formData.notes}
         onChange={(e) => handleChange('notes', e.target.value)}
-        placeholder="Дополнительная информация об объекте..."
+        placeholder="Дополнительная информация об объекте…"
         rows={3}
       />
 

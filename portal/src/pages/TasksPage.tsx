@@ -1437,7 +1437,7 @@ export default function TasksPage() {
       <PageHeader
         className="mb-6"
         title="Заявки"
-        description={data ? `Всего: ${data.total}` : 'Загрузка...'}
+        description={data ? `Всего: ${data.total}` : 'Загрузка…'}
         actions={
           <>
             <Button

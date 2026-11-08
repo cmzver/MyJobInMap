@@ -51,7 +51,7 @@ export default function TaskPicker({ isOpen, onClose, onSelect }: Props) {
             autoFocus
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поиск по номеру, заголовку, адресу..."
+            placeholder="Поиск по номеру, заголовку, адресу…"
             className="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 pl-9 pr-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>

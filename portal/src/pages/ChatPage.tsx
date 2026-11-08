@@ -478,8 +478,8 @@ export default function ChatPage() {
   const typingText = useMemo(() => {
     const names = [...typingUsers.values()]
     if (names.length === 0) return null
-    if (names.length === 1) return `${names[0]} печатает...`
-    return `${names.slice(0, 2).join(', ')} печатают...`
+    if (names.length === 1) return `${names[0]} печатает…`
+    return `${names.slice(0, 2).join(', ')} печатают…`
   }, [typingUsers])
 
   const dispatchOptimistic = useCallback((conversationId: number, tempId: number, text: string, replyToId?: number) => {
@@ -818,7 +818,7 @@ export default function ChatPage() {
         activeConversationId ? 'hidden md:flex' : 'flex',
       )}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Чаты</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Чаты</h1>
           <div className="flex items-center gap-1">
             {push.supported && (
               <button
@@ -855,7 +855,7 @@ export default function ChatPage() {
             <input
               aria-label="Поиск чатов и сообщений"
               type="text"
-              placeholder="Поиск чатов и сообщений..."
+              placeholder="Поиск чатов и сообщений…"
               value={conversationSearchQuery}
               onChange={(e) => setConversationSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2 text-sm rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -1071,7 +1071,7 @@ export default function ChatPage() {
                   <input
                     aria-label="Поиск по сообщениям"
                     type="text"
-                    placeholder="Поиск по сообщениям..."
+                    placeholder="Поиск по сообщениям…"
                     value={messageSearchQuery}
                     onChange={(e) => setMessageSearchQuery(e.target.value)}
                     className="w-full rounded-xl bg-gray-100 py-2 pl-9 pr-4 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-gray-100"

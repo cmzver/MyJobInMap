@@ -501,7 +501,7 @@ export default function ChatSettingsModal({
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Поиск пользователя..."
+              placeholder="Поиск пользователя…"
             />
 
             {selectedUserIds.length > 0 && (

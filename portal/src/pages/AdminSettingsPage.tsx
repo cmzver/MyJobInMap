@@ -74,6 +74,7 @@ import {
 } from '@/components/settings/SettingsSection'
 import { settingsTokens } from '@/components/settings/tokens'
 import Badge from '@/components/Badge'
+import PageHeader from '@/components/PageHeader'
 import {
   SettingsSaveContext,
   useRegisterSettingsSave,
@@ -235,29 +236,29 @@ export default function AdminSettingsPage() {
         </nav>
 
         {/* Header */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Настройки портала</h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{activeTab.description}</p>
-          </div>
-          {saveState && (
-            <div className="flex flex-shrink-0 items-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={saveState.onReset}
-                disabled={!saveState.dirty || saveState.saving}
-              >
-                <RotateCcw className="mr-2 h-4 w-4" />
-                Сбросить
-              </Button>
-              <Button size="sm" onClick={saveState.onSave} disabled={!saveState.dirty || saveState.saving}>
-                <Save className="mr-2 h-4 w-4" />
-                {saveState.saving ? 'Сохранение...' : 'Сохранить изменения'}
-              </Button>
-            </div>
-          )}
-        </div>
+        <PageHeader
+          title="Настройки портала"
+          description={activeTab.description}
+          actions={
+            saveState && (
+              <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={saveState.onReset}
+                  disabled={!saveState.dirty || saveState.saving}
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Сбросить
+                </Button>
+                <Button size="sm" onClick={saveState.onSave} disabled={!saveState.dirty} isLoading={saveState.saving}>
+                  {!saveState.saving && <Save className="mr-2 h-4 w-4" />}
+                  Сохранить
+                </Button>
+              </>
+            )
+          }
+        />
 
         {/* Horizontal tab strip */}
         <div className="border-b border-gray-200 dark:border-gray-800">
@@ -379,9 +380,9 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
       title: 'Тестовые данные',
       desc: 'Создаёт пользователей и примерные заявки для локальной проверки сценариев.',
       button: (
-        <Button variant="secondary" size="sm" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          {seedMutation.isPending ? '...' : 'Seed'}
+        <Button variant="secondary" size="sm" onClick={() => seedMutation.mutate()} isLoading={seedMutation.isPending}>
+          {!seedMutation.isPending && <Plus className="mr-1.5 h-4 w-4" />}
+          Seed
         </Button>
       ),
     },
@@ -453,10 +454,10 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
                 size="sm"
                 className="w-full justify-center"
                 onClick={() => setShowClearConfirm(true)}
-                disabled={clearMutation.isPending}
+                isLoading={clearMutation.isPending}
               >
-                <Trash2 className="mr-2 h-4 w-4" />
-                {clearMutation.isPending ? 'Удаление...' : 'Очистить заявки и комментарии'}
+                {!clearMutation.isPending && <Trash2 className="mr-2 h-4 w-4" />}
+                Очистить заявки и комментарии
               </Button>
             </div>
             <p className="mt-2.5 text-xs leading-5 text-gray-500 dark:text-gray-400">
@@ -488,9 +489,9 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
               <Button
                 variant="danger"
                 onClick={() => cleanupMutation.mutate(cleanupDays)}
-                disabled={cleanupMutation.isPending}
+                isLoading={cleanupMutation.isPending}
               >
-                {cleanupMutation.isPending ? 'Удаление...' : 'Удалить'}
+                Удалить
               </Button>
             </div>
       </Modal>
@@ -679,9 +680,9 @@ function PortalBrandingSettingsTab() {
       </SettingsCard>
 
       <div className="flex justify-end">
-        <Button size="sm" onClick={() => saveMutation.mutate(form)} disabled={saveMutation.isPending}>
-          <Save className="mr-2 h-4 w-4" />
-          {saveMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+        <Button size="sm" onClick={() => saveMutation.mutate(form)} isLoading={saveMutation.isPending}>
+          {!saveMutation.isPending && <Save className="mr-2 h-4 w-4" />}
+          Сохранить
         </Button>
       </div>
     </div>
@@ -923,9 +924,9 @@ function BackupSettingsTab() {
         icon={HardDrive}
         action={
           !settingsLoading && (
-            <Button size="sm" onClick={handleSaveSettings} disabled={saveSettingsMutation.isPending}>
-              <Save className="mr-2 h-4 w-4" />
-              {saveSettingsMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+            <Button size="sm" onClick={handleSaveSettings} isLoading={saveSettingsMutation.isPending}>
+              {!saveSettingsMutation.isPending && <Save className="mr-2 h-4 w-4" />}
+              Сохранить
             </Button>
           )
         }
@@ -970,10 +971,10 @@ function BackupSettingsTab() {
           <Button
             size="sm"
             onClick={() => createBackupMutation.mutate()}
-            disabled={createBackupMutation.isPending}
+            isLoading={createBackupMutation.isPending}
           >
-            <Play className="mr-2 h-4 w-4" />
-            {createBackupMutation.isPending ? 'Создание...' : 'Создать'}
+            {!createBackupMutation.isPending && <Play className="mr-2 h-4 w-4" />}
+            Создать
           </Button>
         }
       >
@@ -1560,8 +1561,8 @@ function CustomFieldModal({
 
         <div className="flex justify-end gap-2 pt-4">
           <Button variant="secondary" onClick={onClose} disabled={isSaving}>Отмена</Button>
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? 'Сохранение...' : 'Сохранить'}
+          <Button onClick={handleSave} isLoading={isSaving}>
+            Сохранить
           </Button>
         </div>
     </Modal>
@@ -1888,9 +1889,9 @@ function TelegramBotSettingsTab() {
             title="Маппинг групп → работники"
             icon={User}
             action={
-              <Button size="sm" onClick={handleSave} disabled={updateMutation.isPending}>
-                <Save className="mr-2 h-4 w-4" />
-                {updateMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+              <Button size="sm" onClick={handleSave} isLoading={updateMutation.isPending}>
+                {!updateMutation.isPending && <Save className="mr-2 h-4 w-4" />}
+                Сохранить
               </Button>
             }
           >
@@ -1960,7 +1961,7 @@ function TelegramBotSettingsTab() {
                       {g.title}
                     </option>
                   ))}
-                  <option value="__custom__">Ввести вручную...</option>
+                  <option value="__custom__">Ввести вручную…</option>
                 </SettingsSelect>
               ) : (
                 <Input

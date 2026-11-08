@@ -86,7 +86,7 @@ export default function DefectTypeSelector({
         )}
 
         {isLoading ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400 py-4">Загрузка...</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 py-4">Загрузка…</p>
         ) : filteredDefectTypes.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {filteredDefectTypes.map((type) => (
@@ -109,7 +109,7 @@ export default function DefectTypeSelector({
           <p className="text-sm text-gray-500 dark:text-gray-400 py-4">
             Нет доступных типов неисправностей для выбранной системы.
             <br />
-            <span className="text-xs">Типы настраиваются в разделе "Настройки".</span>
+            <span className="text-xs">Типы настраиваются в разделе «Система → Заявки».</span>
           </p>
         )}
 

@@ -1064,11 +1064,9 @@ export default function AddressDetailPage() {
             <Button
               variant="danger"
               onClick={handleDelete}
-              disabled={deleteSystem.isPending || deleteEquipment.isPending || deleteDocument.isPending || deleteContact.isPending}
+              isLoading={deleteSystem.isPending || deleteEquipment.isPending || deleteDocument.isPending || deleteContact.isPending}
             >
-              {(deleteSystem.isPending || deleteEquipment.isPending || deleteDocument.isPending || deleteContact.isPending) 
-                ? 'Удаление...' 
-                : 'Удалить'}
+              Удалить
             </Button>
           </div>
         </div>
