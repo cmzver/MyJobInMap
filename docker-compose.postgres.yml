@@ -122,8 +122,10 @@ services:
       - WEB_CONCURRENCY=${WEB_CONCURRENCY:-1}
       - LOG_FORMAT=json
       - BACKUP_SCHEDULER_ENABLED=${BACKUP_SCHEDULER_ENABLED:-false}
+    # API — только для Caddy на этом же сервере (localhost:8001); снаружи
+    # доступ по https через Caddy, а не по голому http на 8001
     ports:
-      - "${PORT:-8001}:8001"
+      - "127.0.0.1:${PORT:-8001}:8001"
     volumes:
       - server_uploads:/app/uploads
       - server_logs:/app/logs
