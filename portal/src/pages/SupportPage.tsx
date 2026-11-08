@@ -143,7 +143,7 @@ export default function SupportPage() {
       />
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <StatPill title="Всего" value={tickets.length} tone="primary" />
+        <StatPill title="Всего" value={tickets.length} tone="gray" />
         <StatPill title="Открытые" value={openCount} tone="warning" />
         <StatPill title="Закрытые" value={resolvedCount} tone="success" />
       </div>
@@ -322,11 +322,10 @@ function StatPill({
 }: {
   title: string
   value: number
-  tone: 'primary' | 'warning' | 'success'
+  tone: 'gray' | 'warning' | 'success'
 }) {
   const toneClasses = {
-    primary:
-      'border-primary-100 bg-primary-50/70 text-primary-700 dark:border-primary-900/50 dark:bg-primary-950/20 dark:text-primary-200',
+    gray: 'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-200',
     warning:
       'border-amber-100 bg-amber-50/70 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200',
     success:
