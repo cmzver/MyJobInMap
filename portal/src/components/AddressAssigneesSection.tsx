@@ -16,7 +16,7 @@ import { useUsers } from '@/hooks/useUsers'
 import { showApiError, showApiSuccess } from '@/utils/apiError'
 
 export default function AddressAssigneesSection({ addressId }: { addressId: number }) {
-  const { data: assignees = [], isLoading } = useAssignees(addressId)
+  const { data: assignees = [], isLoading, isError, refetch } = useAssignees(addressId)
   const { data: users = [] } = useUsers()
   const addAssignee = useAddAssignee(addressId)
   const removeAssignee = useRemoveAssignee(addressId)
@@ -24,7 +24,8 @@ export default function AddressAssigneesSection({ addressId }: { addressId: numb
   const [addModal, setAddModal] = useState(false)
 
   const assignedIds = new Set(assignees.map((a) => a.user_id))
-  const availableUsers = users.filter((u) => !assignedIds.has(u.id))
+  // Уволенным (неактивным) доступ к дверям не выдаём
+  const availableUsers = users.filter((u) => u.is_active && !assignedIds.has(u.id))
 
   const handleAdd = async (userId: number) => {
     try {
@@ -65,6 +66,14 @@ export default function AddressAssigneesSection({ addressId }: { addressId: numb
         <div className="py-4 flex justify-center">
           <Spinner />
         </div>
+      ) : isError ? (
+        // Не «Никто не назначен»: у адреса могут быть люди с доступом к дверям
+        <p role="alert" className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+          Не удалось загрузить список.{' '}
+          <button type="button" className="text-primary-600 hover:underline dark:text-primary-400" onClick={() => refetch()}>
+            Повторить
+          </button>
+        </p>
       ) : assignees.length === 0 ? (
         <p className="px-4 py-3 text-sm text-gray-400 dark:text-gray-500">Никто не назначен</p>
       ) : (
