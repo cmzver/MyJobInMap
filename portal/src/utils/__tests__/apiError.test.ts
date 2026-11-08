@@ -58,7 +58,15 @@ describe('getApiErrorMessage', () => {
     const err = makeAxiosError({
       detail: [{ loc: ['body', 'name'], msg: 'field required', type: 'value_error' }],
     })
-    expect(getApiErrorMessage(err)).toBe('field required')
+    expect(getApiErrorMessage(err)).toBe('Проверьте правильность заполнения полей')
+  })
+
+  it('strips pydantic «Value error,» prefix from server validators', () => {
+    const err = makeAxiosError(
+      { detail: [{ loc: ['body'], msg: 'Value error, Конец периода раньше начала', type: 'value_error' }] },
+      422,
+    )
+    expect(getApiErrorMessage(err)).toBe('Конец периода раньше начала')
   })
 
   it('returns status-based message for 403', () => {
