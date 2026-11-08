@@ -80,6 +80,8 @@ import {
 } from '@/components/settings/SettingsSaveContext'
 import type { SettingsSaveState } from '@/components/settings/SettingsSaveContext'
 import { useConfirm } from '@/hooks/useConfirm'
+import { formatFileSize } from '@/utils/fileSize'
+import { countRu } from '@/utils/plural'
 
 // Types
 
@@ -339,7 +341,10 @@ function GeneralSettingsTab({ showClearConfirm, setShowClearConfirm }: { showCle
     mutationFn: (days: number) => apiClient.post(`/admin/db/cleanup?days=${days}&include_done=true&include_cancelled=true`),
     onSuccess: (response) => {
       const data = response.data as { deleted_tasks: number; deleted_comments: number; deleted_photos: number }
-      toast.success(`Удалено: ${data.deleted_tasks} заявок, ${data.deleted_comments} комментариев, ${data.deleted_photos} фото`)
+      toast.success(
+        `Удалено: ${countRu(data.deleted_tasks, 'заявка', 'заявки', 'заявок')}, ` +
+          `${countRu(data.deleted_comments, 'комментарий', 'комментария', 'комментариев')}, ${data.deleted_photos} фото`,
+      )
       queryClient.invalidateQueries({ queryKey: ['db-stats'] })
       queryClient.invalidateQueries({ queryKey: ['server-info'] })
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
@@ -991,7 +996,7 @@ function BackupSettingsTab() {
                   {backup.name}
                 </span>
                 <span className="shrink-0 text-xs tabular-nums text-gray-400 dark:text-gray-500">
-                  {formatBytes(backup.size)} · {new Date(backup.created).toLocaleDateString('ru-RU')}
+                  {formatFileSize(backup.size)} · {new Date(backup.created).toLocaleDateString('ru-RU')}
                 </span>
                 <div className="flex shrink-0 items-center">
                   <SettingsIconButton
@@ -2099,10 +2104,3 @@ function CompactEmptyPanel({
 }
 
 // ============= Helper Functions =============
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 Bytes'
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-}

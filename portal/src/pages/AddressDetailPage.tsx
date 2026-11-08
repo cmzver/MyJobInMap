@@ -81,6 +81,7 @@ import type {
   DocumentType,
   ContactType
 } from '@/types/address'
+import { formatFileSize } from '@/utils/fileSize'
 
 // Иконки для типов систем
 const systemTypeIcons: Record<SystemType, typeof Video> = {
@@ -177,12 +178,6 @@ const tabs: { id: TabType; label: string; Icon: typeof Wrench }[] = [
 
 const isTab = (value: string | null): value is TabType => tabs.some((tab) => tab.id === value)
 
-// Форматирование размера файла
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return bytes + ' Б'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ'
-  return (bytes / (1024 * 1024)).toFixed(1) + ' МБ'
-}
 
 const isBlank = (value: ReactNode) => value === null || value === undefined || value === '' || value === 0
 

@@ -47,6 +47,7 @@ import {
 } from '@/utils/chatCache'
 import type { MessageResponse, ConversationType, AttachmentResponse, ConversationMemberRole } from '@/types/chat'
 import toast from 'react-hot-toast'
+import { countRu } from '@/utils/plural'
 
 type ConversationScope = 'active' | 'archived'
 
@@ -988,7 +989,7 @@ export default function ChatPage() {
                 <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
                   {activeDetail && (
                     <span className="rounded-md border border-gray-200 px-2 py-0.5 font-medium text-gray-600 dark:border-gray-700 dark:text-gray-300">
-                      {activeDetail.members.length} участник(ов)
+                      {countRu(activeDetail.members.length, 'участник', 'участника', 'участников')}
                     </span>
                   )}
                   {memberIsMuted && (
