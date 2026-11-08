@@ -351,3 +351,24 @@ class TestVisibility:
 
         assert numbers(status="cancelled") == [first["number"]]
         assert len(numbers(search="Сидор")) == 1
+
+    def test_registry_days_follow_business_calendar(
+        self, client: TestClient, db_session
+    ):
+        """Акт, выпущенный 1 ноября в 01:00 по Москве (31 октября 22:00 UTC),
+        — ноябрьский: в фильтре по дням и в сводке за месяц."""
+        from datetime import datetime
+
+        ctx = _org(client, db_session, "DayOrg")
+        act = _act(client, ctx.dispatcher.headers, ctx.task.id).json()
+        row = db_session.get(ActModel, act["id"])
+        row.created_at = datetime(2026, 10, 31, 22, 0)
+        db_session.commit()
+
+        def total(**params):
+            return client.get(
+                "/api/acts", params=params, headers=ctx.dispatcher.headers
+            ).json()["total"]
+
+        assert total(date_from="2026-11-01", date_to="2026-11-30") == 1
+        assert total(date_from="2026-10-01", date_to="2026-10-31") == 0
