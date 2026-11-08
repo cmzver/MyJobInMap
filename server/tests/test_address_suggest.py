@@ -495,3 +495,34 @@ def test_address_card_shows_district(client: TestClient, db_session):
         f"/api/addresses/{address.id}/full", headers=env.dispatcher.headers
     ).json()
     assert (card["district"], card["fias_id"]) == ("Невский р-н", "dddd")
+
+
+def test_cache_is_thread_safe(monkeypatch):
+    """Кэш дергают потоки пула: вытеснение и move_to_end не должны падать."""
+    import threading
+
+    monkeypatch.setattr(address_suggest, "_CACHE_MAX_ITEMS", 8)
+    address_suggest.clear_cache()
+    errors = []
+
+    def worker(n):
+        try:
+            for i in range(2000):
+                key = ("q", (n * 7 + i) % 32)
+                address_suggest._cache_put(key, [i])
+                address_suggest._cache_get(key)
+                address_suggest._cache_get(("q", i % 32))
+                if i % 500 == 0:
+                    address_suggest.clear_cache()
+        except Exception as exc:  # noqa: BLE001 — собираем для проверки
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(n,)) for n in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert len(address_suggest._cache) <= 8
+    address_suggest.clear_cache()
