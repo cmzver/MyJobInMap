@@ -63,11 +63,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.fieldworker.ui.components.Eyebrow
 import com.fieldworker.ui.utils.avatarInitials
 import com.fieldworker.ui.utils.resolveAvatarUrl
 
@@ -208,17 +208,6 @@ internal fun UserSettingsContent(
     }
 }
 
-/** Нейтральный eyebrow-заголовок секции — как в настройках. */
-@Composable
-private fun SectionEyebrow(text: String) {
-    Text(
-        text = text.uppercase(),
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = 0.8.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
 
 @Composable
 private fun AvatarBlock(
@@ -269,8 +258,9 @@ private fun AvatarBlock(
                     Text(
                         text = initials,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        // Инициалы в большом аватаре — заголовочный стиль шкалы
+                        style = MaterialTheme.typography.displayLarge,
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 40.sp,
                     )
                 } else {
                     Icon(
@@ -331,7 +321,7 @@ private fun NameSection(
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        SectionEyebrow("Имя")
+        Eyebrow("Имя")
         OutlinedTextField(
             value = draft,
             onValueChange = { draft = it },
@@ -377,7 +367,7 @@ private fun PasswordSection(
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        SectionEyebrow("Безопасность")
+        Eyebrow("Безопасность")
         Row(
             modifier = Modifier
                 .fillMaxWidth()

@@ -188,7 +188,7 @@ fun UpdateDialog(
                     Text("Обновление загружено")
                 },
                 text = {
-                    Text("Нажмите \"Установить\" чтобы обновить приложение.")
+                    Text("Нажмите «Установить», чтобы обновить приложение.")
                 },
                 confirmButton = {
                     Button(onClick = onInstall) {
@@ -214,7 +214,7 @@ fun UpdateDialog(
                 },
                 confirmButton = {
                     TextButton(onClick = onDismiss) {
-                        Text("OK")
+                        Text("Понятно")
                     }
                 }
             )
@@ -231,7 +231,7 @@ fun UpdateDialog(
                 },
                 confirmButton = {
                     TextButton(onClick = onDismiss) {
-                        Text("OK")
+                        Text("Понятно")
                     }
                 }
             )

@@ -72,9 +72,11 @@ import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.components.CompactTaskCard
+import com.fieldworker.ui.components.Eyebrow
 import com.fieldworker.ui.components.FilterFunnelIcon
 import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.PhotoUploadConfirmDialog
+import com.fieldworker.ui.components.RoundActionButton
 import com.fieldworker.ui.components.rememberPhotoDraft
 import com.fieldworker.ui.components.rememberPickPhotoLauncher
 import com.fieldworker.ui.components.rememberTakePhotoLauncher
@@ -389,7 +391,7 @@ fun MapScreen(
                 onMineChange = { mine -> viewModel.setTaskScope(if (mine) TaskScope.MINE else TaskScope.ALL) },
             )
 
-            MapActionButton(
+            RoundActionButton(
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     val lat = uiState.myLocationLat
@@ -416,7 +418,7 @@ fun MapScreen(
                 contentDescription = "Ближайшая заявка"
             )
 
-            MapActionButton(
+            RoundActionButton(
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     if (hasLocationPermission) {
@@ -436,7 +438,7 @@ fun MapScreen(
                 isActive = uiState.myLocationLat != null
             )
 
-            MapActionButton(
+            RoundActionButton(
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     viewModel.forceSync()
@@ -636,7 +638,7 @@ fun TasksStatsBar(
 
     Surface(
         modifier = modifier,
-        shape = MaterialTheme.shapes.large,
+        shape = AppShape.lg,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
         shadowElevation = 6.dp,
@@ -659,7 +661,7 @@ fun TasksStatsBar(
 private fun MapHintChip(text: String) {
     Surface(
         modifier = Modifier.padding(top = 8.dp),
-        shape = MaterialTheme.shapes.medium,
+        shape = AppShape.md,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
         shadowElevation = 3.dp,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -702,36 +704,6 @@ fun StatItem(count: Int, label: String, color: Color) {
 /**
  * Карточка комментария
  */
-@Composable
-private fun MapActionButton(
-    onClick: () -> Unit,
-    icon: ImageVector,
-    contentDescription: String,
-    isActive: Boolean = false
-) {
-    // key: при смене состояния поверх карты (AndroidView) слой с тенью не
-    // перерисовывал фон — кнопка становилась белой с белым значком
-    key(isActive) {
-    Surface(
-        modifier = Modifier.size(48.dp),
-        shape = CircleShape,
-        color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-        contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
-        tonalElevation = 0.dp,
-        shadowElevation = 6.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
-        IconButton(onClick = onClick) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-    }
-    }
-}
-
 /**
  * Диалог изменения статуса с комментарием.
  *
@@ -1309,7 +1281,7 @@ private fun MapFilterButton(
     val active = mode != MapMode.ALL ||
         (mode != MapMode.ROUTE && (statusFilter.isNotEmpty() || (showMine && mineOnly)))
     Box {
-        MapActionButton(
+        RoundActionButton(
             onClick = { expanded = true },
             icon = FilterFunnelIcon,
             contentDescription = "Фильтры карты",
@@ -1345,11 +1317,9 @@ private fun MapFilterButton(
 
 @Composable
 private fun MenuSectionLabel(text: String) {
-    Text(
-        text = text.uppercase(),
+    Eyebrow(
+        text = text,
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
 
@@ -1395,7 +1365,7 @@ private fun RoutePanel(
     val length = remember(located, myLat, myLon) { routeLengthMeters(located, myLat, myLon) }
     Surface(
         modifier = modifier,
-        shape = MaterialTheme.shapes.large,
+        shape = AppShape.lg,
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 6.dp,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -1527,10 +1497,6 @@ private fun getRouteStopIcon(
     return BitmapDrawable(context.resources, bitmap)
 }
 
-private fun getMyLocationIcon(context: android.content.Context): Drawable? {
-    val drawable = ContextCompat.getDrawable(context, R.drawable.ic_my_location)?.mutate()
-    drawable?.let {
-        DrawableCompat.setTint(it, Color(0xFF0A84FF).toArgb())
-    }
-    return drawable
-}
+/** Точка «я»: тёмный центр с белым кольцом — цвета уже в самом drawable. */
+private fun getMyLocationIcon(context: android.content.Context): Drawable? =
+    ContextCompat.getDrawable(context, R.drawable.ic_my_location)

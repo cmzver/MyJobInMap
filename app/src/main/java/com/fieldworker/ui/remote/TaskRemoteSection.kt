@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -65,6 +64,7 @@ import com.fieldworker.data.repository.RemoteResolutionRepository
 import com.fieldworker.data.repository.ScanCode
 import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskStatus
+import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.accentTextColor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -311,7 +311,7 @@ internal fun TaskPanelsBadge(count: Int, onClick: () -> Unit) {
         fontWeight = FontWeight.SemiBold,
         color = accentTextColor(),
         modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
+            .clip(AppShape.sm)
             .clickable(onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 2.dp),
     )
@@ -460,7 +460,7 @@ private fun PanelVideoDialog(title: String, frames: Flow<Result<ByteArray>>, onD
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(16f / 9f)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(AppShape.sm)
                         .background(Color.Black),
                     contentAlignment = Alignment.Center,
                 ) {

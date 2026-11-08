@@ -30,7 +30,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -65,8 +64,11 @@ import com.fieldworker.domain.model.ActDraft
 import com.fieldworker.domain.model.ActLineDraft
 import com.fieldworker.domain.model.ActPaymentMethod
 import com.fieldworker.domain.model.ActSignerRole
+import com.fieldworker.ui.components.Eyebrow
+import com.fieldworker.ui.components.QuickFilterChip
 import com.fieldworker.ui.components.SignaturePad
 import com.fieldworker.ui.components.SignatureState
+import com.fieldworker.ui.theme.AppShape
 import java.math.BigDecimal
 import java.text.NumberFormat
 import java.util.Locale
@@ -231,7 +233,7 @@ private fun EditStep(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item { SectionTitle("Работы и материалы") }
+            item { Eyebrow("Работы и материалы") }
             items(draft.lines, key = { it.key }) { line ->
                 LineEditor(
                     line = line,
@@ -277,7 +279,7 @@ private fun EditStep(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            item { SectionTitle("Заказчик") }
+            item { Eyebrow("Заказчик") }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
@@ -287,12 +289,15 @@ private fun EditStep(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         ActSignerRole.entries.forEach { role ->
-                            FilterChip(
+                            QuickFilterChip(
+                                label = role.label,
                                 selected = draft.customerRole == role,
                                 onClick = { actions.updateDraft { it.copy(customerRole = role) } },
-                                label = { Text(role.label) },
                             )
                         }
                     }
@@ -316,14 +321,17 @@ private fun EditStep(
                 }
             }
             if (draft.total.signum() > 0) {
-                item { SectionTitle("Оплата") }
+                item { Eyebrow("Оплата") }
                 item {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         ActPaymentMethod.entries.forEach { method ->
-                            FilterChip(
+                            QuickFilterChip(
+                                label = method.label,
                                 selected = draft.paymentMethod == method,
                                 onClick = { actions.updateDraft { it.copy(paymentMethod = method) } },
-                                label = { Text(method.label) },
                             )
                         }
                     }
@@ -375,15 +383,6 @@ private fun EditStep(
     }
 }
 
-@Composable
-private fun SectionTitle(text: String) {
-    Text(
-        text = text.uppercase(),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        fontWeight = FontWeight.SemiBold,
-    )
-}
 
 @Composable
 private fun LineEditor(
@@ -392,8 +391,9 @@ private fun LineEditor(
     onRemove: () -> Unit,
 ) {
     Card(
+        shape = AppShape.md,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -448,17 +448,17 @@ private fun LineEditor(
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
+                QuickFilterChip(
+                    label = "Материал",
                     selected = line.isMaterial,
                     onClick = { onChange { it.copy(isMaterial = !it.isMaterial) } },
-                    label = { Text("Материал") },
                 )
                 if (line.isMaterial) {
                     // Установленное на объекте заведётся в оборудование адреса заявки
-                    FilterChip(
+                    QuickFilterChip(
+                        label = "На объект",
                         selected = line.installToObject,
                         onClick = { onChange { it.copy(installToObject = !it.installToObject) } },
-                        label = { Text("На объект") },
                     )
                 }
                 Spacer(Modifier.weight(1f))
@@ -558,7 +558,7 @@ private fun SignStep(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Surface(
-            shape = MaterialTheme.shapes.large,
+            shape = AppShape.lg,
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {

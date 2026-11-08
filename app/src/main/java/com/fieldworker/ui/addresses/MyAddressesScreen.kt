@@ -58,7 +58,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.fieldworker.domain.model.AddressContact
@@ -71,6 +70,8 @@ import com.fieldworker.domain.model.AddressSummary
 import com.fieldworker.domain.model.AddressSystem
 import com.fieldworker.domain.model.AddressTaskStats
 import com.fieldworker.domain.model.TaskStatus
+import com.fieldworker.ui.components.EmptyState
+import com.fieldworker.ui.components.Eyebrow
 import com.fieldworker.ui.theme.AppColors
 import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.TaskUtils
@@ -157,7 +158,9 @@ fun MyAddressesScreen(
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
 
                 state.addresses.isEmpty() -> EmptyState(
-                    modifier = Modifier.align(Alignment.Center),
+                    title = "Адреса не назначены",
+                    message = "Когда диспетчер назначит вам адрес, он появится здесь",
+                    icon = Icons.Default.Home,
                 )
 
                 else -> AddressList(
@@ -192,7 +195,7 @@ private fun AddressRowCard(address: AddressSummary, onClick: () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        shape = MaterialTheme.shapes.large,
+        shape = AppShape.lg,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -229,31 +232,6 @@ private fun AddressRowCard(address: AddressSummary, onClick: () -> Unit) {
     }
 }
 
-@Composable
-private fun EmptyState(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(
-            imageVector = Icons.Default.Home,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(40.dp),
-        )
-        Text(
-            text = "Адреса не назначены",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            text = "Когда диспетчер или администратор назначит вам адрес, он появится здесь.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Карточка адреса
@@ -490,8 +468,8 @@ private fun TaskStatsCard(stats: AddressTaskStats) {
         ) {
             StatPill("Новые", stats.newCount, TaskStatus.NEW, Modifier.weight(1f))
             StatPill("В работе", stats.inProgress, TaskStatus.IN_PROGRESS, Modifier.weight(1f))
-            StatPill("Готово", stats.done, TaskStatus.DONE, Modifier.weight(1f))
-            StatPill("Отменено", stats.cancelled, TaskStatus.CANCELLED, Modifier.weight(1f))
+            StatPill("Выполненные", stats.done, TaskStatus.DONE, Modifier.weight(1f))
+            StatPill("Отменённые", stats.cancelled, TaskStatus.CANCELLED, Modifier.weight(1f))
         }
     }
 }
@@ -748,7 +726,7 @@ private fun SectionCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        shape = MaterialTheme.shapes.large,
+        shape = AppShape.lg,
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -765,15 +743,6 @@ private fun SectionCard(
     }
 }
 
-@Composable
-private fun Eyebrow(text: String) {
-    Text(
-        text = text.uppercase(),
-        style = MaterialTheme.typography.labelSmall,
-        letterSpacing = 0.6.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
 
 @Composable
 private fun LabeledValue(label: String, value: String, modifier: Modifier = Modifier) {

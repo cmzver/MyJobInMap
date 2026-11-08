@@ -40,11 +40,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.fieldworker.domain.model.AddressDetails
 import com.fieldworker.domain.model.Comment
 import com.fieldworker.domain.model.Priority
 import com.fieldworker.domain.model.Task
+import com.fieldworker.ui.components.Eyebrow
 import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.TaskUtils
 import com.fieldworker.ui.utils.accentTextColor
@@ -236,7 +236,9 @@ fun ObjectDetailsScreen(
 private fun ObjectHeaderCard(task: Task?, addressDetails: AddressDetails?) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = MaterialTheme.shapes.large
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        shape = AppShape.lg
     ) {
         Column(
             modifier = Modifier
@@ -387,12 +389,7 @@ private fun ObjectFactsGrid(facts: List<ObjectFact>) {
                                 }
                             )
                     ) {
-                        Text(
-                            text = fact.label.uppercase(),
-                            style = MaterialTheme.typography.labelSmall,
-                            letterSpacing = 0.6.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Eyebrow(fact.label)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = fact.value,
@@ -455,7 +452,7 @@ private fun ObjectStatCard(
 ) {
     Surface(
         modifier = modifier,
-        shape = MaterialTheme.shapes.medium,
+        shape = AppShape.md,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
     ) {
         Column(
@@ -550,7 +547,7 @@ private fun ObjectSectionCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        shape = MaterialTheme.shapes.large
+        shape = AppShape.lg
     ) {
         Column(
             modifier = Modifier

@@ -1,11 +1,11 @@
 package com.fieldworker.ui.chat
 
-import androidx.compose.ui.graphics.Color
-import androidx.compose.material3.ColorScheme
-
+/**
+ * Заголовок системного события чата. Цвета у событий нет: в интерфейсе цвет
+ * несёт статус заявки, а служебные строки чата — спокойный нейтрал.
+ */
 internal data class ChatSystemEventMeta(
     val title: String,
-    val accentColor: (ColorScheme) -> Color,
 )
 
 internal fun resolveChatSystemEventMeta(text: String?): ChatSystemEventMeta {
@@ -13,24 +13,24 @@ internal fun resolveChatSystemEventMeta(text: String?): ChatSystemEventMeta {
 
     return when {
         Regex("^переименовал\\(а\\) чат в ", RegexOption.IGNORE_CASE).containsMatchIn(value) -> {
-            ChatSystemEventMeta("Название группы изменено") { it.tertiary }
+            ChatSystemEventMeta("Название группы изменено")
         }
         Regex("добавил\\(а\\).+в чат", RegexOption.IGNORE_CASE).containsMatchIn(value) -> {
-            ChatSystemEventMeta("Участник добавлен") { it.primary }
+            ChatSystemEventMeta("Участник добавлен")
         }
         Regex("удалил\\(а\\).+из чата", RegexOption.IGNORE_CASE).containsMatchIn(value) -> {
-            ChatSystemEventMeta("Участник удалён") { it.error }
+            ChatSystemEventMeta("Участник удалён")
         }
         Regex("^вышел\\(а\\) из чата$", RegexOption.IGNORE_CASE).containsMatchIn(value) -> {
-            ChatSystemEventMeta("Участник вышел") { it.secondary }
+            ChatSystemEventMeta("Участник вышел")
         }
         // Старый вид сообщений сервера (admin/member, ownership) — тоже узнаём
         Regex("изменил\\(а\\) роль .+ на (admin|member|«администратор»|«участник»)", RegexOption.IGNORE_CASE).containsMatchIn(value) -> {
-            ChatSystemEventMeta("Роль участника изменена") { it.primary }
+            ChatSystemEventMeta("Роль участника изменена")
         }
         Regex("передал\\(а\\) (ownership|права владельца) пользователю", RegexOption.IGNORE_CASE).containsMatchIn(value) -> {
-            ChatSystemEventMeta("Владелец сменился") { it.tertiary }
+            ChatSystemEventMeta("Владелец сменился")
         }
-        else -> ChatSystemEventMeta("Системное событие") { it.onSurfaceVariant }
+        else -> ChatSystemEventMeta("Системное событие")
     }
 }

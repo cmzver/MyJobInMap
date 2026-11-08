@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
@@ -39,6 +40,7 @@ fun QuickFilterChip(
     modifier: Modifier = Modifier,
     dotColor: Color? = null,
     shadowElevation: Dp = 0.dp,
+    enabled: Boolean = true,
 ) {
     val surface = MaterialTheme.colorScheme.surface
     // Непрозрачная подложка: поверх карты полупрозрачный чип терялся бы
@@ -52,7 +54,8 @@ fun QuickFilterChip(
     )
     Surface(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.alpha(if (enabled) 1f else 0.38f),
+        enabled = enabled,
         shape = AppShape.pill,
         color = container,
         shadowElevation = shadowElevation,

@@ -48,6 +48,7 @@ import com.fieldworker.domain.model.PhotoType
 import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.photoTypeDisplayName
 import com.fieldworker.ui.theme.AppShape
+import com.fieldworker.ui.theme.Radius
 import com.fieldworker.ui.utils.accentTextColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -177,7 +178,7 @@ fun PhotoUploadConfirmDialog(
     Dialog(onDismissRequest = { if (!isUploading) onDismiss() }) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large
+            shape = AppShape.lg
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -206,7 +207,7 @@ fun PhotoUploadConfirmDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(200.dp),
-                    shape = MaterialTheme.shapes.medium
+                    shape = AppShape.md
                 ) {
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
@@ -234,13 +235,14 @@ fun PhotoUploadConfirmDialog(
                 // Кнопки выбора типа: не влезли в строку — переносятся целиком
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     PhotoType.entries.forEach { type ->
-                        FilterChip(
+                        QuickFilterChip(
+                            label = type.displayName,
                             selected = selectedType == type,
                             onClick = { selectedType = type },
-                            label = { Text(type.displayName, maxLines = 1) },
                             enabled = !isUploading
                         )
                     }
@@ -268,7 +270,7 @@ fun PhotoUploadConfirmDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(8.dp)
-                                .clip(RoundedCornerShape(4.dp)),
+                                .clip(AppShape.sm),
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -608,7 +610,7 @@ private fun PhotoViewDialog(
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+                shape = RoundedCornerShape(topStart = Radius.lg, topEnd = Radius.lg)
             ) {
                 Column(
                     modifier = Modifier
@@ -733,7 +735,7 @@ private fun PhotoViewDialog(
                                 .weight(1f)
                                 .height(44.dp),
                             enabled = !isSaving,
-                            shape = MaterialTheme.shapes.medium
+                            shape = AppShape.md
                         ) {
                             if (isSaving) {
                                 CircularProgressIndicator(
@@ -763,7 +765,7 @@ private fun PhotoViewDialog(
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.error
                             ),
-                            shape = MaterialTheme.shapes.medium
+                            shape = AppShape.md
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Delete,

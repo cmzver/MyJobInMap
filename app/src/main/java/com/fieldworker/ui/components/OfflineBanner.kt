@@ -26,8 +26,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.fieldworker.ui.theme.AppColors
+import com.fieldworker.ui.utils.successTextColor
 import kotlinx.coroutines.delay
 
 /**
@@ -77,14 +78,15 @@ fun OfflineBanner(
             hasFailedActions -> MaterialTheme.colorScheme.errorContainer
             isOffline -> MaterialTheme.colorScheme.surfaceContainerHighest
             hasPendingActions -> MaterialTheme.colorScheme.secondaryContainer
-            else -> Color(0xFF2E7D32)
+            // «Подключение восстановлено» — тот же зелёный, что у статуса «Выполнена»
+            else -> AppColors.StatusDone.copy(alpha = 0.14f)
         }
 
         val contentColor = when {
             hasFailedActions -> MaterialTheme.colorScheme.onErrorContainer
             isOffline -> MaterialTheme.colorScheme.onSurface
             hasPendingActions -> MaterialTheme.colorScheme.onSecondaryContainer
-            else -> Color.White
+            else -> successTextColor()
         }
 
         Row(

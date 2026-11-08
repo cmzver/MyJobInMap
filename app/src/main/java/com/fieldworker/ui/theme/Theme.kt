@@ -36,14 +36,8 @@ object AppColors {
     // нужно 4.5:1 (WCAG AA), акцент #E65100 даёт 3.8:1. Тот же оттенок, темнее: 4.6:1.
     val AccentText = Color(0xFFC25400)
 
-    val Emergency = Color(0xFFC94F4F)
+    // Подложка ошибок (errorContainer) — светлый тон аварийного красного.
     val EmergencyBg = Color(0xFFFCECEC)
-    val Urgent = Color(0xFFCC7A1A)
-    val UrgentBg = Color(0xFFFFF2E2)
-    val Current = Color(0xFF2A6F97)
-    val CurrentBg = Color(0xFFEAF3F8)
-    val Planned = Color(0xFF2F7D4B)
-    val PlannedBg = Color(0xFFEAF6EC)
 
     // Цвет несёт СТАТУС (единственный источник — ui/utils/TaskColors.kt).
     // Красный зарезервирован за аварийным приоритетом, поэтому «Новая» — синяя.
@@ -75,10 +69,8 @@ object AppColors {
 
     val OnSurface = Color(0xFF172026)
     val OnSurfaceVariant = Color(0xFF5A6670)
-
-    val Success = Color(0xFF2F7D4B)
-    val Error = Color(0xFFC94F4F)
-    val Warning = Color(0xFFCC7A1A)
+    // Тёмная тема: приглушённый текст / нейтральный secondary.
+    val OnSurfaceVariantDark = Color(0xFFB6C0C4)
 }
 
 private val DarkColorScheme = darkColorScheme(
@@ -86,20 +78,25 @@ private val DarkColorScheme = darkColorScheme(
     onPrimary = Color(0xFF3A1D00),
     primaryContainer = AppColors.PrimaryContainerDark,
     onPrimaryContainer = AppColors.PrimaryLight,
-    secondary = AppColors.Current,
-    tertiary = AppColors.Planned,
+    // secondary/tertiary нейтральные: цвет в интерфейсе несёт статус заявки,
+    // а M3-компоненты, которые берут secondary, не должны вносить свой синий.
+    secondary = AppColors.OnSurfaceVariantDark,
+    onSecondary = Color(0xFF0F1416),
+    tertiary = AppColors.OnSurfaceVariantDark,
+    onTertiary = Color(0xFF0F1416),
     background = Color(0xFF0F1416),
     surface = Color(0xFF151D20),
     surfaceVariant = Color(0xFF243136),
     onSurface = Color(0xFFF1F4F5),
-    onSurfaceVariant = Color(0xFFB6C0C4),
-    error = AppColors.Error,
+    onSurfaceVariant = AppColors.OnSurfaceVariantDark,
+    // Красный — тот же, что у аварийного приоритета (на тёмном — шаг светлее)
+    error = AppColors.PriorityEmergencyDark,
     // Ниже — роли, которые иначе берутся из фиолетовой baseline-палитры M3
     // (лавандовые диалоги, меню, тональные кнопки, обводки).
     secondaryContainer = Color(0xFF243136),
     onSecondaryContainer = Color(0xFFF1F4F5),
-    tertiaryContainer = Color(0xFF1E3A2A),
-    onTertiaryContainer = Color(0xFFBDE5C8),
+    tertiaryContainer = Color(0xFF243136),
+    onTertiaryContainer = Color(0xFFF1F4F5),
     errorContainer = Color(0xFF3B1F1F),
     onErrorContainer = Color(0xFFF2B8B5),
     surfaceTint = AppColors.PrimaryLight,
@@ -117,20 +114,23 @@ private val LightColorScheme = lightColorScheme(
     onPrimary = Color.White,
     primaryContainer = AppColors.PrimaryContainerLight,
     onPrimaryContainer = AppColors.PrimaryDark,
-    secondary = AppColors.Current,
-    tertiary = AppColors.Planned,
+    secondary = AppColors.OnSurfaceVariant,
+    onSecondary = Color.White,
+    tertiary = AppColors.OnSurfaceVariant,
+    onTertiary = Color.White,
     background = AppColors.Background,
     surface = AppColors.Surface,
     surfaceVariant = AppColors.SurfaceVariant,
     onSurface = AppColors.OnSurface,
     onSurfaceVariant = AppColors.OnSurfaceVariant,
-    error = AppColors.Error,
+    // Красный — тот же, что у аварийного приоритета (#DC2626)
+    error = AppColors.PriorityEmergency,
     // Ниже — роли, которые иначе берутся из фиолетовой baseline-палитры M3
     // (лавандовые диалоги, меню, тональные кнопки, обводки).
     secondaryContainer = Color(0xFFEDF0F1),
     onSecondaryContainer = AppColors.OnSurface,
-    tertiaryContainer = AppColors.PlannedBg,
-    onTertiaryContainer = AppColors.Planned,
+    tertiaryContainer = Color(0xFFEDF0F1),
+    onTertiaryContainer = AppColors.OnSurface,
     errorContainer = AppColors.EmergencyBg,
     onErrorContainer = Color(0xFF8A1C1C),
     surfaceTint = AppColors.PrimaryDark,

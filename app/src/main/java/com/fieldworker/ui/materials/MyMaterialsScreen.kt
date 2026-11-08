@@ -12,7 +12,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -34,6 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.fieldworker.data.remote.generated.StockResponse
 import com.fieldworker.data.repository.ActsRepository
+import com.fieldworker.ui.components.EmptyState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -130,12 +133,19 @@ internal fun MyMaterialsContent(state: MyMaterialsUiState, modifier: Modifier = 
             state.isLoading && !state.hasLoaded ->
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
 
-            state.stocks.isEmpty() -> Text(
-                text = state.error ?: "Материалы вам ещё не выдавали.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.Center).padding(24.dp),
-            )
+            state.stocks.isEmpty() -> if (state.error != null) {
+                EmptyState(
+                    title = "Остатки не загрузились",
+                    message = state.error,
+                    icon = Icons.Default.Warning,
+                )
+            } else {
+                EmptyState(
+                    title = "Материалов нет",
+                    message = "Материалы вам ещё не выдавали",
+                    icon = Icons.Default.Build,
+                )
+            }
 
             else -> LazyColumn(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),

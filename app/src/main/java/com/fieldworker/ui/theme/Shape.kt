@@ -20,6 +20,8 @@ object Radius {
     val md = 12.dp
     val lg = 16.dp
     val xl = 24.dp
+    /** Узкие полоски-акценты (2–4 dp шириной: цитата, закреп) — не «ступень» шкалы. */
+    val hairline = 2.dp
 }
 
 object AppShape {
@@ -27,8 +29,9 @@ object AppShape {
     val md = RoundedCornerShape(Radius.md)
     val lg = RoundedCornerShape(Radius.lg)
     val xl = RoundedCornerShape(Radius.xl)
-    /** Таблетка: чипы статуса, счётчики. */
+    /** Таблетка: чипы статуса, счётчики, плейсхолдеры строк. */
     val pill = RoundedCornerShape(percent = 50)
+    val hairline = RoundedCornerShape(Radius.hairline)
 }
 
 val Shapes = Shapes(

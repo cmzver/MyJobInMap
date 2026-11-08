@@ -32,7 +32,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,6 +60,7 @@ import com.fieldworker.domain.model.ConversationMember
 import com.fieldworker.domain.model.ConversationType
 import com.fieldworker.domain.model.User
 import com.fieldworker.ui.chat.components.ChatAvatar
+import com.fieldworker.ui.components.SegmentedChoice
 import com.fieldworker.ui.theme.AppShape
 
 private data class PendingRoleChange(
@@ -114,18 +114,13 @@ fun NewConversationDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = mode == NewConversationMode.DIRECT,
-                        onClick = { mode = NewConversationMode.DIRECT },
-                        label = { Text("Личный") },
-                    )
-                    FilterChip(
-                        selected = mode == NewConversationMode.GROUP,
-                        onClick = { mode = NewConversationMode.GROUP },
-                        label = { Text("Группа") },
-                    )
-                }
+                SegmentedChoice(
+                    options = listOf(NewConversationMode.DIRECT, NewConversationMode.GROUP),
+                    selected = mode,
+                    onSelect = { mode = it },
+                    label = { if (it == NewConversationMode.DIRECT) "Личный" else "Группа" },
+                    enabled = !isSubmitting,
+                )
 
                 if (mode == NewConversationMode.GROUP) {
                     SoftTextField(
@@ -615,7 +610,6 @@ private fun SelectableUserRow(
     ) {
         ChatAvatar(
             name = user.getDisplayName(),
-            id = user.id,
             type = ConversationType.DIRECT,
             size = 42,
         )
@@ -736,7 +730,6 @@ private fun MemberManagementRow(
     ) {
         ChatAvatar(
             name = member.fullName.ifBlank { member.username },
-            id = member.userId,
             type = ConversationType.DIRECT,
             size = 42,
         )

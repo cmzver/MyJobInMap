@@ -28,12 +28,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.data.preferences.ServerUrl
 import com.fieldworker.domain.model.AccessLevel
+import com.fieldworker.ui.components.Eyebrow
 import com.fieldworker.ui.theme.AppShape
 import com.fieldworker.ui.utils.avatarInitials
 import com.fieldworker.ui.utils.resolveAvatarUrl
@@ -400,13 +400,9 @@ fun SettingsScreen(
 @Composable
 private fun SectionLabel(text: String) {
     // Нейтральный eyebrow, как в портале: акцент — только для действий
-    Text(
-        text = text.uppercase(),
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = 0.8.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp)
+    Eyebrow(
+        text = text,
+        modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp),
     )
 }
 
@@ -435,18 +431,21 @@ private fun GroupDivider() {
     )
 }
 
-/** Иконка в мягкой плашке слева от строки (или пустое место той же ширины). */
+/**
+ * Иконка в нейтральной плашке слева от строки (или пустое место той же ширины).
+ * Акцент — только для действий, поэтому плашка не оранжевая.
+ */
 @Composable
 private fun RowIcon(icon: ImageVector?) {
     Box(
         modifier = Modifier
             .size(30.dp)
             .clip(AppShape.sm)
-            .background(if (icon != null) MaterialTheme.colorScheme.primaryContainer else Color.Transparent),
+            .background(if (icon != null) MaterialTheme.colorScheme.surfaceContainerHighest else Color.Transparent),
         contentAlignment = Alignment.Center
     ) {
         if (icon != null) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -566,8 +565,7 @@ private fun ProfileAvatar(
                 Text(
                     text = initials,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
+                    style = MaterialTheme.typography.titleSmall,
                 )
             } else {
                 Icon(
