@@ -81,6 +81,7 @@ import com.fieldworker.domain.model.PendingPhoto
 import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.TaskRepeat
 import com.fieldworker.domain.model.TaskStatus
+import com.fieldworker.ui.components.QuickFilterChip
 import com.fieldworker.ui.components.AppSearchField
 import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.TaskCard
@@ -525,55 +526,6 @@ private fun QuickStatusFilters(
             letterSpacing = 0.4.sp,
             maxLines = 1
         )
-    }
-}
-
-@Composable
-private fun QuickFilterChip(
-    label: String,
-    dotColor: Color?,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    val container by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-        else MaterialTheme.colorScheme.surface,
-        label = "quick-filter-bg"
-    )
-    Surface(
-        onClick = onClick,
-        shape = AppShape.pill,
-        color = container,
-        border = BorderStroke(
-            1.dp,
-            if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .height(32.dp)
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            // Статус несёт цвет — точка та же, что в чипе статуса карточки
-            if (dotColor != null) {
-                Box(
-                    modifier = Modifier
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(dotColor)
-                )
-            }
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                color = if (selected) accentTextColor() else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
-            )
-        }
     }
 }
 

@@ -74,6 +74,7 @@ import com.fieldworker.domain.model.Task
 import com.fieldworker.domain.model.TaskPhoto
 import com.fieldworker.domain.model.TaskStatus
 import com.fieldworker.ui.components.CompactTaskCard
+import com.fieldworker.ui.components.QuickFilterChip
 import com.fieldworker.ui.components.PhotoGallery
 import com.fieldworker.ui.components.PhotoUploadConfirmDialog
 import com.fieldworker.ui.components.rememberPhotoDraft
@@ -327,11 +328,12 @@ fun MapScreen(
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(16.dp),
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Статистика задач
-            TasksStatsBar(tasks = mapTasks)
+            TasksStatsBar(tasks = mapTasks, modifier = Modifier.padding(horizontal = 16.dp))
             MapModeChips(
                 mode = mapMode,
                 onModeChange = {
@@ -339,10 +341,7 @@ fun MapScreen(
                     fitTick++
                 },
                 statusFilter = uiState.statusFilter,
-                onToggleStatus = { status ->
-                    val current = uiState.statusFilter
-                    viewModel.setStatusFilter(if (status in current) current - status else current + status)
-                },
+                onStatusFilterChange = viewModel::setStatusFilter,
                 showMine = uiState.canManageTasks,
                 mineOnly = uiState.taskScope == TaskScope.MINE,
                 onToggleMine = {
@@ -1225,44 +1224,58 @@ private fun MapModeChips(
     mode: MapMode,
     onModeChange: (MapMode) -> Unit,
     statusFilter: Set<TaskStatus>,
-    onToggleStatus: (TaskStatus) -> Unit,
+    onStatusFilterChange: (Set<TaskStatus>) -> Unit,
     showMine: Boolean,
     mineOnly: Boolean,
     onToggleMine: () -> Unit,
 ) {
+    // Те же «таблетки», что над лентой заявок; тень — чтобы читались на тайлах
+    val elevation = 3.dp
+    // На всю ширину: ряд прокручивается до края экрана, а не обрезается
+    // у отступа; помещается целиком — стоит по центру
     Row(
         modifier = Modifier
+            .fillMaxWidth()
             .padding(top = 8.dp)
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
     ) {
-        MapChip("Маршрут дня", mode == MapMode.ROUTE) {
-            onModeChange(if (mode == MapMode.ROUTE) MapMode.ALL else MapMode.ROUTE)
-        }
-        MapChip("На сегодня", mode == MapMode.TODAY) {
-            onModeChange(if (mode == MapMode.TODAY) MapMode.ALL else MapMode.TODAY)
-        }
-        // Маршрут дня — свой набор: мои открытые, фильтры списка к нему не относятся
+        QuickFilterChip(
+            label = "Маршрут дня",
+            selected = mode == MapMode.ROUTE,
+            onClick = { onModeChange(if (mode == MapMode.ROUTE) MapMode.ALL else MapMode.ROUTE) },
+            shadowElevation = elevation,
+        )
+        QuickFilterChip(
+            label = "На сегодня",
+            selected = mode == MapMode.TODAY,
+            onClick = { onModeChange(if (mode == MapMode.TODAY) MapMode.ALL else MapMode.TODAY) },
+            shadowElevation = elevation,
+        )
+        // Маршрут дня — свой набор: мои открытые, фильтры ленты к нему не относятся
         if (mode != MapMode.ROUTE) {
-            MapChip("Новые", TaskStatus.NEW in statusFilter) { onToggleStatus(TaskStatus.NEW) }
-            MapChip("В работе", TaskStatus.IN_PROGRESS in statusFilter) { onToggleStatus(TaskStatus.IN_PROGRESS) }
-            if (showMine) MapChip("Мои", mineOnly, onToggleMine)
+            // Статус — как в ленте: один выбранный; повторный тап — снова все
+            listOf(TaskStatus.NEW to "Новые", TaskStatus.IN_PROGRESS to "В работе").forEach { (status, label) ->
+                val only = setOf(status)
+                QuickFilterChip(
+                    label = label,
+                    selected = statusFilter == only,
+                    onClick = { onStatusFilterChange(if (statusFilter == only) emptySet() else only) },
+                    dotColor = status.contentColor(),
+                    shadowElevation = elevation,
+                )
+            }
+            if (showMine) {
+                QuickFilterChip(
+                    label = "Мои",
+                    selected = mineOnly,
+                    onClick = onToggleMine,
+                    shadowElevation = elevation,
+                )
+            }
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun MapChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label) },
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-        ),
-        elevation = FilterChipDefaults.filterChipElevation(elevation = 3.dp),
-    )
 }
 
 /** Низ карты в режиме маршрута: сколько точек, сколько ехать, «Поехали». */
