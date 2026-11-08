@@ -1,12 +1,19 @@
+<!-- Точка «моё местоположение»: нейтральный тёмный центр с белым кольцом.
+     Цвет на карте несёт статус заявки — свою точку красим не в «системный синий»,
+     а в спокойный тёмный, который читается на любых тайлах (и в тёмной теме — за счёт кольца). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
+    android:width="22dp"
+    android:height="22dp"
+    android:viewportWidth="22"
+    android:viewportHeight="22">
+    <!-- Мягкая тень, чтобы белое кольцо не терялось на светлых тайлах -->
     <path
-        android:fillColor="#2196F3"
-        android:pathData="M12,2C8.13,2 5,5.13 5,9c0,5.25 7,13 7,13s7,-7.75 7,-13c0,-3.87 -3.13,-7 -7,-7z"/>
+        android:fillColor="#33000000"
+        android:pathData="M11,11m-11,0a11,11 0,1 1,22 0a11,11 0,1 1,-22 0"/>
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M12,11.5m-2.5,0a2.5,2.5 0,1 1,5 0a2.5,2.5 0,1 1,-5 0"/>
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M11,11m-10,0a10,10 0,1 1,20 0a10,10 0,1 1,-20 0"/>
+    <path
+        android:fillColor="#FF111827"
+        android:pathData="M11,11m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0"/>
 </vector>

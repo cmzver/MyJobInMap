@@ -1526,10 +1526,6 @@ private fun getRouteStopIcon(
     return BitmapDrawable(context.resources, bitmap)
 }
 
-private fun getMyLocationIcon(context: android.content.Context): Drawable? {
-    val drawable = ContextCompat.getDrawable(context, R.drawable.ic_my_location)?.mutate()
-    drawable?.let {
-        DrawableCompat.setTint(it, Color(0xFF0A84FF).toArgb())
-    }
-    return drawable
-}
+/** Точка «я»: тёмный центр с белым кольцом — цвета уже в самом drawable. */
+private fun getMyLocationIcon(context: android.content.Context): Drawable? =
+    ContextCompat.getDrawable(context, R.drawable.ic_my_location)

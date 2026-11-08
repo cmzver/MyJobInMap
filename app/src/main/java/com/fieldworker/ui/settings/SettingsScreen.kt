@@ -432,18 +432,21 @@ private fun GroupDivider() {
     )
 }
 
-/** Иконка в мягкой плашке слева от строки (или пустое место той же ширины). */
+/**
+ * Иконка в нейтральной плашке слева от строки (или пустое место той же ширины).
+ * Акцент — только для действий, поэтому плашка не оранжевая.
+ */
 @Composable
 private fun RowIcon(icon: ImageVector?) {
     Box(
         modifier = Modifier
             .size(30.dp)
             .clip(AppShape.sm)
-            .background(if (icon != null) MaterialTheme.colorScheme.primaryContainer else Color.Transparent),
+            .background(if (icon != null) MaterialTheme.colorScheme.surfaceContainerHighest else Color.Transparent),
         contentAlignment = Alignment.Center
     ) {
         if (icon != null) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
         }
     }
 }
