@@ -221,11 +221,38 @@ object TaskUtils {
         
         return when {
             distanceMeters < 1000 -> "${distanceMeters.toInt()} м"
-            distanceMeters < 10000 -> String.format(Locale.getDefault(), "%.1f км", distanceMeters / 1000)
+            // Запятая, как принято по-русски, при любом языке телефона
+            distanceMeters < 10000 -> String.format(Locale.forLanguageTag("ru"), "%.1f км", distanceMeters / 1000)
             else -> "${(distanceMeters / 1000).toInt()} км"
         }
     }
     
+    /** Яндекс строит маршрут не больше чем по стольким точкам */
+    const val MAX_ROUTE_STOPS = 10
+
+    /**
+     * Маршрут по нескольким заявкам по порядку — одной поездкой от текущего
+     * места (пустая первая точка rtext). Яндекс.Карты, иначе — их сайт
+     * (откроется в браузере или в приложении). Без координат точки пропускаются.
+     * Возвращает число точек в маршруте.
+     */
+    fun openRoute(context: Context, stops: List<Task>): Int {
+        val points = stops.filter { it.lat != null && it.lon != null }.take(MAX_ROUTE_STOPS)
+        if (points.isEmpty()) return 0
+        val rtext = points.joinToString(separator = "~", prefix = "~") { "${it.lat},${it.lon}" }
+        val appIntent = Intent(Intent.ACTION_VIEW).apply {
+            data = Uri.parse("yandexmaps://maps.yandex.ru/?rtext=$rtext&rtt=auto")
+            setPackage("ru.yandex.yandexmaps")
+        }
+        val intent = if (appIntent.resolveActivity(context.packageManager) != null) {
+            appIntent
+        } else {
+            Intent(Intent.ACTION_VIEW, Uri.parse("https://yandex.ru/maps/?rtext=$rtext&rtt=auto"))
+        }
+        runCatching { context.startActivity(intent) }
+        return points.size
+    }
+
     /**
      * Открывает навигацию до задачи
      */

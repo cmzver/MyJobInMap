@@ -45,13 +45,7 @@ class MyDayViewModel @Inject constructor(
     private val _message = MutableStateFlow<String?>(null)
     val message = _message.asStateFlow()
     val tasks = combine(tasksUseCase.tasksFlow, order, currentDay) { tasks, order, day ->
-        val ranks = order.withIndex().associate { it.value to it.index }
-        tasks.filter { task ->
-            task.assignedUserId == preferences.getUserId() &&
-                task.status in listOf(TaskStatus.NEW, TaskStatus.IN_PROGRESS) &&
-                (task.plannedDate == null || task.plannedDate.take(10) <= day)
-        }.sortedWith(compareBy<Task> { ranks[it.id] ?: Int.MAX_VALUE }
-            .thenBy { it.plannedDate ?: "9999" }.thenBy { it.id })
+        dayRouteTasks(tasks, order, day, preferences.getUserId())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun refresh() {

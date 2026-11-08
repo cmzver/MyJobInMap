@@ -86,4 +86,17 @@ class TaskUtilsTest {
         assertEquals("07.11.2026", TaskUtils.formatShortDate("2026-11-07T22:00:00"))
         assertEquals("не дата", TaskUtils.formatDateTime("не дата"))
     }
+
+    @Test
+    fun `distance uses Russian decimal comma whatever the phone language`() {
+        val saved = java.util.Locale.getDefault()
+        try {
+            java.util.Locale.setDefault(java.util.Locale.US)
+            assertEquals("850 м", TaskUtils.formatDistance(850f))
+            assertEquals("2,6 км", TaskUtils.formatDistance(2600f))
+            assertEquals("12 км", TaskUtils.formatDistance(12_400f))
+        } finally {
+            java.util.Locale.setDefault(saved)
+        }
+    }
 }

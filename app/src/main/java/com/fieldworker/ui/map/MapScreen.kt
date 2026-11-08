@@ -33,6 +33,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -43,6 +45,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +55,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,6 +80,7 @@ import com.fieldworker.ui.components.rememberPhotoDraft
 import com.fieldworker.ui.components.rememberPickPhotoLauncher
 import com.fieldworker.ui.components.rememberTakePhotoLauncher
 import com.fieldworker.ui.list.AssigneePickerDialog
+import com.fieldworker.ui.day.dayRouteTasks
 import com.fieldworker.ui.list.TaskDetailBottomSheet
 import com.fieldworker.ui.utils.extractApartment
 import com.fieldworker.ui.utils.extractAdditionalInfo
@@ -90,6 +95,8 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polyline
+import java.time.LocalDate
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -106,6 +113,7 @@ private val clusterBitmapCache = LruCache<String, Bitmap>(64)
 @Composable
 private fun AddressTaskGroupBottomSheet(
     group: TaskMarkerGroup,
+    distanceText: String?,
     onDismiss: () -> Unit,
     onTaskSelected: (Task) -> Unit,
 ) {
@@ -114,10 +122,8 @@ private fun AddressTaskGroupBottomSheet(
     val title = group.address.ifBlank {
         "\u0417\u0430\u044f\u0432\u043a\u0438 \u043f\u043e \u043e\u0434\u043d\u043e\u0439 \u0442\u043e\u0447\u043a\u0435"
     }
-    val subtitle = when (group.count) {
-        2, 3, 4 -> "${group.count} \u0437\u0430\u044f\u0432\u043a\u0438 \u043f\u043e \u044d\u0442\u043e\u043c\u0443 \u0430\u0434\u0440\u0435\u0441\u0443"
-        else -> "${group.count} \u0437\u0430\u044f\u0432\u043e\u043a \u043f\u043e \u044d\u0442\u043e\u043c\u0443 \u0430\u0434\u0440\u0435\u0441\u0443"
-    }
+    val subtitle = "${group.count} ${TaskUtils.pluralizeTasks(group.count)} по этому адресу" +
+        (distanceText?.let { " · ≈ $it от вас" } ?: "")
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -233,13 +239,73 @@ fun MapScreen(
         }
     }
 
+    // Режим карты: все (по фильтрам списка), на сегодня, маршрут дня
+    var mapMode by rememberSaveable { mutableStateOf(MapMode.ALL) }
+    val today = remember { LocalDate.now().toString() }
+    val routeStops = remember(uiState.tasks, mapMode) {
+        if (mapMode == MapMode.ROUTE) {
+            dayRouteTasks(
+                uiState.tasks,
+                viewModel.preferences.getDayRoute(today),
+                today,
+                viewModel.preferences.getUserId(),
+            )
+        } else {
+            null
+        }
+    }
+    val mapTasks = remember(filteredTasks, mapMode, routeStops) {
+        when (mapMode) {
+            MapMode.ALL -> filteredTasks
+            MapMode.TODAY -> filteredTasks.filter { it.isPlannedBy(today) }
+            MapMode.ROUTE -> routeStops.orEmpty()
+        }
+    }
+    var focus by remember { mutableStateOf<MapFocus?>(null) }
+    var fitTick by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
+    var nearestPending by remember { mutableStateOf(false) }
+
+    // Ближайшая открытая заявка из показанных — карта к ней и её карточка
+    fun showNearest(lat: Double, lon: Double) {
+        val nearest = mapTasks
+            .filter { (it.status == TaskStatus.NEW || it.status == TaskStatus.IN_PROGRESS) && it.hasValidCoordinates() }
+            .minByOrNull { TaskUtils.calculateDistance(lat, lon, it.lat, it.lon) ?: Float.MAX_VALUE }
+        if (nearest == null) {
+            scope.launch { snackbarHostState.showSnackbar("На карте нет открытых заявок с точкой") }
+            return
+        }
+        focus = MapFocus(nearest.lat!!, nearest.lon!!, (focus?.tick ?: 0) + 1)
+        scope.launch {
+            delay(450)
+            selectedGroup = null
+            viewModel.selectTask(nearest)
+        }
+    }
+    // «Ближайшая» до того, как стало известно местоположение, — ждём fix
+    LaunchedEffect(nearestPending, uiState.myLocationLat, uiState.myLocationLon) {
+        val lat = uiState.myLocationLat
+        val lon = uiState.myLocationLon
+        if (nearestPending && lat != null && lon != null) {
+            nearestPending = false
+            showNearest(lat, lon)
+        }
+    }
+
     Box(modifier = Modifier
         .fillMaxSize()
         .clipToBounds()
     ) {
         // Карта с маркерами
         OsmMapView(
-            tasks = filteredTasks,
+            tasks = mapTasks,
+            routeStops = routeStops,
+            onStopClick = { task ->
+                selectedGroup = null
+                viewModel.selectTask(task)
+            },
+            focus = focus,
+            fitTick = fitTick,
             onMarkerClick = { group ->
                 if (group.isCluster) {
                     selectedGroup = group
@@ -265,9 +331,26 @@ fun MapScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Статистика задач
-            TasksStatsBar(tasks = filteredTasks)
+            TasksStatsBar(tasks = mapTasks)
+            MapModeChips(
+                mode = mapMode,
+                onModeChange = {
+                    mapMode = it
+                    fitTick++
+                },
+                statusFilter = uiState.statusFilter,
+                onToggleStatus = { status ->
+                    val current = uiState.statusFilter
+                    viewModel.setStatusFilter(if (status in current) current - status else current + status)
+                },
+                showMine = uiState.canManageTasks,
+                mineOnly = uiState.taskScope == TaskScope.MINE,
+                onToggleMine = {
+                    viewModel.setTaskScope(if (uiState.taskScope == TaskScope.MINE) TaskScope.ALL else TaskScope.MINE)
+                },
+            )
             // Заявки без координат на карте не видны — не прячем их молча
-            val withoutPoint = remember(filteredTasks) { filteredTasks.count { !it.hasValidCoordinates() } }
+            val withoutPoint = remember(mapTasks) { mapTasks.count { !it.hasValidCoordinates() } }
             if (withoutPoint > 0) {
                 MapHintChip(text = "$withoutPoint ${TaskUtils.pluralize(withoutPoint, "заявка", "заявки", "заявок")} без точки — в списке")
             }
@@ -287,6 +370,33 @@ fun MapScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            MapActionButton(
+                onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    val lat = uiState.myLocationLat
+                    val lon = uiState.myLocationLon
+                    when {
+                        lat != null && lon != null -> showNearest(lat, lon)
+                        hasLocationPermission -> {
+                            nearestPending = true
+                            requestLocation(context, viewModel)
+                            scope.launch { snackbarHostState.showSnackbar("Определяем местоположение…") }
+                        }
+                        else -> {
+                            nearestPending = true
+                            locationPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        }
+                    }
+                },
+                icon = ImageVector.vectorResource(R.drawable.ic_near_me),
+                contentDescription = "Ближайшая заявка"
+            )
+
             MapActionButton(
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -314,6 +424,18 @@ fun MapScreen(
                 },
                 icon = Icons.Default.Refresh,
                 contentDescription = stringResource(id = R.string.map_refresh)
+            )
+        }
+
+        if (mapMode == MapMode.ROUTE) {
+            RoutePanel(
+                stops = routeStops.orEmpty(),
+                myLat = uiState.myLocationLat,
+                myLon = uiState.myLocationLon,
+                onGo = { TaskUtils.openRoute(context, routeStops.orEmpty()) },
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 16.dp, end = 80.dp, bottom = 16.dp),
             )
         }
 
@@ -345,6 +467,9 @@ fun MapScreen(
     selectedGroup?.let { group ->
         AddressTaskGroupBottomSheet(
             group = group,
+            distanceText = TaskUtils.formatDistance(
+                TaskUtils.calculateDistance(uiState.myLocationLat, uiState.myLocationLon, group.lat, group.lon)
+            ),
             onDismiss = { selectedGroup = null },
             onTaskSelected = { task ->
                 selectedGroup = null
@@ -382,7 +507,15 @@ fun MapScreen(
                 { viewModel.showAssignDialog() }
             } else {
                 null
-            }
+            },
+            distanceText = TaskUtils.formatDistance(
+                TaskUtils.calculateDistance(
+                    uiState.myLocationLat,
+                    uiState.myLocationLon,
+                    uiState.selectedTask!!.lat,
+                    uiState.selectedTask!!.lon,
+                )
+            )
         )
 
         if (uiState.showAssignDialog) {
@@ -757,6 +890,12 @@ private val DarkMapTilesFilter: ColorMatrixColorFilter by lazy {
 private fun OsmMapView(
     tasks: List<Task>,
     onMarkerClick: (TaskMarkerGroup) -> Unit,
+    // Маршрут дня: точки по порядку с номерами вместо обычных маркеров
+    routeStops: List<Task>? = null,
+    onStopClick: (Task) -> Unit = {},
+    focus: MapFocus? = null,
+    // Смена режима карты — показать всё, что в нём видно
+    fitTick: Int = 0,
     modifier: Modifier = Modifier,
     showMyLocation: Boolean = true,
     myLocationLat: Double? = null,
@@ -849,6 +988,20 @@ private fun OsmMapView(
         }
     }
     val taskOverlays = remember { mutableListOf<org.osmdroid.views.overlay.Overlay>() }
+    val routeLineColor = MaterialTheme.colorScheme.primary.toArgb()
+
+    LaunchedEffect(focus) {
+        val target = focus ?: return@LaunchedEffect
+        mapView.controller.animateTo(GeoPoint(target.lat, target.lon), maxOf(mapView.zoomLevelDouble, 16.0), 400L)
+        mapCentered = true
+    }
+
+    LaunchedEffect(fitTick) {
+        if (fitTick == 0) return@LaunchedEffect
+        val groups = routeStops?.let(::buildTaskMarkerGroups) ?: markerGroups
+        fitMapToMarkers(mapView, groups)
+        mapCentered = true
+    }
 
     LaunchedEffect(showMyLocation, myLocationLat, myLocationLon) {
         val lat = myLocationLat
@@ -866,9 +1019,16 @@ private fun OsmMapView(
         mapView.invalidate()
     }
 
-    LaunchedEffect(markerGroups) {
+    LaunchedEffect(markerGroups, routeStops) {
         mapView.overlays.removeAll(taskOverlays)
         taskOverlays.clear()
+
+        if (routeStops != null) {
+            addRouteOverlays(mapView, context, routeStops, routeLineColor, onStopClick, taskOverlays)
+            mapView.overlays.addAll(taskOverlays)
+            mapView.invalidate()
+            return@LaunchedEffect
+        }
 
         markerGroups.forEach { group ->
             if (group.isCluster) {
@@ -1047,6 +1207,206 @@ private class ClusterBubbleOverlay(
             false
         }
     }
+}
+
+/** Режим карты. */
+private enum class MapMode { ALL, TODAY, ROUTE }
+
+/** Запрос «перевести карту к точке»; [tick] — чтобы повтор той же точки срабатывал. */
+internal data class MapFocus(val lat: Double, val lon: Double, val tick: Int)
+
+/** Открытая заявка, запланированная на [day] или раньше (просроченная). */
+private fun Task.isPlannedBy(day: String): Boolean =
+    (status == TaskStatus.NEW || status == TaskStatus.IN_PROGRESS) &&
+        plannedDate != null && plannedDate.take(10) <= day
+
+@Composable
+private fun MapModeChips(
+    mode: MapMode,
+    onModeChange: (MapMode) -> Unit,
+    statusFilter: Set<TaskStatus>,
+    onToggleStatus: (TaskStatus) -> Unit,
+    showMine: Boolean,
+    mineOnly: Boolean,
+    onToggleMine: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .padding(top = 8.dp)
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        MapChip("Маршрут дня", mode == MapMode.ROUTE) {
+            onModeChange(if (mode == MapMode.ROUTE) MapMode.ALL else MapMode.ROUTE)
+        }
+        MapChip("На сегодня", mode == MapMode.TODAY) {
+            onModeChange(if (mode == MapMode.TODAY) MapMode.ALL else MapMode.TODAY)
+        }
+        // Маршрут дня — свой набор: мои открытые, фильтры списка к нему не относятся
+        if (mode != MapMode.ROUTE) {
+            MapChip("Новые", TaskStatus.NEW in statusFilter) { onToggleStatus(TaskStatus.NEW) }
+            MapChip("В работе", TaskStatus.IN_PROGRESS in statusFilter) { onToggleStatus(TaskStatus.IN_PROGRESS) }
+            if (showMine) MapChip("Мои", mineOnly, onToggleMine)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MapChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label) },
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
+        elevation = FilterChipDefaults.filterChipElevation(elevation = 3.dp),
+    )
+}
+
+/** Низ карты в режиме маршрута: сколько точек, сколько ехать, «Поехали». */
+@Composable
+private fun RoutePanel(
+    stops: List<Task>,
+    myLat: Double?,
+    myLon: Double?,
+    onGo: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val located = remember(stops) { stops.filter { it.hasValidCoordinates() } }
+    val length = remember(located, myLat, myLon) { routeLengthMeters(located, myLat, myLon) }
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 6.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (stops.isEmpty()) "На сегодня заявок нет" else "Маршрут дня",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                val details = buildList {
+                    if (stops.isNotEmpty()) add("${stops.size} ${TaskUtils.pluralize(stops.size, "точка", "точки", "точек")}")
+                    TaskUtils.formatDistance(length)?.let { add("≈ $it по прямой") }
+                    val withoutPoint = stops.size - located.size
+                    if (withoutPoint > 0) add("$withoutPoint без точки")
+                    if (located.size > TaskUtils.MAX_ROUTE_STOPS) add("в навигатор — первые ${TaskUtils.MAX_ROUTE_STOPS}")
+                }
+                if (details.isNotEmpty()) {
+                    Text(
+                        text = details.joinToString(" · "),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (located.isNotEmpty()) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(onClick = onGo) { Text("Поехали") }
+            }
+        }
+    }
+}
+
+/** Длина маршрута по прямым между точками (от меня, если местоположение известно). */
+private fun routeLengthMeters(stops: List<Task>, myLat: Double?, myLon: Double?): Float? {
+    if (stops.isEmpty()) return null
+    var previous: Pair<Double, Double>? = if (myLat != null && myLon != null) myLat to myLon else null
+    var total = 0f
+    for (stop in stops) {
+        val lat = stop.lat ?: continue
+        val lon = stop.lon ?: continue
+        previous?.let { total += TaskUtils.calculateDistance(it.first, it.second, lat, lon) ?: 0f }
+        previous = lat to lon
+    }
+    return total.takeIf { it > 0f }
+}
+
+/** Линия маршрута и пронумерованные точки (номер — как в «Моём дне»). */
+private fun addRouteOverlays(
+    mapView: MapView,
+    context: android.content.Context,
+    stops: List<Task>,
+    lineColor: Int,
+    onStopClick: (Task) -> Unit,
+    into: MutableList<Overlay>,
+) {
+    val density = context.resources.displayMetrics.density
+    val points = stops.filter { it.hasValidCoordinates() }.map { GeoPoint(it.lat!!, it.lon!!) }
+    if (points.size > 1) {
+        into.add(
+            Polyline(mapView).apply {
+                setPoints(points)
+                outlinePaint.color = lineColor
+                outlinePaint.strokeWidth = 5f * density
+                outlinePaint.strokeCap = Paint.Cap.ROUND
+                outlinePaint.alpha = 200
+                // Линия не перехватывает тапы — они для точек под ней
+                setOnClickListener { _, _, _ -> false }
+            }
+        )
+    }
+    stops.forEachIndexed { index, task ->
+        if (!task.hasValidCoordinates()) return@forEachIndexed
+        val color = TaskMarkerGroup(listOf(task), task.lat!!, task.lon!!).summary.markerColor()
+        into.add(
+            Marker(mapView).apply {
+                position = GeoPoint(task.lat, task.lon)
+                title = "${index + 1}. [${task.taskNumber}] ${task.title}"
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                icon = getRouteStopIcon(context, color, index + 1)
+                setOnMarkerClickListener { _, _ ->
+                    onStopClick(task)
+                    true
+                }
+            }
+        )
+    }
+}
+
+/** Точка маршрута — скруглённый квадрат с номером (круг с числом — это группа заявок). */
+private fun getRouteStopIcon(
+    context: android.content.Context,
+    markerColor: Color,
+    number: Int,
+): Drawable {
+    val cacheKey = "route_${markerColor.toArgb()}_$number"
+    clusterBitmapCache.get(cacheKey)?.let { return BitmapDrawable(context.resources, it) }
+
+    val density = context.resources.displayMetrics.density
+    val size = (30 * density).roundToInt()
+    val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val stroke = max(2, density.roundToInt()).toFloat()
+    val radius = 8f * density
+    val rect = android.graphics.RectF(stroke / 2, stroke / 2, size - stroke / 2, size - stroke / 2)
+    canvas.drawRoundRect(rect, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = markerColor.toArgb()
+        style = Paint.Style.FILL
+    })
+    canvas.drawRoundRect(rect, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.WHITE
+        style = Paint.Style.STROKE
+        strokeWidth = stroke
+    })
+    val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = AndroidColor.WHITE
+        textAlign = Paint.Align.CENTER
+        textSize = 13f * density
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
+    val textY = size / 2f - (textPaint.descent() + textPaint.ascent()) / 2f
+    canvas.drawText(number.toString(), size / 2f, textY, textPaint)
+    clusterBitmapCache.put(cacheKey, bitmap)
+    return BitmapDrawable(context.resources, bitmap)
 }
 
 private fun getMyLocationIcon(context: android.content.Context): Drawable? {
