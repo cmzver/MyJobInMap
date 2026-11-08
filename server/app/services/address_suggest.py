@@ -170,6 +170,15 @@ def _house_data(address: str) -> Optional[Dict[str, Any]]:
     return data if data.get("house") else None
 
 
+def _same_house(address: str, data: Dict[str, Any]) -> bool:
+    """Подсказка — тот же дом? На «Центральная, 20» DaData первой может
+    вернуть «д 2»: подсказки дополняют набранное, а не ищут точно."""
+    from app.services.address_parser import building_key, parse_address
+
+    wanted = building_key(parse_address(address).building)
+    return bool(wanted) and wanted == building_key(data.get("house"))
+
+
 def house_details(address: str) -> Optional[Dict[str, Any]]:
     """
     Район и код дома ФИАС по строке адреса — только если справочник узнал
@@ -180,8 +189,11 @@ def house_details(address: str) -> Optional[Dict[str, Any]]:
     if data is None:
         return None
     district = _district(data) or None
-    # Код дома ФИАС бесплатные подсказки отдают не для всех домов
-    fias_id = data.get("house_fias_id") or None
+    # Код дома ФИАС — только того самого дома; бесплатные подсказки отдают
+    # его не для всех домов
+    fias_id = (
+        (data.get("house_fias_id") or None) if _same_house(address, data) else None
+    )
     if not district and not fias_id:
         return None
     return {"district": district, "fias_id": fias_id}
@@ -199,7 +211,8 @@ def house_point(address: str) -> Optional[HousePoint]:
         lat, lon = float(data["geo_lat"]), float(data["geo_lon"])
     except (KeyError, TypeError, ValueError):
         return None
-    return HousePoint(lat, lon, exact=quality in ("0", "1"))
+    exact = quality in ("0", "1") and _same_house(address, data)
+    return HousePoint(lat, lon, exact=exact)
 
 
 # Так город часто пишут в своей базе — справочник знает его полное имя

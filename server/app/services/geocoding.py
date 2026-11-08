@@ -5,6 +5,7 @@ Geocoding Service
 """
 
 import logging
+import math
 import re
 import time
 from typing import Optional, Tuple
@@ -15,6 +16,20 @@ from geopy.geocoders import Nominatim
 from app.config import settings
 from app.models.enums import TaskPriority
 from app.services import address_suggest
+
+# Дальше этого от точки справочника результат OSM — другое место
+OSM_MAX_DRIFT_KM = 30.0
+
+
+def _distance_km(a: Tuple[float, float], b: Tuple[float, float]) -> float:
+    """Расстояние по большому кругу, км."""
+    lat1, lon1, lat2, lon2 = map(math.radians, (*a, *b))
+    h = (
+        math.sin((lat2 - lat1) / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
+    )
+    return 6371.0 * 2 * math.asin(math.sqrt(h))
+
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +219,13 @@ class GeocodingService:
             return coords
 
         coords = self._geocode_nominatim(address, normalized)
-        if coords is None and point is not None:
+        if point is not None and (
+            coords is None
+            or _distance_km(coords, (point.lat, point.lon)) > OSM_MAX_DRIFT_KM
+        ):
+            # OSM не нашёл — или нашёл одноимённое место в другом регионе
+            # (Новоселье есть и в Ярославской области): справочник с
+            # приоритетом наших регионов надёжнее
             logger.info("Geocoding: точка улицы из DaData для '%s'", address)
             coords = (point.lat, point.lon)
         if coords is None:
