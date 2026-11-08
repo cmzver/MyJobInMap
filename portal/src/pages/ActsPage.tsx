@@ -15,6 +15,7 @@ import { useActs, useActsSummary } from '@/hooks/useActs'
 import { actsApi, type ActListParams, type ActStatus, type ActsSummary } from '@/api/acts'
 import { formatDateOnly } from '@/utils/dateFormat'
 import { showApiError } from '@/utils/apiError'
+import { countRu } from '@/utils/plural'
 
 const PAGE_SIZE = 50
 const STATUS_OPTIONS = [
@@ -233,7 +234,7 @@ function MoneyStrip({ summary }: { summary: ActsSummary }) {
               key={key}
               label={label}
               value={row ? formatRub(row.amount) : '—'}
-              meta={row ? `${row.count} акт.` : ' '}
+              meta={row ? countRu(row.count, 'акт', 'акта', 'актов') : ' '}
               muted={!row}
             />
           )

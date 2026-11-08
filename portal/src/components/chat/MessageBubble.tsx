@@ -12,6 +12,7 @@ import PriorityBadge from '@/components/PriorityBadge'
 import type { CachedMessage } from '@/utils/chatCache'
 import type { AttachmentResponse, MessageResponse } from '@/types/chat'
 import type { TaskStatus, TaskPriority } from '@/types/task'
+import { formatFileSize } from '@/utils/fileSize'
 
 interface Props {
   message: MessageResponse
@@ -66,11 +67,6 @@ function renderMessageText(message: MessageResponse) {
   })
 }
 
-function formatAttachmentSize(size: number) {
-  if (size < 1024) return `${size} Б`
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} КБ`
-  return `${(size / (1024 * 1024)).toFixed(1)} МБ`
-}
 
 function AttachmentIcon({ attachment }: { attachment: AttachmentResponse }) {
   if (attachment.mime_type.startsWith('image/')) {
@@ -394,7 +390,7 @@ function ImageAttachmentLightbox({
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
           <div className="flex flex-wrap items-center gap-2">
-            <span>{formatAttachmentSize(attachment.file_size)}</span>
+            <span>{formatFileSize(attachment.file_size)}</span>
             {attachments.length > 1 && currentIndex >= 0 && (
               <span className="rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300">
                 {currentIndex + 1} из {attachments.length}
@@ -772,7 +768,7 @@ function MessageBubble({
                         <div className="min-w-0">
                           <div className="truncate font-medium">{att.file_name}</div>
                           <div className={cn('truncate opacity-70', isOwn ? 'text-white/70' : 'text-gray-500 dark:text-gray-400')}>
-                            {att.mime_type.startsWith('image/') ? 'Изображение' : 'Файл'} • {formatAttachmentSize(att.file_size)}
+                            {att.mime_type.startsWith('image/') ? 'Изображение' : 'Файл'} • {formatFileSize(att.file_size)}
                           </div>
                         </div>
                       </div>

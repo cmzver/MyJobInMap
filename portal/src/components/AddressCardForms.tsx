@@ -13,6 +13,7 @@ import { Autocomplete } from '@/components/Autocomplete'
 import { addressesApi } from '@/api/addresses'
 import type { AddressSystem, AddressEquipment, AddressContact } from '@/types/address'
 import type { Address, AddressSuggestion } from '@/types/address'
+import { formatFileSize } from '@/utils/fileSize'
 
 // ============================================
 // Опции для селектов
@@ -450,7 +451,7 @@ export function DocumentForm({ onSubmit, onCancel, isLoading }: DocumentFormProp
           <Upload className="h-8 w-8 text-gray-400" />
           {formData.file ? (
             <span className="text-sm text-green-600 dark:text-green-400 font-medium">
-              {formData.file.name} ({(formData.file.size / 1024).toFixed(1)} КБ)
+              {formData.file.name} ({formatFileSize(formData.file.size)})
             </span>
           ) : (
             <>

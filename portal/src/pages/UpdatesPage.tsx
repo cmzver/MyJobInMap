@@ -16,15 +16,10 @@ import { getApiErrorMessage } from '@/utils/apiError'
 import { getAdminSettingsPath } from '@/utils/adminSettingsTabs'
 import { formatDateTime } from '@/utils/dateFormat'
 import type { AppUpdate } from '@/api/updates'
+import { formatFileSize } from '@/utils/fileSize'
 
 const MAX_APK_SIZE_BYTES = 100 * 1024 * 1024
 
-function formatFileSize(bytes: number | null): string {
-  if (!bytes) return '—'
-  if (bytes < 1024) return `${bytes} Б`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
-}
 
 interface UpdatesManagementSectionProps {
   embedded?: boolean
