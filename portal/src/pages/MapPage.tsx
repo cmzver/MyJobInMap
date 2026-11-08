@@ -379,7 +379,7 @@ export default function MapPage() {
       })
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: ['map-tasks', statusQuery, priorityQuery, isWorker ? user?.id : assigneeFilter],
+    queryKey: ['tasks', 'map', statusQuery, priorityQuery, isWorker ? user?.id : assigneeFilter],
     queryFn: async () => {
       const params = new URLSearchParams()
       // Явно фильтруем по статусам/приоритету/исполнителю на сервере, а не на
