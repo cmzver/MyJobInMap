@@ -81,7 +81,7 @@ export default function MultiSelectFilter({
   return (
     <div ref={containerRef} className={cn('relative w-full', className)}>
       <div className="mb-1 flex items-center justify-between gap-2">
-        <span className="eyebrow">
+        <span className="field-label">
           {label}
         </span>
         {selectedValues.length > 0 && (
