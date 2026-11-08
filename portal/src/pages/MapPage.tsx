@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
-import { DivIcon, Icon, LatLngBounds, divIcon } from 'leaflet'
+import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
+import { DivIcon, Icon, LatLngBounds, divIcon, type Map as LeafletMap } from 'leaflet'
+import toast from 'react-hot-toast'
 import {
   Calendar,
   Filter,
   List,
   Locate,
+  Maximize2,
   MapPin,
   Navigation,
   Phone,
   User,
-  X,
 } from 'lucide-react'
 import QueryStatePanel from '@/components/QueryStatePanel'
 import StatusBadge from '@/components/StatusBadge'
@@ -29,7 +30,7 @@ import { formatDatePretty } from '@/utils/dateFormat'
 import { buildTaskListUrl } from '@/utils/taskListUrl'
 
 import 'leaflet/dist/leaflet.css'
-import { countRu } from '@/utils/plural'
+import { countRu, pluralRu } from '@/utils/plural'
 
 const lightenColor = (hex: string, factor = 0.25) => {
   if (!hex.startsWith('#') || (hex.length !== 7 && hex.length !== 4)) return hex
@@ -208,23 +209,39 @@ const hasUsableCoordinates = (task: Coordinates): task is { lat: number; lon: nu
 const isTaskWithUsableCoordinates = (task: Task): task is Task & { lat: number; lon: number } =>
   hasUsableCoordinates(task)
 
+// Санкт-Петербург — основной регион работы; карта открывается здесь, пока
+// не пришли заявки
+const DEFAULT_CENTER: [number, number] = [59.9386, 30.3141]
+const SINGLE_TASK_ZOOM = 16
+const MAP_PADDING = {
+  paddingTopLeft: [180, 88] as [number, number],
+  paddingBottomRight: [56, 56] as [number, number],
+}
+
+const fitToTasks = (map: LeafletMap, tasks: Task[]) => {
+  const points = tasks
+    .filter(isTaskWithUsableCoordinates)
+    .map((task) => [task.lat, task.lon] as [number, number])
+  if (points.length === 0) return
+  const bounds = new LatLngBounds(points)
+  // Одна точка (или все в одном доме): fitBounds приблизил бы до предела
+  if (bounds.getNorthEast().equals(bounds.getSouthWest())) {
+    map.setView(bounds.getCenter(), SINGLE_TASK_ZOOM)
+    return
+  }
+  map.fitBounds(bounds, { ...MAP_PADDING, maxZoom: SINGLE_TASK_ZOOM })
+}
+
 function FitBounds({ tasks }: { tasks: Task[] }) {
   const map = useMap()
   // Фитим границы только один раз — при первой загрузке заявок, чтобы
   // рефетч или смена фильтра не сбрасывали выбранный пользователем зум.
+  // Вернуться ко всем заявкам — кнопка «Показать все».
   const hasFitted = useRef(false)
 
   useEffect(() => {
-    if (hasFitted.current) return
-    const validTasks = tasks.filter(isTaskWithUsableCoordinates)
-    if (validTasks.length === 0) return
-    const bounds = new LatLngBounds(
-      validTasks.map((task) => [task.lat!, task.lon!] as [number, number]),
-    )
-    map.fitBounds(bounds, {
-      paddingTopLeft: [180, 88],
-      paddingBottomRight: [56, 56],
-    })
+    if (hasFitted.current || tasks.length === 0) return
+    fitToTasks(map, tasks)
     hasFitted.current = true
   }, [tasks, map])
 
@@ -238,21 +255,94 @@ function ZoomWatcher({ onZoomChange }: { onZoomChange: (zoom: number) => void })
   return null
 }
 
-function LocateControl() {
-  const map = useMap()
+const mapButtonClass =
+  'rounded-lg border border-gray-200 bg-white p-2.5 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700'
 
-  const handleLocate = () => {
-    map.locate({ setView: true, maxZoom: 16 })
-  }
+/**
+ * Кнопки поверх карты. z-[1000]: панели Leaflet лежат на z-index 400–700,
+ * и кнопка с z-10 пряталась под тайлами.
+ */
+function MapControls({ tasks }: { tasks: Task[] }) {
+  const map = useMap()
+  const [myPosition, setMyPosition] = useState<[number, number] | null>(null)
+
+  useMapEvents({
+    locationfound: (event) => setMyPosition([event.latlng.lat, event.latlng.lng]),
+    locationerror: () => {
+      toast.error('Не удалось определить местоположение — разрешите доступ к геопозиции в браузере')
+    },
+  })
 
   return (
-    <button
-      onClick={handleLocate}
-      className="absolute bottom-20 right-4 z-10 rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700"
-      title="Моё местоположение"
-    >
-      <Locate size={20} className="text-gray-700 dark:text-gray-300" />
-    </button>
+    <>
+      {myPosition && (
+        <CircleMarker
+          center={myPosition}
+          radius={8}
+          pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#2563EB', fillOpacity: 1 }}
+        />
+      )}
+      <div className="absolute bottom-8 right-3 z-[1000] flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={() => fitToTasks(map, tasks)}
+          className={mapButtonClass}
+          title="Показать все заявки"
+          aria-label="Показать все заявки"
+        >
+          <Maximize2 size={18} className="text-gray-700 dark:text-gray-300" />
+        </button>
+        <button
+          type="button"
+          onClick={() => map.locate({ setView: true, maxZoom: SINGLE_TASK_ZOOM })}
+          className={mapButtonClass}
+          title="Моё местоположение"
+          aria-label="Моё местоположение"
+        >
+          <Locate size={18} className="text-gray-700 dark:text-gray-300" />
+        </button>
+      </div>
+    </>
+  )
+}
+
+type MarkerGroup = { key: string; lat: number; lon: number; tasks: Task[] }
+
+const CLOSED_STATUSES = new Set<string>(['DONE', 'CANCELLED'])
+const isClosed = (task: Task) => CLOSED_STATUSES.has(task.status)
+// Закрытые заявки — бледнее: в первую очередь глаз должен цеплять живые
+const CLOSED_MARKER_OPACITY = 0.5
+
+// Все заявки группы в одном доме (а не просто рядом на мелком масштабе)
+const isSameSpot = (group: MarkerGroup) => {
+  const spot = (task: Task) => `${task.lat!.toFixed(5)}|${task.lon!.toFixed(5)}`
+  const first = spot(group.tasks[0]!)
+  return group.tasks.every((task) => spot(task) === first)
+}
+
+/** Группа заявок в разных домах: клик приближает, а не открывает список. */
+function ZoomToGroupMarker({
+  group,
+  icon,
+  title,
+  opacity,
+}: {
+  group: MarkerGroup
+  icon: DivIcon
+  title: string
+  opacity: number
+}) {
+  const map = useMap()
+  return (
+    <Marker
+      position={[group.lat, group.lon]}
+      icon={icon}
+      title={title}
+      opacity={opacity}
+      eventHandlers={{
+        click: () => fitToTasks(map, group.tasks),
+      }}
+    />
   )
 }
 
@@ -263,7 +353,6 @@ export default function MapPage() {
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority[]>([])
   const [assigneeFilter, setAssigneeFilter] = useState<string>('')
   const [showFilters, setShowFilters] = useState(false)
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [zoom, setZoom] = useState(10)
   const sortedStatuses = useMemo(() => statusFilter.slice().sort(), [statusFilter])
   const statusQuery = useMemo(() => sortedStatuses.join(','), [sortedStatuses])
@@ -303,11 +392,13 @@ export default function MapPage() {
         params.append('assignee_id', assigneeFilter)
       }
       const items = await fetchAllTaskPages(params)
-      return items.filter(isTaskWithUsableCoordinates)
+      const located = items.filter(isTaskWithUsableCoordinates)
+      return { tasks: located, withoutPoint: items.length - located.length }
     },
   })
 
-  const tasks = useMemo(() => data ?? [], [data])
+  const tasks = useMemo(() => data?.tasks ?? [], [data])
+  const withoutPoint = data?.withoutPoint ?? 0
   const statusCounts = useMemo(() => {
     return tasks.reduce<Record<string, number>>((acc, task) => {
       acc[task.status] = (acc[task.status] || 0) + 1
@@ -336,7 +427,7 @@ export default function MapPage() {
     const cell = (360 / Math.pow(2, zoom)) * (CLUSTER_RADIUS_PX / TILE_SIZE_PX)
     const cellKey = (value: number) => Math.round(value / cell)
 
-    const groups = new Map<string, { key: string; lat: number; lon: number; latSum: number; lonSum: number; tasks: Task[] }>()
+    const groups = new Map<string, MarkerGroup & { latSum: number; lonSum: number }>()
 
     tasks.forEach((task) => {
       if (!isTaskWithUsableCoordinates(task)) return
@@ -371,8 +462,6 @@ export default function MapPage() {
       prev.includes(priority) ? prev.filter((item) => item !== priority) : [...prev, priority],
     )
   }
-
-  const defaultCenter: [number, number] = [55.7558, 37.6173]
 
   const openNavigation = (task: Task) => {
     if (!isTaskWithUsableCoordinates(task)) return
@@ -478,10 +567,22 @@ export default function MapPage() {
 
       <div className="absolute right-4 top-4 z-10 flex items-center rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <span className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
-          <span className="flex items-center gap-2 px-3 py-2 sm:px-4">
+          <span
+            className="flex items-center gap-2 px-3 py-2 sm:px-4"
+            title={
+              withoutPoint > 0
+                ? `Ещё ${countRu(withoutPoint, 'заявка', 'заявки', 'заявок')} без точки на карте — адрес не найден`
+                : undefined
+            }
+          >
             <MapPin size={16} className="text-gray-500" />
             {tasks.length}
-            <span className="hidden sm:inline">заявок на карте</span>
+            <span className="hidden sm:inline">
+              {pluralRu(tasks.length, 'заявка', 'заявки', 'заявок')} на карте
+              {withoutPoint > 0 && (
+                <span className="font-normal text-gray-500 dark:text-gray-400"> · {withoutPoint} без точки</span>
+              )}
+            </span>
           </span>
         </span>
         <Link
@@ -505,6 +606,9 @@ export default function MapPage() {
               {item.label}
             </span>
           ))}
+          {statusFilter.some((status) => CLOSED_STATUSES.has(status)) && (
+            <span className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">Бледные — закрытые</span>
+          )}
         </div>
       </div>
 
@@ -534,24 +638,23 @@ export default function MapPage() {
         />
       ) : (
         <MapContainer
-          center={defaultCenter}
+          center={DEFAULT_CENTER}
           zoom={10}
           className="fw-map relative z-0 h-full w-full overflow-hidden rounded-xl border border-gray-200 shadow-sm dark:border-gray-700"
-          style={{ background: '#f3f4f6' }}
+          style={{ background: resolvedTheme === 'dark' ? '#1f2937' : '#f3f4f6' }}
         >
+          {/* Тёмная подложка CARTO теперь требует ключ (вместо улиц — «API KEY
+              REQUIRED»); в тёмной теме — те же тайлы OSM, затемнённые фильтром */}
           <TileLayer
             key={resolvedTheme === 'dark' ? 'dark-tiles' : 'light-tiles'}
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> | &copy; <a href="https://carto.com/attributions">CARTO</a>'
-            url={
-              resolvedTheme === 'dark'
-                ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-            }
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            className={resolvedTheme === 'dark' ? 'fw-tiles-dark' : undefined}
           />
 
           <FitBounds tasks={tasks} />
           <ZoomWatcher onZoomChange={setZoom} />
-          <LocateControl />
+          <MapControls tasks={tasks} />
 
           {groupedTasks.map((group) => {
             const primaryTask = group.tasks[0]!
@@ -562,20 +665,31 @@ export default function MapPage() {
               : priorityIcons[groupPriority]
             const isGrouped = group.tasks.length > 1
             const secondaryTitle = getTaskSecondaryTitle(primaryTask)
+            const opacity = group.tasks.every(isClosed) ? CLOSED_MARKER_OPACITY : 1
+
+            if (isGrouped && !isSameSpot(group)) {
+              return (
+                <ZoomToGroupMarker
+                  key={group.key}
+                  group={group}
+                  icon={icon as DivIcon}
+                  opacity={opacity}
+                  title={`${countRu(group.tasks.length, 'заявка', 'заявки', 'заявок')} рядом — нажмите, чтобы приблизить`}
+                />
+              )
+            }
 
             return (
               <Marker
                 key={group.key}
                 position={[group.lat, group.lon]}
                 icon={icon}
+                opacity={opacity}
                 title={
                   isGrouped
                     ? `${countRu(group.tasks.length, 'заявка', 'заявки', 'заявок')}: ${primaryTask.raw_address || 'адрес не указан'}`
-                    : `№${getTaskNumber(primaryTask)} · ${primaryTask.title}`
+                    : `№${getTaskNumber(primaryTask)} · ${getTaskPrimaryTitle(primaryTask)}`
                 }
-                eventHandlers={{
-                  click: () => setSelectedTask(primaryTask),
-                }}
               >
                 <Popup className="fw-popup">
                   <div className="min-w-[260px] max-w-[320px]">
@@ -712,38 +826,6 @@ export default function MapPage() {
         </MapContainer>
       )}
 
-      {selectedTask && (
-        <div
-          className="absolute bottom-0 left-0 right-0 z-10 max-h-[80vh] overflow-y-auto rounded-t-xl border border-gray-200 bg-white p-4 shadow-lg lg:hidden dark:border-gray-700 dark:bg-gray-800"
-          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
-        >
-          <button
-            aria-label="Закрыть"
-            onClick={() => setSelectedTask(null)}
-            className="absolute right-4 top-4 p-1 text-gray-500 transition-colors hover:text-gray-700 dark:hover:text-gray-300"
-          >
-            <X size={20} />
-          </button>
-
-          <div className="mb-3 flex items-center gap-2">
-            <PriorityBadge priority={selectedTask.priority} />
-            <StatusBadge status={selectedTask.status} />
-          </div>
-
-          <h3 className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
-            {getTaskPrimaryTitle(selectedTask)}
-          </h3>
-
-          <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">{selectedTask.raw_address}</p>
-
-          <Link
-            to={`/tasks/${selectedTask.id}`}
-            className="block w-full rounded-lg bg-gray-900 py-3 text-center text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
-          >
-            Открыть заявку
-          </Link>
-        </div>
-      )}
     </div>
   )
 }
