@@ -168,7 +168,7 @@ class UpdateRepositoryTest {
         val body = apkContent.toResponseBody("application/vnd.android.package-archive".toMediaType())
         coEvery { authApi.downloadUpdate() } returns Response.success(body)
 
-        val progressValues = mutableListOf<Int>()
+        val progressValues = mutableListOf<com.fieldworker.data.repository.DownloadProgress>()
         val result = repository.downloadUpdate { progress ->
             progressValues.add(progress)
         }
@@ -177,9 +177,11 @@ class UpdateRepositoryTest {
         val file = result.getOrNull()!!
         assertTrue(file.exists())
         assertEquals(1024L, file.length())
-        // Last progress should be 100
+        // Последняя точка — всё скачано: 100 % и 1024 из 1024 байт
         assertTrue(progressValues.isNotEmpty())
-        assertEquals(100, progressValues.last())
+        assertEquals(100, progressValues.last().percent)
+        assertEquals(1024L, progressValues.last().downloadedBytes)
+        assertEquals(1024L, progressValues.last().totalBytes)
     }
 
     @Test

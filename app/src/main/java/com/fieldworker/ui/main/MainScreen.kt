@@ -91,6 +91,8 @@ fun MainScreen(
     onLogout: () -> Unit = {},
     onCheckForUpdates: () -> Unit = {},
     isCheckingForUpdates: Boolean = false,
+    // Панель обновления приложения — закреплена над нижней навигацией
+    updateBanner: @Composable () -> Unit = {},
     viewModel: MapViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -259,13 +261,17 @@ fun MainScreen(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            if (showBottomBar) {
-                AppBottomBar(
-                    currentScreen = currentScreen,
-                    newTasksCount = uiState.newTasksCount,
-                    unreadChatCount = unreadChatCount,
-                    onSelect = { navigateTab(it.route) },
-                )
+            // В слоте каркаса, а не поверх: содержимое экрана само поднимается
+            Column {
+                updateBanner()
+                if (showBottomBar) {
+                    AppBottomBar(
+                        currentScreen = currentScreen,
+                        newTasksCount = uiState.newTasksCount,
+                        unreadChatCount = unreadChatCount,
+                        onSelect = { navigateTab(it.route) },
+                    )
+                }
             }
         },
         topBar = {

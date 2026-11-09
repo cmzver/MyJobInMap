@@ -22,14 +22,14 @@ class UpdateRepository @Inject constructor(
     private val authApi: AuthApi,
     @ApplicationContext private val context: Context
 ) {
-    
+
     companion object {
         private const val TAG = "UpdateRepository"
     }
-    
+
     /**
      * Проверить наличие обновления.
-     * 
+     *
      * @param currentVersionCode текущий versionCode приложения
      * @param currentVersionName текущая версия приложения
      * @return информация об обновлении или null если ошибка
@@ -53,35 +53,35 @@ class UpdateRepository @Inject constructor(
             Result.failure(e)
         }
     }
-    
+
     /**
      * Скачать APK файл обновления.
-     * 
+     *
      * Поддерживает отмену через coroutine cancellation — если корутина
      * отменена, загрузка прерывается и частичный файл удаляется.
-     * 
+     *
      * @param onProgress колбэк с прогрессом загрузки (0..100), вызывается на Main-потоке
      * @return путь к скачанному файлу
      */
-    suspend fun downloadUpdate(onProgress: (Int) -> Unit = {}): Result<File> {
+    suspend fun downloadUpdate(onProgress: (DownloadProgress) -> Unit = {}): Result<File> {
         return try {
             val response = authApi.downloadUpdate()
             if (!response.isSuccessful || response.body() == null) {
                 return Result.failure(Exception("Download failed: ${response.code()}"))
             }
-            
+
             val body = response.body()!!
             val totalBytes = body.contentLength()
-            
+
             // Сохраняем в cache директорию приложения
             val apkDir = File(context.cacheDir, "updates")
             apkDir.mkdirs()
-            
+
             // Удаляем старые APK
             apkDir.listFiles()?.forEach { it.delete() }
-            
+
             val apkFile = File(apkDir, "update.apk")
-            
+
             try {
                 withContext(Dispatchers.IO) {
                     body.byteStream().use { input ->
@@ -89,26 +89,31 @@ class UpdateRepository @Inject constructor(
                             val buffer = ByteArray(8192)
                             var bytesRead: Long = 0
                             var read: Int
-                            var lastReportedProgress = -1
-                            
+                            var lastReportedBytes = -1L
+                            var lastReportedPercent = -1
+
                             while (input.read(buffer).also { read = it } != -1) {
                                 // Проверяем отмену корутины
                                 coroutineContext.ensureActive()
-                                
+
                                 output.write(buffer, 0, read)
                                 bytesRead += read
-                                
-                                if (totalBytes > 0) {
-                                    val progress = (bytesRead * 100 / totalBytes).toInt()
-                                        .coerceIn(0, 100)
-                                    if (progress != lastReportedProgress) {
-                                        lastReportedProgress = progress
-                                        // Обновляем прогресс на Main-потоке
-                                        withContext(Dispatchers.Main) {
-                                            onProgress(progress)
-                                        }
-                                    }
+
+                                // Не на каждые 8 КБ: при каждом проценте или каждые 256 КБ
+                                // (размер может быть неизвестен — тогда только по байтам)
+                                val progress = DownloadProgress(bytesRead, totalBytes)
+                                val percent = progress.percent ?: -1
+                                if (percent != lastReportedPercent ||
+                                    bytesRead - lastReportedBytes >= PROGRESS_STEP_BYTES
+                                ) {
+                                    lastReportedPercent = percent
+                                    lastReportedBytes = bytesRead
+                                    withContext(Dispatchers.Main) { onProgress(progress) }
                                 }
+                            }
+                            // Финальная точка — даже если последний кусок не попал в шаг
+                            if (bytesRead != lastReportedBytes) {
+                                withContext(Dispatchers.Main) { onProgress(DownloadProgress(bytesRead, totalBytes)) }
                             }
                         }
                     }
@@ -119,7 +124,7 @@ class UpdateRepository @Inject constructor(
                 Log.d(TAG, "Download cancelled, partial file deleted")
                 throw e
             }
-            
+
             Log.d(TAG, "APK downloaded: ${apkFile.length()} bytes")
             Result.success(apkFile)
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -130,3 +135,11 @@ class UpdateRepository @Inject constructor(
         }
     }
 }
+
+/** Сколько скачано из скольки; [totalBytes] ≤ 0 — сервер не прислал размер. */
+data class DownloadProgress(val downloadedBytes: Long, val totalBytes: Long) {
+    val percent: Int?
+        get() = if (totalBytes > 0) (downloadedBytes * 100 / totalBytes).toInt().coerceIn(0, 100) else null
+}
+
+private const val PROGRESS_STEP_BYTES = 256 * 1024L
