@@ -57,6 +57,8 @@ class UpdateViewModel @Inject constructor(
     val downloadedApk: StateFlow<File?> = _downloadedApk.asStateFlow()
 
     private var downloadJob: Job? = null
+    /** Версия, которую качаем — для подписи панели и повтора после ошибки */
+    private var pendingUpdate: com.fieldworker.data.remote.generated.AppUpdateInfo? = null
     private var checkJob: Job? = null
     private var lastAutoCheckAtMs = 0L
 
@@ -110,6 +112,7 @@ class UpdateViewModel @Inject constructor(
                         }
 
                         Log.d(TAG, "Update available: ${check.update.versionName}")
+                        pendingUpdate = check.update
                         _updateState.value = UpdateState.Available(check.update)
                     } else if (isManualCheck) {
                         _updateState.value = UpdateState.UpToDate(versionName)
@@ -132,16 +135,25 @@ class UpdateViewModel @Inject constructor(
      * Начать загрузку обновления.
      */
     fun startDownload() {
+        if (downloadJob?.isActive == true) return
+        val versionName = pendingUpdate?.versionName
+        // Размер из проверки — чтобы «0 из 19,7 МБ» было видно до первых байт
+        val expectedBytes = pendingUpdate?.fileSize ?: 0L
         downloadJob = viewModelScope.launch {
-            _updateState.value = UpdateState.Downloading(0)
+            _updateState.value = UpdateState.Downloading(versionName, 0, expectedBytes)
             updateRepository.downloadUpdate { progress ->
-                _updateState.value = UpdateState.Downloading(progress)
+                _updateState.value = UpdateState.Downloading(
+                    versionName = versionName,
+                    downloadedBytes = progress.downloadedBytes,
+                    totalBytes = progress.totalBytes.takeIf { it > 0 } ?: expectedBytes,
+                )
             }.onSuccess { file ->
                 _downloadedApk.value = file
-                _updateState.value = UpdateState.ReadyToInstall
+                _updateState.value = UpdateState.ReadyToInstall(versionName)
             }.onFailure { error ->
                 _updateState.value = UpdateState.Error(
-                    error.toUserMessage("Ошибка загрузки")
+                    error.toUserMessage("Не удалось загрузить обновление"),
+                    canRetryDownload = true,
                 )
             }
         }

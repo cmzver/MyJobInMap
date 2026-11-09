@@ -38,6 +38,7 @@ import com.fieldworker.data.repository.ChatRepository
 import com.fieldworker.data.repository.DeviceRepository
 import com.fieldworker.data.repository.OfflineFirstTasksRepository
 import com.fieldworker.ui.auth.LoginScreen
+import com.fieldworker.ui.components.UpdateBanner
 import com.fieldworker.ui.components.UpdateDialog
 import com.fieldworker.ui.main.MainScreen
 import com.fieldworker.ui.theme.FieldWorkerTheme
@@ -219,6 +220,17 @@ class MainActivity : ComponentActivity() {
                             }
 
                             MainScreen(
+                                updateBanner = {
+                                    updateState?.let { state ->
+                                        UpdateBanner(
+                                            state = state,
+                                            onDismiss = { updateViewModel.dismiss() },
+                                            onDownload = { updateViewModel.startDownload() },
+                                            onInstall = { downloadedApk?.let { apk -> installApk(apk) } },
+                                            onCancelDownload = { updateViewModel.cancelDownload() },
+                                        )
+                                    }
+                                },
                                 notificationTaskId = pendingNotificationTaskId,
                                 onNotificationTaskHandled = {
                                     pendingNotificationTaskId = null
@@ -264,19 +276,9 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
 
-                            // Диалог обновления
-                            if (updateState != null) {
-                                UpdateDialog(
-                                    state = updateState!!,
-                                    onDismiss = { updateViewModel.dismiss() },
-                                    onDownload = { updateViewModel.startDownload() },
-                                    onInstall = {
-                                        downloadedApk?.let { apk ->
-                                            installApk(apk)
-                                        }
-                                    },
-                                    onCancelDownload = { updateViewModel.cancelDownload() }
-                                )
+                            // Ответы на ручную проверку (нет обновлений / ошибка проверки)
+                            updateState?.let { state ->
+                                UpdateDialog(state = state, onDismiss = { updateViewModel.dismiss() })
                             }
                         }
                         AuthState.NotLoggedIn -> {

@@ -10,6 +10,7 @@ import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.*
@@ -120,5 +121,50 @@ class UpdateViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { updateRepository.checkForUpdate(1, "1.0") }
+    }
+
+    @Test
+    fun `download reports megabytes and ends ready to install`() = runTest {
+        val viewModel = createViewModel()
+        val seen = mutableListOf<UpdateState?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.updateState.collect { seen += it }
+        }
+        val apk = java.io.File.createTempFile("update", ".apk")
+        coEvery { updateRepository.downloadUpdate(any()) } coAnswers {
+            val onProgress = firstArg<(com.fieldworker.data.repository.DownloadProgress) -> Unit>()
+            onProgress(com.fieldworker.data.repository.DownloadProgress(7_654_604, 20_686_819))
+            onProgress(com.fieldworker.data.repository.DownloadProgress(20_686_819, 20_686_819))
+            Result.success(apk)
+        }
+
+        viewModel.startDownload()
+        advanceUntilIdle()
+
+        val progress = seen.filterIsInstance<UpdateState.Downloading>().last { it.downloadedBytes in 1 until it.totalBytes }
+        assertEquals(37, progress.percent)
+        assertEquals("7,3 из 19,7 МБ · 37 %", com.fieldworker.ui.components.downloadedText(progress))
+        assertTrue(viewModel.updateState.value is UpdateState.ReadyToInstall)
+        assertEquals(apk, viewModel.downloadedApk.value)
+        apk.delete()
+    }
+
+    @Test
+    fun `failed download can be retried from the banner`() = runTest {
+        val viewModel = createViewModel()
+        coEvery { updateRepository.downloadUpdate(any()) } returns Result.failure(java.io.IOException("boom"))
+
+        viewModel.startDownload()
+        advanceUntilIdle()
+
+        val state = viewModel.updateState.value
+        assertTrue(state is UpdateState.Error && state.canRetryDownload)
+    }
+
+    @Test
+    fun `unknown size shows just megabytes`() {
+        val state = UpdateState.Downloading(downloadedBytes = 3_250_000, totalBytes = 0)
+        assertNull(state.percent)
+        assertEquals("3,1 МБ", com.fieldworker.ui.components.downloadedText(state))
     }
 }
