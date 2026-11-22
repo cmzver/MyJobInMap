@@ -15,7 +15,9 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { InfiniteData, QueryClient } from '@tanstack/react-query'
+import axios from 'axios'
 import { useAuthStore } from '@/store/authStore'
+import { refreshAccessToken } from '@/api/client'
 import { myTaskKeys } from '@/hooks/useTasks'
 import { commentKeys } from '@/hooks/useComments'
 import { chatApi } from '@/api/chat'
@@ -303,7 +305,9 @@ export function useWebSocket() {
   )
 
   const connect = useCallback(() => {
-    if (!isAuthenticated || !token) return
+    // Замыкание со старым токеном (реконнект, запланированный до обновления) —
+    // соединение со свежим токеном уже открыл эффект.
+    if (!isAuthenticated || !token || wsRef.current || token !== useAuthStore.getState().token) return
 
     // Определяем URL WebSocket
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -311,10 +315,12 @@ export function useWebSocket() {
 
     try {
       const ws = new WebSocket(wsUrl)
+      let opened = false
       wsRef.current = ws
       globalWs = ws
 
       ws.onopen = () => {
+        opened = true
         reconnectDelayRef.current = RECONNECT_DELAY_MS // reset delay on success
 
         // Реконнект (не первый коннект) → дотянуть пропущенное за время обрыва.
@@ -334,6 +340,10 @@ export function useWebSocket() {
       ws.onmessage = handleMessage
 
       ws.onclose = () => {
+        // Сокет закрыл cleanup эффекта (новый токен, логаут, размонтирование):
+        // onclose приходит асинхронно, когда wsRef/ping уже принадлежат новому
+        // соединению, — не трогаем их и не планируем «зомби»-реконнект.
+        if (wsRef.current !== ws) return
         wsRef.current = null
         globalWs = null
         if (pingTimerRef.current) {
@@ -341,20 +351,31 @@ export function useWebSocket() {
           pingTimerRef.current = null
         }
 
-        // Автоматический реконнект с exponential backoff.
-        // Живое состояние стора, а не захваченное в замыкании: после логаута
-        // (SPA-навигация, без reload) onclose приходит асинхронно уже после
-        // cleanup эффекта — по устаревшему isAuthenticated мы бы запланировали
-        // «зомби»-реконнект со старым токеном, который некому очистить.
-        if (useAuthStore.getState().isAuthenticated) {
-          reconnectTimerRef.current = setTimeout(() => {
-            reconnectDelayRef.current = Math.min(
-              reconnectDelayRef.current * 2,
-              MAX_RECONNECT_DELAY_MS,
-            )
+        // Автоматический реконнект с exponential backoff (живое состояние стора,
+        // а не захваченное в замыкании).
+        if (!useAuthStore.getState().isAuthenticated) return
+        reconnectTimerRef.current = setTimeout(() => {
+          reconnectDelayRef.current = Math.min(
+            reconnectDelayRef.current * 2,
+            MAX_RECONNECT_DELAY_MS,
+          )
+          if (opened) {
             connect()
-          }, reconnectDelayRef.current)
-        }
+            return
+          }
+          // Рукопожатие отвергнуто — обычно access-токен истёк, пока вкладка
+          // простаивала без запросов (сервер отвечает 403 до accept, браузер код
+          // не показывает). Новый токен перезапустит эффект, а с ним соединение.
+          const refreshToken = useAuthStore.getState().refreshToken
+          refreshAccessToken().catch((error: unknown) => {
+            const sessionDead = axios.isAxiosError(error) && error.response?.status === 401
+            if (sessionDead && useAuthStore.getState().refreshToken === refreshToken) {
+              useAuthStore.getState().logout()
+            } else {
+              connect()
+            }
+          })
+        }, reconnectDelayRef.current)
       }
 
       ws.onerror = () => {

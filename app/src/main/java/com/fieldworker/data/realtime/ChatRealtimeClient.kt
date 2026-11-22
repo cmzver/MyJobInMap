@@ -1,6 +1,7 @@
 package com.fieldworker.data.realtime
 
 import android.util.Log
+import com.fieldworker.data.network.TokenAuthenticator
 import com.fieldworker.data.preferences.AppPreferences
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -58,6 +59,7 @@ class ChatRealtimeClient @Inject constructor(
     @Named("websocket") private val webSocketClient: OkHttpClient,
     private val preferences: AppPreferences,
     private val json: Json,
+    private val tokenAuthenticator: TokenAuthenticator,
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -127,7 +129,7 @@ class ChatRealtimeClient @Inject constructor(
         }
     }
 
-    private fun scheduleReconnect() {
+    private fun scheduleReconnect(rejectedToken: String? = null) {
         if (manualDisconnect || preferences.getAuthToken().isNullOrBlank()) return
         if (reconnectJob?.isActive == true) return
 
@@ -139,6 +141,7 @@ class ChatRealtimeClient @Inject constructor(
 
         reconnectJob = scope.launch {
             delay(delayMs)
+            rejectedToken?.let(tokenAuthenticator::refreshRejectedToken)
             if (!manualDisconnect && webSocket == null) {
                 connect()
             }
@@ -238,7 +241,7 @@ class ChatRealtimeClient @Inject constructor(
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             Log.w(TAG, "WebSocket failure: ${t.message}", t)
             clearSocketIfNeeded(webSocket)
-            scheduleReconnect()
+            scheduleReconnect(webSocket.rejectedToken(response))
         }
     }
 
@@ -266,3 +269,7 @@ class ChatRealtimeClient @Inject constructor(
         private const val MAX_RECONNECT_DELAY_MS = 60_000L
     }
 }
+
+/** Токен, с которым сервер отверг рукопожатие (403 до accept), — иначе null. */
+internal fun WebSocket.rejectedToken(response: Response?): String? =
+    if (response?.code == 401 || response?.code == 403) request().url.queryParameter("token") else null

@@ -13,6 +13,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.fieldworker.R
+import com.fieldworker.data.network.TokenAuthenticator
 import com.fieldworker.data.preferences.AppPreferences
 import com.fieldworker.ui.MainActivity
 import com.fieldworker.data.notification.FCMService
@@ -51,6 +52,9 @@ class RealtimePushService : Service() {
 
     @Inject
     lateinit var json: Json
+
+    @Inject
+    lateinit var tokenAuthenticator: TokenAuthenticator
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var webSocket: WebSocket? = null
@@ -144,7 +148,7 @@ class RealtimePushService : Service() {
         )
     }
 
-    private fun scheduleReconnect() {
+    private fun scheduleReconnect(rejectedToken: String? = null) {
         if (preferences.getAuthToken().isNullOrBlank()) {
             stopSelf()
             return
@@ -159,6 +163,8 @@ class RealtimePushService : Service() {
 
         reconnectJob = scope.launch {
             delay(delayMs)
+            // В фоне HTTP-запросов нет, и истёкший токен иначе некому обновить.
+            rejectedToken?.let(tokenAuthenticator::refreshRejectedToken)
             if (webSocket == null) {
                 connect()
             }
@@ -182,7 +188,7 @@ class RealtimePushService : Service() {
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             clearSocket(webSocket)
-            scheduleReconnect()
+            scheduleReconnect(webSocket.rejectedToken(response))
         }
     }
 
