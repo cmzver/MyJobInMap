@@ -2,7 +2,9 @@ package com.fieldworker.data.network
 
 import android.util.Log
 import com.fieldworker.data.preferences.AppPreferences
+import com.fieldworker.data.remote.generated.RefreshRequest
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.Authenticator
 import okhttp3.MediaType.Companion.toMediaType
@@ -105,6 +107,28 @@ class TokenAuthenticator @Inject constructor(
     }
     
     /**
+     * WebSocket: сервер отверг [rejectedToken] при рукопожатии (403 до accept) —
+     * обычно access-токен истёк, пока приложение было в фоне без HTTP-запросов,
+     * и Authenticator его не обновил. Обновляет пару, если этого ещё не сделал
+     * другой поток. Не разлогинивает: фоновый сервис не должен выкидывать из
+     * приложения из-за сбоя сети — это решит Authenticator на следующем запросе.
+     */
+    fun refreshRejectedToken(rejectedToken: String) {
+        synchronized(this) {
+            if (appPreferences.getAuthToken() != rejectedToken) return
+            val refreshToken = appPreferences.getRefreshToken() ?: return
+            val newTokens = try {
+                refreshTokenSync(refreshToken)
+            } catch (e: Exception) {
+                Log.w(TAG, "WebSocket token refresh error: ${e.message}")
+                null
+            } ?: return
+            appPreferences.setAuthToken(newTokens.first)
+            appPreferences.setRefreshToken(newTokens.second)
+        }
+    }
+
+    /**
      * Синхронный вызов refresh token API.
      * Использует отдельный OkHttpClient без Authenticator.
      * @return Pair(accessToken, refreshToken) или null
@@ -116,7 +140,7 @@ class TokenAuthenticator @Inject constructor(
 
         // Используем прямой HTTP-запрос (без Retrofit/Authenticator) для refresh.
         // Клиент общий (инжектится), не создаётся заново на каждый 401.
-        val body = org.json.JSONObject().put("refresh_token", refreshToken).toString()
+        val body = json.encodeToString(RefreshRequest(refreshToken))
         val request = Request.Builder()
             .url("${baseUrl}api/auth/refresh")
             .post(body.toRequestBody("application/json".toMediaType()))
