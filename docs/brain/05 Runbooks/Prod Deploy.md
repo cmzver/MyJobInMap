@@ -29,6 +29,27 @@
   затем без `--dry-run`.
 - Caddy не перезапускать без согласия (он же фронтит «говорилку»).
 
+## Защита сервера
+
+С 2026-11-17 SSH принимает только ключи: настройки находятся в
+`/etc/ssh/sshd_config.d/00-security-hardening.conf`, перед cloud-init.
+Рабочие ключи — `fieldworker_deploy` и `tac_deploy`. Парольный доступ
+не включать; подключение обоими ключами проверено после применения.
+Fail2ban включён при загрузке, jail `sshd` читает journal и блокирует
+через nftables. Проверка: `fail2ban-client status sshd`.
+
+В Caddyfile запрет секретных путей выполняется до API и SPA fallback;
+сохранять этот порядок при изменениях. После атомарной замены Caddyfile
+файловый bind mount может продолжать видеть старый inode. Сверять SHA-256
+файла на хосте и `/etc/caddy/Caddyfile` внутри контейнера. Для reload без
+рестарта в таком случае скопировать проверенный файл через `docker cp`
+в `fieldworker-caddy:/config/security-hardening/Caddyfile`, выполнить
+`caddy validate`, затем `caddy reload` внутри контейнера с этим путём
+и `--adapter caddyfile`. Файл `/opt/fieldworker/Caddyfile` тоже должен
+содержать новую конфигурацию: он используется при следующем старте.
+
+Подробности и бэкап: [[SECURITY_HARDENING_2026-11-17]].
+
 ## APK
 
 `./gradlew --no-daemon :app:assembleDebug` (debug-ключ этой машины), проверить
