@@ -13,6 +13,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.Route
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -24,7 +25,7 @@ import javax.inject.Singleton
  * 1. Берёт refresh_token из AppPreferences
  * 2. Вызывает /api/auth/refresh для получения новой пары токенов
  * 3. Сохраняет новые токены и повторяет оригинальный запрос
- * 4. Если refresh не удался — вызывает logout
+ * 4. Если сервер отверг refresh (401) — вызывает logout; сбой связи — IOException
  * 
  * Использует отдельный OkHttpClient (без Authenticator) чтобы
  * избежать бесконечной рекурсии при вызове refresh.
@@ -99,9 +100,11 @@ class TokenAuthenticator @Inject constructor(
                     null
                 }
             } catch (e: Exception) {
+                // Сбой связи — не конец сессии: вызывающие видят ошибку сети (кеш,
+                // офлайн-очередь), а не 401, по которому разлогинивают. Не-IOException
+                // отсюда уронил бы поток OkHttp.
                 Log.e(TAG, "Token refresh error: ${e.message}")
-                appPreferences.triggerLogout()
-                null
+                throw e as? IOException ?: IOException("Не удалось обновить сессию", e)
             }
         }
     }
@@ -131,7 +134,8 @@ class TokenAuthenticator @Inject constructor(
     /**
      * Синхронный вызов refresh token API.
      * Использует отдельный OkHttpClient без Authenticator.
-     * @return Pair(accessToken, refreshToken) или null
+     * @return Pair(accessToken, refreshToken) или null, если сервер отверг сессию (401)
+     * @throws IOException сеть или любой другой ответ сервера — сессия может быть жива
      */
     private fun refreshTokenSync(refreshToken: String): Pair<String, String>? {
         val baseUrl = appPreferences.getFullServerUrl().let { url ->
@@ -155,7 +159,8 @@ class TokenAuthenticator @Inject constructor(
                 }
             }
             Log.w(TAG, "Refresh token API returned ${response.code}")
-            return null
+            if (response.code == 401) return null
+            throw IOException("Не удалось обновить сессию: HTTP ${response.code}")
         }
     }
 }

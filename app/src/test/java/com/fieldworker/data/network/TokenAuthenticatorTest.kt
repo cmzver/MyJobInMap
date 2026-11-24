@@ -12,6 +12,8 @@ import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.IOException
 
@@ -68,5 +70,42 @@ class TokenAuthenticatorTest {
 
         verify(exactly = 0) { prefs.triggerLogout() }
         verify(exactly = 0) { prefs.setAuthToken(any()) }
+    }
+
+    private fun unauthorized() = Response.Builder()
+        .request(Request.Builder().url("https://example.test/api/tasks")
+            .header("Authorization", "Bearer stale").build())
+        .protocol(Protocol.HTTP_1_1).code(401).message("Unauthorized")
+        .build()
+
+    private fun status(code: Int): (Request) -> Response = { request ->
+        ok(request).newBuilder().code(code).message("").build()
+    }
+
+    @Test
+    fun `401 от refresh — сессия закончилась, выход`() {
+        every { prefs.getAuthToken() } returns "stale"
+        refreshAnswers(status(401))
+
+        assertNull(authenticator.authenticate(null, unauthorized()))
+
+        verify { prefs.triggerLogout() }
+    }
+
+    @Test
+    fun `сбой связи, 5xx и чужой ответ при refresh — ошибка сети, не выход`() {
+        every { prefs.getAuthToken() } returns "stale"
+        val failures = listOf<(Request) -> Response>(
+            { throw IOException("offline") },
+            status(503),
+            { ok(it).newBuilder().body("<html>".toResponseBody()).build() },
+        )
+
+        failures.forEach { failure ->
+            refreshAnswers(failure)
+            assertThrows(IOException::class.java) { authenticator.authenticate(null, unauthorized()) }
+        }
+
+        verify(exactly = 0) { prefs.triggerLogout() }
     }
 }
