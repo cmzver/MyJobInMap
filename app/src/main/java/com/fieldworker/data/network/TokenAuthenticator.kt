@@ -84,6 +84,9 @@ class TokenAuthenticator @Inject constructor(
             
             try {
                 val newTokens = refreshTokenSync(refreshToken)
+                // Пока запрос шёл, пользователь вышел или вошёл заново: ответ не должен
+                // ни воскресить старую сессию, ни завершить новую.
+                if (appPreferences.getRefreshToken() != refreshToken) throw IOException("Сессия изменена")
                 if (newTokens != null) {
                     Log.d(TAG, "Token refresh successful, saving new tokens")
                     appPreferences.setAuthToken(newTokens.first)
@@ -126,6 +129,7 @@ class TokenAuthenticator @Inject constructor(
                 Log.w(TAG, "WebSocket token refresh error: ${e.message}")
                 null
             } ?: return
+            if (appPreferences.getRefreshToken() != refreshToken) return // вышли, пока запрос шёл
             appPreferences.setAuthToken(newTokens.first)
             appPreferences.setRefreshToken(newTokens.second)
         }

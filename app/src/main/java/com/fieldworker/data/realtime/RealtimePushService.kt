@@ -29,7 +29,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -114,7 +116,9 @@ class RealtimePushService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        reconnectJob?.cancel()
+        // Весь scope: onClosed закрытого ниже сокета иначе запланировал бы реконнект
+        // уже остановленного сервиса.
+        scope.cancel()
         webSocket?.close(1000, "Service destroyed")
         webSocket = null
     }
@@ -165,6 +169,7 @@ class RealtimePushService : Service() {
             delay(delayMs)
             // В фоне HTTP-запросов нет, и истёкший токен иначе некому обновить.
             rejectedToken?.let(tokenAuthenticator::refreshRejectedToken)
+            ensureActive() // refresh блокирующий — сервис могли остановить за это время
             if (webSocket == null) {
                 connect()
             }

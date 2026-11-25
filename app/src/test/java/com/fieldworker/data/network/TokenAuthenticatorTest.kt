@@ -83,6 +83,35 @@ class TokenAuthenticatorTest {
     }
 
     @Test
+    fun `выход во время refresh — новые токены не сохраняются`() {
+        every { prefs.getAuthToken() } returns "stale"
+        refreshAnswers {
+            every { prefs.getRefreshToken() } returns null // пользователь вышел, пока запрос шёл
+            ok(it)
+        }
+
+        authenticator.refreshRejectedToken("stale")
+        every { prefs.getRefreshToken() } returns "refresh-1"
+        assertThrows(IOException::class.java) { authenticator.authenticate(null, unauthorized()) }
+
+        verify(exactly = 0) { prefs.setAuthToken(any()) }
+        verify(exactly = 0) { prefs.setRefreshToken(any()) }
+    }
+
+    @Test
+    fun `401 от refresh прежней сессии не завершает новую`() {
+        every { prefs.getAuthToken() } returns "stale"
+        refreshAnswers {
+            every { prefs.getRefreshToken() } returns "other-user"
+            status(401)(it)
+        }
+
+        assertThrows(IOException::class.java) { authenticator.authenticate(null, unauthorized()) }
+
+        verify(exactly = 0) { prefs.triggerLogout() }
+    }
+
+    @Test
     fun `401 от refresh — сессия закончилась, выход`() {
         every { prefs.getAuthToken() } returns "stale"
         refreshAnswers(status(401))
